@@ -121,10 +121,15 @@ class RegistrationProcessTest(IonIntegrationTestCase):
             if isinstance(context.param_type, QuantityType):
                 np.testing.assert_array_equal(ds[k][k][:][0], rdt[k])
             elif isinstance(context.param_type, ArrayType):
-                values = np.empty(rdt[k].shape, dtype='O')
-                for i,obj in enumerate(rdt[k]):
-                    values[i] = str(obj)
-                np.testing.assert_array_equal(ds[k][k][:][0], values)
+                if context.param_type.inner_encoding is None:
+                    values = np.empty(rdt[k].shape, dtype='O')
+                    for i,obj in enumerate(rdt[k]):
+                        values[i] = str(obj)
+                    np.testing.assert_array_equal(ds[k][k][:][0], values)
+                elif len(rdt[k].shape)>1:
+                    values = np.empty(rdt[k].shape[0], dtype='O')
+                    for i in xrange(rdt[k].shape[0]):
+                        values[i] = ','.join(map(lambda x : str(x), rdt[k][i].tolist()))
             elif isinstance(context.param_type, ConstantType):
                 np.testing.assert_array_equal(ds[k][k][:][0], rdt[k])
             elif isinstance(context.param_type, CategoryType):

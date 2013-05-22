@@ -12,6 +12,7 @@ from pyon.public import log
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
+from coverage_model import ArrayType, ParameterFunctionType
 
 import numpy as np
 import ntplib
@@ -149,11 +150,11 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             if field.endswith('_qc'):
                 continue
 
-            from coverage_model import ArrayType
             # Handle string type or if its an unknown type, convert to string
+            context = rdt.context(field)
             if (rdt[field].dtype == 'string' or rdt[field].dtype not in gdt_allowed_numerical_types):
                 data_description.append((field, 'string', field ))
-            elif isinstance(rdt.context(field).param_type, ArrayType) and len(rdt[field].shape)>1:
+            elif (isinstance(context.param_type, ArrayType) or isinstance(context.param_type,ParameterFunctionType)) and len(rdt[field].shape)>1:
                 for i in xrange(rdt[field].shape[1]):
                     data_description.append(('%s[%s]' % (field,i), 'number', '%s[%s]' % (field,i), {'precision':str(precisions[field])}))
             else:
