@@ -38,6 +38,7 @@
       ooiexclude= synonymous to excludecategories. Don't use
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       exportui= if True, writes interface/ui_specs.json with UI object
+      revert= if True (and debug==True) remove all resources and associations created if preload fails
 
     TODO:
       support attachments using HTTP URL
@@ -74,6 +75,7 @@ from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.utility.types import TypesManager
+from ion.util.datastore.resources import ResourceRegistryHelper
 from ion.util.geo_utils import GeoUtils
 from ion.util.parse_utils import parse_dict, parse_phones, get_typed_value
 from ion.util.xlsparser import XLSParser
@@ -287,6 +289,7 @@ class IONLoader(ImmediateProcess):
             self.update = config.get("update", False)      # Support update to existing resources
             self.bulk = config.get("bulk", False)          # Use bulk insert where available
             self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
+            self.revert = bool(config.get("revert", False)) and self.debug
             self.clearcols = config.get("clearcols", None)
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
@@ -305,7 +308,14 @@ class IONLoader(ImmediateProcess):
             self._prepare_incremental()
 
             scenarios = scenarios.split(',') if scenarios else []
-            self.load_ion(scenarios)
+            if self.revert:
+                self._create_snapshot()
+            try:
+                self.load_ion(scenarios)
+            except Exception as ex:
+                if self.revert:
+                    self._revert_to_snapshot()
+                raise
 
         elif op == "parseooi":
             self.ooi_loader.extract_ooi_assets()
@@ -358,6 +368,16 @@ class IONLoader(ImmediateProcess):
         #else:
         #    self.object_definitions = {}
         #    log.info("No scenarios provided, not loading preload rows")
+
+    def _create_snapshot(self):
+        log.info("Creating resource registry snapshot")
+        rrh = ResourceRegistryHelper()
+        self.snapshot = rrh.create_resources_snapshot(persist=True)
+
+    def _revert_to_snapshot(self):
+        log.info("Reverting to resource registry snapshot")
+        rrh = ResourceRegistryHelper()
+        rrh.revert_to_snapshot(self.snapshot)
 
     def _read_http(self, scenarios):
         """ read from google doc or similar HTTP XLS document """
@@ -1134,9 +1154,9 @@ class IONLoader(ImmediateProcess):
 
     def _load_User_OOI(self):
         if self.debug:
-            if not self._get_resource_obj("USER_1"):
+            if not self._get_resource_obj("USER_1D"):
                 userrow = {}
-                userrow["ID"] = "USER_1"
+                userrow["ID"] = "USER_1D"
                 userrow["subject"] = "/DC=org/DC=cilogon/C=US/O=Google/CN=Owen Ownerrep A893"
                 userrow["name"] = "Owen Ownerrep"
                 userrow["description"] = "Demonstration User"
@@ -1170,15 +1190,15 @@ class IONLoader(ImmediateProcess):
 
     def _load_Org_OOI(self):
         ooi_orgs = [
-            {"ID":"MF_RSN", "owner_id":"USER_1", "org_type":"MarineFacility",
+            {"ID":"MF_RSN", "owner_id":"USER_1D", "org_type":"MarineFacility",
              "org/name":"RSN Facility", "org/org_governance_name": "RSN",
              "org/description":"Marine Infrastructure managed by RSN Marine IO",
              "org/institution/name":"Univ. of Washington", "contact_id":"ORG_CONTACT"},
-            {"ID":"MF_CGSN", "owner_id":"USER_1", "org_type":"MarineFacility",
+            {"ID":"MF_CGSN", "owner_id":"USER_1D", "org_type":"MarineFacility",
              "org/name":"CGSN Facility", "org/org_governance_name": "CGSN",
              "org/description":"Marine Infrastructure managed by CGSN Marine IO",
              "org/institution/name":"Woods Hole Oceanographic Institution", "contact_id":"ORG_CONTACT"},
-            {"ID":"MF_EA", "owner_id":"USER_1", "org_type":"MarineFacility",
+            {"ID":"MF_EA", "owner_id":"USER_1D", "org_type":"MarineFacility",
              "org/name":"EA Facility", "org/org_governance_name": "EA",
              "org/description":"Marine Infrastructure managed by EA Marine IO",
              "org/institution/name":"Oregon State University Institution", "contact_id":"ORG_CONTACT"},
