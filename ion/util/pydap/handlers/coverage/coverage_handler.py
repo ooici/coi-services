@@ -82,7 +82,7 @@ class Handler(BaseHandler):
             data.shape = (1,)
         return data
 
-    def make_grid(self, name, data, time_data, attrs, time_attrs, dims, ttype):
+    def make_grid(self, response, name, data, time_data, attrs, time_attrs, dims, ttype):
         grid = GridType(name=name)
         grid[name] = BaseType(name=name, data=data, type=ttype, attributes=attrs, dimensions=dims, shape=data.shape)
         grid[dims[0]] = BaseType(name=dims[0], data=time_data, type=time_data.dtype.char, attributes=time_attrs, dimensions=dims, shape=time_data.shape)
@@ -144,28 +144,28 @@ class Handler(BaseHandler):
                 slice_ = self.update_slice_object(slice_, fill_index)
                 if slice_ is None:
                     continue
-                #print name
-                #print "slice", slice_
                 pc = cov.get_parameter_context(name)
                 try:
                     param = cov.get_parameter(name)
                     
                     data = np.array([])
                     time_data = np.array([])
-                    if response == "dods" or response == "dds":
+                    if response == "dods":
                         data = self.get_data(cov, name, slice_)
                         time_data = self.get_time_data(cov, slice_)
-                        
+                    if response == "dds":
+                        data = self.get_dds(cov, name, slice_)
+                        time_data = self.get_dds(cov, cov.temporal_parameter_name, slice_)
 
                     time_attrs  = self.get_attrs(cov, name)
                     attrs  = self.get_attrs(cov, name)
                     dims = (cov.temporal_parameter_name,)
                     if isinstance(pc.param_type, QuantityType) and not param.is_coordinate and cov.temporal_parameter_name != name:
                         data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
                     if isinstance(pc.param_type, ConstantType):
                         data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
                     if isinstance(pc.param_type, ConstantRangeType):
                         #start = time.time()
                         #convert to string
@@ -180,27 +180,27 @@ class Handler(BaseHandler):
                         except Exception, e:
                             data = np.asanyarray(['None' for d in data])
                         #print "range end", time.time() - start
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, 'S')                
+                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, 'S')                
                     if isinstance(pc.param_type,BooleanType):
                         data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
                     if isinstance(pc.param_type,CategoryType):
                         data, dtype = self.filter_data(data)
                         #start = time.time()
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
                         #print "category end", time.time() - start
                     if isinstance(pc.param_type,ArrayType):
                         data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
 
                         #print "array end", time.time() - start
                     if isinstance(pc.param_type,RecordType):
                         data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
 
                     if isinstance(pc.param_type, ParameterFunctionType):
                         data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
                         
                     if param.is_coordinate and cov.temporal_parameter_name == name:
                         dataset[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs, shape=data.shape)
@@ -208,6 +208,43 @@ class Handler(BaseHandler):
                     log.exception('Problem reading cov %s %s', cov.name, e)
                     continue
         #print dataset
+        return dataset
+
+    def value_encoding_to_dap_type(self, value_encoding):
+        if value_encoding is None:
+            return 'S'
+        
+        dt = np.dtype(value_encoding).char
+        if dt =='O':
+            return 'S'
+        return dt
+
+    def handle_dds(self, coverage, dataset, fields):
+        cov = coverage
+        try:
+            time_name = coverage.temporal_parameter_name
+            time_context = coverage.get_parameter_context(time_name)
+            time_attrs = self.get_attrs(cov, time_name)
+            time_base = BaseType(time_name, type=self.value_encoding_to_dap_type(time_context.param_type.value_encoding), attributes=time_attrs, dimensions=(time_name,), shape=(coverage.num_timesteps,))
+        except:
+            log.exception('Problem reading cov %s', str(cov))
+            raise # Can't do much without time
+
+        for var in fields:
+            while var:
+                name, slice_ = var.pop(0)
+                name = urllib.unquote(name)
+                try:
+                    grid = GridType(name=name)
+                    context = coverage.get_parameter_context(name)
+                    attrs = self.get_attrs(cov, name)
+
+                    grid[name] = BaseType(name=name, type=self.value_encoding_to_dap_type(context.param_type.value_encoding), attributes=attrs, dimensions=(time_name,), shape=(coverage.num_timesteps,))
+                    grid[cov.temporal_parameter_name] = time_base
+                    dataset[name] = grid
+                except Exception:
+                    log.exception('Problem reading cov %s', str(cov))
+                    continue
         return dataset
 
     def parse_constraints(self, environ):
@@ -228,6 +265,8 @@ class Handler(BaseHandler):
         all_vars = coverage.list_parameters()
         
         fill_index = -1
+        if not fields:
+            fields = [[(name, ())] for name in all_vars]
         if response == "dods":
             time_context = coverage.get_parameter_context(coverage.temporal_parameter_name)
             time_fill_value = time_context.fill_value
@@ -237,12 +276,14 @@ class Handler(BaseHandler):
             except IndexError:
                 pass
 
-        # If no fields have been explicitly requested, of if the sequence
-        # has been requested directly, return all variables.
-        if not fields:
-            fields = [[(name, ())] for name in all_vars]
-        
-        dataset = self.get_dataset(coverage, fields, fill_index, dataset, response)
+            # If no fields have been explicitly requested, of if the sequence
+            # has been requested directly, return all variables.
+            
+            dataset = self.get_dataset(coverage, fields, fill_index, dataset, response)
+
+        elif response in ('dds', 'das'):
+            self.handle_dds(coverage, dataset, fields)
+
         coverage.close()
         return dataset
     
