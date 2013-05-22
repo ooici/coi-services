@@ -79,7 +79,6 @@ class TestDMExtended(DMTestCase):
               ('cond_sample[3]', 'number', 'cond_sample[3]', {'precision': '5'})],
              'viz_product_type': 'google_dt'}
         self.assertEquals(rdt['google_dt_components'][0], testval)
-        breakpoint(locals())
 
     def test_array_flow_paths(self):
         data_product_id, stream_def_id = self.make_array_data_product()
