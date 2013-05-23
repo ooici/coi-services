@@ -56,6 +56,8 @@ class DatasetManagementService(BaseDatasetManagementService):
             parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
             parameter_dict = parameter_dict.dump()
 
+        parameter_dict = self.numpy_walk(parameter_dict)
+
         dataset                      = Dataset()
         dataset.description          = description
         dataset.name                 = name
@@ -67,6 +69,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.spatial_domain       = spatial_domain
         dataset.registered           = False
 
+        
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
         if stream_id:
@@ -148,11 +151,21 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     @classmethod
     def numpy_walk(cls,obj):
+        try:
+            if np.isnan(obj):
+                return {'__nan__':0}
+        except TypeError:
+            pass
+        except NotImplementedError:
+            pass
+
         if isinstance(obj, np.number):
             return np.asscalar(obj)
         if isinstance(obj, np.dtype):
             return {'__np__':obj.str}
         if isinstance(obj,dict):
+            if '__nan__' in obj and len(obj)==1:
+                return np.nan
             if '__np__' in obj and len(obj)==1:
                 return np.dtype(obj['__np__'])
             return {k:cls.numpy_walk(v) for k,v in obj.iteritems()}

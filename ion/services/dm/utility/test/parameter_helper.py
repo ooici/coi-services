@@ -579,6 +579,49 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
         return func
 
+    def create_simple_cc(self):
+        contexts = {}
+        types_manager = TypesManager(self.dataset_management, None, None)
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 1900-01-01'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = t_ctxt, t_ctxt_id
+
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt.ooi_short_name = 'TEMPWAT'
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
+        contexts['temp'] = temp_ctxt, temp_ctxt_id
+
+        func = NumexprFunction('offset', 'temp + offset', ['temp','offset'])
+        types_manager.get_pfunc = lambda pfid : func
+        func = types_manager.evaluate_pmap('pfid', {'temp':'temp', 'offset':'CC_coefficient'})
+
+        func_id = self.dataset_management.create_parameter_function('offset', func.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
+
+        offset_ctxt = ParameterContext('offset', param_type=ParameterFunctionType(func), fill_value=-9999.)
+        offset_ctxt.uom = '1'
+        offset_ctxt_id = self.dataset_management.create_parameter_context('offset', offset_ctxt.dump(), parameter_function_id=func_id)
+        self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
+
+        contexts['offset'] = offset_ctxt, offset_ctxt_id
+
+        return contexts
+
+    def create_simple_cc_pdict(self):
+        types_manager = TypesManager(self.dataset_management, None, None)
+        contexts = self.create_simple_cc()
+        context_ids = [i[1] for i in contexts.itervalues()]
+        context_ids.extend(types_manager.get_cc_value_ids(contexts['offset'][0]))
+        pdict_id = self.dataset_management.create_parameter_dictionary('offset_dict', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        return pdict_id
+
+
+
 
     def create_simple_array(self):
         contexts = {}

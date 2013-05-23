@@ -159,6 +159,14 @@ class TypesManager(object):
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         return ctxt_id, placeholder
 
+    def get_cc_value(self, value):
+        placeholder = value.lower()
+        pc = ParameterContext(name=placeholder, param_type=SparseConstantType(value_encoding='float64'), fill_value=-9999.)
+        pc.uom = '1'
+        ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
+        return ctxt_id, placeholder
+
+
     def has_lookup_value(self, context):
         if isinstance(context.param_type, ParameterFunctionType):
             if hasattr(context.function,'lookup_values'):
@@ -168,13 +176,17 @@ class TypesManager(object):
 
     def get_lookup_value_ids(self, context):
         if isinstance(context.param_type, ParameterFunctionType):
-            if hasattr(context.function,'lookup_values'):
-                lookup_values = context.function.lookup_values
-                return lookup_values
+            return getattr(context.function,'lookup_values',[])
+        return []
+
+    def get_cc_value_ids(self, context):
+        if isinstance(context.param_type, ParameterFunctionType):
+            return getattr(context.function,'coefficients',[])
         return []
 
     def evaluate_pmap(self,pfid, pmap):
         lookup_values = []
+        coefficients = []
         for k,v in pmap.iteritems():
             if isinstance(v, dict):
                 pfid_,pmap_ = v.popitem()
@@ -185,10 +197,17 @@ class TypesManager(object):
                 ctxt_id, placeholder = self.get_lookup_value(v)
                 pmap[k] = placeholder
                 lookup_values.append(ctxt_id)
+            if isinstance(v, basestring) and 'CC' in v:
+                ctxt_id, placeholder = self.get_cc_value(v)
+                pmap[k] = placeholder
+                coefficients.append(ctxt_id)
+
         func = deepcopy(self.get_pfunc(pfid))
         func.param_map = pmap
         if lookup_values:
             func.lookup_values = lookup_values
+        if coefficients:
+            func.coefficients = coefficients
         return func
 
     def evaluate_qc(self):
