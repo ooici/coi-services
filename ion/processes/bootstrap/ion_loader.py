@@ -98,7 +98,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDc3aUdXb3VNWXE1dEdrWklhYXpOZUE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdDU2RF9RNl91WndSY25QSlU5cDAwZ1E&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1627,9 +1627,15 @@ Reason: %s
                 context_ids[self.resource_ids[i]] = 0
                 res = self.resource_objs[i]
                 context = ParameterContext.load(res.parameter_context)
+                
                 lookup_values = types_manager.get_lookup_value_ids(context)
                 for val in lookup_values:
                     context_ids[val] = 0
+                
+                coefficients = types_manager.get_cc_value_ids(context)
+                for val in coefficients:
+                    context_ids[val] = 0
+
                 if hasattr(context,'qc_contexts'):
                     for qc in context.qc_contexts:
                         if qc not in self.resource_ids:
