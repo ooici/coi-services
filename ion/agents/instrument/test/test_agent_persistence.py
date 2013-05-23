@@ -663,7 +663,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         gevent.sleep(15)
         self._start_agent('restart')
 
-        timeout = gevent.Timeout(240)
+        timeout = gevent.Timeout(600)
         timeout.start()
         try:
             while True:                
@@ -674,7 +674,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                 else:
                     gevent.sleep(3)
         except gevent.Timeout:
-            fail("Could not restore agent state to COMMAND.")
+            self.fail("Could not restore agent state to COMMAND.")
         
         # Verify the parameters have been restored as needed.
         retval = self._ia_client.get_resource(params)

@@ -709,7 +709,7 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
                     # This should be conflict.
                     log.info('#### post shutdown exception: %s, %s', str(type(ex)), str(ex))
                 
-        timeout = gevent.Timeout(300)
+        timeout = gevent.Timeout(600)
         timeout.start()
         try:
 
