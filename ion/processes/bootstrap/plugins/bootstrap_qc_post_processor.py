@@ -7,7 +7,7 @@
 
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceProcessClient
-
+from pyon.public import RT
 from ion.core.bootstrap_process import BootstrapPlugin
 from pyon.util.containers import DotDict
 from interface.objects import ProcessDefinition
@@ -21,6 +21,10 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
     '''
 
     def on_initial_bootstrap(self, process, config, **kwargs):
+        if self.process_exists(process, 'qc_post_processor'):
+            # Short circuit the bootstrap to make sure not more than one is ever started
+            return
+
         self.scheduler_service = SchedulerServiceProcessClient(process=process)
         self.process_dispatcher = ProcessDispatcherServiceProcessClient(process=process)
 
@@ -33,7 +37,6 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
             executable={'module':'ion.processes.data.transforms.qc_post_processing', 'class':'QCPostProcessing'})
         process_definition_id = self.process_dispatcher.create_process_definition(process_definition)
 
-
         process_id = self.process_dispatcher.create_process(process_definition_id)
         self.process_dispatcher.schedule_process(process_definition_id, process_id=process_id, configuration=config)
 
@@ -42,3 +45,8 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
                 end_time=-1, #Run FOREVER
                 interval=3600*24,
                 event_origin=interval_key)
+
+    def process_exists(self, process, name):
+        proc_ids, meta = process.container.resource_registry.find_resources(restype=RT.Process, id_only=True)
+        return any([name in p['name'] for p in meta])
+
