@@ -12,6 +12,7 @@ from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
+from pyon.public import CFG
 import numpy as np
 
 @attr('INT',group='dm')
@@ -22,6 +23,29 @@ class TestDMExtended(DMTestCase):
     def setUp(self):
         DMTestCase.setUp(self)
         self.ph = ParameterHelper(self.dataset_management, self.addCleanup)
+
+    def test_pydap_handlers(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+
+        rdt = self.ph.get_rdt(stream_def_id)
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = np.arange(20)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.ph.publish_rdt_to_data_product(data_product_id,rdt)
+        dataset_monitor.event.wait(10)
+
+        from pydap.client import open_url
+        pydap_host = CFG.get_safe('server.pydap.host','localhost')
+        pydap_port = CFG.get_safe('server.pydap.port',8001)
+        url = 'http://%s:%s/%s' %(pydap_host, pydap_port, dataset_id)
+        ds = open_url(url)
+        ds['temp']['temp'][:]
 
     def make_array_data_product(self):
         pdict_id = self.ph.crete_simple_array_pdict()

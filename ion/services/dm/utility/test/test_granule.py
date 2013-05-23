@@ -173,7 +173,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         rdt['LAT'] = [45]
         rdt['LON'] = [-71]
 
-        np.testing.assert_array_almost_equal(rdt['DENSITY'], np.array([1001.76506258]))
+        np.testing.assert_array_almost_equal(rdt['DENSITY'], np.array([1001.76506258], dtype='float32'))
 
     def test_rdt_lookup(self):
         rdt = self.create_lookup_rdt()
