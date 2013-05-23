@@ -1627,9 +1627,15 @@ Reason: %s
                 context_ids[self.resource_ids[i]] = 0
                 res = self.resource_objs[i]
                 context = ParameterContext.load(res.parameter_context)
+                
                 lookup_values = types_manager.get_lookup_value_ids(context)
                 for val in lookup_values:
                     context_ids[val] = 0
+                
+                coefficients = types_manager.get_cc_value_ids(context)
+                for val in coefficients:
+                    context_ids[val] = 0
+
                 if hasattr(context,'qc_contexts'):
                     for qc in context.qc_contexts:
                         if qc not in self.resource_ids:
