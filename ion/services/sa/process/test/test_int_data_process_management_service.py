@@ -852,8 +852,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
             np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914]))
             np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20.]))
             np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068]))
-            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881]))
-            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283]))
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881], dtype='float32'))
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283], dtype='float32'))
 
             validated.set()
 
@@ -904,8 +904,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
             np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914]))
             np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20.]))
             np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068]))
-            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881]))
-            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283]))
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881], dtype='float32'))
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283], dtype='float32'))
 
             validated.set()
 
@@ -979,7 +979,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
             rdt = RecordDictionaryTool.load_from_granule(msg)
             np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
             np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([22.781]))
-            np.testing.assert_array_equal(rdt['calibrated_b'], np.array([32.781]))
+            np.testing.assert_array_equal(rdt['calibrated_b'], np.array([32.781], dtype='float32'))
             validated.set()
 
         self.setup_subscriber(offset_data_product_id, callback=validation)
@@ -997,7 +997,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
             rdt = RecordDictionaryTool.load_from_granule(msg)
             np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
             np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([23.0]))
-            np.testing.assert_array_equal(rdt['calibrated_b'], np.array([33.0]))
+            np.testing.assert_array_equal(rdt['calibrated_b'], np.array([33.0], dtype='float32'))
             validated2.set()
         self.setup_subscriber(offset_data_product_id, callback=validation2)
         self.publish_to_plain_data_product(instrument_data_product_id)
@@ -1088,8 +1088,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
             np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914]))
             np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20.]))
             np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068]))
-            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881]))
-            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283]))
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881], dtype='float32'))
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283], dtype='float32'))
 
             validated.set()
 
@@ -1176,7 +1176,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         def validation(msg, route, stream_id):
             rdt = RecordDictionaryTool.load_from_granule(msg)
             # The value I use is a double, the value coming back is only a float32 so there's some data loss but it should be precise to the 4th digit
-            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.6839775385847]), decimal=4) 
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.6839775385847], dtype='float32'), decimal=4) 
             validated.set()
 
         self.setup_subscriber(output_data_product_id, callback=validation)
@@ -1221,12 +1221,12 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
 
         def density_validation(msg, route, stream_id):
             rdt = RecordDictionaryTool.load_from_granule(msg)
-            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.6839775385847]), decimal=4) 
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.6839775385847], dtype='float32'), decimal=4) 
             density_validated.set()
 
         def salinity_validation(msg, route, stream_id):
             rdt = RecordDictionaryTool.load_from_granule(msg)
-            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.93513240786831]), decimal=4) 
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.93513240786831], dtype='float32'), decimal=4) 
             salinity_validated.set()
 
         self.setup_subscriber(density_dp_id, callback=density_validation)
@@ -1510,8 +1510,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         validated = Event()
         def validation(msg, route, stream_id):
             rdt = RecordDictionaryTool.load_from_granule(msg)
-            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.93513240786831]))
-            np.testing.assert_array_almost_equal(rdt['lookup_density'], np.array([1021.7144739593881]))
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.93513240786831], dtype='float32'))
+            np.testing.assert_array_almost_equal(rdt['lookup_density'], np.array([1021.7144739593881], dtype='float32'))
             validated.set()
         self.setup_subscriber(output_data_product_id, callback=validation)
         self.publish_to_data_product(instrument_data_product_id, rdt)
@@ -1586,7 +1586,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
             np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914, 42.914]))
             np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20., 20.]))
             np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068, 3.068]))
-            np.testing.assert_array_almost_equal(rdt['density_lookup'][-1:], [1021.7144739593881])
+            np.testing.assert_array_almost_equal(rdt['density_lookup'][-1:], np.array([1021.7144739593881], dtype='float32'))
             return True
         self.assertTrue(self.verify_dataset(instrument_dataset_id, verify_again))
 
