@@ -75,11 +75,15 @@ from pyon.core.object import IonObjectSerializer, IonObjectDeserializer
 from pyon.core.bootstrap import IonObject
 
 """
+--with-pycc
+--with-queueblame
+bin/nosetests -s -v --nologcapture --with-queueblame --with-pycc ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_config_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_state_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_rparam_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_xx
+bin/nosetests -s -v --nologcapture --with-queueblame --with-pycc ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_xx
 """
 
 ###############################################################################
@@ -696,7 +700,8 @@ class TestAgentPersistence(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
         
-        
+    
+    @unittest.skip('Not ready yet.')
     def test_xx(self):
         
         pdc = ProcessDispatcherServiceClient(node=self.container.node)

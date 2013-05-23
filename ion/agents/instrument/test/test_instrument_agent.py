@@ -74,6 +74,8 @@ from interface.objects import StreamAlertType, AggregateStatusType
 from ooi.timer import Timer
 
 """
+--with-queueblame   report leftover queues
+--with-pycc         run in seperate container
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
