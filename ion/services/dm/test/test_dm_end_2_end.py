@@ -580,13 +580,17 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.launch_cc_producer(stream_id)
 
         # Let a little data accumulate
-        gevent.sleep(2)
+        monitor = DatasetMonitor(dataset_id)
+        monitor.event.wait(10)
+
 
         # Verify that the CC parameters are fill value
         with DirectCoverageAccess() as dca:
             cov = dca.get_read_only_coverage(dataset_id)
             for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
                 np.testing.assert_equal(cov.get_parameter_values(p, -1), -9999.)
+            cov = None
+            del cov
 
         # Upload the calibration coefficients - this pauses ingestion, performs the upload, and resumes ingestion
         with DirectCoverageAccess() as dca:
