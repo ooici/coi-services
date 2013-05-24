@@ -1975,14 +1975,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                         'instrument_agent_instance_id':  '$(instrument_agent_instance_id)' })
 
         # prepare grouping for IAI
-        ia_to_im = [a for a in self.RR2.find_associations(predicate='hasModel') if a.st=='InstrumentAgent']
-        iai_to_ia = self.RR2.find_associations(predicate='hasAgentDefinition')
+        ia_to_im   = [a for a in self.RR2.find_associations(predicate='hasModel') if a.st=='InstrumentAgent']
+        iai_to_ia  = self.RR2.find_associations(predicate='hasAgentDefinition')
+        all_iai, _ = self.RR2.find_resources('InstrumentAgentInstance', id_only=True)
 
         # discussions indicate we want to only show unassociated IAIs or IAIs associated with this ID
         # this is a list of all IAIs resids currently associated to an ID, not including this current ID we're preparing for
         cur_id_to_iai_without_this = [a.o for a in self.RR2.find_associations(predicate='hasAgentInstance') if a.st=='InstrumentDevice' and a.s != instrument_device_id]
+        allowed_list = list(set(all_iai).difference(set(cur_id_to_iai_without_this)))
         def allowed(iai):
-            return iai not in cur_id_to_iai_without_this
+            return iai in allowed_list
 
         ia_to_iai = defaultdict(list)
         for a in iai_to_ia:
@@ -2100,14 +2102,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                         'platform_agent_instance_id':  '$(platform_agent_instance_id)' })
 
         # prepare grouping for PAI
-        pa_to_pm = [a for a in self.RR2.find_associations(predicate='hasModel') if a.st=='PlatformAgent']
-        pai_to_pa = self.RR2.find_associations(predicate='hasAgentDefinition')
+        pa_to_pm   = [a for a in self.RR2.find_associations(predicate='hasModel') if a.st=='PlatformAgent']
+        pai_to_pa  = self.RR2.find_associations(predicate='hasAgentDefinition')
+        all_pai, _ = self.RR2.find_resources('PlatformAgentInstance', id_only=True)
 
         # discussions indicate we want to only show unassociated PAIs or PAIs associated with this PD
         # this is a list of all PAIs resids currently associated to an PD, not including this current PD we're preparing for
         cur_pd_to_pai_without_this = [a.o for a in self.RR2.find_associations(predicate='hasAgentInstance') if a.st=='PlatformDevice' and a.s != platform_device_id]
+        allowed_list = list(set(all_pai).difference(set(cur_pd_to_pai_without_this)))
         def allowed(pai):
-            return pai not in cur_pd_to_pai_without_this
+            return pai in allowed_list
 
         pa_to_pai = defaultdict(list)
         for a in pai_to_pa:
