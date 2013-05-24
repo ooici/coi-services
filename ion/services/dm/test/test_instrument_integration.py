@@ -135,6 +135,7 @@ class TestInstrumentIntegration(DMTestCase):
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(parsed_dp_id)
         monitor = DatasetMonitor(dataset_id=dataset_id)
+        self.addCleanup(monitor.stop)
 
         for i in xrange(10):
             agent_client.execute_resource(AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE))

@@ -257,9 +257,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         stream_id, route = self.pubsub_management.create_stream('producer', exchange_point=self.exchange_point_name, stream_definition_id=stream_definition)
 
-
-
-
         #--------------------------------------------------------------------------------
         # Start persisting the data on the stream 
         # - Get the ingestion configuration from the resource registry
@@ -444,6 +441,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         publisher = StandaloneStreamPublisher(ctd_stream_id, route)
         monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(monitor.stop)
         publisher.publish(rdt.to_granule())
         self.assertTrue(monitor.event.wait(10))
         granule = self.data_retriever.retrieve(dataset_id)
@@ -473,6 +471,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         # Let a little data accumulate
         monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(monitor.stop)
         monitor.event.wait(10)
 
 
@@ -644,6 +643,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.addCleanup(self.stop_ingestion, stream_id)
 
         dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
 
         self.addCleanup(dataset_monitor.stop)
 
@@ -793,6 +793,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         route = self.pubsub_management.read_stream_route(stream_id)
         publisher = StandaloneStreamPublisher(stream_id,route)
         dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
         publisher.publish(granule)
         self.assertTrue(dataset_monitor.event.wait(10))
 

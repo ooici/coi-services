@@ -39,6 +39,7 @@ class TestDMExtended(DMTestCase):
         rdt['time'] = np.arange(20)
         rdt['temp'] = np.arange(20)
         dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id,rdt)
         dataset_monitor.event.wait(10)
 
@@ -70,6 +71,7 @@ class TestDMExtended(DMTestCase):
 
         granule = rdt.to_granule()
         dataset_monitor = DatasetMonitor(self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id))
+        self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         dataset_monitor.event.wait(10)
 
@@ -111,6 +113,7 @@ class TestDMExtended(DMTestCase):
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         dm = DatasetMonitor(dataset_id)
+        self.addCleanup(dm.stop)
 
 
         # I need to make sure that we can fill the RDT with its values

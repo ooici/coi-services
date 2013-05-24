@@ -170,6 +170,7 @@ class TestQCPostProcessing(DMTestCase):
         dp_id, dataset_id, stream_def_id = self.make_data_product()
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(monitor.stop)
         for rdt in self.populate_vectors(stream_def_id, 1, lambda x : [41] + [39] * (x-1)):
             ph.publish_rdt_to_data_product(dp_id, rdt)
         self.assertTrue(monitor.event.wait(10)) # Give it 10 seconds to populate
