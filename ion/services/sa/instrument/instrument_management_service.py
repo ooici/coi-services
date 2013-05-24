@@ -17,6 +17,7 @@ import pwd
 import json
 from datetime import datetime, timedelta
 import time
+from collections import defaultdict
 
 from ooi.logging import log
 
@@ -1960,6 +1961,37 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'unassign_sensor_device_from_instrument_device', { "sensor_device_id":  "$(sensor_device_id)",
                                                                 "instrument_device_id":  instrument_device_id })
 
+        ####
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentAgentInstance'].assign_request,
+                                                       'instrument_management',
+                                                       'assign_instrument_agent_instance_to_instrument_device',
+                                                       {'instrument_device_id':  instrument_device_id,
+                                                        'instrument_agent_instance_id':  '$(instrument_agent_instance_id)' })
+
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentAgentInstance'].unassign_request,
+                                                       'instrument_management',
+                                                       'unassign_instrument_agent_instance_from_instrument_device',
+                                                       {'instrument_device_id':  instrument_device_id,
+                                                        'instrument_agent_instance_id':  '$(instrument_agent_instance_id)' })
+
+        # prepare grouping for IAI
+        ia_to_im = [a for a in self.RR2.find_associations(predicate='hasModel') if a.st=='InstrumentAgent']
+        iai_to_ia = self.RR2.find_associations(predicate='hasAgentDefinition')
+
+        # discussions indicate we want to only show unassociated IAIs or IAIs associated with this ID
+        # this is a list of all IAIs resids currently associated to an ID, not including this current ID we're preparing for
+        cur_id_to_iai_without_this = [a.o for a in self.RR2.find_associations(predicate='hasAgentInstance') if a.st=='InstrumentDevice' and a.s != instrument_device_id]
+        def allowed(iai):
+            return iai not in cur_id_to_iai_without_this
+
+        ia_to_iai = defaultdict(list)
+        for a in iai_to_ia:
+            if allowed(a.s):
+                ia_to_iai[a.o].append(a.s)
+
+        resource_data.associations['InstrumentAgentInstance'].group = {'group_by': 'InstrumentModel',
+                                                                       'resources': {iaimassoc.o:ia_to_iai[iaimassoc.s] for iaimassoc in ia_to_im}}
+
         return resource_data
 
     def prepare_instrument_agent_instance_support(self, instrument_agent_instance_id=''):
@@ -2054,6 +2086,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'unassign_instrument_device_from_platform_device', { "instrument_device_id":  "$(instrument_device_id)",
                                                                "platform_device_id":  platform_device_id })
 
+        ####
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformAgentInstance'].assign_request,
+                                                       'instrument_management',
+                                                       'assign_platform_agent_instance_to_platform_device',
+                                                       {'platform_device_id':  platform_device_id,
+                                                        'platform_agent_instance_id':  '$(platform_agent_instance_id)' })
+
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformAgentInstance'].unassign_request,
+                                                       'instrument_management',
+                                                       'unassign_platform_agent_instance_to_platform_device',
+                                                       {'platform_device_id':  platform_device_id,
+                                                        'platform_agent_instance_id':  '$(platform_agent_instance_id)' })
+
+        # prepare grouping for PAI
+        pa_to_pm = [a for a in self.RR2.find_associations(predicate='hasModel') if a.st=='PlatformAgent']
+        pai_to_pa = self.RR2.find_associations(predicate='hasAgentDefinition')
+
+        # discussions indicate we want to only show unassociated PAIs or PAIs associated with this PD
+        # this is a list of all PAIs resids currently associated to an PD, not including this current PD we're preparing for
+        cur_pd_to_pai_without_this = [a.o for a in self.RR2.find_associations(predicate='hasAgentInstance') if a.st=='PlatformDevice' and a.s != platform_device_id]
+        def allowed(pai):
+            return pai not in cur_pd_to_pai_without_this
+
+        pa_to_pai = defaultdict(list)
+        for a in pai_to_pa:
+            if allowed(a.s):
+                pa_to_pai[a.o].append(a.s)
+
+        resource_data.associations['PlatformAgentInstance'].group = {'group_by': 'PlatformModel',
+                                                                     'resources': {papmassoc.o:pa_to_pai[papmassoc.s] for papmassoc in pa_to_pm}}
 
         return resource_data
 
