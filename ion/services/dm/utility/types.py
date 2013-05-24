@@ -159,6 +159,14 @@ class TypesManager(object):
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         return ctxt_id, placeholder
 
+    def get_cc_value(self, value):
+        placeholder = value.lower()
+        pc = ParameterContext(name=placeholder, param_type=SparseConstantType(value_encoding='float64'), fill_value=-9999.)
+        pc.uom = '1'
+        ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
+        return ctxt_id, placeholder
+
+
     def has_lookup_value(self, context):
         if isinstance(context.param_type, ParameterFunctionType):
             if hasattr(context.function,'lookup_values'):
@@ -168,13 +176,17 @@ class TypesManager(object):
 
     def get_lookup_value_ids(self, context):
         if isinstance(context.param_type, ParameterFunctionType):
-            if hasattr(context.function,'lookup_values'):
-                lookup_values = context.function.lookup_values
-                return lookup_values
+            return getattr(context.function,'lookup_values',[])
+        return []
+
+    def get_cc_value_ids(self, context):
+        if isinstance(context.param_type, ParameterFunctionType):
+            return getattr(context.function,'coefficients',[])
         return []
 
     def evaluate_pmap(self,pfid, pmap):
         lookup_values = []
+        coefficients = []
         for k,v in pmap.iteritems():
             if isinstance(v, dict):
                 pfid_,pmap_ = v.popitem()
@@ -185,10 +197,17 @@ class TypesManager(object):
                 ctxt_id, placeholder = self.get_lookup_value(v)
                 pmap[k] = placeholder
                 lookup_values.append(ctxt_id)
+            if isinstance(v, basestring) and 'CC' in v:
+                ctxt_id, placeholder = self.get_cc_value(v)
+                pmap[k] = placeholder
+                coefficients.append(ctxt_id)
+
         func = deepcopy(self.get_pfunc(pfid))
         func.param_map = pmap
         if lookup_values:
             func.lookup_values = lookup_values
+        if coefficients:
+            func.coefficients = coefficients
         return func
 
     def evaluate_qc(self):
@@ -255,8 +274,9 @@ class TypesManager(object):
         pc = ParameterContext(name='%s_glblrng_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
         pc.uom = '1'
         pc.ooi_short_name = '%s_GLBLRNG_QC' % dp_name
+        pc.display_name = '%s Global Range Test Quality Control Flag' % dp_name
         pc.description = "The OOI Global Range quality control algorithm generates a QC flag for the input data point indicating whether it falls within a given range."
-        ctxt_id = self.dataset_management.create_parameter_context(name='%s_glblrng_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', description=pc.description)
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_glblrng_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', display_name=pc.display_name, description=pc.description)
         return ctxt_id, pc
 
     def make_spike_qc(self, name, data_product):
@@ -272,9 +292,11 @@ class TypesManager(object):
         pc = ParameterContext(name='%s_spketst_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
         pc.uom='1'
         pc.ooi_short_name = '%s_SPKETST_QC' % dp_name
+        pc.display_name = '%s Spike Test Quality Control Flag' % dp_name
+
         pc.description = "The OOI Spike Test quality control algorithm generates a flag for individual data values that deviate significantly from surrounding data values."
 
-        ctxt_id = self.dataset_management.create_parameter_context(name='%s_spketst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', description=pc.description)
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_spketst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', display_name=pc.display_name, description=pc.description)
         return ctxt_id, pc
 
     def make_stuckvalue_qc(self, name, data_product):
@@ -290,9 +312,10 @@ class TypesManager(object):
         pc = ParameterContext(name='%s_stuckvl_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
         pc.uom = '1'
         pc.ooi_short_name = '%s_STUCKVL_QC' % dp_name
+        pc.display_name = '%s Stuck Value Test Quality Control Flag' % dp_name
         pc.description =  'The OOI Stuck Value Test quality control algorithm generates a flag for repeated occurrence of one value in a time series.'
 
-        ctxt_id = self.dataset_management.create_parameter_context(name='%s_stuckvl_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', description=pc.description)
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_stuckvl_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', display_name=pc.display_name, description=pc.description)
         return ctxt_id, pc
 
     def make_trendtest_qc(self, name, data_product):
@@ -311,15 +334,10 @@ class TypesManager(object):
         pc = ParameterContext(name='%s_trndtst_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc,value_encoding='|i1'))
         pc.uom = '1'
         pc.ooi_short_name = '%s_TRNDTST_QC' % dp_name
+        pc.display_name = '%s Trend Test Test Quality Control Flag' % dp_name
         pc.description = 'The OOI Trend Test quality control algorithm generates flags on data values within a time series where a significant fraction of the variability in the time series can be explained by a drift, where the drift is assumed to be a polynomial of specified order.'
-        ctxt_id = self.dataset_management.create_parameter_context(name='%s_trndtst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', description=pc.description)
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_trndtst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', display_name=pc.display_name, description=pc.description)
         return ctxt_id, pc
-
-#    def make_gradient_test_qc(self, name, data_product):
-#        pfunc_id, pfunc = self.find_gradient_test()
-        
-
-
 
 
     def get_function_type(self, parameter_type, encoding, pfid, pmap):

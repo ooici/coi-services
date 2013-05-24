@@ -74,6 +74,8 @@ from interface.objects import StreamAlertType, AggregateStatusType
 from ooi.timer import Timer
 
 """
+--with-queueblame   report leftover queues
+--with-pycc         run in seperate container
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
@@ -93,6 +95,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_schema
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_streaming_memuse
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities_new
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_exit_da_timing
 """
 
 ###############################################################################
@@ -404,8 +407,7 @@ class InstrumentAgentTest():
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
@@ -420,8 +422,7 @@ class InstrumentAgentTest():
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
@@ -2340,7 +2341,63 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])
-        """     
+        """
+
+    @unittest.skip('A manual test for timing purposes.')        
+    def test_exit_da_timing(self):
+        """
+        test_exit_da_timing
+        Test time it takes to leave direct access and return to command mode.
+        """
+
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
+                            #kwargs={'session_type': DirectAccessTypes.telnet,
+                            kwargs={'session_type':DirectAccessTypes.vsp,
+                            'session_timeout':600,
+                            'inactivity_timeout':600})
+        
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.DIRECT_ACCESS)
+                
+        log.info("GO_DIRECT_ACCESS retval=" + str(retval.result))
+
+        starttime = time.time()
+        
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_COMMAND)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+        
+        cap_list = self._ia_client.get_capabilities()
+        
+        delta = time.time() - starttime
+        
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        print '######## exiting direct access takes: %f seconds' % delta
+
 
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})

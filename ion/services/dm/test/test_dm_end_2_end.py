@@ -21,10 +21,11 @@ from ion.services.dm.inventory.data_retriever_service import DataRetrieverServic
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.util.stored_values import StoredValueManager
+from ion.util.direct_coverage_utils import DirectCoverageAccess
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
-from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, ConstantType, ViewCoverage, ComplexCoverage, SimplexCoverage
+from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, BooleanType, ConstantType, ViewCoverage, ComplexCoverage, SimplexCoverage
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -63,6 +64,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.exchange_space_name  = 'test_granules'
         self.exchange_point_name  = 'science_data'       
         self.i                    = 0
+        self.cci                  = 0
 
         self.purge_queues()
         self.queue_buffer         = []
@@ -130,6 +132,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
         '''
 
         pid = self.container.spawn_process('better_data_producer', 'ion.processes.data.example_data_producer', 'BetterDataProducer', {'process':{'stream_id':stream_id}})
+
+        self.pids.append(pid)
+
+    def launch_cc_producer(self, stream_id=''):
+        pid = self.container.spawn_process('simple_data_producer', 'ion.processes.data.example_data_producer', 'CCDataProducer', {'process': {'stream_id': stream_id}})
 
         self.pids.append(pid)
 
@@ -212,7 +219,43 @@ class TestDMEnd2End(IonIntegrationTestCase):
                     gevent.sleep(0.2)
 
 
+    def make_cal_dataset(self):
+        # Get a precompiled parameter dictionary with basic ctd fields
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
 
+        # Add a handful of Calibration Coefficient parameters
+        for cc in ['cc_ta0', 'cc_ta1', 'cc_ta2', 'cc_ta3', 'cc_toffset']:
+            c = ParameterContext(cc, param_type=SparseConstantType(value_encoding='float32', fill_value=-9999))
+            c.uom = '1'
+            context_ids.append(self.dataset_management.create_parameter_context(cc, c.dump()))
+
+        pdict_id = self.dataset_management.create_parameter_dictionary('calcoeff_dict', context_ids, temporal_context='time')
+        stream_def_id = self.pubsub_management.create_stream_definition('calcoeff_stream_def', parameter_dictionary_id=pdict_id)
+        stream_id, route = self.pubsub_management.create_stream('calcoeff stream %i' % self.cci, 'xp1', stream_definition_id=stream_def_id)
+        dataset_id = self.create_dataset(pdict_id)
+
+        self.cci += 1
+        return stream_id, route, stream_def_id, dataset_id
+
+    def make_manual_upload_dataset(self):
+        # Get a precompiled parameter dictionary with basic ctd fields
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
+
+        # Add a handful of Calibration Coefficient parameters
+        for cc in ['temp_hitl_qc', 'cond_hitl_qc']:
+            c = ParameterContext(cc, param_type=BooleanType())
+            c.uom = '1'
+            context_ids.append(self.dataset_management.create_parameter_context(cc, c.dump()))
+
+        pdict_id = self.dataset_management.create_parameter_dictionary('manup_dict', context_ids, temporal_context='time')
+        stream_def_id = self.pubsub_management.create_stream_definition('manup_stream_def', parameter_dictionary_id=pdict_id)
+        stream_id, route = self.pubsub_management.create_stream('manual upload stream %i' % self.cci, 'xp1', stream_definition_id=stream_def_id)
+        dataset_id = self.create_dataset(pdict_id)
+
+        self.cci += 1
+        return stream_id, route, stream_def_id, dataset_id
 
     #--------------------------------------------------------------------------------
     # Test Methods
@@ -352,8 +395,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['conductivity_L1'], np.array([42.914]))
         np.testing.assert_array_almost_equal(rdt_out['temp_L1'], np.array([20.]))
         np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
-        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881]))
-        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
+        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881], dtype='float32'))
+        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283], dtype='float32'))
 
 
     def test_lookup_values_ingest_replay(self):
@@ -528,6 +571,80 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt2['time'], np.arange(20))
 
         self.stop_ingestion(ctd_stream_id)
+
+
+    def test_upload_calibration_coefficients(self):
+        stream_id, route, stream_def_id, dataset_id = self.make_cal_dataset()
+        self.start_ingestion(stream_id, dataset_id)
+
+        self.launch_cc_producer(stream_id)
+
+        # Let a little data accumulate
+        monitor = DatasetMonitor(dataset_id)
+        monitor.event.wait(10)
+
+
+        # Verify that the CC parameters are fill value
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, -1), -9999.)
+            cov = None
+            del cov
+
+        # Upload the calibration coefficients - this pauses ingestion, performs the upload, and resumes ingestion
+        with DirectCoverageAccess() as dca:
+            dca.upload_calibration_coefficients(dataset_id, 'test_data/testcalcoeff.csv', 'test_data/testcalcoeff.yml')
+
+        # Let a little more data accumulate
+        gevent.sleep(2)
+
+        # Verify that the CC parameters now have the correct values
+        want_vals = {
+            'cc_ta0': np.float32(1.155787e-03),
+            'cc_ta1': np.float32(2.725208e-04),
+            'cc_ta2': np.float32(-7.526811e-07),
+            'cc_ta3': np.float32(1.716270e-07),
+            'cc_toffset': np.float32(0.000000e+00)
+        }
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, -1), want_vals[p])
+
+
+    def test_manual_data_upload(self):
+        stream_id, route, stream_def_id, dataset_id = self.make_manual_upload_dataset()
+        self.start_ingestion(stream_id, dataset_id)
+
+        self.launch_cc_producer(stream_id)
+
+        # Let at least 20 samples accumulate
+        gevent.sleep(2)
+
+        # Verify that the HITL parameters are fill value
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            fillarr = np.array([False]*10)
+            for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), fillarr)
+
+        # Upload the data - this pauses ingestion, performs the upload, and resumes ingestion
+        with DirectCoverageAccess() as dca:
+            dca.manual_upload(dataset_id, 'test_data/testmanualupload.csv', 'test_data/testmanualupload.yml')
+
+        # Wait a moment
+        gevent.sleep(0.5)
+
+        # Verify that the HITL parameters now have the correct values
+        want_vals = {
+            'temp_hitl_qc': np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0], dtype=bool),
+            'cond_hitl_qc': np.array([1, 0, 1, 0, 0, 0, 1, 1, 0, 0], dtype=bool)
+        }
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), want_vals[p])
 
 
     def test_retrieve_and_transform(self):
@@ -892,8 +1009,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['conductivity_L1'], np.array([42.914]))
         np.testing.assert_array_almost_equal(rdt_out['temp_L1'], np.array([20.]))
         np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
-        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881]))
-        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
+        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881], dtype='float32'))
+        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283], dtype='float32'))
 
 
         rdt = ph.get_rdt(stream_def_id)

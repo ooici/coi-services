@@ -92,7 +92,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         self.ignore_gaps = self.CFG.get_safe('service.ingestion.ignore_gaps', False)
         self.new_lookups = Queue()
         self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent, callback=self._add_lookups, auto_delete=True)
-        self.lookup_monitor.start()
+        self.add_endpoint(self.lookup_monitor)
         self.qc_publisher = EventPublisher(event_type=OT.ParameterQCEvent)
         self.connection_id = ''
         self.connection_index = None
@@ -100,6 +100,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         self.start_listener()
 
     def on_quit(self): #pragma no cover
+        self.event_publisher.close()
+        self.qc_publisher.close()
         if self.subscriber_thread:
             self.stop_listener()
         for stream, coverage in self._coverages.iteritems():
