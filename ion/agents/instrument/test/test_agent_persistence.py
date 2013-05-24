@@ -75,11 +75,15 @@ from pyon.core.object import IonObjectSerializer, IonObjectDeserializer
 from pyon.core.bootstrap import IonObject
 
 """
+--with-pycc
+--with-queueblame
+bin/nosetests -s -v --nologcapture --with-queueblame --with-pycc ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_config_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_state_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_rparam_persistence
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_xx
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_test_cei_launch_mode
+bin/nosetests -s -v --nologcapture --with-queueblame --with-pycc ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_test_cei_launch_mode
 """
 
 ###############################################################################
@@ -274,19 +278,20 @@ class TestAgentPersistence(IonIntegrationTestCase):
     # Agent start stop helpers.
     ###############################################################################
 
-    def _start_agent(self):
+    def _start_agent(self, bootmode=None):
         """
         """
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         
+        agent_config = deepcopy(self._agent_config)
+        agent_config['bootmode'] = bootmode
         self._ia_pid = container_client.spawn_process(name=IA_NAME,
             module=IA_MOD,
             cls=IA_CLS,
-            config=self._agent_config,
+            config=agent_config,
             process_id=self._ia_pid)            
             
-        
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
         self._ia_client = ResourceAgentClient(IA_RESOURCE_ID, process=FakeProcess())
@@ -321,7 +326,6 @@ class TestAgentPersistence(IonIntegrationTestCase):
     # Tests.
     ###############################################################################
 
-    #@unittest.skip('Fails on buildbot, reason unknown.')
     def test_agent_config_persistence(self):
         """
         test_agent_config_persistence
@@ -435,7 +439,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         # Now stop and restart the agent.
         self._stop_agent()
         gevent.sleep(15)
-        self._start_agent()
+        self._start_agent('restart')
 
         # We start in uninitialized state.
         # In this state there is no driver process.
@@ -469,7 +473,6 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     self.assertItemsEqual(x.keys(), y.keys())
         self.assertEqual(count, 3)
        
-    #@unittest.skip('Fails on buildbot, reason unknown.')
     def test_agent_state_persistence(self):
         """
         test_agent_state_persistence
@@ -519,13 +522,14 @@ class TestAgentPersistence(IonIntegrationTestCase):
         # Now stop and restart the agent.
         self._stop_agent()
         gevent.sleep(15)
-        self._start_agent()
+        self._start_agent('restart')
 
         timeout = gevent.Timeout(240)
         timeout.start()
         try:
             while True:                
                 state = self._ia_client.get_agent_state()
+                print '## in state: ' + state
                 if state == ResourceAgentState.COMMAND:
                     timeout.cancel()
                     break
@@ -542,7 +546,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         # Now stop and restart the agent.
         self._stop_agent()
         gevent.sleep(15)
-        self._start_agent()
+        self._start_agent('restart')
 
         timeout = gevent.Timeout(240)
         timeout.start()
@@ -564,8 +568,6 @@ class TestAgentPersistence(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-
-    #@unittest.skip('')
     def test_agent_rparam_persistence(self):
         """
         test_agent_rparam_persistence
@@ -659,7 +661,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         # Now stop and restart the agent.
         self._stop_agent()
         gevent.sleep(15)
-        self._start_agent()
+        self._start_agent('restart')
 
         timeout = gevent.Timeout(240)
         timeout.start()
@@ -695,9 +697,9 @@ class TestAgentPersistence(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        
-        
-    def test_xx(self):
+            
+    @unittest.skip('Making CEI friendly.')
+    def test_cei_launch_mode(self):
         
         pdc = ProcessDispatcherServiceClient(node=self.container.node)
         p_def = ProcessDefinition(name='Agent007')
@@ -707,25 +709,29 @@ class TestAgentPersistence(IonIntegrationTestCase):
         }
         p_def_id = pdc.create_process_definition(p_def)
         
+        pid = pdc.create_process(p_def_id)
         
         def event_callback(event, *args, **kwargs):
             print '######### proc %s in state %s' % (event.origin, ProcessStateEnum._str_map[event.state])
-            
-        pid = pdc.create_process(p_def_id)
-        
+ 
         sub = EventSubscriber(event_type='ProcessLifecycleEvent',
                               callback=event_callback,
                               origin=pid,
                               origin_type='DispatchedProcess')
-        
+         
         sub.start()
-        
+
+        agent_config = deepcopy(self._agent_config)
+        agent_config['bootmode'] = 'restart'
         pdc.schedule_process(p_def_id, process_id=pid,
-                             configuration=self._agent_config)
+                             configuration=agent_config)
         
         gevent.sleep(5)
         
+        pdc.cancel_process(pid)
+        
+        gevent.sleep(15)
+
         sub.stop()
-    
-    
+        
         
