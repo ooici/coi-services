@@ -49,6 +49,9 @@ from pyon.core.governance import has_valid_shared_resource_commitment, is_resour
 from ion.services.sa.observatory.deployment_util import describe_deployments
 from ooi.timer import Timer,Accumulator
 
+# Causes MI drivers and eggs to load
+import ion.agents.instrument.test.test_instrument_agent
+
 stats = Accumulator(persist=True)
 
 class InstrumentManagementService(BaseInstrumentManagementService):

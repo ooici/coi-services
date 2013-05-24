@@ -17,6 +17,8 @@ import ion.agents.instrument.test.test_instrument_agent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.services.dm.utility.granule import RecordDictionaryTool
+import unittest
+import os
 
 @attr('INT', group='dm')
 class TestInstrumentIntegration(DMTestCase):

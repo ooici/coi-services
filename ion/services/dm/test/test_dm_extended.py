@@ -14,6 +14,7 @@ from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.public import CFG
 import numpy as np
+import unittest
 
 @attr('INT',group='dm')
 class TestDMExtended(DMTestCase):
@@ -24,6 +25,7 @@ class TestDMExtended(DMTestCase):
         DMTestCase.setUp(self)
         self.ph = ParameterHelper(self.dataset_management, self.addCleanup)
 
+    @unittest.skip('Somewhat duplicated, needs more verification work')
     def test_pydap_handlers(self):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
         stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
