@@ -248,8 +248,30 @@ class VisualizationService(BaseVisualizationService):
         if viz_product_type == "google_dt":
             # Using the description and content, build the google data table
             if (gdt_description):
-                gdt = gviz_api.DataTable(gdt_description)
-                gdt.LoadData(gdt_content)
+
+                try:
+                    gdt = gviz_api.DataTable(gdt_description)
+                    gdt.LoadData(gdt_content)
+                except:
+                    log.error("Exception while forming Google Datatable : ", sys.exc_info()[0])
+                    log.error("\nData table description : ", gdt_description)
+                    log.error("\nData content : ", gdt_content)
+
+                    """
+                    print "Error forming Google Datatable. Dumping content and description <<<<<<<<<<<<< \n"
+                    for var_field in gdt_description:
+                        print var_field[0], "\t",
+                    print "\n"
+                    for row in gdt_content:
+                        for val in row:
+                            if isinstance(val,datetime):
+                                print " <timestamp> ",
+                                continue
+                            print val, "\t",
+                        print "\n"
+                    """
+
+                    raise
 
                 # return the json version of the table
                 return gdt.ToJSon()
