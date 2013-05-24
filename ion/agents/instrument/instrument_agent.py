@@ -526,7 +526,14 @@ class InstrumentAgent(ResourceAgent):
         self._asp.reset_connection()
 
         resource_schema = self._dvr_client.cmd_dvr('get_config_metadata')
-        self._resource_schema = json.loads(resource_schema)
+        if isinstance(resource_schema, str):
+            resource_schema = json.loads(resource_schema)
+            if isinstance(resource_schema, dict):
+                self._resource_schema = resource_schema
+            else:
+                self._resource_schema = {}                    
+        else:
+            self._resource_schema = {}
 
         max_tries = kwargs.get('max_tries', 5)
         if not isinstance(max_tries, int) or max_tries < 1:
@@ -892,9 +899,8 @@ class InstrumentAgent(ResourceAgent):
         """
         Publsih resource config change event and update persisted info.
         """
-        if self._enable_persistence:
-            self._set_state('rparams', val)
-            self._flush_state()
+        self._set_state('rparams', val)
+        self._flush_state()
         try:
             event_data = {
                 'config' : val
@@ -1245,10 +1251,11 @@ class InstrumentAgent(ResourceAgent):
 
         # If specified and configed, build the alerts aparam.                
         aparam_alerts_config = self.CFG.get('aparam_alerts_config', None)
+        print str(aparam_alerts_config)
         if aparam_alerts_config and 'alerts' in aparams:
             self.aparam_set_alerts(aparam_alerts_config)
                 
-    def _restore_resource(self):
+    def _restore_resource(self, state, prev_state):
         """
         Restore agent/resource configuration and state.
         """
@@ -1272,13 +1279,11 @@ class InstrumentAgent(ResourceAgent):
         
         # Get state to restore. If the last state was lost connection,
         # use the prior connected state.
-        state = self._get_state('agent_state')
         if not state:
             return
         
         if state == ResourceAgentState.LOST_CONNECTION:        
-            state = self._get_state('prev_agent_state') or \
-                ResourceAgentState.UNINITIALIZED
+            state = prev_state
         
         try:
             cur_state = self._fsm.get_current_state()

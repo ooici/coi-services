@@ -896,15 +896,17 @@ class UserNotificationService(BaseUserNotificationService):
             raise BadRequest("No user with the provided user_id: %s" % user_id)
 
         for item in user.variables:
-            if item['name'] == 'notifications':
+            if type(item) is dict and item.has_key('name') and item['name'] == 'notifications':
                 for notif in item['value']:
                     if notif._id == new_notification._id:
                         log.debug("came here for updating notification")
                         notifications = item['value']
                         notifications.remove(notif)
                         notifications.append(new_notification)
-
                 break
+            else:
+                log.warning('Invalid variables attribute on UserInfo instance. UserInfo: %s', user)
+
 
         #------------------------------------------------------------------------------------
         # update the resource registry
@@ -1056,12 +1058,16 @@ class UserNotificationService(BaseUserNotificationService):
         for user in users:
             notifications = []
             notification_preferences = None
-            for variable in user.variables:
-                if variable['name'] == 'notifications':
-                    notifications = variable['value']
 
-                if variable['name'] == 'notification_preferences':
-                    notification_preferences = variable['value']
+            for variable in user.variables:
+                if type(variable) is dict and variable.has_key('name'):
+                    if variable['name'] == 'notifications':
+                        notifications = variable['value']
+
+                    if variable['name'] == 'notification_preferences':
+                        notification_preferences = variable['value']
+                else:
+                    log.warning('Invalid variables attribute on UserInfo instance. UserInfo: %s', user)
 
             user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
 

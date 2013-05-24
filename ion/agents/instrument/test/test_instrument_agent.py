@@ -74,6 +74,8 @@ from interface.objects import StreamAlertType, AggregateStatusType
 from ooi.timer import Timer
 
 """
+--with-queueblame   report leftover queues
+--with-pycc         run in seperate container
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
@@ -404,8 +406,7 @@ class InstrumentAgentTest():
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
@@ -420,8 +421,7 @@ class InstrumentAgentTest():
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,

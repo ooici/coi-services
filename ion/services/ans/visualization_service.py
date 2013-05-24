@@ -416,6 +416,9 @@ class VisualizationService(BaseVisualizationService):
         #print ">>>>>>>>>>  HERE <<<<<<<<<<<"
         #raise BadRequest("FOR ERROR TESTING> PLEASE REMOVE LATER")
 
+        if visualization_parameters is None:
+            return self._get_google_dt(data_product_id)
+        
         vp_dict = simplejson.loads(visualization_parameters)
 
         # The visualization parameters must contain a query type. Based on this the processing methods will be chosen
@@ -464,16 +467,20 @@ class VisualizationService(BaseVisualizationService):
 
             # The times passed from UI are system times so convert them to NTP
             if 'start_time' in visualization_parameters:
-                #query['start_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['start_time'])))
                 query['start_time'] = int(visualization_parameters['start_time'])
 
             if 'end_time' in visualization_parameters:
-                #query['end_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['end_time'])))
                 query['end_time'] = int((visualization_parameters['end_time']))
 
             # stride time
             if 'stride_time' in visualization_parameters:
-                query['stride_time'] = int(visualization_parameters['stride_time'])
+                try:
+                    query['stride_time'] = int(visualization_parameters['stride_time'])
+                except TypeError: 
+                    # There are some (rare) situations where the AJAX request has 'null' in the request
+                    # Example:
+                    # {"query_type":"google_dt","parameters":[],"start_time":-2208988800,"end_time":-2208988800,"stride_time":null,"use_direct_access":0}
+                    query['stride_time'] = 1
             else:
                 query['stride_time'] = 1
 

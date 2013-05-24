@@ -210,6 +210,7 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
         def consume_event(*args, **kwargs):
             log.debug('Test recieved ION event: args=%s, kwargs=%s, event=%s.',
                      str(args), str(kwargs), str(args[0]))
+            
             self._events_received.append(args[0])
             if self._event_count > 0 and \
                 self._event_count == len(self._events_received):
@@ -236,8 +237,6 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
             'stream_config' : self._stream_config,
             'agent'         : {'resource_id': IA_RESOURCE_ID},
             'test_mode' : True,
-            'forget_past' : True,
-            'enable_persistence' : False,
             'aparam_alerts_config' : [state_alert_def, command_alert_def]
         }
 
@@ -287,8 +286,7 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
@@ -303,14 +301,13 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
                                  parameter_dictionary=pd)
         self._stream_config[stream_name] = stream_config
-
+        
     ###############################################################################
     # Agent start stop helpers.
     ###############################################################################
@@ -522,7 +519,7 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-        self._async_event_result.get(timeout=30) 
+        self._async_event_result.get(timeout=30)
         """
         {'origin': '123xyz', 'status': 1, '_id': 'ac1ae3ec24e74f65bde24362d689346a', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_INACTIVE'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367007751167', 'sub_type': 'ALL_CLEAR', 'origin_type': 'InstrumentDevice', 'name': 'comms_state_warning'}
         {'origin': '123xyz', 'status': 1, '_id': '6af6a6156172481ebc44baad2708ec5c', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367007751175', 'sub_type': 'ALL_CLEAR', 'origin_type': 'InstrumentDevice', 'name': 'comms_command_warning'}

@@ -137,7 +137,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         self._device_tree   = {}
         self._site_tree     = {}
 
-        # cache stuff
+        # cache for things that RR2 can't do well without a resource type
         self._model_lookup = {}
         self._type_lookup  = {}
         self._typecache_hits  = 0
@@ -201,6 +201,8 @@ class DeploymentResourceCollector(DeploymentOperator):
     def find_models_fromcache(self, resource_id):
         """
         Find any models assiciatiated with a device/site id.  use a local cache
+
+        returns a list OR a string, depending on resource type
         """
         if resource_id in self._model_lookup:
             self._modelcache_hits += 1
@@ -302,7 +304,6 @@ class DeploymentResourceCollector(DeploymentOperator):
         # copy this list
         leftover_leaves = filter(lambda x: x != root_id, known_leaves)
 
-
         root_obj = self.read_using_typecache(root_id)
 
         # the base value
@@ -310,6 +311,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         tree["_id"] = root_id
         tree["name"] = root_obj.name
         tree["children"] = {}
+        tree["type"] = self._type_lookup[root_id]
         if PRED.hasDevice == assn_type:
             tree["model"] = self.find_models_fromcache(root_id)
             tree["model_name"] = self.RR2.read(tree["model"]).name
@@ -393,13 +395,19 @@ class DeploymentResourceCollector(DeploymentOperator):
         # functions to add resources to the lookup tables as well as the return values
         def add_site_models(site_id, model_ids):
             if site_id in site_models:
-                log.warn("Site '%s' was already collected in deployment '%s'", site_id, deployment_id)
+                log.info("Site '%s' was already collected in deployment '%s'", site_id, deployment_id)
+                if model_ids != site_models[site_id]:
+                    log.warn("Device '%s' being assigned a different model.  old=%s, new=%s",
+                             site_id, site_models[site_id], model_ids)
             site_models[site_id] = model_ids
             self._model_lookup[site_id] = model_ids
 
         def add_device_model(device_id, model_id):
             if device_id in device_models:
-                log.warn("Device '%s' was already collected in deployment '%s'", device_id, deployment_id)
+                log.info("Device '%s' was already collected in deployment '%s'", device_id, deployment_id)
+                if model_id != device_models[device_id]:
+                    log.warn("Device '%s' being assigned a different model.  old='%s', new='%s'",
+                             device_id, device_models[device_id], model_id)
             device_models[device_id] = model_id
             self._model_lookup[device_id] = model_id
 
@@ -421,7 +429,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         def collect_specific_resources(site_type, device_type, model_type):
             # check this deployment -- specific device types -- for validity
             # return a list of pairs (site, device) to be associated
-            log.debug("Collecting resources: site=%s device=%s model=%s", site_type, device_type, model_type)
+            #log.debug("Collecting resources: site=%s device=%s model=%s", site_type, device_type, model_type)
             new_site_ids = self.RR2.find_subjects(site_type,
                                                     PRED.hasDeployment,
                                                     deployment_id,
@@ -440,17 +448,45 @@ class DeploymentResourceCollector(DeploymentOperator):
             for s in new_site_ids:   self.typecache_add(s, site_type)
             for d in new_device_ids: self.typecache_add(d, device_type)
 
+
+        def collect_models_from_tree(a_tree, tree_pred_type):
+            """
+            a tree is something made by self._build_tree
+            tree_pred_type is hasDevice or hasSite
+
+            adds all device or site models to device_models or site_models as appropriate
+            """
+            log.debug("collect_models_from_tree of type '%s' with: %s", tree_pred_type, a_tree)
+            assert(type({}) == type(a_tree))
+            assert(type(PRED.hasResource) == type(tree_pred_type))
+            if PRED.hasDevice == tree_pred_type:
+                add_device_model(a_tree["_id"], a_tree["model"])
+            elif PRED.hasSite == tree_pred_type:
+                add_site_models(a_tree["_id"], a_tree["models"])
+            else:
+                raise BadRequest("Tried to collect_models_from_tree(a_tree, %s) -- bad predicate" % tree_pred_type)
+
+            for _, c in a_tree["children"].iteritems():
+                collect_models_from_tree(c, tree_pred_type)
+
+
         # collect platforms, verify that only one platform device exists in the deployment
         collect_specific_resources(RT.PlatformSite, RT.PlatformDevice, RT.PlatformModel)
         collect_specific_resources(RT.InstrumentSite, RT.InstrumentDevice, RT.InstrumentModel)
 
-        # build the trees to get the entire picture
+        log.debug("build the trees to get the entire picture")
         site_tree   = self._attempt_site_tree_build(site_models.keys())
         device_tree = self._attempt_device_tree_build(device_models.keys())
 
+        log.debug("collect models from device tree")
+        if site_tree: collect_models_from_tree(site_tree, PRED.hasSite)
+        log.debug("collect models from site tree")
+        if device_tree: collect_models_from_tree(device_tree, PRED.hasDevice)
+
         # various validation
         if len(device_models) > len(site_models):
-            raise BadRequest("Devices in this deployment outnumber sites (%s to %s)" % (len(device_models), len(site_models)))
+            raise BadRequest("Devices in this deployment outnumber sites (%s to %s).  Device tree: %s Site tree: %s" %
+                             (len(device_models), len(site_models), device_tree, site_tree))
 
         if 0 == len(device_models):
             raise BadRequest("No devices were found in the deployment")
@@ -661,6 +697,8 @@ class DeploymentActivator(DeploymentOperator):
         """
         use the previously collected resoures in a CSP problem
         """
+        site_tree   = self.resource_collector.collected_site_tree()
+        device_tree = self.resource_collector.collected_device_tree()
         device_models = self.resource_collector.collected_models_by_device()
         site_models = self.resource_collector.collected_models_by_site()
 
@@ -672,39 +710,50 @@ class DeploymentActivator(DeploymentOperator):
         #
         # we can avoid this by simply restricting the deployment to 1 platform device/site in this case
 
-        n_pdev = sum(RT.PlatformDevice == self.resource_collector.get_resource_type(d) for d in device_models.keys())
-        if 1 < n_pdev:
-            raise BadRequest("Deployment activation without port_assignment is limited to 1 PlatformDevice, got %s" % n_pdev)
+#        n_pdev = sum(RT.PlatformDevice == self.resource_collector.get_resource_type(d) for d in device_models.keys())
+#        if 1 < n_pdev:
+#            raise BadRequest("Deployment activation without port_assignment is limited to 1 PlatformDevice, got %s" % n_pdev)
+#
+#        n_psite = sum(RT.PlatformSite == self.resource_collector.get_resource_type(d) for d in site_models.keys())
+#        if 1 < n_psite:
+#            raise BadRequest("Deployment activation without port_assignment is limited to 1 PlatformSite, got %s" % n_psite)
 
-        n_psite = sum(RT.PlatformSite == self.resource_collector.get_resource_type(d) for d in site_models.keys())
-        if 1 < n_psite:
-            raise BadRequest("Deployment activation without port_assignment is limited to 1 PlatformSite, got %s" % n_psite)
-
-
-        solutions = self._get_deployment_csp_solutions(device_models, site_models)
+        solutions = self._get_deployment_csp_solutions(device_tree, site_tree, device_models, site_models)
 
         if 1 > len(solutions):
             raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
                              "models") # and streamdefs")
 
-        if 1 < len(solutions):
+        if 1 == len(solutions):
+            log.info("Found one possible way to map devices and sites.  Best case scenario!")
+        else:
             log.info("Found %d possible ways to map device and site", len(solutions))
             log.trace("Here is the %s of all of them:", type(solutions).__name__)
             for i, s in enumerate(solutions):
                 log.trace("Option %d: %s" , i+1, self._csp_solution_to_string(s))
-            raise BadRequest(("The set of devices could be mapped to the set of sites in %s ways based only " +
-                              "on matching models, and no port assignments were specified") % len(solutions))
+            uhoh = ("The set of devices could be mapped to the set of sites in %s ways based only " +
+                    "on matching models, and no port assignments were specified.") % len(solutions)
+            #raise BadRequest(uhoh)
+            log.warn(uhoh + "  PICKING THE FIRST AVAILABLE OPTION.")
 
-        log.info("Found one possible way to map devices and sites.  Best case scenario!")
         # return list of site_id, device_id
         return [(solutions[0][mk_csp_var(device_id)], device_id) for device_id in device_models.keys()]
 
 
 
-    def _get_deployment_csp_solutions(self, device_models, site_models):
+    def _get_deployment_csp_solutions(self, device_tree, site_tree, device_models, site_models):
 
         log.debug("creating a CSP solver to match devices and sites")
         problem = constraint.Problem()
+
+        def safe_get_parent(child_site_id):
+            try:
+                return self.RR2.find_subject(RT.PlatformSite,
+                                             PRED.hasSite,
+                                             child_site_id,
+                                             id_only=True)
+            except NotFound:
+                return None
 
         log.debug("adding variables to CSP - the devices to be assigned, and their range (possible sites)")
         for device_id in device_models.keys():
@@ -717,9 +766,24 @@ class DeploymentActivator(DeploymentOperator):
             if not possible_sites:
                 log.info("Device model: %s", device_model)
                 log.info("Site models: %s", site_models)
-                raise BadRequest("No sites were found in the deployment")
+                raise BadRequest("No sites in the deployment match the model of device '%s'" % device_id)
 
-            problem.addVariable(mk_csp_var(device_id), possible_sites)
+            device_var = mk_csp_var(device_id)
+            problem.addVariable(device_var, possible_sites)
+
+            # add parent-child constraints
+            try:
+                parent_device_id = self.RR2.find_subject(RT.PlatformDevice, PRED.hasDevice, device_id, id_only=True)
+                if parent_device_id in device_models:
+                    problem.addConstraint(lambda child_site, parent_site: parent_site == safe_get_parent(child_site),
+                                          [device_var, mk_csp_var(parent_device_id)])
+
+
+            except NotFound:
+                log.debug("Device '%s' has no parent", device_id) # no big deal
+
+
+
 
         log.debug("adding the constraint that all the variables have to pick their own site")
         problem.addConstraint(constraint.AllDifferentConstraint(),

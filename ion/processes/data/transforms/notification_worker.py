@@ -88,7 +88,8 @@ class NotificationWorker(TransformEventListener):
             origin='UserNotificationService',
             callback=reload_user_info
         )
-        self.reload_user_info_subscriber.start()
+
+        self.add_endpoint(self.reload_user_info_subscriber)
 
 
     def process_event(self, msg, headers):
@@ -114,17 +115,6 @@ class NotificationWorker(TransformEventListener):
             send_email(message = msg, msg_recipient = msg_recipient, smtp_client = self.smtp_client )
             self.smtp_client.quit()
 
-    def on_stop(self):
-        # close subscribers safely
-        self.reload_user_info_subscriber.stop()
-
-        super(NotificationWorker, self).on_stop()
-
-    def on_quit(self):
-        # close subscribers safely
-        self.reload_user_info_subscriber.stop()
-
-        super(NotificationWorker, self).on_quit()
 
     def load_user_info(self):
         '''
