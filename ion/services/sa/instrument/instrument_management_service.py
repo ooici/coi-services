@@ -2123,3 +2123,47 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return resource_data
 
+    def prepare_instrument_agent_support(self, instrument_agent_id=''):
+        """
+        Returns the object containing the data to create/update an instrument agent resource
+        """
+
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_resource_support(instrument_agent_id, OT.InstrumentAgentPrepareSupport)
+
+        #Fill out service request information for creating a instrument agent
+        extended_resource_handler.set_service_requests(resource_data.create_request, 'instrument_management',
+            'create_instrument_agent', { "instrument_agent":  "$(instrument_agent)" })
+
+        #Fill out service request information for creating a instrument agent
+        extended_resource_handler.set_service_requests(resource_data.update_request, 'instrument_management',
+            'update_instrument_agent', { "instrument_agent":  "$(instrument_agent)" })
+
+        #Fill out service request information for assigning a InstrumentModel
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentModel'].assign_request,
+                                                       'instrument_management',
+                                                       'assign_instrument_model_to_instrument_agent',
+                                                       {"instrument_model_id":  "$(instrument_model_id)",
+                                                        "instrument_agent_id":  instrument_agent_id })
+
+        #Fill out service request information for unassigning a InstrumentModel
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentModel'].unassign_request,
+                                                       'instrument_management',
+                                                       'unassign_instrument_model_from_instrument_agent',
+                                                       {"instrument_model_id":  "$(instrument_model_id)",
+                                                        "instrument_agent_id":  instrument_agent_id })
+
+        #Fill out service request information for assigning a InstrumentAgentInstance
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentAgentInstance'].assign_request, 'instrument_management',
+            'assign_instrument_agent_to_instrument_agent_instance', {"instrument_agent_id":  instrument_agent_id,
+                                                                     "instrument_agent_instance_id": "$(instrument_agent_instance_id)" })
+
+        #Fill out service request information for unassigning a InstrumentAgentInstance
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentAgentInstance'].unassign_request, 'instrument_management',
+            'unassign_instrument_agent_from_instrument_agent_instance', {"instrument_agent_id": instrument_agent_id,
+                                                                         "instrument_agent_instance_id":  "$(instrument_agent_instance_id)" })
+
+
+        return resource_data
