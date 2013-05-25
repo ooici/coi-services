@@ -138,7 +138,7 @@ class NetworkUtil(object):
             def build_and_add_attrs_to_node(attrs, pn):
                 for attr_defn in attrs:
                     assert 'attr_id' in attr_defn
-                    assert 'monitorCycleSeconds' in attr_defn
+                    assert 'monitor_cycle_seconds' in attr_defn
                     assert 'units' in attr_defn
                     attr_id = attr_defn['attr_id']
                     pn.add_attribute(AttrNode(attr_id, attr_defn))
@@ -392,7 +392,7 @@ class NetworkUtil(object):
                 lines.append('    max_val: 10')
                 lines.append('    read_write: %s' % read_write)
                 lines.append('    group: power')
-                lines.append('    monitorCycleSeconds: 5')
+                lines.append('    monitor_cycle_seconds: 5')
 
             lines.append('  ports:')
             for i in range(2):
@@ -456,7 +456,7 @@ class NetworkUtil(object):
         def _add_attrs_to_platform_node(attrs, pn):
             for attr_defn in attrs:
                 assert 'attr_id' in attr_defn
-                assert 'monitorCycleSeconds' in attr_defn
+                assert 'monitor_cycle_seconds' in attr_defn
                 assert 'units' in attr_defn
                 attr_id = attr_defn['attr_id']
                 pn.add_attribute(AttrNode(attr_id, attr_defn))
