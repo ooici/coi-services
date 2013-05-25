@@ -27,6 +27,11 @@ import ntplib
 from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
+###########################################################################
+# NOTE: several operations related with "event types" were removed/adjusted
+# from the CI-OMS interface per April/2013 telecons.
+###########################################################################
+
 
 class CIOMSSimulator(CIOMSClient):
     """
@@ -170,7 +175,7 @@ class CIOMSSimulator(CIOMSClient):
                 vals[attrName] = values
                 # Note: values == [] if there are no values.
             else:
-                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME
+                vals[attrName] = InvalidResponse.ATTRIBUTE_ID
 
         return {platform_id: vals}
 
@@ -196,7 +201,7 @@ class CIOMSSimulator(CIOMSClient):
                 else:
                     vals[attrName] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
             else:
-                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME
+                vals[attrName] = InvalidResponse.ATTRIBUTE_ID
 
         retval = {platform_id: vals}
         log.debug("set_platform_attribute_values returning: %s", str(retval))
@@ -340,38 +345,6 @@ class CIOMSSimulator(CIOMSClient):
 
         return {platform_id: {port_id: result}}
 
-    def describe_event_types(self, event_type_ids):
-        self._enter()
-
-        if len(event_type_ids) == 0:
-            return EventInfo.EVENT_TYPES
-
-        result = {}
-        for k in event_type_ids:
-            if not k in EventInfo.EVENT_TYPES:
-                result[k] = InvalidResponse.EVENT_TYPE
-            else:
-                result[k] = EventInfo.EVENT_TYPES[k]
-
-        return result
-
-    def get_events_by_platform_type(self, platform_types):
-        self._enter()
-
-        if len(platform_types) == 0:
-            platform_types = self._platform_types.keys()
-
-        result = {}
-        for platform_type in platform_types:
-            if not platform_type in self._platform_types:
-                result[platform_type] = InvalidResponse.PLATFORM_TYPE
-                continue
-
-            result[platform_type] = [v for v in EventInfo.EVENT_TYPES.itervalues() \
-                if v['platform_type'] == platform_type]
-
-        return result
-
     def _validate_event_listener_url(self, url):
         """
         Does a basic, static validation of the url.
@@ -379,11 +352,16 @@ class CIOMSSimulator(CIOMSClient):
         # TODO implement it; for now always returning True
         return True
 
-    def register_event_listener(self, url, event_types):
+    def register_event_listener(self, url):
         self._enter()
 
+        # NOTE: event_types was previously a parameter to this operation. To
+        # minimize changes in the code, I introduced an 'ALL' event type to
+        # be used here explicitly.
+        event_types = ['ALL']
+
         log.debug("register_event_listener called: url=%r, event_types=%s",
-                 url, str(event_types))
+                  url, str(event_types))
 
         if not self._validate_event_listener_url(url):
             return {url: InvalidResponse.EVENT_LISTENER_URL}
@@ -426,11 +404,16 @@ class CIOMSSimulator(CIOMSClient):
 
         return {url: result_list}
 
-    def unregister_event_listener(self, url, event_types):
+    def unregister_event_listener(self, url):
         self._enter()
 
+        # NOTE: event_types was previously a parameter to this operation. To
+        # minimizes changes in the code, I introduced an 'ALL' event type to
+        # be used here explicitly.
+        event_types = ['ALL']
+
         log.debug("unregister_event_listener called: url=%r, event_types=%s",
-                 url, str(event_types))
+                  url, str(event_types))
 
         if not url in self._reg_event_listeners:
             return {url: InvalidResponse.EVENT_LISTENER_URL}

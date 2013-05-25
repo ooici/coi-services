@@ -28,7 +28,7 @@ class NetworkUtil(object):
     """
 
     @staticmethod
-    def create_node_network(map):
+    def create_node_network(network_map):
         """
         Creates a node network according to the given map (this map is
         the format used by the CI-OMS interface to represent the topology).
@@ -38,14 +38,18 @@ class NetworkUtil(object):
          - dummy root (with id '') is present
          - only one regular root node.
 
-        @param map [(platform_id, parent_platform_id), ...]
+        @param network_map [(platform_id, parent_platform_id), ...]
 
         @return { platform_id: PlatformNode }
 
         @raise PlatformDefinitionException
         """
         pnodes = {}
-        for platform_id, parent_platform_id in map:
+        for platform_id, parent_platform_id in network_map:
+            if not platform_id:
+                raise PlatformDefinitionException(
+                    "platform_id in tuple can not be %r" % platform_id)
+
             if parent_platform_id is None:
                 parent_platform_id = ''
 
@@ -70,7 +74,9 @@ class NetworkUtil(object):
             raise PlatformDefinitionException("Expecting dummy root in node network dict")
         dummy_root = pnodes['']
         if len(dummy_root.subplatforms) != 1:
-            raise PlatformDefinitionException("Expecting a single root in node network dict")
+            raise PlatformDefinitionException(
+                "Expecting a single root in node network dict, but got %s" % (
+                dummy_root.subplatforms))
 
         return pnodes
 

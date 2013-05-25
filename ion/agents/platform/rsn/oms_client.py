@@ -22,14 +22,15 @@ REQUIRED_INSTRUMENT_ATTRIBUTES = [
 
 class CIOMSClient(object):
     """
-    This class captures the interface with OMS.
+    This class captures the interface with OMS mainly for purposes of serving
+    as a base class for the simulator.
 
     See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
 
-    Note that the real OMS interface uses "handlers" for grouping operations
+    Note: the real OMS interface uses "handlers" for grouping operations
     (for example, "ping" is a method of the "hello" handler). Here we define
-    all operations at the base level. As a simple mechanism to emulate the
-    "handler" mechanism, corresponding properties are defined as `self`.
+    all operations at the base level and emulate the "handler" mechanism via
+    corresponding properties defined as `self`.
     """
 
     @property
@@ -50,6 +51,10 @@ class CIOMSClient(object):
 
     @property
     def port(self):
+        return self
+
+    @property
+    def instr(self):
         return self
 
     def ping(self):
@@ -175,25 +180,13 @@ class CIOMSClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def describe_event_types(self, event_type_ids):
+    def register_event_listener(self, url):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def get_events_by_platform_type(self, platform_types):
-        """
-        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def register_event_listener(self, url, event_types):
-        """
-        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def unregister_event_listener(self, url, event_types):
+    def unregister_event_listener(self, url):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
