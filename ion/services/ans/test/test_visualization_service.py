@@ -346,6 +346,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
     @patch.dict(CFG, {'user_queue_monitor_timeout': 5})
     @patch.dict(CFG, {'user_queue_monitor_size': 25})
+    @attr('CLEANUP')
     def test_realtime_visualization_cleanup(self):
 
         #Start up multiple vis service workers if not a CEI launch

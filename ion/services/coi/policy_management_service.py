@@ -183,6 +183,10 @@ class PolicyManagementService(BasePolicyManagementService):
         @retval policy_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
         """
+
+        if not policy:
+            raise BadRequest("The policy parameter is missing")
+
         if not is_basic_identifier(policy.name):
             raise BadRequest("The policy name '%s' can only contain alphanumeric and underscore characters" % policy.name)
 
@@ -211,6 +215,10 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws Conflict    object not based on latest persisted object version
         """
+
+        if not policy:
+            raise BadRequest("The policy parameter is missing")
+
         if not is_basic_identifier(policy.name):
             raise BadRequest("The policy name '%s' can only contain alphanumeric and underscore characters" % policy.name)
 
@@ -650,6 +658,9 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws BadRequest    if object passed has _id or _rev attribute
         """
 
+        if not user_role:
+            raise BadRequest("The user_role parameter is missing")
+
         #If this governance identifier is not set, then set to a safe version of the policy name.
         if not user_role.governance_name:
             user_role.governance_name = create_basic_identifier(user_role.name)
@@ -673,6 +684,10 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws NotFound    object with specified id does not exist
         @throws Conflict    object not based on latest persisted object version
         """
+
+
+        if not user_role:
+            raise BadRequest("The user_role parameter is missing")
 
         #If this governance identifier is not set, then set to a safe version of the policy name.
         if not user_role.governance_name:
