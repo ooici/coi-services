@@ -1572,14 +1572,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if t:
             t.complete_step('ims.instrument_device_extension.container')
         #retrieve the aggregate status for the instrument
-        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
+        status = self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
                                                                                     extended_instrument.computed)
         log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
         if t:
             t.complete_step('ims.instrument_device_extension.rollup')
 
         # add UI details for deployments in same order as deployments
-        extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients)
+        extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients, instruments=[extended_instrument.resource], instrument_status=[status])
         if t:
             t.complete_step('ims.instrument_device_extension.deploy')
             stats.add(t)
@@ -1857,7 +1857,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.platform_device_extension.crush')
 
         # add UI details for deployments
-        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients)
+        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients, instruments=extended_platform.instrument_devices, instrument_status=extended_platform.computed.instrument_status.value)
         if t:
             t.complete_step('ims.platform_device_extension.deploy')
             stats.add(t)
