@@ -1417,9 +1417,6 @@ LCS
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='execute_resource',
             policy_content='check_if_direct_access_mode', headers=sa_user_header )
 
-        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='get_capabilities',
-            policy_content='check_if_direct_access_mode', headers=sa_user_header )
-
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='get_resource',
             policy_content='check_if_direct_access_mode', headers=sa_user_header )
 
@@ -1427,8 +1424,5 @@ LCS
             policy_content='check_if_direct_access_mode', headers=sa_user_header )
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='execute_resource',
-            policy_content='check_if_direct_access_mode', headers=sa_user_header )
-
-        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='get_capabilities',
             policy_content='check_if_direct_access_mode', headers=sa_user_header )
 
