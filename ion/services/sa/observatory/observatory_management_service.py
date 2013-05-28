@@ -829,7 +829,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
         extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
-        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients)
+        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients, instruments=extended_site.instrument_devices, instrument_status=extended_site.computed.instrument_status.value)
 
         this_device_id = None
         try:
