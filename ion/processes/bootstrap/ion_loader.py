@@ -2671,8 +2671,8 @@ Reason: %s
         if not filename:
             raise iex.BadRequest('attachment did not include a filename: ' + row[COL_ID])
 
-        path = "%s/%s" % (self.attachment_path, filename)
         try:
+            path = "%s/%s" % (self.attachment_path, filename)
             with open(path, "rb") as f:
                 att_obj.content = f.read()
         except IOError, ioe:
