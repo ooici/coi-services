@@ -2407,7 +2407,7 @@ class InstrumentAgentTest():
 
 
 @attr('HARDWARE', group='sa')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 300}}})
 class TestInstrumentAgent(IonIntegrationTestCase, InstrumentAgentTest):
 
     ############################################################################
