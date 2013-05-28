@@ -11,7 +11,7 @@ import time
 
 TIME_FORMAT='%Y-%m-%d %H:%M:%S'
 
-def describe_deployments(deployments, context):
+def describe_deployments(deployments, context, instruments=[], instrument_status=[]):
     if not deployments:
         return {}
     rr=context.resource_registry
@@ -19,6 +19,7 @@ def describe_deployments(deployments, context):
     descriptions = {}
     for d in deployments:
         descriptions[d._id] = { 'is_primary': False }
+        # add start, end time
         time_constraint = None
         for constraint in d.constraint_list:
             if constraint.type_ == OT.TemporalBounds:
@@ -54,6 +55,9 @@ def describe_deployments(deployments, context):
                 description['device_id'] = obj._id
                 description['device_name'] = obj.name
                 description['device_type'] = type
+                for instrument, status in zip(instruments, instrument_status):
+                    if obj._id==instrument._id:
+                        description['device_status'] = status
             else:
                 log.warn('unexpected association: %s %s %s %s %s', assoc.st, assoc.s, assoc.p, assoc.ot, assoc.o)
 
