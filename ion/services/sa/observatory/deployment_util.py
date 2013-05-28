@@ -19,8 +19,6 @@ def describe_deployments(deployments, context):
     descriptions = {}
     for d in deployments:
         descriptions[d._id] = { 'is_primary': False }
-        for k in d._schema:
-            descriptions[d._id][k] = getattr(d,k)
         time_constraint = None
         for constraint in d.constraint_list:
             if constraint.type_ == OT.TemporalBounds:
