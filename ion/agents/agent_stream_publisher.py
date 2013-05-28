@@ -27,6 +27,11 @@ from pyon.ion.stream import StreamPublisher
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import StreamRoute
 
+# Pyon Object Serialization
+from pyon.core.bootstrap import get_obj_registry
+from pyon.core.object import IonObjectDeserializer
+
+
 class AgentStreamPublisher(object):
     """
     """
@@ -53,11 +58,22 @@ class AgentStreamPublisher(object):
         agent.aparam_set_streams = self.aparam_set_streams
         
     def _construct_streams(self, stream_info):
+        decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
         for (stream_name, config) in stream_info.iteritems():
-            stream_def = config['stream_definition_ref']
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-            self._agent.aparam_streams[stream_name] = rdt.fields
-            self._agent.aparam_pubrate[stream_name] = 0
+            try:
+                #stream_def = config['stream_definition_ref']
+                stream_def_dict = config['stream_def_dict']
+                stream_def_obj = decoder.deserialize(stream_def_dict)
+                #rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+                rdt = RecordDictionaryTool(stream_definition=stream_def_obj)
+                self._agent.aparam_streams[stream_name] = rdt.fields
+                self._agent.aparam_pubrate[stream_name] = 0
+            except Exception as e:
+                errmsg = 'Instrument agent %s' % self._agent._proc_name
+                errmsg += 'error constructing stream %s. ' % stream_name
+                errmsg += str(e)
+                log.error(errmsg)
+                
         self._agent.aparam_set_pubrate = self.aparam_set_pubrate
 
     def _construct_publishers(self, stream_info):
