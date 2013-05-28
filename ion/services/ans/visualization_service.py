@@ -248,8 +248,30 @@ class VisualizationService(BaseVisualizationService):
         if viz_product_type == "google_dt":
             # Using the description and content, build the google data table
             if (gdt_description):
-                gdt = gviz_api.DataTable(gdt_description)
-                gdt.LoadData(gdt_content)
+
+                try:
+                    gdt = gviz_api.DataTable(gdt_description)
+                    gdt.LoadData(gdt_content)
+                except:
+                    log.error("Exception while forming Google Datatable : ", sys.exc_info()[0])
+                    log.error("\nData table description : ", gdt_description)
+                    log.error("\nData content : ", gdt_content)
+
+                    """
+                    print "Error forming Google Datatable. Dumping content and description <<<<<<<<<<<<< \n"
+                    for var_field in gdt_description:
+                        print var_field[0], "\t",
+                    print "\n"
+                    for row in gdt_content:
+                        for val in row:
+                            if isinstance(val,datetime):
+                                print " <timestamp> ",
+                                continue
+                            print val, "\t",
+                        print "\n"
+                    """
+
+                    raise
 
                 # return the json version of the table
                 return gdt.ToJSon()
@@ -394,6 +416,9 @@ class VisualizationService(BaseVisualizationService):
         #print ">>>>>>>>>>  HERE <<<<<<<<<<<"
         #raise BadRequest("FOR ERROR TESTING> PLEASE REMOVE LATER")
 
+        if visualization_parameters is None:
+            return self._get_google_dt(data_product_id)
+        
         vp_dict = simplejson.loads(visualization_parameters)
 
         # The visualization parameters must contain a query type. Based on this the processing methods will be chosen
@@ -442,16 +467,20 @@ class VisualizationService(BaseVisualizationService):
 
             # The times passed from UI are system times so convert them to NTP
             if 'start_time' in visualization_parameters:
-                #query['start_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['start_time'])))
                 query['start_time'] = int(visualization_parameters['start_time'])
 
             if 'end_time' in visualization_parameters:
-                #query['end_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['end_time'])))
                 query['end_time'] = int((visualization_parameters['end_time']))
 
             # stride time
             if 'stride_time' in visualization_parameters:
-                query['stride_time'] = int(visualization_parameters['stride_time'])
+                try:
+                    query['stride_time'] = int(visualization_parameters['stride_time'])
+                except TypeError: 
+                    # There are some (rare) situations where the AJAX request has 'null' in the request
+                    # Example:
+                    # {"query_type":"google_dt","parameters":[],"start_time":-2208988800,"end_time":-2208988800,"stride_time":null,"use_direct_access":0}
+                    query['stride_time'] = 1
             else:
                 query['stride_time'] = 1
 

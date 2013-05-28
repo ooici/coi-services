@@ -929,7 +929,7 @@ class PDNativeBackend(object):
 
         self.core = ProcessDispatcherCore(self.store, self.registry,
             self.eeagent_client, self.notifier)
-        self.doctor = PDDoctor(self.core, self.store)
+        self.doctor = PDDoctor(self.core, self.store, config=conf)
         self.matchmaker = PDMatchmaker(self.core, self.store, self.eeagent_client,
             self.registry, epum_client, self.notifier, dashi_name,
             domain_definition_id, base_domain_config, run_type, restart_throttling_config)

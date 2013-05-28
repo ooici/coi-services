@@ -105,7 +105,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDc3aUdXb3VNWXE1dEdrWklhYXpOZUE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdDU2RF9RNl91WndSY25QSlU5cDAwZ1E&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1619,6 +1619,70 @@ Parameter Name: %s
 Reason: %s
 -------------------------------''', row_id, name, reason)
 
+    def _load_ParameterDictionary(self, row):
+        dataset_management = self._get_service_client('dataset_management')
+        types_manager = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
+        if row['SKIP']:
+            self._conflict_report(row['ID'], row['name'], row['SKIP'])
+            return
+
+        self.row_count += 1
+        name = row['name']
+        definitions = row['parameter_ids'].replace(' ','').split(',')
+        try:
+            if row['temporal_parameter']:
+                temporal_parameter_name = self.resource_objs[row['temporal_parameter']].name
+            else:
+                temporal_parameter_name = ''
+        except KeyError:
+            temporal_parameter_name = ''
+
+        context_ids = {}
+        for i in definitions:
+            try:
+                res_id = self.resource_ids[i]
+                if res_id not in context_ids:
+                    context_ids[res_id] = 0
+                else:
+                    log.warning('Duplicate: %s (%s)', name, i)
+                context_ids[self.resource_ids[i]] = 0
+                res = self.resource_objs[i]
+                context = ParameterContext.load(res.parameter_context)
+                
+                lookup_values = types_manager.get_lookup_value_ids(context)
+                for val in lookup_values:
+                    context_ids[val] = 0
+                
+                coefficients = types_manager.get_cc_value_ids(context)
+                for val in coefficients:
+                    context_ids[val] = 0
+
+                if hasattr(context,'qc_contexts'):
+                    for qc in context.qc_contexts:
+                        if qc not in self.resource_ids:
+                            obj = dataset_management.read_parameter_context(qc)
+                            self._register_id(qc, qc, obj)
+                    definitions.extend(context.qc_contexts)
+            except KeyError:
+                pass
+
+        if not context_ids:
+            log.warning('No valid parameters: %s', row['name'])
+            return
+        try:
+            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(),
+                                                                      temporal_context=temporal_parameter_name,
+                                                                      headers=self._get_system_actor_headers())
+            # Set alt_ids so that resource can be found in incremental preload runs
+            pdict = self.container.resource_registry.read(pdict_id)
+            pdict.alt_ids = ['PRE:'+row[COL_ID]]
+            self.container.resource_registry.update(pdict)
+        except Exception:
+            log.exception('%s has a problem', row['name'])
+            return
+
+        self._register_id(row[COL_ID], pdict_id, pdict)
+
     def _load_ParameterFunctions(self, row):
         if row['SKIP']:
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
@@ -1769,64 +1833,6 @@ Reason: %s
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
         self._register_id(row[COL_ID], context_id, context_obj)
-
-    def _load_ParameterDictionary(self, row):
-        dataset_management = self._get_service_client('dataset_management')
-        types_manager = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
-        if row['SKIP']:
-            self._conflict_report(row['ID'], row['name'], row['SKIP'])
-            return
-
-        self.row_count += 1
-        name = row['name']
-        definitions = row['parameter_ids'].replace(' ','').split(',')
-        try:
-            if row['temporal_parameter']:
-                temporal_parameter_name = self.resource_objs[row['temporal_parameter']].name
-            else:
-                temporal_parameter_name = ''
-        except KeyError:
-            temporal_parameter_name = ''
-
-        context_ids = {}
-        for i in definitions:
-            try:
-                res_id = self.resource_ids[i]
-                if res_id not in context_ids:
-                    context_ids[res_id] = 0
-                else:
-                    log.warning('Duplicate: %s (%s)', name, i)
-                context_ids[self.resource_ids[i]] = 0
-                res = self.resource_objs[i]
-                context = ParameterContext.load(res.parameter_context)
-                lookup_values = types_manager.get_lookup_value_ids(context)
-                for val in lookup_values:
-                    context_ids[val] = 0
-                if hasattr(context,'qc_contexts'):
-                    for qc in context.qc_contexts:
-                        if qc not in self.resource_ids:
-                            obj = dataset_management.read_parameter_context(qc)
-                            self._register_id(qc, qc, obj)
-                    definitions.extend(context.qc_contexts)
-            except KeyError:
-                pass
-
-        if not context_ids:
-            log.warning('No valid parameters: %s', row['name'])
-            return
-        try:
-            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(),
-                                                                      temporal_context=temporal_parameter_name,
-                                                                      headers=self._get_system_actor_headers())
-            # Set alt_ids so that resource can be found in incremental preload runs
-            pdict = self.container.resource_registry.read(pdict_id)
-            pdict.alt_ids = ['PRE:'+row[COL_ID]]
-            self.container.resource_registry.update(pdict)
-        except Exception:
-            log.exception('%s has a problem', row['name'])
-            return
-
-        self._register_id(row[COL_ID], pdict_id, pdict)
 
     def _load_StreamDefinition(self, row):
         if not row['parameter_dictionary'] or row['parameter_dictionary'] not in self.resource_ids:

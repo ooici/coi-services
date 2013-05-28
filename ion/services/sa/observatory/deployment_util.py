@@ -7,13 +7,32 @@ suitable for the UI table:
 
 from ooi.logging import log, TRACE
 from pyon.ion.resource import RT, PRED, LCS, OT
+import time
+
+TIME_FORMAT='%Y-%m-%d %H:%M:%S'
 
 def describe_deployments(deployments, context):
     if not deployments:
         return {}
     rr=context.resource_registry
     deployment_ids = [ d._id for d in deployments ]
-    descriptions = { d._id: { 'is_primary': False, 'name': d.name, 'description': d.description } for d in deployments }
+    descriptions = {}
+    for d in deployments:
+        descriptions[d._id] = { 'is_primary': False, '_id': d._id }
+        for k in d._schema:
+            descriptions[d._id][k] = getattr(d,k)
+        time_constraint = None
+        for constraint in d.constraint_list:
+            if constraint.type_ == OT.TemporalBounds:
+                if time_constraint:
+                    log.warn('deployment %s has more than one time constraint (using first)', d.name)
+                else:
+                    time_constraint = constraint
+        if time_constraint:
+            descriptions[d._id]['start_time'] = time.strftime(TIME_FORMAT, time.gmtime(float(time_constraint.start_datetime))) if time_constraint.start_datetime else ""
+            descriptions[d._id]['end_time'] = time.strftime(TIME_FORMAT, time.gmtime(float(time_constraint.end_datetime))) if time_constraint.end_datetime else ""
+        else:
+            descriptions[d._id]['start_time'] = descriptions[d._id]['end_time'] = ""
 
     # first get the all site and instrument objects
     site_ids = []
@@ -48,7 +67,7 @@ def describe_deployments(deployments, context):
         if assoc.p==PRED.hasDevice:
             found_match = False
             for description in descriptions.itervalues():
-                if description['site_id']==assoc.s and description['device_id']==assoc.o:
+                if description.get('site_id', None)==assoc.s and description.get('device_id', None)==assoc.o:
                     if found_match:
                         log.warn('more than one primary deployment for site %s (%s) and device %s (%s)',
                                  assoc.s, description['site_name'], assoc.o, description['device_name'])

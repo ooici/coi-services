@@ -18,6 +18,7 @@ import unittest
 from interface.objects import PersistenceInstance, PersistenceSystem, DataStore
 
 
+@unittest.skip('Obsolete in R2')
 @attr('UNIT', group='dm_pres')
 class PreservationManagementServiceTest(PyonTestCase):
 

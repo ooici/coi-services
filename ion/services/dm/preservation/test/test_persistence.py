@@ -14,6 +14,7 @@ from pyon.datastore.datastore import DataStore
 import unittest
 import hashlib
 
+@unittest.skip('Very OBE, not even in R2')
 @attr('INT',group='dm')
 class FilePersistenceIntTest(IonIntegrationTestCase):
     def setUp(self):

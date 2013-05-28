@@ -25,7 +25,7 @@ from ion.util.direct_coverage_utils import DirectCoverageAccess
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
-from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, ConstantType, ViewCoverage, ComplexCoverage, SimplexCoverage
+from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, BooleanType, ConstantType, ViewCoverage, ComplexCoverage, SimplexCoverage
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -59,34 +59,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.dataset_management   = DatasetManagementServiceClient()
         self.ingestion_management = IngestionManagementServiceClient()
         self.data_retriever       = DataRetrieverServiceClient()
-        self.pids                 = []
         self.event                = Event()
         self.exchange_space_name  = 'test_granules'
         self.exchange_point_name  = 'science_data'       
         self.i                    = 0
         self.cci                  = 0
-
-        self.purge_queues()
-        self.queue_buffer         = []
-        self.streams = []
-        self.addCleanup(self.stop_all_ingestion)
-
-    def purge_queues(self):
-        xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
-        xn.purge()
-        
-
-    def tearDown(self):
-        self.purge_queues()
-        for pid in self.pids:
-            self.container.proc_manager.terminate_process(pid)
-        IngestionManagementIntTest.clean_subscriptions()
-        for queue in self.queue_buffer:
-            if isinstance(queue, ExchangeNameQueue):
-                queue.delete()
-            elif isinstance(queue, str):
-                xn = self.container.ex_manager.create_xn_queue(queue)
-                xn.delete()
 
     #--------------------------------------------------------------------------------
     # Helper/Utility methods
@@ -103,6 +80,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
             parameter_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
         dataset_id = self.dataset_management.create_dataset('test_dataset_%i'%self.i, parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
+        self.addCleanup(self.dataset_management.delete_dataset, dataset_id)
         return dataset_id
     
     def get_datastore(self, dataset_id):
@@ -130,23 +108,22 @@ class TestDMEnd2End(IonIntegrationTestCase):
         '''
         Launch the producer
         '''
-
         pid = self.container.spawn_process('better_data_producer', 'ion.processes.data.example_data_producer', 'BetterDataProducer', {'process':{'stream_id':stream_id}})
-
-        self.pids.append(pid)
+        self.addCleanup(self.container.terminate_process, pid)
 
     def launch_cc_producer(self, stream_id=''):
         pid = self.container.spawn_process('simple_data_producer', 'ion.processes.data.example_data_producer', 'CCDataProducer', {'process': {'stream_id': stream_id}})
-
-        self.pids.append(pid)
+        self.addCleanup(self.container.terminate_process, pid)
 
     def make_simple_dataset(self):
         '''
         Makes a stream, a stream definition and a dataset, the essentials for most of these tests
         '''
         pdict_id             = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        stream_def_id        = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary_id=pdict_id)
+        stream_def_id        = self.pubsub_management.create_stream_definition('ctd data %i' % self.i, parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
         stream_id, route     = self.pubsub_management.create_stream('ctd stream %i' % self.i, 'xp1', stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
 
         dataset_id = self.create_dataset(pdict_id)
 
@@ -185,12 +162,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
     def stop_ingestion(self, stream_id):
         ingest_config_id = self.get_ingestion_config()
         self.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id)
-        
-    def stop_all_ingestion(self):
-        try:
-            [self.stop_ingestion(sid) for sid in self.streams]
-        except:
-            pass
 
     def validate_granule_subscription(self, msg, route, stream_id):
         '''
@@ -238,6 +209,25 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.cci += 1
         return stream_id, route, stream_def_id, dataset_id
 
+    def make_manual_upload_dataset(self):
+        # Get a precompiled parameter dictionary with basic ctd fields
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
+
+        # Add a handful of Calibration Coefficient parameters
+        for cc in ['temp_hitl_qc', 'cond_hitl_qc']:
+            c = ParameterContext(cc, param_type=BooleanType())
+            c.uom = '1'
+            context_ids.append(self.dataset_management.create_parameter_context(cc, c.dump()))
+
+        pdict_id = self.dataset_management.create_parameter_dictionary('manup_dict', context_ids, temporal_context='time')
+        stream_def_id = self.pubsub_management.create_stream_definition('manup_stream_def', parameter_dictionary_id=pdict_id)
+        stream_id, route = self.pubsub_management.create_stream('manual upload stream %i' % self.cci, 'xp1', stream_definition_id=stream_def_id)
+        dataset_id = self.create_dataset(pdict_id)
+
+        self.cci += 1
+        return stream_id, route, stream_def_id, dataset_id
+
     #--------------------------------------------------------------------------------
     # Test Methods
     #--------------------------------------------------------------------------------
@@ -267,9 +257,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         stream_id, route = self.pubsub_management.create_stream('producer', exchange_point=self.exchange_point_name, stream_definition_id=stream_definition)
 
-
-
-
         #--------------------------------------------------------------------------------
         # Start persisting the data on the stream 
         # - Get the ingestion configuration from the resource registry
@@ -281,6 +268,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         ingest_config_id = self.get_ingestion_config()
         dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
+        self.addCleanup(self.stop_ingestion, stream_id)
 
         #--------------------------------------------------------------------------------
         # Now the granules are ingesting and persisted
@@ -313,11 +301,13 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Create the listening endpoint for the the retriever to talk to 
         #--------------------------------------------------------------------------------
-        xp = self.container.ex_manager.create_xp(self.exchange_point_name)
+        sub_id = self.pubsub_management.create_subscription(self.exchange_space_name,stream_ids=[replay_stream_id])
+        self.addCleanup(self.pubsub_management.delete_subscription, sub_id)
+        self.pubsub_management.activate_subscription(sub_id)
+        self.addCleanup(self.pubsub_management.deactivate_subscription, sub_id)
         subscriber = StandaloneStreamSubscriber(self.exchange_space_name, self.validate_granule_subscription)
-        self.queue_buffer.append(self.exchange_space_name)
         subscriber.start()
-        subscriber.xn.bind(replay_route.routing_key, xp)
+        self.addCleanup(subscriber.stop)
 
         self.data_retriever.start_replay_agent(self.replay_id)
 
@@ -325,7 +315,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         replay_client.start_replay()
         
         self.assertTrue(self.event.wait(10))
-        subscriber.stop()
 
         self.data_retriever.cancel_replay_agent(self.replay_id)
 
@@ -338,8 +327,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         b = rdt['time'] == np.arange(5)
         self.assertTrue(b.all() if not isinstance(b,bool) else b)
-        self.streams.append(stream_id)
-        self.stop_ingestion(stream_id)
 
 
     def test_coverage_transform(self):
@@ -376,8 +363,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['conductivity_L1'], np.array([42.914]))
         np.testing.assert_array_almost_equal(rdt_out['temp_L1'], np.array([20.]))
         np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
-        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881]))
-        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
+        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881], dtype='float32'))
+        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283], dtype='float32'))
 
 
     def test_lookup_values_ingest_replay(self):
@@ -443,93 +430,18 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([30.]*20 + [40.]*20))
         np.testing.assert_array_almost_equal(rdt_out['calibrated_b'], np.array([40.] * 20 + [50.] * 20))
 
-
-
-    @unittest.skip('Doesnt work')
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_replay_pause(self):
-        # Get a precompiled parameter dictionary with basic ctd fields
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
-        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
-
-        # Add a field that supports binary data input.
-        bin_context = ParameterContext('binary',  param_type=ArrayType())
-        context_ids.append(self.dataset_management.create_parameter_context('binary', bin_context.dump()))
-        # Add another field that supports dictionary elements.
-        rec_context = ParameterContext('records', param_type=RecordType())
-        context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
-
-        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids, temporal_context='time')
-        
-
-        stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
-        replay_stream, replay_route = self.pubsub_management.create_stream('replay', 'xp1', stream_definition_id=stream_def_id)
-        dataset_id = self.create_dataset(pdict_id)
-        scov = DatasetManagementService._get_simplex_coverage(dataset_id)
-
-        bb = CoverageCraft(scov)
-        bb.rdt['time'] = np.arange(100)
-        bb.rdt['temp'] = np.random.random(100) + 30
-        bb.sync_with_granule()
-
-        DatasetManagementService._persist_coverage(dataset_id, bb.coverage) # This invalidates it for multi-host configurations
-        # Set up the subscriber to verify the data
-        subscriber = StandaloneStreamSubscriber(self.exchange_space_name, self.validate_granule_subscription)
-        xp = self.container.ex_manager.create_xp('xp1')
-        self.queue_buffer.append(self.exchange_space_name)
-        subscriber.start()
-        subscriber.xn.bind(replay_route.routing_key, xp)
-
-        # Set up the replay agent and the client wrapper
-
-        # 1) Define the Replay (dataset and stream to publish on)
-        self.replay_id, process_id = self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream)
-        # 2) Make a client to the interact with the process (optionall provide it a process to bind with)
-        replay_client = ReplayClient(process_id)
-        # 3) Start the agent (launch the process)
-        self.data_retriever.start_replay_agent(self.replay_id)
-        # 4) Start replaying...
-        replay_client.start_replay()
-        
-        # Wait till we get some granules
-        self.assertTrue(self.event.wait(5))
-        
-        # We got granules, pause the replay, clear the queue and allow the process to finish consuming
-        replay_client.pause_replay()
-        gevent.sleep(1)
-        subscriber.xn.purge()
-        self.event.clear()
-        
-        # Make sure there's no remaining messages being consumed
-        self.assertFalse(self.event.wait(1))
-
-        # Resume the replay and wait until we start getting granules again
-        replay_client.resume_replay()
-        self.assertTrue(self.event.wait(5))
-    
-        # Stop the replay, clear the queues
-        replay_client.stop_replay()
-        gevent.sleep(1)
-        subscriber.xn.purge()
-        self.event.clear()
-
-        # Make sure that it did indeed stop
-        self.assertFalse(self.event.wait(1))
-
-        subscriber.stop()
-
-
     def test_ingestion_pause(self):
         ctd_stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
         ingestion_config_id = self.get_ingestion_config()
         self.start_ingestion(ctd_stream_id, dataset_id)
+        self.addCleanup(self.stop_ingestion, ctd_stream_id)
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(10)
 
         publisher = StandaloneStreamPublisher(ctd_stream_id, route)
         monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(monitor.stop)
         publisher.publish(rdt.to_granule())
         self.assertTrue(monitor.event.wait(10))
         granule = self.data_retriever.retrieve(dataset_id)
@@ -546,14 +458,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.assertTrue(monitor.event.wait(10))
 
-        gevent.sleep(3)
         granule = self.data_retriever.retrieve(dataset_id)
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_almost_equal(rdt2['time'], np.arange(20))
 
-        self.stop_ingestion(ctd_stream_id)
-
-
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_upload_calibration_coefficients(self):
         stream_id, route, stream_def_id, dataset_id = self.make_cal_dataset()
         self.start_ingestion(stream_id, dataset_id)
@@ -561,13 +470,18 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.launch_cc_producer(stream_id)
 
         # Let a little data accumulate
-        gevent.sleep(2)
+        monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(monitor.stop)
+        monitor.event.wait(10)
+
 
         # Verify that the CC parameters are fill value
         with DirectCoverageAccess() as dca:
             cov = dca.get_read_only_coverage(dataset_id)
             for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
                 np.testing.assert_equal(cov.get_parameter_values(p, -1), -9999.)
+            cov = None
+            del cov
 
         # Upload the calibration coefficients - this pauses ingestion, performs the upload, and resumes ingestion
         with DirectCoverageAccess() as dca:
@@ -590,10 +504,46 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 np.testing.assert_equal(cov.get_parameter_values(p, -1), want_vals[p])
 
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_manual_data_upload(self):
+        stream_id, route, stream_def_id, dataset_id = self.make_manual_upload_dataset()
+        self.start_ingestion(stream_id, dataset_id)
+
+        self.launch_cc_producer(stream_id)
+
+        # Let at least 20 samples accumulate
+        gevent.sleep(2)
+
+        # Verify that the HITL parameters are fill value
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            fillarr = np.array([False]*10)
+            for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), fillarr)
+
+        # Upload the data - this pauses ingestion, performs the upload, and resumes ingestion
+        with DirectCoverageAccess() as dca:
+            dca.manual_upload(dataset_id, 'test_data/testmanualupload.csv', 'test_data/testmanualupload.yml')
+
+        # Wait a moment
+        gevent.sleep(0.5)
+
+        # Verify that the HITL parameters now have the correct values
+        want_vals = {
+            'temp_hitl_qc': np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0], dtype=bool),
+            'cond_hitl_qc': np.array([1, 0, 1, 0, 0, 0, 1, 1, 0, 0], dtype=bool)
+        }
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), want_vals[p])
+
+
     def test_retrieve_and_transform(self):
         # Make a simple dataset and start ingestion, pretty standard stuff.
         ctd_stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
         self.start_ingestion(ctd_stream_id, dataset_id)
+        self.addCleanup(self.stop_ingestion, ctd_stream_id)
 
         # Stream definition for the salinity data
         salinity_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
@@ -625,12 +575,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         for i in rdt['salinity']:
             self.assertNotEquals(i,0)
-        self.streams.append(ctd_stream_id)
-        self.stop_ingestion(ctd_stream_id)
 
     def test_last_granule(self):
         stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
         self.start_ingestion(stream_id, dataset_id)
+        self.addCleanup(self.stop_ingestion, stream_id)
 
         self.publish_hifi(stream_id,route, 0)
         self.publish_hifi(stream_id,route, 1)
@@ -666,8 +615,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         success = poll(verify_points)
 
         self.assertTrue(success)
-        self.streams.append(stream_id)
-        self.stop_ingestion(stream_id)
 
     def test_replay_with_parameters(self):
         #--------------------------------------------------------------------------------
@@ -693,8 +640,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         config_id  = self.get_ingestion_config()
         dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
+        self.addCleanup(self.stop_ingestion, stream_id)
 
         dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
 
         self.addCleanup(dataset_monitor.stop)
 
@@ -719,10 +668,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(extents['time']>=20)
         self.assertTrue(extents['temp']>=20)
 
-        self.streams.append(stream_id)
-        self.stop_ingestion(stream_id)
-        
-
     def test_repersist_data(self):
         stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
         self.start_ingestion(stream_id, dataset_id)
@@ -732,6 +677,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         config_id = self.get_ingestion_config()
         self.ingestion_management.unpersist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id,dataset_id=dataset_id)
+        self.addCleanup(self.stop_ingestion, stream_id)
         self.publish_hifi(stream_id,route,2)
         self.publish_hifi(stream_id,route,3)
         self.wait_until_we_have_enough_granules(dataset_id,40)
@@ -749,8 +695,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 gevent.sleep(1)
 
         self.assertTrue(success)
-        self.streams.append(stream_id)
-        self.stop_ingestion(stream_id)
 
 
     @attr('LOCOINT')
@@ -774,16 +718,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.assertTrue( np.abs(temporal_bounds[0] - unix_ago) < 2)
         self.assertTrue( np.abs(temporal_bounds[1] - unix_now) < 2)
-
-
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_empty_coverage_time(self):
-
-        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
-        coverage = DatasetManagementService._get_coverage(dataset_id)
-        temporal_bounds = self.dataset_management.dataset_temporal_bounds(dataset_id)
-        self.assertEquals([coverage.get_parameter_context('time').fill_value] *2, temporal_bounds)
 
 
     @attr('LOCOINT')
@@ -859,6 +793,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         route = self.pubsub_management.read_stream_route(stream_id)
         publisher = StandaloneStreamPublisher(stream_id,route)
         dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
         publisher.publish(granule)
         self.assertTrue(dataset_monitor.event.wait(10))
 
@@ -952,8 +887,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['conductivity_L1'], np.array([42.914]))
         np.testing.assert_array_almost_equal(rdt_out['temp_L1'], np.array([20.]))
         np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
-        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881]))
-        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
+        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881], dtype='float32'))
+        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283], dtype='float32'))
 
 
         rdt = ph.get_rdt(stream_def_id)
@@ -993,47 +928,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
 
-    @unittest.skip('Outdated due to ingestion retry')
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_ingestion_failover(self):
-        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
-        self.start_ingestion(stream_id, dataset_id)
-        
-        event = Event()
-
-        def cb(*args, **kwargs):
-            event.set()
-
-        sub = EventSubscriber(event_type="ExceptionEvent", callback=cb, origin="stream_exception")
-        sub.start()
-
-        self.publish_fake_data(stream_id, route)
-        self.wait_until_we_have_enough_granules(dataset_id, 40)
-        
-        file_path = DatasetManagementService._get_coverage_path(dataset_id)
-        master_file = os.path.join(file_path, '%s_master.hdf5' % dataset_id)
-
-        with open(master_file, 'w') as f:
-            f.write('this will crash HDF')
-
-        self.publish_hifi(stream_id, route, 5)
-
-
-        self.assertTrue(event.wait(10))
-
-        sub.stop()
-
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_coverage_types(self):
-        # Make a simple dataset and start ingestion, pretty standard stuff.
-        ctd_stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
-        cov = DatasetManagementService._get_coverage(dataset_id=dataset_id)
-        self.assertIsInstance(cov, ViewCoverage)
-
-        cov = DatasetManagementService._get_simplex_coverage(dataset_id=dataset_id)
-        self.assertIsInstance(cov, SimplexCoverage)
 
 class DatasetMonitor(object):
     def __init__(self, dataset_id):
