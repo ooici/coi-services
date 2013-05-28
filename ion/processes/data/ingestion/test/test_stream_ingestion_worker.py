@@ -67,7 +67,7 @@ class TestStreamIngestionWorker(IonIntegrationTestCase):
         self.start_ingestion_worker()
 
         context_ids, time_ctxt = self._create_param_contexts()
-        pdict_id = self.dataset_management_client.create_parameter_dictionary(name='stream_ingestion_pdict', parameter_context_ids=context_ids, temporal_context=time_ctxt)
+        pdict_id = self.dataset_management_client.create_parameter_dictionary(name='stream_ingestion_pdict', parameter_context_ids=context_ids, temporal_context='ingestion_timestamp')
         self.addCleanup(self.dataset_management_client.delete_parameter_dictionary, pdict_id)
 
         dataset_id = self.dataset_management_client.create_dataset(name='fake_dataset', description='fake_dataset', stream_id=self.stream_id, spatial_domain=self.spatial_dom.dump(), temporal_domain=self.time_dom.dump(), parameter_dictionary_id=pdict_id)
