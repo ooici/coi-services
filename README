@@ -68,7 +68,7 @@ installation
     Note: This may require Mac's XCode (use XCode 3.3 free version)
 
 * Setup a virtualenv to run COI-services (use any name you like):
-    > mkvirtualenv --no-site-packages --python=python2.7 coi
+    > mkvirtualenv --distribute --no-site-packages --python=python2.7 coi
     Note: Do not use the pyon virtualenv if you are a pyon developer
 
 
