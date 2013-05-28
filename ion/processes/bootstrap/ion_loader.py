@@ -2827,7 +2827,7 @@ Reason: %s
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                newrow['stream_def_id'] = 'StreamDef11'        # Hardcoded to preload row value!!
+                newrow['stream_def_id'] = 'StreamDef23'        # Hardcoded to preload row value!!
                 newrow['parent'] = ''
                 newrow['persist_data'] = 'False'
                 self._load_DataProduct(newrow, do_bulk=self.bulk)
