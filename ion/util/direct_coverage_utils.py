@@ -106,17 +106,9 @@ class DirectCoverageAccess(object):
         self._w_covs[sid] = DatasetManagementService._get_simplex_coverage(dataset_id, mode='w')
         return self._w_covs[sid]
 
-    def get_parser(self, data_file_path, config_path=None):
-        config = None
-        if config_path is not None:
-            config = yaml.load(open(config_path))
-
-        if config is None:  # Empty configuration, do not pass to parser
-            parser = SimpleCSVParser(data_file_path)
-        else:
-            parser = SimpleCSVParser(data_file_path, **config)
-
-        return parser
+    @classmethod
+    def get_parser(cls, data_file_path, config_path=None):
+        return SimpleCSVParser.get_parser(data_file_path, config_path=config_path)
 
     def manual_upload(self, dataset_id, data_file_path, config_path=None):
         # First, ensure we can get a parser and parse the data file
@@ -251,38 +243,51 @@ class SimpleCSVParser(object):
         return buf
 
     @classmethod
+    def get_parser(self, data_file_path, config_path=None):
+        config = None
+        if config_path is not None:
+            config = yaml.load(open(config_path))
+
+        if config is None:  # Empty configuration, do not pass to parser
+            parser = self(data_file_path)
+        else:
+            parser = self(data_file_path, **config)
+
+        return parser
+
+    @classmethod
     def write_default_parser_config(cls, out_path):
         config_contents = '''#######################################################################################################
-    # File properties
-    # 'header_size': the number of lines to skip before beginning to parse data
-    # 'delimiter': the character used to delimit data columns
-    # 'num_columns': the number of data columns; if None (default), calculated from first line after header
-    #######################################################################################################
-    #header_size: 0 # Defaults to 0 if not specified
-    #delimiter: ',' # Defaults to ',' if not specified
-    #num_columns: None # Defaults to None
+# File properties
+# 'header_size': the number of lines to skip before beginning to parse data
+# 'delimiter': the character used to delimit data columns
+# 'num_columns': the number of data columns; if None (default), calculated from first line after header
+#######################################################################################################
+#header_size: 0 # Defaults to 0 if not specified
+#delimiter: ',' # Defaults to ',' if not specified
+#num_columns: None # Defaults to None
 
-    ########################################################################################
-    # Global column properties - supply defaults for the data columns
-    # 'use_column_names': Attempts to use the first row after the header as the column names
-    #       If false and the 'name' property for each column is not specified below,
-    #       sequential names of 'f<col#>' are used
-    # 'dtype': The data type for the column - supported types are those supported by numpy
-    # 'fill_val': The fill value to use for missing data - must match the data type
-    ########################################################################################
-    #use_column_names: false # Defaults to true if not specified
-    #dtype: float32 # Defaults to float32 if not specified
-    #fill_val: -999 # Defaults to -999 if not specified
+########################################################################################
+# Global column properties - supply defaults for the data columns
+# 'use_column_names': Attempts to use the first row after the header as the column names
+#       If false and the 'name' property for each column is not specified below,
+#       sequential names of 'f<col#>' are used
+# 'dtype': The data type for the column - supported types are those supported by numpy
+# 'fill_val': The fill value to use for missing data - must match the data type
+########################################################################################
+#use_column_names: true # Defaults to true if not specified
+#dtype: float32 # Defaults to float32 if not specified
+#fill_val: -999 # Defaults to -999 if not specified
 
-    #####################################################################################
-    # Column-by-column properties - override the 'name', 'dtype' and 'fill_val' defaults
-    # A dictionary where the key is the column index and the value is a dictionary
-    # Supported keys for the inner dictionaries are: 'name', 'dtype' and 'fill_val'
-    # Rules for 'dtype' and 'fill_val' are the same as above
-    # 'name' is ignored if 'use_column_names' == true
-    #####################################################################################
-    #column_map: # Defaults to None, meaning no per-column overriding is applied
-      #0: {name: a, dtype: float32, fill_val: -999}'''
+#####################################################################################
+# Column-by-column properties - override the 'name', 'dtype' and 'fill_val' defaults
+# A dictionary where the key is the column index and the value is a dictionary
+# Supported keys for the inner dictionaries are: 'name', 'dtype' and 'fill_val'
+# Rules for 'dtype' and 'fill_val' are the same as above
+# 'name' is ignored if 'use_column_names' == true
+#####################################################################################
+#column_map: # Defaults to None, meaning no per-column overriding is applied
+  #0: {name: a, dtype: float32, fill_val: -999}'''
 
         with open(out_path, 'w') as f:
             f.write(config_contents)
