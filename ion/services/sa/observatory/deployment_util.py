@@ -18,9 +18,7 @@ def describe_deployments(deployments, context):
     deployment_ids = [ d._id for d in deployments ]
     descriptions = {}
     for d in deployments:
-        descriptions[d._id] = { 'is_primary': False, '_id': d._id } #, 'type_': RT.Deployment }
-        for k in d._schema:
-            descriptions[d._id][k] = getattr(d,k)
+        descriptions[d._id] = { 'is_primary': False }
         time_constraint = None
         for constraint in d.constraint_list:
             if constraint.type_ == OT.TemporalBounds:
@@ -86,6 +84,9 @@ def describe_deployments(deployments, context):
                     description['parent_site_id']=obj._id
                     description['parent_site_name']=obj.name
                     description['parent_site_description']=obj.description
+
+    # convert to array
+    descriptions = [ descriptions[d._id] for d in deployments ]
 
     log.debug('%d deployments, %d associated sites/devices, %d activations', len(deployments), len(objects), len(objects2))
     return descriptions
