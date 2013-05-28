@@ -14,6 +14,7 @@ from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.public import CFG
 import numpy as np
+import unittest
 
 @attr('INT',group='dm')
 class TestDMExtended(DMTestCase):
@@ -24,6 +25,7 @@ class TestDMExtended(DMTestCase):
         DMTestCase.setUp(self)
         self.ph = ParameterHelper(self.dataset_management, self.addCleanup)
 
+    @unittest.skip('Somewhat duplicated, needs more verification work')
     def test_pydap_handlers(self):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
         stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
@@ -37,6 +39,7 @@ class TestDMExtended(DMTestCase):
         rdt['time'] = np.arange(20)
         rdt['temp'] = np.arange(20)
         dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id,rdt)
         dataset_monitor.event.wait(10)
 
@@ -68,6 +71,7 @@ class TestDMExtended(DMTestCase):
 
         granule = rdt.to_granule()
         dataset_monitor = DatasetMonitor(self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id))
+        self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         dataset_monitor.event.wait(10)
 
@@ -109,6 +113,7 @@ class TestDMExtended(DMTestCase):
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         dm = DatasetMonitor(dataset_id)
+        self.addCleanup(dm.stop)
 
 
         # I need to make sure that we can fill the RDT with its values

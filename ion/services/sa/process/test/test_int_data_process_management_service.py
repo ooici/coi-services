@@ -1531,6 +1531,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         instrument_dataset_id = self.dataset_for_data_product(instrument_data_product_id)
 
         dataset_monitor = DatasetMonitor(instrument_dataset_id)
+        self.addCleanup(dataset_monitor.stop)
         rdt = self.get_rdt_for_data_product(instrument_data_product_id)
         ph.fill_parsed_rdt(rdt)
 
