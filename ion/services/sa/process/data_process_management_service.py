@@ -296,6 +296,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self._manage_attachments()
 
         queue_name = self._create_subscription(dproc, in_data_product_ids)
+        print 'Output data product ids: ', out_data_product_ids
 
         pid = self._launch_data_process(
                 queue_name=queue_name,
@@ -608,7 +609,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         for dp_id in out_data_product_ids:
             stream_id = self._get_stream_from_dp(dp_id)
-            out_streams[stream_id] = stream_id
             if data_process_definition_id:
                 stream_definition = self.clients.pubsub_management.read_stream_definition(stream_id=stream_id)
                 stream_definition_id = stream_definition._id
@@ -619,6 +619,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                     if stream_def_id == stream_definition_id:
                         out_streams[binding] = stream_id
                         break
+            else:
+                out_streams[stream_id] = stream_id
 
         return self._launch_process(queue_name, out_streams, process_definition_id, configuration)
 

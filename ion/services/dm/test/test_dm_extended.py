@@ -17,7 +17,6 @@ from pyon.util.containers import DotDict
 import numpy as np
 import unittest
 
-@attr('INT',group='dm')
 class TestDMExtended(DMTestCase):
     '''
     ion/services/dm/test/test_dm_extended.py:TestDMExtended
@@ -26,7 +25,7 @@ class TestDMExtended(DMTestCase):
         DMTestCase.setUp(self)
         self.ph = ParameterHelper(self.dataset_management, self.addCleanup)
 
-    @unittest.skip('Somewhat duplicated, needs more verification work')
+    @attr('UTIL')
     def test_pydap_handlers(self):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
         stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
@@ -115,6 +114,7 @@ class TestDMExtended(DMTestCase):
 
         return procdef_id
 
+    @attr('UTIL')
     def test_dm_realtime_visualization(self):
         self.preload_beta()
 
@@ -123,7 +123,7 @@ class TestDMExtended(DMTestCase):
 
         #Create the input data product
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_simulator', id_only=True)
-        stream_def_id = self.create_stream_definition('ctd sim L2', parameter_dictionary_id=pdict_id, available_fields=['time','salinity','density'])
+        stream_def_id = self.create_stream_definition('ctd sim L2', parameter_dictionary_id=pdict_id)
         data_product_id = self.create_data_product('ctd simulator', stream_def_id=stream_def_id)
         self.activate_data_product(data_product_id)
 
@@ -176,6 +176,7 @@ class TestDMExtended(DMTestCase):
 #        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
     
+    @attr('INT',group='dm')
     def test_array_visualization(self):
         data_product_id, stream_def_id = self.make_array_data_product()
 
@@ -226,6 +227,7 @@ class TestDMExtended(DMTestCase):
              'viz_product_type': 'google_dt'}
         self.assertEquals(rdt['google_dt_components'][0], testval)
 
+    @attr('INT',group='dm')
     def test_array_flow_paths(self):
         data_product_id, stream_def_id = self.make_array_data_product()
 
