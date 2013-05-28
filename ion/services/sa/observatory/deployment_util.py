@@ -18,7 +18,7 @@ def describe_deployments(deployments, context):
     deployment_ids = [ d._id for d in deployments ]
     descriptions = {}
     for d in deployments:
-        descriptions[d._id] = { 'is_primary': False, '_id': d._id }
+        descriptions[d._id] = { 'is_primary': False, '_id': d._id, 'type_': RT.Deployment }
         for k in d._schema:
             descriptions[d._id][k] = getattr(d,k)
         time_constraint = None
