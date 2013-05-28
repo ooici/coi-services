@@ -61,11 +61,15 @@ class AgentStreamPublisher(object):
         decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
         for (stream_name, config) in stream_info.iteritems():
             try:
-                #stream_def = config['stream_definition_ref']
-                stream_def_dict = config['stream_def_dict']
-                stream_def_obj = decoder.deserialize(stream_def_dict)
-                #rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-                rdt = RecordDictionaryTool(stream_definition=stream_def_obj)
+                if config.has_key('stream_def_dict'):
+                    stream_def = config['stream_definition_ref']
+                    self._stream_defs[stream_name] = stream_def
+                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)    
+                else:
+                    stream_def_dict = config['stream_def_dict']
+                    stream_def_obj = decoder.deserialize(stream_def_dict)
+                    self._stream_defs[stream_name] = stream_def_obj
+                    rdt = RecordDictionaryTool(stream_definition=stream_def_obj)
                 self._agent.aparam_streams[stream_name] = rdt.fields
                 self._agent.aparam_pubrate[stream_name] = 0
             except Exception as e:
@@ -78,9 +82,7 @@ class AgentStreamPublisher(object):
 
     def _construct_publishers(self, stream_info):
         for (stream_name, stream_config) in stream_info.iteritems():
-            try:
-                stream_def = stream_config['stream_definition_ref']
-                self._stream_defs[stream_name] = stream_def
+            try:                
                 exchange_point = stream_config['exchange_point']
                 routing_key = stream_config['routing_key']
                 route = StreamRoute(exchange_point=exchange_point,
@@ -169,7 +171,11 @@ class AgentStreamPublisher(object):
                 return
 
             stream_def = self._stream_defs[stream_name]
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+            if isinstance(stream_def, str):
+                rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+            else:
+                rdt = RecordDictionaryTool(stream_definition=stream_def)
+                
             publisher = self._publishers[stream_name]
                 
             vals = []
