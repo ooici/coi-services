@@ -21,7 +21,7 @@ class NormalResponse(object):
 
 class InvalidResponse(object):
     PLATFORM_ID                   = 'INVALID_PLATFORM_ID'
-    ATTRIBUTE_NAME                = 'INVALID_ATTRIBUTE_NAME'
+    ATTRIBUTE_ID                  = 'INVALID_ATTRIBUTE_ID'
     ATTRIBUTE_VALUE_OUT_OF_RANGE  = 'ERROR_ATTRIBUTE_VALUE_OUT_OF_RANGE'
     ATTRIBUTE_NOT_WRITABLE        = 'ERROR_ATTRIBUTE_NOT_WRITABLE'
     PORT_ID                       = 'INVALID_PORT_ID'

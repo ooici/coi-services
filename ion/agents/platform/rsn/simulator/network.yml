@@ -30,7 +30,7 @@ network:
     max_val: 10
     read_write: read
     group: power
-    monitorCycleSeconds: 5
+    monitor_cycle_seconds: 5
   - attr_id: ShoreStation_attr_2
     type: int
     units: xyz
@@ -38,7 +38,7 @@ network:
     max_val: 10
     read_write: write
     group: power
-    monitorCycleSeconds: 5
+    monitor_cycle_seconds: 5
   ports:
   - port_id: ShoreStation_port_1
     network: ShoreStation_port_1_IP
@@ -56,7 +56,7 @@ network:
       precision: 1
       read_write: read
       group: power
-      monitorCycleSeconds: 5
+      monitor_cycle_seconds: 5
     - attr_id: estimated_minutes_remaining
       type: int
       units: Minutes
@@ -65,7 +65,7 @@ network:
       precision: 1
       read_write: read
       group: power
-      monitorCycleSeconds: 5
+      monitor_cycle_seconds: 5
     - attr_id: estimated_charge_remaining
       type: int
       units: Percent
@@ -74,7 +74,7 @@ network:
       precision: 1
       read_write: read
       group: power
-      monitorCycleSeconds: 5
+      monitor_cycle_seconds: 5
   - platform_id: Node1A
     platform_types: []
     attrs:
@@ -86,7 +86,7 @@ network:
       precision: 1
       read_write: read
       group: power
-      monitorCycleSeconds: 5
+      monitor_cycle_seconds: 5
     - attr_id: Node1A_attr_2
       type: int
       units: xyz
@@ -94,7 +94,7 @@ network:
       max_val: 10
       read_write: write
       group: power
-      monitorCycleSeconds: 5
+      monitor_cycle_seconds: 5
     ports:
     - port_id: Node1A_port_1
       network: Node1A_port_1_IP
@@ -111,7 +111,7 @@ network:
         max_val: 10
         read_write: read
         group: power
-        monitorCycleSeconds: 5
+        monitor_cycle_seconds: 5
       - attr_id: MJ01A_attr_2
         type: int
         units: xyz
@@ -119,7 +119,7 @@ network:
         max_val: 10
         read_write: write
         group: power
-        monitorCycleSeconds: 5
+        monitor_cycle_seconds: 5
       ports:
       - port_id: MJ01A_port_1
         network: MJ01A_port_1_IP
@@ -136,7 +136,7 @@ network:
         precision: 1
         read_write: read
         group: power
-        monitorCycleSeconds: 5
+        monitor_cycle_seconds: 5
       - attr_id: Node1B_attr_2
         type: int
         units: xyz
@@ -144,7 +144,7 @@ network:
         max_val: 10
         read_write: write
         group: power
-        monitorCycleSeconds: 5
+        monitor_cycle_seconds: 5
       ports:
       - port_id: Node1B_port_1
         network: Node1B_port_1_IP
@@ -162,7 +162,7 @@ network:
           precision: 1
           read_write: read
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         - attr_id: Node1C_attr_2
           type: int
           units: xyz
@@ -170,7 +170,7 @@ network:
           max_val: 10
           read_write: write
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         ports:
         - port_id: Node1C_port_1
           network: Node1C_port_1_IP
@@ -188,7 +188,7 @@ network:
             precision: 1
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: input_bus_current
             type: float
             units: Amps
@@ -197,7 +197,7 @@ network:
             precision: 0.1
             read_write: write  # just for testing
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: MVPC_temperature
             type: float
             units: Degrees C
@@ -206,7 +206,7 @@ network:
             precision: 0.06
             read_write: read
             group: temperature
-            monitorCycleSeconds: 10
+            monitor_cycle_seconds: 10
           - attr_id: MVPC_pressure_1
             type: float
             units: PSI
@@ -215,7 +215,7 @@ network:
             precision: 0.04
             read_write: read
             group: pressure
-            monitorCycleSeconds: 10
+            monitor_cycle_seconds: 10
           ports:
           - port_id: Node1D_port_1
             network: Node1D_port_1_IP
@@ -225,22 +225,42 @@ network:
           - platform_id: MJ01C
             platform_types: []
             attrs:
-            - attr_id: MJ01C_attr_1
-              type: int
-              units: xyz
-              min_val: -2
-              max_val: 10
+            - attr_id: input_voltage
+              type: float
+              units: Volts
+              min_val: -500
+              max_val: 500
+              precision: 1
               read_write: read
               group: power
-              monitorCycleSeconds: 5
-            - attr_id: MJ01C_attr_2
-              type: int
-              units: xyz
-              min_val: -2
-              max_val: 10
-              read_write: write
+              monitor_cycle_seconds: 2.5
+            - attr_id: input_bus_current
+              type: float
+              units: Amps
+              min_val: -50
+              max_val: 50
+              precision: 0.1
+              read_write: write  # just for testing
               group: power
-              monitorCycleSeconds: 5
+              monitor_cycle_seconds: 5
+            - attr_id: MVPC_temperature
+              type: float
+              units: Degrees C
+              min_val: -1.5
+              max_val: 58.5
+              precision: 0.06
+              read_write: read
+              group: temperature
+              monitor_cycle_seconds: 4
+            - attr_id: MVPC_pressure_1
+              type: float
+              units: PSI
+              min_val: -3.8
+              max_val: 33.8
+              precision: 0.04
+              read_write: read
+              group: pressure
+              monitor_cycle_seconds: 4
             ports:
             - port_id: MJ01C_port_1
               network: MJ01C_port_1_IP
@@ -258,7 +278,7 @@ network:
                 precision: 1
                 read_write: read
                 group: power
-                monitorCycleSeconds: 2.5
+                monitor_cycle_seconds: 2.5
               - attr_id: input_bus_current
                 type: float
                 units: Amps
@@ -267,7 +287,7 @@ network:
                 precision: 0.1
                 read_write: write  # just for testing
                 group: power
-                monitorCycleSeconds: 5
+                monitor_cycle_seconds: 5
               - attr_id: MVPC_temperature
                 type: float
                 units: Degrees C
@@ -276,7 +296,7 @@ network:
                 precision: 0.06
                 read_write: read
                 group: temperature
-                monitorCycleSeconds: 4
+                monitor_cycle_seconds: 4
               - attr_id: MVPC_pressure_1
                 type: float
                 units: PSI
@@ -285,7 +305,7 @@ network:
                 precision: 0.04
                 read_write: read
                 group: pressure
-                monitorCycleSeconds: 4
+                monitor_cycle_seconds: 4
               ports:
               - port_id: LJ01D_port_1
                 network: LJ01D_port_1_IP
@@ -301,7 +321,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: LV01C_attr_2
             type: int
             units: xyz
@@ -309,7 +329,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: LV01C_port_1
             network: LV01C_port_1_IP
@@ -326,7 +346,7 @@ network:
               max_val: 10
               read_write: read
               group: power
-              monitorCycleSeconds: 5
+              monitor_cycle_seconds: 5
             - attr_id: PC01B_attr_2
               type: int
               units: xyz
@@ -334,7 +354,7 @@ network:
               max_val: 10
               read_write: write
               group: power
-              monitorCycleSeconds: 5
+              monitor_cycle_seconds: 5
             ports:
             - port_id: PC01B_port_1
               network: PC01B_port_1_IP
@@ -351,7 +371,7 @@ network:
                 max_val: 10
                 read_write: read
                 group: power
-                monitorCycleSeconds: 5
+                monitor_cycle_seconds: 5
               - attr_id: SC01B_attr_2
                 type: int
                 units: xyz
@@ -359,7 +379,7 @@ network:
                 max_val: 10
                 read_write: write
                 group: power
-                monitorCycleSeconds: 5
+                monitor_cycle_seconds: 5
               ports:
               - port_id: SC01B_port_1
                 network: SC01B_port_1_IP
@@ -376,7 +396,7 @@ network:
                   max_val: 10
                   read_write: read
                   group: power
-                  monitorCycleSeconds: 5
+                  monitor_cycle_seconds: 5
                 - attr_id: SF01B_attr_2
                   type: int
                   units: xyz
@@ -384,7 +404,7 @@ network:
                   max_val: 10
                   read_write: write
                   group: power
-                  monitorCycleSeconds: 5
+                  monitor_cycle_seconds: 5
                 ports:
                 - port_id: SF01B_port_1
                   network: SF01B_port_1_IP
@@ -400,7 +420,7 @@ network:
               max_val: 10
               read_write: read
               group: power
-              monitorCycleSeconds: 5
+              monitor_cycle_seconds: 5
             - attr_id: LJ01C_attr_2
               type: int
               units: xyz
@@ -408,7 +428,7 @@ network:
               max_val: 10
               read_write: write
               group: power
-              monitorCycleSeconds: 5
+              monitor_cycle_seconds: 5
             ports:
             - port_id: LJ01C_port_1
               network: LJ01C_port_1_IP
@@ -424,7 +444,7 @@ network:
           max_val: 10
           read_write: read
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         - attr_id: LV01B_attr_2
           type: int
           units: xyz
@@ -432,7 +452,7 @@ network:
           max_val: 10
           read_write: write
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         ports:
         - port_id: LV01B_port_1
           network: LV01B_port_1_IP
@@ -449,7 +469,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: LJ01B_attr_2
             type: int
             units: xyz
@@ -457,7 +477,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: LJ01B_port_1
             network: LJ01B_port_1_IP
@@ -473,7 +493,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: MJ01B_attr_2
             type: int
             units: xyz
@@ -481,7 +501,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: MJ01B_port_1
             network: MJ01B_port_1_IP
@@ -497,7 +517,7 @@ network:
         max_val: 10
         read_write: read
         group: power
-        monitorCycleSeconds: 5
+        monitor_cycle_seconds: 5
       - attr_id: LV01A_attr_2
         type: int
         units: xyz
@@ -505,7 +525,7 @@ network:
         max_val: 10
         read_write: write
         group: power
-        monitorCycleSeconds: 5
+        monitor_cycle_seconds: 5
       ports:
       - port_id: LV01A_port_1
         network: LV01A_port_1_IP
@@ -522,7 +542,7 @@ network:
           max_val: 10
           read_write: read
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         - attr_id: LJ01A_attr_2
           type: int
           units: xyz
@@ -530,7 +550,7 @@ network:
           max_val: 10
           read_write: write
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         ports:
         - port_id: LJ01A_port_1
           network: LJ01A_port_1_IP
@@ -546,7 +566,7 @@ network:
           max_val: 10
           read_write: read
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         - attr_id: PC01A_attr_2
           type: int
           units: xyz
@@ -554,7 +574,7 @@ network:
           max_val: 10
           read_write: write
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         ports:
         - port_id: PC01A_port_1
           network: PC01A_port_1_IP
@@ -571,7 +591,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: SC01A_attr_2
             type: int
             units: xyz
@@ -579,7 +599,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: SC01A_port_1
             network: SC01A_port_1_IP
@@ -596,7 +616,7 @@ network:
               max_val: 10
               read_write: read
               group: power
-              monitorCycleSeconds: 5
+              monitor_cycle_seconds: 5
             - attr_id: SF01A_attr_2
               type: int
               units: xyz
@@ -604,7 +624,7 @@ network:
               max_val: 10
               read_write: write
               group: power
-              monitorCycleSeconds: 5
+              monitor_cycle_seconds: 5
             ports:
             - port_id: SF01A_port_1
               network: SF01A_port_1_IP
@@ -621,7 +641,7 @@ network:
       precision: 1
       read_write: read
       group: power
-      monitorCycleSeconds: 5
+      monitor_cycle_seconds: 5
     - attr_id: Node5A_attr_2
       type: int
       units: xyz
@@ -629,7 +649,7 @@ network:
       max_val: 10
       read_write: write
       group: power
-      monitorCycleSeconds: 5
+      monitor_cycle_seconds: 5
     ports:
     - port_id: Node5A_port_1
       network: Node5A_port_1_IP
@@ -647,7 +667,7 @@ network:
         precision: 1
         read_write: read
         group: power
-        monitorCycleSeconds: 5
+        monitor_cycle_seconds: 5
       - attr_id: Node3A_attr_2
         type: int
         units: xyz
@@ -655,7 +675,7 @@ network:
         max_val: 10
         read_write: write
         group: power
-        monitorCycleSeconds: 5
+        monitor_cycle_seconds: 5
       ports:
       - port_id: Node3A_port_1
         network: Node3A_port_1_IP
@@ -673,7 +693,7 @@ network:
           precision: 1
           read_write: read
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         - attr_id: Node3B_attr_2
           type: int
           units: xyz
@@ -681,7 +701,7 @@ network:
           max_val: 10
           read_write: write
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         ports:
         - port_id: Node3B_port_1
           network: Node3B_port_1_IP
@@ -698,7 +718,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: MJ03F_attr_2
             type: int
             units: xyz
@@ -706,7 +726,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: MJ03F_port_1
             network: MJ03F_port_1_IP
@@ -722,7 +742,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: MJ03E_attr_2
             type: int
             units: xyz
@@ -730,7 +750,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: MJ03E_port_1
             network: MJ03E_port_1_IP
@@ -746,7 +766,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: MJ03D_attr_2
             type: int
             units: xyz
@@ -754,7 +774,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: MJ03D_port_1
             network: MJ03D_port_1_IP
@@ -770,7 +790,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: MJ03C_attr_2
             type: int
             units: xyz
@@ -778,7 +798,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: MJ03C_port_1
             network: MJ03C_port_1_IP
@@ -794,7 +814,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: MJ03B_attr_2
             type: int
             units: xyz
@@ -802,7 +822,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: MJ03B_port_1
             network: MJ03B_port_1_IP
@@ -818,7 +838,7 @@ network:
           max_val: 10
           read_write: read
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         - attr_id: MJ03A_attr_2
           type: int
           units: xyz
@@ -826,7 +846,7 @@ network:
           max_val: 10
           read_write: write
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         ports:
         - port_id: MJ03A_port_1
           network: MJ03A_port_1_IP
@@ -842,7 +862,7 @@ network:
           max_val: 10
           read_write: read
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         - attr_id: LV03A_attr_2
           type: int
           units: xyz
@@ -850,7 +870,7 @@ network:
           max_val: 10
           read_write: write
           group: power
-          monitorCycleSeconds: 5
+          monitor_cycle_seconds: 5
         ports:
         - port_id: LV03A_port_1
           network: LV03A_port_1_IP
@@ -867,7 +887,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: LJ03A_attr_2
             type: int
             units: xyz
@@ -875,7 +895,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: LJ03A_port_1
             network: LJ03A_port_1_IP
@@ -891,7 +911,7 @@ network:
             max_val: 10
             read_write: read
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           - attr_id: PC03A_attr_2
             type: int
             units: xyz
@@ -899,7 +919,7 @@ network:
             max_val: 10
             read_write: write
             group: power
-            monitorCycleSeconds: 5
+            monitor_cycle_seconds: 5
           ports:
           - port_id: PC03A_port_1
             network: PC03A_port_1_IP
@@ -916,7 +936,7 @@ network:
               max_val: 10
               read_write: read
               group: power
-              monitorCycleSeconds: 5
+              monitor_cycle_seconds: 5
             - attr_id: SC03A_attr_2
               type: int
               units: xyz
@@ -924,7 +944,7 @@ network:
               max_val: 10
               read_write: write
               group: power
-              monitorCycleSeconds: 5
+              monitor_cycle_seconds: 5
             ports:
             - port_id: SC03A_port_1
               network: SC03A_port_1_IP
@@ -941,7 +961,7 @@ network:
                 max_val: 10
                 read_write: read
                 group: power
-                monitorCycleSeconds: 5
+                monitor_cycle_seconds: 5
               - attr_id: SF03A_attr_2
                 type: int
                 units: xyz
@@ -949,7 +969,7 @@ network:
                 max_val: 10
                 read_write: write
                 group: power
-                monitorCycleSeconds: 5
+                monitor_cycle_seconds: 5
               ports:
               - port_id: SF03A_port_1
                 network: SF03A_port_1_IP

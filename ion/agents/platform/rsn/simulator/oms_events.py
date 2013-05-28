@@ -28,24 +28,18 @@ if not getattr(log, "trace", None):
     setattr(log, "trace", log.debug)
 
 
+##########################################################################
+# The "event type" concept was removed from the interface (~Apr/2013).
+# To minimize changes in the code, simply introduce an 'ALL' event type here.
+
+
 class EventInfo(object):
     EVENT_TYPES = {
-
-        '44.77': {
-            'ref_id':        '44.77',
+        'ALL': {
             'name':          'on battery',
             'severity':      3,
-            'platform_type': 'UPS',
             'group':         'power',
-            },
-
-        '44.78': {
-            'ref_id':        '44.78',
-            'name':          'low battery',
-            'severity':      3,
-            'platform_type': 'UPS',
-            'group':         'power',
-            },
+        }
     }
 
 
@@ -53,9 +47,9 @@ class EventNotifier(object):
 
     def __init__(self):
 
-        # { event_type: {url: reg_time, ...}, ... }
+        # _listeners: { event_type: {url: reg_time, ...}, ... }
         # initialize with empty dict for each event type:
-        self._listeners = dict((at, {}) for at in EventInfo.EVENT_TYPES)
+        self._listeners = dict((et, {}) for et in EventInfo.EVENT_TYPES)
 
     def add_listener(self, url, event_type):
         assert event_type in EventInfo.EVENT_TYPES
@@ -86,11 +80,8 @@ class EventNotifier(object):
         Notifies the event to all associated listeners.
         """
         assert isinstance(event_instance, dict)
-        assert 'ref_id' in event_instance
-        event_type = event_instance['ref_id']
-        assert event_type in EventInfo.EVENT_TYPES
 
-        urls = self._listeners[event_type]
+        urls = self._listeners['ALL']
         if not len(urls):
             # no event listeners for event_type; just ignore notification:
             return
@@ -166,20 +157,19 @@ class EventGenerator(object):
         event_type = EventInfo.EVENT_TYPES.values()[self._index]
         self._index += 1
 
-        #
-        # TODO create a more complete event_instance
-        #
-        ref_id = event_type['ref_id']
-        platform_id = "TODO_some_platform_id_of_type_%s" % event_type['platform_type']
+        platform_id = "TODO_some_platform_id"
         message = "%s (synthetic event generated from simulator)" % event_type['name']
         group = event_type['group']
         timestamp = ntplib.system_to_ntp_time(time.time())
+        first_time_timestamp = timestamp
+        severity = event_type['severity']
         event_instance = {
-            'ref_id':       ref_id,
-            'message':      message,
-            'platform_id':  platform_id,
-            'timestamp':    timestamp,
-            'group':        group,
+            'message':               message,
+            'platform_id':           platform_id,
+            'timestamp':             timestamp,
+            'first_time_timestamp':  first_time_timestamp,
+            'severity':              severity,
+            'group':                 group,
         }
 
         log.debug("notifying event_instance=%s", str(event_instance))
@@ -263,65 +253,36 @@ $ bin/python  ion/agents/platform/rsn/simulator/oms_events.py listener
 localhost:8000: listening for event notifications...
 
 TERMINAL 2:
-$ bin/python  ion/agents/platform/rsn/simulator/oms_events.py notifier
-2013-01-30 20:28:19,128 DEBUG    MainThread oms_simulator  :67 add_listener added listener=http://localhost:8000 for event_type=44.78
-registered listener to event_type='44.78'
-2013-01-30 20:28:19,128 DEBUG    MainThread oms_simulator  :67 add_listener added listener=http://localhost:8000 for event_type=44.77
-registered listener to event_type='44.77'
-2013-01-30 20:28:19,128 DEBUG    MainThread oms_simulator  :159 __init__ !!!! EventGenerator: pyon not detected: using Thread
+oms_simulator: setting log level to: logging.WARN
+registered listener to event_type='ALL'
 generating events for 15 seconds ...
-2013-01-30 20:28:22,129 DEBUG    Thread-1 oms_simulator  :184 generate_and_notify_event notifying event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'timestamp': 3568595302.1292267, 'message': 'low battery (synthetic event generated from simulator)', 'group': 'power', 'ref_id': '44.78'}
-2013-01-30 20:28:22,129 DEBUG    Thread-1 oms_simulator  :109 _notify_listener Notifying event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'timestamp': 3568595302.1292267, 'message': 'low battery (synthetic event generated from simulator)', 'group': 'power', 'ref_id': '44.78'} to listener=http://localhost:8000
-2013-01-30 20:28:22,129 DEBUG    Thread-1 oms_simulator  :116 _notify_listener payload=
-{
-  "group": "power",
-  "url": "http://localhost:8000",
-  "timestamp": 3568595302.1292267,
-  "ref_id": "44.78",
-  "platform_id": "TODO_some_platform_id_of_type_UPS",
-  "message": "low battery (synthetic event generated from simulator)"
-}
-2013-01-30 20:28:22,134 DEBUG    Thread-1 oms_simulator  :133 _notify_listener RESPONSE: 200, OK, MY-RESPONSE. BYE
-2013-01-30 20:28:29,335 DEBUG    Thread-1 oms_simulator  :184 generate_and_notify_event notifying event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'timestamp': 3568595309.335513, 'message': 'on battery (synthetic event generated from simulator)', 'group': 'power', 'ref_id': '44.77'}
-2013-01-30 20:28:29,335 DEBUG    Thread-1 oms_simulator  :109 _notify_listener Notifying event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'timestamp': 3568595309.335513, 'message': 'on battery (synthetic event generated from simulator)', 'group': 'power', 'ref_id': '44.77'} to listener=http://localhost:8000
-2013-01-30 20:28:29,335 DEBUG    Thread-1 oms_simulator  :116 _notify_listener payload=
-{
-  "group": "power",
-  "url": "http://localhost:8000",
-  "timestamp": 3568595309.335513,
-  "ref_id": "44.77",
-  "platform_id": "TODO_some_platform_id_of_type_UPS",
-  "message": "on battery (synthetic event generated from simulator)"
-}
-2013-01-30 20:28:29,339 DEBUG    Thread-1 oms_simulator  :133 _notify_listener RESPONSE: 200, OK, MY-RESPONSE. BYE
-2013-01-30 20:28:34,128 DEBUG    MainThread oms_simulator  :202 stop stopping event generation...
-2013-01-30 20:28:34,140 DEBUG    Thread-1 oms_simulator  :199 _run event generation stopped.
-
 
 
 TERMINAL 1:
-CONTENT_LENGTH=242 CONTENT_TYPE=application/json HTTP_ACCEPT=text/plain
+CONTENT_LENGTH=270 CONTENT_TYPE=application/json HTTP_ACCEPT=text/plain
 body=
 {
   "group": "power",
+  "severity": 3,
   "url": "http://localhost:8000",
-  "timestamp": 3568595302.1292267,
-  "ref_id": "44.78",
-  "platform_id": "TODO_some_platform_id_of_type_UPS",
-  "message": "low battery (synthetic event generated from simulator)"
+  "timestamp": 3578265811.422655,
+  "platform_id": "TODO_some_platform_id",
+  "message": "on battery (synthetic event generated from simulator)",
+  "first_time_timestamp": 3578265811.422655
 }
-event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'group': 'power', 'url': 'http://localhost:8000', 'timestamp': 3568595302.1292267, 'message': 'low battery (synthetic event generated from simulator)', 'ref_id': '44.78'}
-127.0.0.1 - - [2013-01-30 20:28:22] "POST / HTTP/1.1" 200 118 0.002464
-CONTENT_LENGTH=240 CONTENT_TYPE=application/json HTTP_ACCEPT=text/plain
+event_instance={'platform_id': 'TODO_some_platform_id', 'group': 'power', 'severity': 3, 'url': 'http://localhost:8000', 'timestamp': 3578265811.422655, 'message': 'on battery (synthetic event generated from simulator)', 'first_time_timestamp': 3578265811.422655}
+127.0.0.1 - - [2013-05-22 19:43:31] "POST / HTTP/1.1" 200 118 0.002814
+CONTENT_LENGTH=270 CONTENT_TYPE=application/json HTTP_ACCEPT=text/plain
 body=
 {
   "group": "power",
+  "severity": 3,
   "url": "http://localhost:8000",
-  "timestamp": 3568595309.335513,
-  "ref_id": "44.77",
-  "platform_id": "TODO_some_platform_id_of_type_UPS",
-  "message": "on battery (synthetic event generated from simulator)"
+  "timestamp": 3578265818.647295,
+  "platform_id": "TODO_some_platform_id",
+  "message": "on battery (synthetic event generated from simulator)",
+  "first_time_timestamp": 3578265818.647295
 }
-event_instance={'platform_id': 'TODO_some_platform_id_of_type_UPS', 'group': 'power', 'url': 'http://localhost:8000', 'timestamp': 3568595309.335513, 'message': 'on battery (synthetic event generated from simulator)', 'ref_id': '44.77'}
-127.0.0.1 - - [2013-01-30 20:28:29] "POST / HTTP/1.1" 200 118 0.002172
+event_instance={'platform_id': 'TODO_some_platform_id', 'group': 'power', 'severity': 3, 'url': 'http://localhost:8000', 'timestamp': 3578265818.647295, 'message': 'on battery (synthetic event generated from simulator)', 'first_time_timestamp': 3578265818.647295}
+127.0.0.1 - - [2013-05-22 19:43:38] "POST / HTTP/1.1" 200 118 0.003455
 """

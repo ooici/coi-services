@@ -134,17 +134,17 @@ class HelperTestMixin:
         self.assertTrue(attr_id in dic, "%s in %s" %(attr_id, dic))
         val = dic[attr_id]
         self.assertIsInstance(val, (tuple, list))
-        self.assertNotEquals(InvalidResponse.ATTRIBUTE_NAME, val)
+        self.assertNotEquals(InvalidResponse.ATTRIBUTE_ID, val)
         return val
 
     def _verify_invalid_attribute_id(self, attr_id, dic):
         """
         verifies the attr_id is an entry in the dict with a
-        value equal to InvalidResponse.ATTRIBUTE_NAME
+        value equal to InvalidResponse.ATTRIBUTE_ID
         """
         self.assertTrue(attr_id in dic)
         val = dic[attr_id]
-        self.assertEquals(InvalidResponse.ATTRIBUTE_NAME, val,
+        self.assertEquals(InvalidResponse.ATTRIBUTE_ID, val,
                           "attr_id=%r, val=%r" % (attr_id, val))
 
     def _verify_attribute_value_out_of_range(self, attr_id, dic):
