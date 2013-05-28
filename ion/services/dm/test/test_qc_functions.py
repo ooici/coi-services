@@ -79,6 +79,7 @@ class TestCoverageQC(TestQCFunctions):
         self.addCleanup(self.data_product_management.suspend_data_product_persistence, self.dp_id)
         self.dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(self.dp_id)
         self.dataset_monitor = DatasetMonitor(self.dataset_id)
+        self.addCleanup(self.dataset_monitor.stop)
 
     def test_global_range_test(self):
         TestQCFunctions.test_global_range_test(self)

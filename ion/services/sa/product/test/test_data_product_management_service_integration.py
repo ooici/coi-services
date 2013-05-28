@@ -548,6 +548,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dataset_id = dataset_ids[0]
 
         dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = [0]

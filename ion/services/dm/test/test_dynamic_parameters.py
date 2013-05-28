@@ -36,6 +36,7 @@ class TestDynamicParameters(DMTestCase):
         rdt['cc_coefficient'] = [2] * 10
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         dataset_monitor.event.wait(10)
 
