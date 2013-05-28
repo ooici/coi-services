@@ -76,7 +76,7 @@ class Test(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_checksum(self, platform_id):
         # get checksum from RSN OMS:
-        res = self._rsn_oms.get_checksum(platform_id)
+        res = self._rsn_oms.config.get_checksum(platform_id)
         checksum = res[platform_id]
         if log.isEnabledFor(logging.DEBUG):
             log.debug("_rsn_oms: checksum: %s", checksum)
@@ -88,8 +88,8 @@ class Test(IonIntegrationTestCase, HelperTestMixin):
         instrument_id = self.INSTRUMENT_ID
         attributes = {'maxCurrentDraw': 1, 'initCurrent': 2,
                       'dataThroughput': 3, 'instrumentType': 'FOO'}
-        retval = self._rsn_oms.connect_instrument(platform_id, port_id,
-                                                  instrument_id, attributes)
+        retval = self._rsn_oms.instr.connect_instrument(platform_id, port_id,
+                                                        instrument_id, attributes)
         log.info("connect_instrument = %s" % retval)
         ports = self._verify_valid_platform_id(platform_id, retval)
         self._verify_valid_port_id(port_id, ports)
