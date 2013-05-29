@@ -284,12 +284,6 @@ class IONLoader(ImmediateProcess):
                 specs_path = 'interface/ui_specs.json' if self.exportui else None
                 self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
 
-            # Loads internal bootstrapped resource ids that will be referenced during preload
-            self._load_system_ids()
-
-            # Load existing resources by preload ID
-            self._prepare_incremental()
-
             scenarios = scenarios.split(',')
             self.load_ion(scenarios)
 
@@ -456,6 +450,12 @@ class IONLoader(ImmediateProcess):
             log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
         if self.loadooi and self.ooiuntil:
             log.warn("WARNING: Loading OOI assets only until %s cutoff date!", self.ooiuntil)
+
+        # Loads internal bootstrapped resource ids that will be referenced during preload
+        self._load_system_ids()
+
+        # Load existing resources by preload ID
+        self._prepare_incremental()
 
         # read everything ahead of time, not on the fly
         # that way if the Nth CSV is garbled, you don't waste time preloading the other N-1
