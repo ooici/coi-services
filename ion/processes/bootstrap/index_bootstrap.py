@@ -364,7 +364,7 @@ class IndexBootStrap(ImmediateProcess):
     def delete_indexes(self):
 
         ims_cli = IndexManagementServiceProcessClient(process=self)
-        rr_cli  = ResourceRegistryServiceProcessClient(process=self)
+        rr_cli = self.container.resource_registry
 
         #--------------------------------------------------------------------------------
         # Standard Indexes
