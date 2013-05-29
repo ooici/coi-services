@@ -115,6 +115,7 @@ OOI_MAPPING_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVU
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
+    'OOIAddl',                          # emulates adding new OOI assets
     'Constraint',                       # in memory only - all scenarios loaded
     'Contact',                          # in memory only - all scenarios loaded
     'User',
@@ -208,6 +209,8 @@ class IONLoader(ImmediateProcess):
         self.stream_config = {}         # name -> obj for StreamConfiguration objects, used by *AgentInstance
         self.alerts = {}                # id -> alert definition dict
         self.external_dataset_producer_id = {}  # keep producer ID for later use by AgentInstance
+
+        self.addl_ooi = {}              # Additional OOI instruments to load
 
     def on_start(self):
         cfg = self.CFG.get("cfg", None)
@@ -508,10 +511,19 @@ class IONLoader(ImmediateProcess):
                 continue
 
             # First load all OOI assets for this category
-            if self.loadooi:
+            if self.loadooi or self.addl_ooi:
                 catfunc_ooi = getattr(self, "_load_%s_OOI" % category, None)
                 if catfunc_ooi:
                     log.debug('Loading OOI assets for %s', category)
+                    catfunc_ooi()
+                if t:
+                    t.complete_step('preload.%s.catfunc' % category)
+
+            # Second load additional assets for this category
+            if self.addl_ooi:
+                catfunc_ooi = getattr(self, "_load_%s_Addl" % category, None)
+                if catfunc_ooi:
+                    log.debug('Loading additional assets for %s', category)
                     catfunc_ooi()
                 if t:
                     t.complete_step('preload.%s.catfunc' % category)
@@ -695,6 +707,10 @@ class IONLoader(ImmediateProcess):
         if not silent:
             log.debug("_get_resource_obj(): No object found for '%s'", res_id)
         return None
+
+    def _resource_exists(self, res_id):
+        res = self._get_resource_obj(res_id, silent=True)
+        return res is not None
 
     def _get_alt_id(self, res_obj, prefix):
         alt_ids = getattr(res_obj, 'alt_ids', [])
@@ -928,6 +944,29 @@ class IONLoader(ImmediateProcess):
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
 
+    def _add_to_ooiloader(self, group, entry, idattr="id"):
+        group = self.ooi_loader.get_type_assets(group)
+        rid = entry.get(idattr, None)
+        group[rid] = entry
+
+    def _load_OOIAddl(self, row):
+        """
+        Additional instruments placed within the OOI observatory structure
+        """
+        if row["res_type"] == "Instrument":
+            inst_id = row[COL_ID]
+            inst_entry = dict(
+                row=row)
+            self.addl_ooi[inst_id] = inst_entry
+
+            if not self.loadooi and not self.ooi_loader._extracted:
+                log.info("Extracting OOI information because of additional OOI assets")
+                self.ooi_loader.extract_ooi_assets()
+                self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
+
+        else:
+            log.warn("Unknown addition to OOI assets: type %s", row["res_type"])
+
     def _load_Contact(self, row):
         """
         DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
@@ -961,7 +1000,9 @@ class IONLoader(ImmediateProcess):
             controw["c/email"] = "mikemanagerooi@gmail.com"
             controw["c/roles"] = "primary"
             controw["c/phones"] = "619-555-1212"
-            self._load_Contact(controw)
+
+            if controw[COL_ID] not in self.contact_defs:
+                self._load_Contact(controw)
 
     def _create_geospatial_constraint(self, row):
         z = row['vertical_direction']
@@ -1025,7 +1066,8 @@ class IONLoader(ImmediateProcess):
         newrow['m/geospatial_vertical_units'] = 'meter'
         newrow['m/geospatial_vertical_positive'] = 'down'
 
-        self._load_CoordinateSystem(newrow)
+        if not self._resource_exists(newrow[COL_ID]):
+            self._load_CoordinateSystem(newrow)
 
     def _load_Policy(self, row):
         if not self.CFG.get_safe("system.load_policy", False):
@@ -1154,7 +1196,7 @@ class IONLoader(ImmediateProcess):
 
     def _load_User_OOI(self):
         if self.debug:
-            if not self._get_resource_obj("USER_1D"):
+            if not self._resource_exists("USER_1D"):
                 userrow = {}
                 userrow["ID"] = "USER_1D"
                 userrow["subject"] = "/DC=org/DC=cilogon/C=US/O=Google/CN=Owen Ownerrep A893"
@@ -1205,7 +1247,7 @@ class IONLoader(ImmediateProcess):
         ]
         if self.debug:
             for org in ooi_orgs:
-                if not self._get_resource_obj(org[COL_ID]):
+                if not self._resource_exists(org[COL_ID]):
                     self._load_Org(org)
 
     def _load_UserRole(self, row):
@@ -1246,7 +1288,8 @@ class IONLoader(ImmediateProcess):
             if not self._match_filter(ooi_obj.get('array_list', None)):
                 continue
 
-            self._load_PlatformModel(newrow)
+            if not self._resource_exists(newrow[COL_ID]):
+                self._load_PlatformModel(newrow)
 
     def _load_InstrumentModel(self, row):
         row['im/reference_urls'] = repr(get_typed_value(row['im/reference_urls'], targettype="simplelist"))
@@ -1312,7 +1355,8 @@ class IONLoader(ImmediateProcess):
             if not self._match_filter(class_obj.get('array_list', None)):
                 continue
 
-            self._load_InstrumentModel(newrow)
+            if not self._resource_exists(newrow[COL_ID]):
+                self._load_InstrumentModel(newrow)
 
     def _calc_geospatial_point_center(self, site):
         siteTypes = [RT.Site, RT.Subsite, RT.Observatory, RT.PlatformSite, RT.InstrumentSite, RT.Deployment]
@@ -1370,7 +1414,8 @@ class IONLoader(ImmediateProcess):
             if not self._match_filter(ooi_obj['rd']):
                 continue
 
-            self._load_Observatory(newrow)
+            if not self._resource_exists(newrow[COL_ID]):
+                self._load_Observatory(newrow)
 
     def _load_Subsite(self, row):
         constraints = self._get_constraints(row, type='Subsite')
@@ -1447,6 +1492,8 @@ class IONLoader(ImmediateProcess):
 
         def _load_platform(ooi_id, ooi_obj):
             if not self._before_cutoff(ooi_obj):
+                return
+            if self._resource_exists(ooi_id):
                 return
 
             ooi_rd = OOIReferenceDesignator(ooi_id)
@@ -1561,6 +1608,29 @@ class IONLoader(ImmediateProcess):
                     svc_client.assign_instrument_model_to_instrument_site(self.resource_ids[im_id], res_id,
                         headers=headers)
 
+    def _load_InstrumentSite_Addl(self):
+        for res_id, res_entry in self.addl_ooi.iteritems():
+            res_type = res_entry["res_type"]
+            if res_type != "Instrument":
+                continue
+
+            log.info("Adding additional InstrumentSite, ", res_entry)
+
+            inst_id = res_id
+            newrow = {}
+            newrow[COL_ID] = inst_id
+            newrow['is/name'] = res_entry["name"]
+            newrow['is/local_name'] = res_entry["name"]
+            newrow['is/description'] = ""
+            newrow['is/alt_ids'] = "['OOI:" + inst_id + "']"
+            newrow['is/reference_designator'] = inst_id
+            newrow['constraint_ids'] = res_entry["constraint_ids"]
+            newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
+            newrow['org_ids'] = res_entry["org_ids"]
+            newrow['instrument_model_ids'] = res_entry["model_id"]
+            newrow['parent_site_id'] = res_entry["parent_site_id"]
+            self._load_InstrumentSite(newrow)
+
     def _load_InstrumentSite_OOI(self):
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         node_objs = self.ooi_loader.get_type_assets("node")
@@ -1609,7 +1679,8 @@ class IONLoader(ImmediateProcess):
             if not self._match_filter(inst_id[:2]):
                 continue
 
-            self._load_InstrumentSite(newrow)
+            if not self._resource_exists(newrow[COL_ID]):
+                self._load_InstrumentSite(newrow)
 
     def _conflict_report(self, row_id, name, reason):
         log.warn('''
@@ -1955,7 +2026,8 @@ Reason: %s
                 newrow['temporal_parameter'] = "PD7"
                 newrow['parameters'] = "unused"
                 newrow['SKIP'] = ""
-                self._load_ParameterDictionary(newrow)
+                if not self._resource_exists(newrow[COL_ID]):
+                    self._load_ParameterDictionary(newrow)
 
                 # Create a StreamDefinition in the same swoop
                 newrow = {}
@@ -1967,7 +2039,8 @@ Reason: %s
                 newrow['parameter_dictionary'] = "PDICT_" + dp_combo
                 newrow['available_fields'] = ""
                 newrow['reference_designator'] = ""    # THIS SHOULD NOT BE HERE
-                self._load_StreamDefinition(newrow)
+                if not self._resource_exists(newrow[COL_ID]):
+                    self._load_StreamDefinition(newrow)
 
             else:
                 pass
@@ -2065,6 +2138,8 @@ Reason: %s
     def _load_PlatformDevice_OOI(self):
         node_objs = self.ooi_loader.get_type_assets("node")
 
+        new_node_ids = set()
+
         for node_id, node_obj in node_objs.iteritems():
             if not self._before_cutoff(node_obj):
                 continue
@@ -2083,19 +2158,18 @@ Reason: %s
             if not self._match_filter([node_id[:2]]):
                 continue
 
-            self._load_PlatformDevice(newrow)
+            if not self._resource_exists(newrow[COL_ID]):
+                self._load_PlatformDevice(newrow)
+                new_node_ids.add(newrow[COL_ID])
 
         for node_id, node_obj in node_objs.iteritems():
-            if not self._before_cutoff(node_obj):
+            if node_id not in new_node_ids:
                 continue
 
             newrow = {}
             newrow[COL_ID] = node_id + "_PD"
             uplink_node = node_obj.get('uplink_node', "")
             newrow['network_parent_id'] = uplink_node + "_PD" if uplink_node and self._get_resource_obj(uplink_node + "_PD") else ""
-
-            if not self._match_filter([node_id[:2]]):
-                continue
 
             self._load_PlatformDevice_ext(newrow)
 
@@ -2139,6 +2213,27 @@ Reason: %s
 
         self._resource_advance_lcs(row, res_id)
 
+    def _load_InstrumentDevice_Addl(self):
+        for res_id, res_entry in self.addl_ooi.iteritems():
+            res_type = res_entry["res_type"]
+            if res_type != "Instrument":
+                continue
+
+            log.info("Adding additional InstrumentDevice, ", res_entry)
+
+            newrow = {}
+            newrow[COL_ID] = res_id + "_ID"
+            newrow['id/name'] = res_entry["name"]
+            newrow['id/description'] = ""
+            newrow['id/reference_urls'] = ''
+            newrow['org_ids'] = res_entry["org_ids"]
+            newrow['owner_id'] = res_entry["owner_id"]
+            newrow['instrument_model_id'] = res_entry["model_id"]
+            newrow['platform_device_id'] = res_entry["platform_id"]
+            newrow['contact_ids'] = ''
+            newrow['lcstate'] = "PLANNED_AVAILABLE"
+            self._load_InstrumentDevice(newrow)
+
     def _is_cabled(self, ooi_rd):
         # TODO: Refine this algorithm!
         return ooi_rd.marine_io == "RSN" or ooi_rd.subsite_rd == "CE02SHBP" or ooi_rd.subsite_rd == "CE04OSBP"
@@ -2180,7 +2275,8 @@ Reason: %s
             if not self._match_filter(ooi_id[:2]):
                 continue
 
-            self._load_InstrumentDevice(newrow)
+            if not self._resource_exists(newrow[COL_ID]):
+                self._load_InstrumentDevice(newrow)
 
     def _parse_alert_range(self, expression):
 #        lower_bound	lower_rel_op	value_id	upper_rel_op	upper_bound
@@ -2324,7 +2420,8 @@ Reason: %s
                 if not self._match_filter(ooi_obj.get('array_list', None)):
                     continue
 
-                self._load_PlatformAgent(newrow)
+                if not self._resource_exists(newrow[COL_ID]):
+                    self._load_PlatformAgent(newrow)
 
     def _load_PlatformAgentInstance(self, row):
         # construct values for more complex fields
@@ -2448,7 +2545,8 @@ Reason: %s
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
-                    self._load_InstrumentAgent_ext(newrow)
+                    if not self._resource_exists(newrow[COL_ID]):
+                        self._load_InstrumentAgent_ext(newrow)
 
     def _load_ExternalDataProvider(self, row):
         contacts = self._get_contacts(row, field='contact_id')
@@ -2586,6 +2684,34 @@ Reason: %s
         client.assign_instrument_agent_to_instrument_agent_instance(agent_id, res_id)
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
 
+    def _load_InstrumentAgentInstance_Addl(self):
+        for res_id, res_entry in self.addl_ooi.iteritems():
+            res_type = res_entry["res_type"]
+            if res_type != "Instrument":
+                continue
+
+            log.info("Adding additional InstrumentAgentInstance, ", res_entry)
+
+            newrow = {}
+            newrow[COL_ID] = res_id + "_IAI"
+            newrow['iai/name'] = res_entry["name"]
+            newrow['iai/description'] = ""
+            newrow['org_ids'] = res_entry["org_ids"]
+            newrow['owner_id'] = res_entry["owner_id"]
+            model_id = res_entry["model_id"]
+            newrow['instrument_agent_id'] = ""
+            newrow['instrument_device_id'] = res_id + "_ID"
+            newrow['comms_server_address'] = ""
+            newrow['comms_server_port'] = ""
+            newrow['comms_server_cmd_port'] = ""
+            newrow['comms_device_address'] = ""
+            newrow['comms_device_port'] = ""
+            newrow['alerts'] = ""
+            newrow['publish_rate'] = ""
+            newrow['startup_config'] = ""
+
+            self._load_InstrumentDevice(newrow)
+
     def _load_InstrumentAgentInstance_OOI(self):
         pass
 
@@ -2709,6 +2835,17 @@ Reason: %s
             mapping[pdict.name] = sdef_alias
         return mapping
 
+    def _load_DataProduct_Addl(self):
+        sdef_lookup = self._get_paramdict_streamdef_map()
+        log.debug("_get_paramdict_streamdef_map() = %s", sdef_lookup)
+
+        for res_id, res_entry in self.addl_ooi.iteritems():
+            res_type = res_entry["res_type"]
+            if res_type != "Instrument":
+                continue
+
+            log.info("Adding additional DataProducts for Instrument, ", res_entry)
+
     def _load_DataProduct_OOI(self):
         """DataProducts and DataProductLink"""
         node_objs = self.ooi_loader.get_type_assets("node")
@@ -2750,10 +2887,11 @@ Reason: %s
             newrow['stream_def_id'] = ''
             newrow['parent'] = ''
             newrow['persist_data'] = 'False'
-            self._load_DataProduct(newrow, do_bulk=self.bulk)
+            if not self._resource_exists(newrow[COL_ID]):
+                self._load_DataProduct(newrow, do_bulk=self.bulk)
 
-            create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
-            create_dp_link(node_id + "_DPP1", node_id)
+                create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
+                create_dp_link(node_id + "_DPP1", node_id)
 
         # II. Instrument data products (raw, parsed, engineering, science L0, L1, L2)
         for inst_id, inst_obj in inst_objs.iteritems():
@@ -2764,6 +2902,8 @@ Reason: %s
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
             if not self._match_filter(inst_id[:2]):
+                continue
+            if self._resource_exists(inst_id + "_DPI0"):
                 continue
 
             ia_code = series_obj["ia_code"]
@@ -3062,6 +3202,8 @@ Reason: %s
                 continue
             if not node_obj.get('is_platform', False):
                 continue
+            if self._resource_exists(node_id + "_DEP"):
+                continue
 
             # Create a TemporalBounds constraint
             constrow = {}
@@ -3098,6 +3240,8 @@ Reason: %s
             if not self._match_filter(inst_id[:2]):
                 continue
             if not self._is_cabled(ooi_rd):
+                continue
+            if self._resource_exists(inst_id + "_DEP"):
                 continue
 
             # Create a TemporalBounds constraint

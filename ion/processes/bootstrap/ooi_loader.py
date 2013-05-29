@@ -144,7 +144,7 @@ class OOILoader(object):
         self._extracted = True
 
     def get_type_assets(self, objtype):
-        return self.ooi_objects.get(objtype, None)
+        return self.ooi_objects.get(objtype, {})
 
     def _add_object_attribute(self, objtype, objid, key, value, value_is_list=False, list_dup_ok=False, change_ok=False, mapping=None, **kwargs):
         """
