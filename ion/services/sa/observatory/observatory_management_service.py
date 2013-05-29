@@ -1005,6 +1005,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             if value is None: value = {}
             return ComputedDictValue(status=ComputedValueAvailability.PROVIDED, value=value)
 
+        # there are no child sites, and therefore no child statuses
         extended_site.computed.platform_station_sites   = clv()
         extended_site.computed.platform_component_sites = clv()
         extended_site.computed.platform_assembly_sites  = clv()
