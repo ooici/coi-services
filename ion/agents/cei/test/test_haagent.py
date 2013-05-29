@@ -21,7 +21,7 @@ from pyon.util.containers import DotDict
 from pyon.core.exception import BadRequest
 from pyon.public import CFG
 
-from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, HighAvailabilityAgent
+from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, HighAvailabilityAgent, HAProcessControl
 from ion.services.cei.test import ProcessStateWaiter, get_dashi_uri_from_cfg
 
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -466,6 +466,12 @@ class HAAgentMockTest(PyonTestCase):
         self.assertFalse(self.policy_thread.dead)
 
         # Next make reload_processes raise a Timeout, not derived from Exception
+        self.ha_agent.control.reload_processes = Mock(side_effect=socket.timeout)
+
+        while not self.ha_agent.control.reload_processes.called:
+            gevent.sleep(0.5)
+        self.assertFalse(self.policy_thread.dead)
+
         self.ha_agent.control.reload_processes = Mock(side_effect=gevent.Timeout)
 
         while not self.ha_agent.control.reload_processes.called:
@@ -487,6 +493,39 @@ class HAAgentMockTest(PyonTestCase):
         while not self.ha_agent.control.get_all_processes.called:
             gevent.sleep(0.5)
         self.assertFalse(self.policy_thread.dead)
+
+
+@attr('UNIT', group='cei')
+class HAAgentProcessControlMockTest(PyonTestCase):
+
+    def setUp(self):
+        pd_name = "fakepd"
+        resource_registry = "fakerr"
+        service_id = "fakeservice"
+        self.control = HAProcessControl(pd_name, resource_registry, service_id)
+
+    def test_broken_callback(self):
+        event = Mock()
+
+        def raises_socket_error(e):
+            # Not derived from Exception
+            import socket
+            raise socket.error("err")
+
+        def raises_exception(e):
+            raise Exception("something")
+
+        def raises_systemexit(e):
+            raise SystemExit("something")
+
+        self.control._inner_event_callback = raises_socket_error
+        self.control._event_callback(event)
+
+        self.control._inner_event_callback = raises_exception
+        self.control._event_callback(event)
+
+        self.control._inner_event_callback = raises_systemexit
+        self.assertRaises(SystemExit, self.control._event_callback, event)
 
 
 @attr('INT', group='cei')
