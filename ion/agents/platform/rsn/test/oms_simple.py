@@ -7,11 +7,10 @@
 @brief   Program that connects to the real RSN OMS enpoint to do basic
          verification of the operations. Note that VPN is required.
 
-         USAGE: bin/python ion/agents/platform/rsn/test/oms_simple.py [uri]
+         USAGE: python ion/agents/platform/rsn/test/oms_simple.py [uri]
          default uri: 'http://alice:1234@10.180.80.10:9021/'
 
-         See bottom of this file for a complete execution.
-
+@see     https://confluence.oceanobservatories.org/display/CIDev/RSN+OMS+endpoint+implementation+verification
 @see     https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
 """
 
@@ -22,6 +21,11 @@ __license__ = 'Apache 2.0'
 import xmlrpclib
 import sys
 import pprint
+
+# Not importing ion.agents.platform.responses.InvalidResponse.PLATFORM_ID
+# to keep this program standalone, so just copy definition:
+INVALID_PLATFORM_ID = 'INVALID_PLATFORM_ID'
+
 
 # Main program
 if __name__ == "__main__":  # pragma: no cover
@@ -131,7 +135,6 @@ if __name__ == "__main__":  # pragma: no cover
         if reterr is not None:
             return retval, reterr
 
-        reterr = None
         if not isinstance(retval, dict):
             reterr = "-- expecting a dict with entry %r" % entry
         elif entry not in retval:
@@ -144,7 +147,6 @@ if __name__ == "__main__":  # pragma: no cover
             format_err(reterr)
 
         return retval, reterr
-
 
     print "Basic verification of the operations:\n"
 
@@ -224,6 +226,18 @@ if __name__ == "__main__":  # pragma: no cover
 
     instrument_id = "dummy_instrument_id"
 
+    if reterr is None:
+        full_method_name = "port.get_platform_ports"
+        retval, reterr = run(full_method_name, "dummy_platform_id")
+        retval, reterr = verify_entry_in_dict(retval, reterr, "dummy_platform_id")
+        if retval is not INVALID_PLATFORM_ID:
+            reterr = "expecting %r for platform %r. got: %r" % (
+                INVALID_PLATFORM_ID, "dummy_platform_id", retval)
+            tried[full_method_name] = reterr
+            format_err(reterr)
+
+    instrument_id = "dummy_instrument_id"
+
     #----------------------------------------------------------------------
     full_method_name = "instr.connect_instrument"
     retval, reterr = run(full_method_name, platform_id, port_id, instrument_id, {})
@@ -253,7 +267,9 @@ if __name__ == "__main__":  # pragma: no cover
     full_method_name = "port.turn_off_platform_port"
     retval, reterr = run(full_method_name, platform_id, port_id)
 
-    url = "http://example.net:1234/ci_oms_event_listener"
+    #----------------------------------------------------------------------
+    import socket
+    url = "http://%s:12345/fake.ci.oms.event.listener.net" % socket.getfqdn()
 
     #----------------------------------------------------------------------
     full_method_name = "event.register_event_listener"
@@ -263,12 +279,24 @@ if __name__ == "__main__":  # pragma: no cover
     #----------------------------------------------------------------------
     full_method_name = "event.get_registered_event_listeners"
     retval, reterr = run(full_method_name)
+    urls = retval
     retval, reterr = verify_entry_in_dict(retval, reterr, url)
 
     #----------------------------------------------------------------------
     full_method_name = "event.unregister_event_listener"
-    retval, reterr = run(full_method_name, url)
-    retval, reterr = verify_entry_in_dict(retval, reterr, url)
+    if isinstance(urls, dict):
+        # this part just as a convenience to unregister listeners that were
+        # left registered by some error in a prior interaction.
+        prefix = "http://127.0.0.1:"  # or some other needed prefix
+        for url2 in urls:
+            if url2.find(prefix) >= 0:
+                retval, reterr = run(full_method_name, url2)
+                retval, reterr = verify_entry_in_dict(retval, reterr, url2)
+                if reterr is not None:
+                    break
+    if reterr is None:
+        retval, reterr = run(full_method_name, url)
+        retval, reterr = verify_entry_in_dict(retval, reterr, url)
 
     #----------------------------------------------------------------------
     full_method_name = "config.get_checksum"
@@ -276,7 +304,13 @@ if __name__ == "__main__":  # pragma: no cover
 
     #----------------------------------------------------------------------
     full_method_name = "event.generate_test_event"
-    retval, reterr = run(full_method_name, 'ref_id', 'simulated event', platform_id, 'power')
+    event = {
+        'message'      : "fake event triggered from CI using OMS' generate_test_event",
+        'platform_id'  : "fake_platform_id",
+        'severity'     : "3",
+        'group '       : "power",
+    }
+    retval, reterr = run(full_method_name, event)
 
     #######################################################################
     print("\nSummary of basic verification:")
@@ -286,97 +320,3 @@ if __name__ == "__main__":  # pragma: no cover
         if result == "OK":
             okeys += 1
     print("OK methods %d out of %s" % (okeys, len(tried)))
-
-"""
-$ date && bin/python ion/agents/platform/rsn/test/oms_simple.py
-Fri May 17 13:53:06 PDT 2013
-
-connecting to 'http://alice:1234@10.180.80.10:9021/' ...
-connection established.
-Basic verification of the operations:
-
-
-hello.ping() ->
-		'pong'
-
-config.get_platform_types() ->
-		-- NOT FOUND (fault 8001)
-
-config.get_platform_map() ->
-		[['LPJBox_CI_Ben_Hall', 'ShoreStation'], ['ShoreStation', '']]
-
-config.get_platform_metadata('LPJBox_CI_Ben_Hall') ->
-		''
-
-		-- expecting a dict with entry 'LPJBox_CI_Ben_Hall'
-
-attr.get_platform_attributes('LPJBox_CI_Ben_Hall') ->
-		-- Fault 8002: error
-
-attr.get_platform_attribute_values('LPJBox_CI_Ben_Hall', []) ->
-		-- Fault 8002: error
-
-attr.set_platform_attribute_values('LPJBox_CI_Ben_Hall', {}) ->
-		-- NOT FOUND (fault 8001)
-
-port.get_platform_ports('LPJBox_CI_Ben_Hall') ->
-		{'LPJBox_CI_Ben_Hall': {'0': {'is_on': 'OFF',
-		                              'network': 'ERROR_NOT_IMPLEMENTED'},
-		                        '1': {'is_on': 'OFF',
-		                              'network': 'ERROR_NOT_IMPLEMENTED'},
-		                        '2': {'is_on': 'OFF',
-		                              'network': 'ERROR_NOT_IMPLEMENTED'},
-		                        '3': {'is_on': 'OFF',
-		                              'network': 'ERROR_NOT_IMPLEMENTED'}}}
-
-instr.connect_instrument('LPJBox_CI_Ben_Hall', '1', 'dummy_instrument_id', {}) ->
-		{'LPJBox_CI_Ben_Hall': {'1': {'dummy_instrument_id': {}}}}
-
-instr.get_connected_instruments('LPJBox_CI_Ben_Hall', '1') ->
-		{'LPJBox_CI_Ben_Hall': {'1': {'dummy_instrument_id': {}}}}
-
-instr.disconnect_instrument('LPJBox_CI_Ben_Hall', '1', 'dummy_instrument_id') ->
-		{'LPJBox_CI_Ben_Hall': {'1': {'dummy_instrument_id': 'OK_INSTRUMENT_DISCONNECTED'}}}
-
-port.turn_on_platform_port('LPJBox_CI_Ben_Hall', '1') ->
-		{'LPJBox_CI_Ben_Hall': {'1': 'OK_PORT_TURNED_ON'}}
-
-port.turn_off_platform_port('LPJBox_CI_Ben_Hall', '1') ->
-		{'LPJBox_CI_Ben_Hall': {'1': 'OK_PORT_TURNED_OFF'}}
-
-event.register_event_listener('http://example.net:1234/ci_oms_event_listener') ->
-		{'http://example.net:1234/ci_oms_event_listener': 3577812936.822747}
-
-event.get_registered_event_listeners() ->
-		{'http://example.net:1234/ci_oms_event_listener': 3577812936.822747}
-
-event.unregister_event_listener('http://example.net:1234/ci_oms_event_listener') ->
-		{'http://example.net:1234/ci_oms_event_listener': 3577812937.393182}
-
-config.get_checksum('LPJBox_CI_Ben_Hall') ->
-		-- NOT FOUND (fault 8001)
-
-event.generate_test_event('ref_id', 'simulated event', 'LPJBox_CI_Ben_Hall', 'power') ->
-		True
-
-Summary of basic verification:
-                     attr.get_platform_attribute_values      : -- Fault 8002: error
-                     attr.get_platform_attributes            : -- Fault 8002: error
-                     attr.set_platform_attribute_values      : -- NOT FOUND (fault 8001)
-                     config.get_checksum                     : -- NOT FOUND (fault 8001)
-                     config.get_platform_map                 : OK
-                     config.get_platform_metadata            : -- expecting a dict with entry 'LPJBox_CI_Ben_Hall'
-                     config.get_platform_types               : -- NOT FOUND (fault 8001)
-                     event.generate_test_event               : OK
-                     event.get_registered_event_listeners    : OK
-                     event.register_event_listener           : OK
-                     event.unregister_event_listener         : OK
-                     hello.ping                              : OK
-                     instr.connect_instrument                : OK
-                     instr.disconnect_instrument             : OK
-                     instr.get_connected_instruments         : OK
-                     port.get_platform_ports                 : OK
-                     port.turn_off_platform_port             : OK
-                     port.turn_on_platform_port              : OK
-OK methods 12 out of 18
-"""

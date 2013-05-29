@@ -4,7 +4,7 @@
 @package ion.agents.platform.rsn.oms_event_listener
 @file    ion/agents/platform/rsn/oms_event_listener.py
 @author  Carlos Rueda
-@brief   HTTP server to get RSN OMS event notifications
+@brief   HTTP server to get and notify CI about RSN OMS event notifications
 """
 
 __author__ = 'Carlos Rueda'
@@ -16,8 +16,9 @@ from pyon.public import log
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 
 from gevent.pywsgi import WSGIServer
+import socket
+import sys
 import yaml
-
 
 
 class OmsEventListener(object):
@@ -40,7 +41,7 @@ class OmsEventListener(object):
         self._http_server = None
         self._url = None
 
-        # _notifications: if not None, { event_type: [event_instance, ...], ...}
+        # _notifications: if not None, [event_instance, ...]
         self._notifications = None
 
     @property
@@ -56,35 +57,37 @@ class OmsEventListener(object):
         By default, received event notifications are not kept. Call this with
         True (the default) to keep them, or with False to not keep them.
         If they are currently kept and the reset param is True (the default),
-        then the notifications dict is reinitialized.
+        then the notifications list is reinitialized.
         """
         if keep:
             if not self._notifications or reset:
-                self._notifications = {}
+                self._notifications = []
         else:
             self._notifications = None
 
     @property
     def notifications(self):
         """
-        The current dict of received notifications. This will be None if such
+        The current list of received notifications. This will be None if such
         notifications are not being kept.
         """
         return self._notifications
 
-    def start_http_server(self, host='localhost', port=0):
+    def start_http_server(self, host=None, port=0):
         """
         Starts a HTTP server that handles the notification of received events.
 
-        @param host by default 'localhost'
-        @param port by default 0 to get one dynamically.
+        @param host Host, by default socket.getfqdn() is used.
+        @param port Port, by default 0 to get one dynamically.
         """
 
         # reinitialize notifications if we are keeping them:
         if self._notifications:
-            self._notifications.clear()
+            self._notifications = []
 
-        import sys
+        if not host:
+            host = socket.getfqdn()
+
         self._http_server = WSGIServer((host, port), self.__application,
                                        log=sys.stdout)
         log.info("starting http server for receiving event notifications...")
@@ -99,40 +102,26 @@ class OmsEventListener(object):
 #        log.trace('notification received payload=%s', body)
         event_instance = yaml.load(body)
         log.trace('notification received event_instance=%s', event_instance)
-        if not 'url' in event_instance:
-            log.warn("expecting 'url' entry in notification call")
-            return
-        if not 'ref_id' in event_instance:
-            log.warn("expecting 'ref_id' entry in notification call")
-            return
 
-        url = event_instance['url']
-        event_type = event_instance['ref_id']
-
-        if self._url == url:
-            self._event_received(event_type, event_instance)
-        else:
-            log.warn("got notification call with an unexpected url=%s (expected url=%s)",
-                     url, self._url)
+        self._event_received(event_instance)
 
         # generic OK response  TODO determine appropriate variations if any
         status = '200 OK'
         headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
-        return event_type
+        return status
 
-    def _event_received(self, event_type, event_instance):
+    def _event_received(self, event_instance):
         log.trace('received event_instance=%s', event_instance)
 
         if self._notifications:
-            if event_type in self._notifications:
-                self._notifications[event_type].append(event_instance)
-            else:
-                self._notifications[event_type] = [event_instance]
+            self._notifications.append(event_instance)
+        else:
+            self._notifications = [event_instance]
 
         log.debug('notifying event_instance=%s', event_instance)
 
-        driver_event = ExternalEventDriverEvent(event_type, event_instance)
+        driver_event = ExternalEventDriverEvent(event_instance)
         self._notify_driver_event(driver_event)
 
     def stop_http_server(self):

@@ -63,22 +63,17 @@ class ExternalEventDriverEvent(DriverEvent):
     """
     Event to notify an external event.
     """
-    def __init__(self, event_type, event_instance):
+    def __init__(self, event_instance):
         DriverEvent.__init__(self)
-        self._event_type = event_type
         self._event_instance = event_instance
-
-    @property
-    def event_type(self):
-        return self._event_type
 
     @property
     def event_instance(self):
         return self._event_instance
 
     def __str__(self):
-        return "%s(event_type=%r, event_instance=%s)" % (
-            self.__class__.__name__, self.event_type, self.event_instance)
+        return "%s(event_instance=%s)" % (
+            self.__class__.__name__, self.event_instance)
 
 
 class StateChangeDriverEvent(DriverEvent):

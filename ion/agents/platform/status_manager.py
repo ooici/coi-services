@@ -788,7 +788,8 @@ Published event: AGGREGATE_POWER -> STATUS_OK
             statuses = formatted_statuses(self.aparam_aggstatus,
                                           self.aparam_child_agg_status,
                                           self.aparam_rollup_status)
-            log.info("%r: (%s) statuses:\n%s\n", self._platform_id, self.resource_id, statuses)
+            log.info("%r: (%s) status report triggered by diagnostic event:\n%s\n",
+                     self._platform_id, self.resource_id, statuses)
 
         self._diag_sub = EventSubscriber(event_type=event_type,
                                          origin=origin,

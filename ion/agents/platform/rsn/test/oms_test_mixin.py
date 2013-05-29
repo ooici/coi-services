@@ -22,6 +22,7 @@ from ion.agents.platform.responses import NormalResponse, InvalidResponse
 import time
 import ntplib
 from gevent.pywsgi import WSGIServer
+import socket
 import yaml
 
 
@@ -152,7 +153,7 @@ class OmsTestMixin(HelperTestMixin):
                 self._verify_not_writable_attribute_id(attrName, vals)
 
     def _get_platform_ports(self, platform_id):
-        retval = self.oms.get_platform_ports(platform_id)
+        retval = self.oms.port.get_platform_ports(platform_id)
         log.info("get_platform_ports(%r) = %s" % (platform_id, retval))
         ports = self._verify_valid_platform_id(platform_id, retval)
         return ports
@@ -167,7 +168,7 @@ class OmsTestMixin(HelperTestMixin):
 
     def test_ak_get_platform_ports_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID
-        retval = self.oms.get_platform_ports(platform_id)
+        retval = self.oms.port.get_platform_ports(platform_id)
         log.info("get_platform_ports = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
@@ -178,7 +179,7 @@ class OmsTestMixin(HelperTestMixin):
         # TODO proper values
         attributes = {'maxCurrentDraw': 1, 'initCurrent': 2,
                       'dataThroughput': 3, 'instrumentType': 'FOO'}
-        retval = self.oms.connect_instrument(platform_id, port_id, instrument_id, attributes)
+        retval = self.oms.instr.connect_instrument(platform_id, port_id, instrument_id, attributes)
         log.info("connect_instrument = %s" % retval)
         ports = self._verify_valid_platform_id(platform_id, retval)
         port_dic = self._verify_valid_port_id(port_id, ports)
@@ -197,7 +198,7 @@ class OmsTestMixin(HelperTestMixin):
         port_id = self.PORT_ID
         instrument_id = self.INSTRUMENT_ID
         attributes = {}
-        retval = self.oms.connect_instrument(platform_id, port_id, instrument_id, attributes)
+        retval = self.oms.instr.connect_instrument(platform_id, port_id, instrument_id, attributes)
         log.info("connect_instrument = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
@@ -206,7 +207,7 @@ class OmsTestMixin(HelperTestMixin):
         port_id = BOGUS_PORT_ID
         instrument_id = self.INSTRUMENT_ID
         attributes = {}
-        retval = self.oms.connect_instrument(platform_id, port_id, instrument_id, attributes)
+        retval = self.oms.instr.connect_instrument(platform_id, port_id, instrument_id, attributes)
         log.info("connect_instrument = %s" % retval)
         ports = self._verify_valid_platform_id(platform_id, retval)
         self._verify_invalid_port_id(port_id, ports)
@@ -216,7 +217,7 @@ class OmsTestMixin(HelperTestMixin):
         port_id = self.PORT_ID
         instrument_id = BOGUS_INSTRUMENT_ID
         attributes = {}
-        retval = self.oms.connect_instrument(platform_id, port_id, instrument_id, attributes)
+        retval = self.oms.instr.connect_instrument(platform_id, port_id, instrument_id, attributes)
         log.info("connect_instrument = %s" % retval)
         ports = self._verify_valid_platform_id(platform_id, retval)
         port_dic = self._verify_valid_port_id(port_id, ports)
@@ -271,14 +272,14 @@ class OmsTestMixin(HelperTestMixin):
     # EVENTS
     ###################################################################
 
-    # { (url, event_type): [event_instance, ...], ...}
-    _notifications = {}
+    # _notifications: [event_instance, ...]
+    _notifications = []
     _http_server = None
 
     @classmethod
     def start_http_server(cls, host='localhost', port=0):
         """
-        A subclass call this to start a server that handles the notification
+        A subclass call this to start a server that handles the reception
         of events keeping record of them in the member _notifications, which
         can be consulted directly and it is also returned by stop_http_server.
         """
@@ -287,27 +288,18 @@ class OmsTestMixin(HelperTestMixin):
             body = "\n".join(input.readlines())
             event_instance = yaml.load(body)
             log.info('notification received event_instance=%s' % str(event_instance))
-            if not 'url' in event_instance:
-                log.warn("expecting 'url' entry in notification call")
-                return
-            if not 'ref_id' in event_instance:
-                log.warn("expecting 'ref_id' entry in notification call")
-                return
 
-            url = event_instance['url']
-            event_type = event_instance['ref_id']
-
-            if (url, event_type) in cls._notifications:
-                cls._notifications[(url, event_type)].append(event_instance)
-            else:
-                cls._notifications[(url, event_type)] = [event_instance]
+            cls._notifications.append(event_instance)
 
             status = '200 OK'
             headers = [('Content-Type', 'text/plain')]
             start_response(status, headers)
-            return event_type
+            return status
 
-        cls._notifications = {}
+        if not host:
+            host = socket.getfqdn()
+
+        cls._notifications = []
         cls._http_server = WSGIServer((host, port), application)
         log.info("HTTP SERVER: starting http server for receiving event notifications...")
         cls._http_server.start()
@@ -331,7 +323,7 @@ class OmsTestMixin(HelperTestMixin):
     @classmethod
     def stop_http_server(cls):
         """
-        Stops the http server returning the notifications dictionary,
+        Stops the http server returning the notifications list,
         which is internally re-initialized.
         """
         if cls._http_server:
@@ -341,68 +333,17 @@ class OmsTestMixin(HelperTestMixin):
             cls._http_server = None
 
         ret = cls._notifications
-        cls._notifications = {}  # re-initialize
+        cls._notifications = []  # re-initialize
         return ret
 
-    def _get_all_event_types(self):
-        all_events = self.oms.describe_event_types([])
-        self.assertIsInstance(all_events, dict)
-        log.info('all_events = %s' % all_events)
-        return all_events
-
-    def test_ba_describe_event_types(self):
-        all_events = self._get_all_event_types()
-        if len(all_events) == 0:
-            return
-
-        # get a specific event
-        event_type_id = all_events.keys()[0]
-        events = self.oms.describe_event_types([event_type_id])
-        self.assertIsInstance(events, dict)
-        self.assertEquals(len(events), 1)
-        self.assertTrue(event_type_id in events)
-
-    def test_bb_describe_event_types_invalid_event_type(self):
-        event_type_id = BOGUS_EVENT_TYPE
-        events = self.oms.describe_event_types([event_type_id])
-        self.assertIsInstance(events, dict)
-        self.assertEquals(len(events), 1)
-        self.assertTrue(event_type_id in events)
-        self.assertEquals(InvalidResponse.EVENT_TYPE, events[event_type_id])
-
-    def test_bc_get_events_by_platform_type(self):
-        # get all event types
-        all_events = self.oms.get_events_by_platform_type([])
-        self.assertIsInstance(all_events, dict)
-
-        log.info('all_events = %s' % all_events)
-        if len(all_events) == 0:
-            return
-
-        # arbitrarily get first platform type again
-        platform_type = all_events.keys()[0]
-        events = self.oms.get_events_by_platform_type([platform_type])
-        self.assertIsInstance(events, dict)
-        self.assertEquals(len(events), 1)
-        self.assertTrue(platform_type in events)
-        self.assertEquals(all_events[platform_type], events[platform_type])
-
-    def test_bd_get_events_by_platform_type_invalid_platform_type(self):
-        platform_type = "bogus_platform_type"
-        events = self.oms.get_events_by_platform_type([platform_type])
-        self.assertIsInstance(events, dict)
-        self.assertEquals(len(events), 1)
-        self.assertTrue(platform_type in events)
-        self.assertEquals(InvalidResponse.PLATFORM_TYPE, events[platform_type])
-
     def _get_registered_event_listeners(self):
-        listeners = self.oms.get_registered_event_listeners()
+        listeners = self.oms.event.get_registered_event_listeners()
         log.info("get_registered_event_listeners returned %s" % str(listeners))
         self.assertIsInstance(listeners, dict)
         return listeners
 
-    def _register_event_listener(self, url, event_types):
-        result = self.oms.register_event_listener(url, event_types)
+    def _register_event_listener(self, url):
+        result = self.oms.event.register_event_listener(url)
         log.info("register_event_listener returned %s" % str(result))
         self.assertIsInstance(result, dict)
         self.assertEquals(len(result), 1)
@@ -410,16 +351,8 @@ class OmsTestMixin(HelperTestMixin):
         return result[url]
 
     def _register_one_event_listener(self):
-        all_events = self._get_all_event_types()
-        if len(all_events) == 0:
-            log.info("WARNING: No event types reported so not registering any listener")
-            return None
-
-        # arbitrarily pick first event type
-        event_type_id = all_events.keys()[0]
-
         url = self.__get_url()
-        res = self._register_event_listener(url, [event_type_id])[0]
+        res = self._register_event_listener(url)[0]
 
         # check that it's registered
         listeners = self._get_registered_event_listeners()
@@ -436,22 +369,11 @@ class OmsTestMixin(HelperTestMixin):
             log.info("waiting for possible event notifications...")
             time.sleep(6)
 
-    def test_bf_register_event_listener_invalid_event_type(self):
-        url = self.__get_url()
-        event_type_id = BOGUS_EVENT_TYPE
-        res = self._register_event_listener(url, [event_type_id])
-        self.assertEquals(len(res), 1)
-        self.assertEquals((event_type_id, InvalidResponse.EVENT_TYPE), tuple(res[0]))
-
-        # check that it's registered
-        listeners = self._get_registered_event_listeners()
-        self.assertTrue(url in listeners)
-
     def test_bg_get_registered_event_listeners(self):
         self._get_registered_event_listeners()
 
-    def _unregister_event_listener(self, url, event_types):
-        result = self.oms.unregister_event_listener(url, event_types)
+    def _unregister_event_listener(self, url):
+        result = self.oms.unregister_event_listener(url)
         log.info("unregister_event_listener returned %s" % str(result))
         self.assertIsInstance(result, dict)
         self.assertEquals(len(result), 1)
@@ -468,7 +390,7 @@ class OmsTestMixin(HelperTestMixin):
         event_pairs = result[url]
         self.assertTrue(len(event_pairs) > 0)
         event_type_id, time = event_pairs[0]
-        self._unregister_event_listener(url, [event_type_id])
+        self._unregister_event_listener(url)
 
         # check that it's unregistered
         listeners = self._get_registered_event_listeners()
@@ -476,33 +398,10 @@ class OmsTestMixin(HelperTestMixin):
 
     def test_bi_unregister_event_listener_not_registered_url(self):
         url = "http://_never_registered_url"
-        event_type_id = "dummy_event_type"
-        res = self._unregister_event_listener(url, [event_type_id])
+        res = self._unregister_event_listener(url)
         self.assertEquals(InvalidResponse.EVENT_LISTENER_URL, res)
-
-    def test_bj_unregister_event_listener_invalid_event_type(self):
-        reg_res = None
-        result = self._get_registered_event_listeners()
-        if len(result) == 0:
-            # register one
-            url, reg_res = self._register_one_event_listener()
-        else:
-            url = result.keys()[0]
-
-        # here we have a valid url; now use a bogus event type:
-        log.info("unregistering %s" % BOGUS_EVENT_TYPE)
-        res = self._unregister_event_listener(url, [BOGUS_EVENT_TYPE])
-        self.assertEquals((BOGUS_EVENT_TYPE, InvalidResponse.EVENT_TYPE), tuple(res[0]))
-
-        if reg_res:
-            # unregister the one created above
-            event_type_id, reg_time = reg_res
-            log.info("unregistering %s" % event_type_id)
-            self._unregister_event_listener(url, [event_type_id])
-
-        self._get_registered_event_listeners()
 
     def test_get_checksum(self):
         platform_id = self.PLATFORM_ID
-        retval = self.oms.get_checksum(platform_id)
+        retval = self.oms.config.get_checksum(platform_id)
         log.info("get_checksum = %s" % retval)

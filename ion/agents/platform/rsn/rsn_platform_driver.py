@@ -160,7 +160,7 @@ class RSNPlatformDriver(PlatformDriver):
         """
         self._assert_rsn_oms()
         try:
-            retval = self._rsn_oms.get_platform_metadata(self._platform_id)
+            retval = self._rsn_oms.config.get_platform_metadata(self._platform_id)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot get_platform_metadata: %s" % str(e))
 
@@ -196,8 +196,8 @@ class RSNPlatformDriver(PlatformDriver):
                      for (attr_id, from_time) in attrs]
 
         try:
-            retval = self._rsn_oms.get_platform_attribute_values(self._platform_id,
-                                                                 attrs_ntp)
+            retval = self._rsn_oms.attr.get_platform_attribute_values(self._platform_id,
+                                                                      attrs_ntp)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot get_platform_attribute_values: %s" % str(e))
 
@@ -243,7 +243,7 @@ class RSNPlatformDriver(PlatformDriver):
                 log.debug("validating %s against %s", attr_name, str(attr_def))
 
             if not attr_def:
-                error_vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME
+                error_vals[attr_name] = InvalidResponse.ATTRIBUTE_ID
                 log.warn("Attribute %s not in associated platform %s",
                          attr_name, self._platform_id)
                 continue
@@ -310,7 +310,8 @@ class RSNPlatformDriver(PlatformDriver):
 
         # ok, now make the request to RSN OMS:
         try:
-            retval = self._rsn_oms.set_platform_attribute_values(self._platform_id, attrs)
+            retval = self._rsn_oms.attr.set_platform_attribute_values(self._platform_id,
+                                                                      attrs)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot set_platform_attribute_values: %s" % str(e))
 
@@ -403,8 +404,10 @@ class RSNPlatformDriver(PlatformDriver):
         self._assert_rsn_oms()
 
         try:
-            response = self._rsn_oms.connect_instrument(self._platform_id,
-                                                        port_id, instrument_id, attributes)
+            response = self._rsn_oms.instr.connect_instrument(self._platform_id,
+                                                              port_id,
+                                                              instrument_id,
+                                                              attributes)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot connect_instrument: %s" % str(e))
 
@@ -432,8 +435,9 @@ class RSNPlatformDriver(PlatformDriver):
         self._assert_rsn_oms()
 
         try:
-            response = self._rsn_oms.disconnect_instrument(self._platform_id,
-                                                           port_id, instrument_id)
+            response = self._rsn_oms.instr.disconnect_instrument(self._platform_id,
+                                                                 port_id,
+                                                                 instrument_id)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot disconnect_instrument: %s" % str(e))
 
@@ -459,7 +463,8 @@ class RSNPlatformDriver(PlatformDriver):
         self._assert_rsn_oms()
 
         try:
-            response = self._rsn_oms.get_connected_instruments(self._platform_id, port_id)
+            response = self._rsn_oms.instr.get_connected_instruments(self._platform_id,
+                                                                     port_id)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot get_connected_instruments: %s" % str(e))
 
@@ -478,7 +483,8 @@ class RSNPlatformDriver(PlatformDriver):
         self._assert_rsn_oms()
 
         try:
-            response = self._rsn_oms.turn_on_platform_port(self._platform_id, port_id)
+            response = self._rsn_oms.port.turn_on_platform_port(self._platform_id,
+                                                                port_id)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot turn_on_platform_port: %s" % str(e))
 
@@ -497,7 +503,8 @@ class RSNPlatformDriver(PlatformDriver):
         self._assert_rsn_oms()
 
         try:
-            response = self._rsn_oms.turn_off_platform_port(self._platform_id, port_id)
+            response = self._rsn_oms.port.turn_off_platform_port(self._platform_id,
+                                                                 port_id)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot turn_off_platform_port: %s" % str(e))
 
@@ -517,7 +524,7 @@ class RSNPlatformDriver(PlatformDriver):
         Registers given url for all event types.
         """
         try:
-            result = self._rsn_oms.register_event_listener(url, [])
+            result = self._rsn_oms.event.register_event_listener(url)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot register_event_listener: %s" % str(e))
 
@@ -528,7 +535,7 @@ class RSNPlatformDriver(PlatformDriver):
         Unregisters given url for all event types.
         """
         try:
-            result = self._rsn_oms.unregister_event_listener(url, [])
+            result = self._rsn_oms.event.unregister_event_listener(url)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot unregister_event_listener: %s" % str(e))
 
@@ -577,7 +584,7 @@ class RSNPlatformDriver(PlatformDriver):
         log.debug("%r: get_checksum...", self._platform_id)
         self._assert_rsn_oms()
         try:
-            response = self._rsn_oms.get_checksum(self._platform_id)
+            response = self._rsn_oms.config.get_checksum(self._platform_id)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot get_checksum: %s" % str(e))
 

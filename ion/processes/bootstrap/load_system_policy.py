@@ -213,6 +213,12 @@ class LoadSystemPolicy(ImmediateProcess):
                     </Resource>
                     <Resource>
                         <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">policy_management</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">instrument_management</AttributeValue>
                             <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ResourceMatch>
@@ -278,6 +284,8 @@ class LoadSystemPolicy(ImmediateProcess):
 
 
         ##############
+
+        ###THIS POLICY HAS BEEN COMMENTED OUT FOR THE INITIAL R2 RELEASE
 
         """
         policy_text = '''
@@ -584,6 +592,63 @@ class LoadSystemPolicy(ImmediateProcess):
 
         policy_id = policy_client.create_service_access_policy('org_management', 'OrgMS_Org_Manager_Role_Permitted',
             'Permit these operations in the Org Management Service for the role of Org Manager',
+            policy_text, headers=sa_user_header)
+
+
+        ##############
+
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">policy_management</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+            </Target>
+
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+                        </Apply>
+                        <ActionAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+                </Apply>
+            </Condition>
+
+
+
+        </Rule> '''
+
+        policy_id = policy_client.create_service_access_policy('policy_management', 'PolicyMS_Org_Manager_Role_Permitted',
+            'Permit these operations in the Policy Management Service for the role of Org Manager',
             policy_text, headers=sa_user_header)
 
 
@@ -1417,9 +1482,6 @@ LCS
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='execute_resource',
             policy_content='check_if_direct_access_mode', headers=sa_user_header )
 
-        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='get_capabilities',
-            policy_content='check_if_direct_access_mode', headers=sa_user_header )
-
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='get_resource',
             policy_content='check_if_direct_access_mode', headers=sa_user_header )
 
@@ -1427,8 +1489,5 @@ LCS
             policy_content='check_if_direct_access_mode', headers=sa_user_header )
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='execute_resource',
-            policy_content='check_if_direct_access_mode', headers=sa_user_header )
-
-        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='get_capabilities',
             policy_content='check_if_direct_access_mode', headers=sa_user_header )
 

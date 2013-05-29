@@ -327,7 +327,7 @@ class InstrumentAgent(ResourceAgent):
         except Exception, e:
             log.warning("Could not determine the state of the agent:", e.message)
 
-        return True
+        return True, ''
 
     def check_resource_operation_policy(self, process, message, headers):
         '''

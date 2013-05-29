@@ -79,14 +79,14 @@ class PlatformResourceMonitor(object):
         # first, collect attrDefs by individual rate:
         by_rate = {}  # { rate: [attrDef, ...], ... }
         for attr_defn in self._attr_info.itervalues():
-            if 'monitorCycleSeconds' not in attr_defn:
+            if 'monitor_cycle_seconds' not in attr_defn:
                 log.warn("%r: unexpected: attribute info does not contain %r. "
                          "attr_defn = %s",
                          self._platform_id,
-                         'monitorCycleSeconds', attr_defn)
+                         'monitor_cycle_seconds', attr_defn)
                 continue
 
-            rate = float(attr_defn['monitorCycleSeconds'])
+            rate = float(attr_defn['monitor_cycle_seconds'])
             if not rate in by_rate:
                 by_rate[rate] = []
             by_rate[rate].append(attr_defn)
@@ -193,11 +193,11 @@ class PlatformResourceMonitor(object):
         """
         self._buffers = {}
         for attr_id, attr_defn in self._attr_info.iteritems():
-            if 'monitorCycleSeconds' not in attr_defn:
+            if 'monitor_cycle_seconds' not in attr_defn:
                 log.warn("%r: unexpected: attribute info does not contain %r. "
                          "attr_defn = %s",
                          self._platform_id,
-                         'monitorCycleSeconds', attr_defn)
+                         'monitor_cycle_seconds', attr_defn)
                 continue
 
             self._buffers[attr_id] = []
