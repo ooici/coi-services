@@ -115,7 +115,7 @@ OOI_MAPPING_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVU
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
-    'OOIAddl',                          # emulates adding new OOI assets
+    #'OOIAddl',                          # emulates adding new OOI assets
     'Constraint',                       # in memory only - all scenarios loaded
     'Contact',                          # in memory only - all scenarios loaded
     'User',
@@ -511,19 +511,10 @@ class IONLoader(ImmediateProcess):
                 continue
 
             # First load all OOI assets for this category
-            if self.loadooi or self.addl_ooi:
+            if self.loadooi:
                 catfunc_ooi = getattr(self, "_load_%s_OOI" % category, None)
                 if catfunc_ooi:
                     log.debug('Loading OOI assets for %s', category)
-                    catfunc_ooi()
-                if t:
-                    t.complete_step('preload.%s.catfunc' % category)
-
-            # Second load additional assets for this category
-            if self.addl_ooi:
-                catfunc_ooi = getattr(self, "_load_%s_Addl" % category, None)
-                if catfunc_ooi:
-                    log.debug('Loading additional assets for %s', category)
                     catfunc_ooi()
                 if t:
                     t.complete_step('preload.%s.catfunc' % category)
@@ -1608,29 +1599,6 @@ class IONLoader(ImmediateProcess):
                     svc_client.assign_instrument_model_to_instrument_site(self.resource_ids[im_id], res_id,
                         headers=headers)
 
-    def _load_InstrumentSite_Addl(self):
-        for res_id, res_entry in self.addl_ooi.iteritems():
-            res_type = res_entry["res_type"]
-            if res_type != "Instrument":
-                continue
-
-            log.info("Adding additional InstrumentSite, ", res_entry)
-
-            inst_id = res_id
-            newrow = {}
-            newrow[COL_ID] = inst_id
-            newrow['is/name'] = res_entry["name"]
-            newrow['is/local_name'] = res_entry["name"]
-            newrow['is/description'] = ""
-            newrow['is/alt_ids'] = "['OOI:" + inst_id + "']"
-            newrow['is/reference_designator'] = inst_id
-            newrow['constraint_ids'] = res_entry["constraint_ids"]
-            newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-            newrow['org_ids'] = res_entry["org_ids"]
-            newrow['instrument_model_ids'] = res_entry["model_id"]
-            newrow['parent_site_id'] = res_entry["parent_site_id"]
-            self._load_InstrumentSite(newrow)
-
     def _load_InstrumentSite_OOI(self):
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         node_objs = self.ooi_loader.get_type_assets("node")
@@ -2213,27 +2181,6 @@ Reason: %s
 
         self._resource_advance_lcs(row, res_id)
 
-    def _load_InstrumentDevice_Addl(self):
-        for res_id, res_entry in self.addl_ooi.iteritems():
-            res_type = res_entry["res_type"]
-            if res_type != "Instrument":
-                continue
-
-            log.info("Adding additional InstrumentDevice, ", res_entry)
-
-            newrow = {}
-            newrow[COL_ID] = res_id + "_ID"
-            newrow['id/name'] = res_entry["name"]
-            newrow['id/description'] = ""
-            newrow['id/reference_urls'] = ''
-            newrow['org_ids'] = res_entry["org_ids"]
-            newrow['owner_id'] = res_entry["owner_id"]
-            newrow['instrument_model_id'] = res_entry["model_id"]
-            newrow['platform_device_id'] = res_entry["platform_id"]
-            newrow['contact_ids'] = ''
-            newrow['lcstate'] = "PLANNED_AVAILABLE"
-            self._load_InstrumentDevice(newrow)
-
     def _is_cabled(self, ooi_rd):
         # TODO: Refine this algorithm!
         return ooi_rd.marine_io == "RSN" or ooi_rd.subsite_rd == "CE02SHBP" or ooi_rd.subsite_rd == "CE04OSBP"
@@ -2684,34 +2631,6 @@ Reason: %s
         client.assign_instrument_agent_to_instrument_agent_instance(agent_id, res_id)
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
 
-    def _load_InstrumentAgentInstance_Addl(self):
-        for res_id, res_entry in self.addl_ooi.iteritems():
-            res_type = res_entry["res_type"]
-            if res_type != "Instrument":
-                continue
-
-            log.info("Adding additional InstrumentAgentInstance, ", res_entry)
-
-            newrow = {}
-            newrow[COL_ID] = res_id + "_IAI"
-            newrow['iai/name'] = res_entry["name"]
-            newrow['iai/description'] = ""
-            newrow['org_ids'] = res_entry["org_ids"]
-            newrow['owner_id'] = res_entry["owner_id"]
-            model_id = res_entry["model_id"]
-            newrow['instrument_agent_id'] = ""
-            newrow['instrument_device_id'] = res_id + "_ID"
-            newrow['comms_server_address'] = ""
-            newrow['comms_server_port'] = ""
-            newrow['comms_server_cmd_port'] = ""
-            newrow['comms_device_address'] = ""
-            newrow['comms_device_port'] = ""
-            newrow['alerts'] = ""
-            newrow['publish_rate'] = ""
-            newrow['startup_config'] = ""
-
-            self._load_InstrumentDevice(newrow)
-
     def _load_InstrumentAgentInstance_OOI(self):
         pass
 
@@ -2834,17 +2753,6 @@ Reason: %s
                 log.warn("ParameterDefinition %s already maps to StreamDefinition %s. New %s", pdict.name, mapping[pdict.name], sdef_alias)
             mapping[pdict.name] = sdef_alias
         return mapping
-
-    def _load_DataProduct_Addl(self):
-        sdef_lookup = self._get_paramdict_streamdef_map()
-        log.debug("_get_paramdict_streamdef_map() = %s", sdef_lookup)
-
-        for res_id, res_entry in self.addl_ooi.iteritems():
-            res_type = res_entry["res_type"]
-            if res_type != "Instrument":
-                continue
-
-            log.info("Adding additional DataProducts for Instrument, ", res_entry)
 
     def _load_DataProduct_OOI(self):
         """DataProducts and DataProductLink"""
