@@ -236,6 +236,9 @@ class IONLoader(ImmediateProcess):
         if self.path=='master':
             self.path = MASTER_DOC
         self.attachment_path = config.get("attachments", self.path + '/attachments')
+        # how the heck did this happen??
+        if isinstance(self.attachment_path,tuple):
+            self.attachment_path = self.attachment_path[0]
         if self.attachment_path.startswith("http"):
                 self.attachment_path = LOCAL_DOC + '/attachments'
         self.asset_path = config.get("assets", self.path + "/ooi_assets")
