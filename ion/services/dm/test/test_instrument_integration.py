@@ -134,14 +134,13 @@ class TestInstrumentIntegration(DMTestCase):
         self.agent_state_transition(agent_client, ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(parsed_dp_id)
-        monitor = DatasetMonitor(dataset_id=dataset_id)
-        self.addCleanup(monitor.stop)
 
         for i in xrange(10):
+            monitor = DatasetMonitor(dataset_id=dataset_id)
             agent_client.execute_resource(AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE))
-            monitor.event.clear()
-            monitor.event.wait(10)
-            monitor.event.clear()
+            if not monitor.event.wait(30):
+                raise AssertionError('Failed on the %ith granule' % i)
+            monitor.stop()
 
         rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(dataset_id))
         self.assertEquals(len(rdt), 10)
