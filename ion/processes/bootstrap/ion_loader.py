@@ -462,7 +462,10 @@ class IONLoader(ImmediateProcess):
         Can load the spreadsheets from http or file location.
         Optionally imports OOI assets at the beginning of each category.
         """
-        log.debug("preload starting")
+        log.debug("preload starting, attachment path=%s", self.attachment_path)
+        if isinstance(self.attachment_path,tuple):
+            self.attachment_path = self.attachment_path[0]
+
         if self.debug:
             log.warn("WARNING: Debug==True. Certain shortcuts will be taken for easier development")
         if self.bulk:
