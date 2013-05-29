@@ -93,7 +93,9 @@ class Test(IonUnitTestCase):
         self._verify_attr_grouping(
             platform_id="MJ01C",
             expected_groups={
-                5.0 : ["MJ01C_attr_1", "MJ01C_attr_2"],
+                2.5 : ["input_voltage"],
+                5.0 : ["input_bus_current"],
+                4.0 : ["MVPC_pressure_1", "MVPC_temperature"],
             }
         )
 
