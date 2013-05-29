@@ -304,12 +304,6 @@ class IONLoader(ImmediateProcess):
                 specs_path = 'interface/ui_specs.json' if self.exportui else None
                 self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
 
-            # Loads internal bootstrapped resource ids that will be referenced during preload
-            self._load_system_ids()
-
-            # Load existing resources by preload ID
-            self._prepare_incremental()
-
             scenarios = scenarios.split(',') if scenarios else []
             if self.revert:
                 self._create_snapshot()
@@ -378,7 +372,7 @@ class IONLoader(ImmediateProcess):
         self.snapshot = rrh.create_resources_snapshot(persist=True)
 
     def _revert_to_snapshot(self):
-        log.info("Reverting to resource registry snapshot")
+        log.warn("Reverting to resource registry snapshot")
         rrh = ResourceRegistryHelper()
         rrh.revert_to_snapshot(self.snapshot)
 
@@ -483,6 +477,14 @@ class IONLoader(ImmediateProcess):
 
     # -------------------------------------------------------------------------
 
+    def prepare_loader(self):
+        """ called by load_ion for full bootstrap; invoke manually to prepare loader when calling load_row directly """
+        log.trace('preparing loader')
+        # Loads internal bootstrapped resource ids that will be referenced during preload
+        self._load_system_ids()
+        # Load existing resources by preload ID
+        self._prepare_incremental()
+
     def load_ion(self, scenarios):
         """
         Loads resources for one scenario, by parsing input spreadsheets for all resource categories
@@ -496,6 +498,8 @@ class IONLoader(ImmediateProcess):
             log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
         if self.loadooi and self.ooiuntil:
             log.warn("WARNING: Loading OOI assets only until %s cutoff date!", self.ooiuntil)
+
+        self.prepare_loader()
 
         # read everything ahead of time, not on the fly
         # that way if the Nth CSV is garbled, you don't waste time preloading the other N-1
