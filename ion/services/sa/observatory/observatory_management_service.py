@@ -997,21 +997,23 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
                                                                                     extended_site.computed,
                                                                                     None)
+
+        instrument_status_list = [self.agent_status_builder.get_aggregate_status_of_device(d._id)
+                                  for d in extended_site.instrument_devices]
+
         def clv(value=None):
             if value is None: value = []
             return ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=value)
 
-        def cld(value=None):
-            if value is None: value = {}
-            return ComputedDictValue(status=ComputedValueAvailability.PROVIDED, value=value)
 
+        # there are no child sites, and therefore no child statuses
         extended_site.computed.platform_station_sites   = clv()
         extended_site.computed.platform_component_sites = clv()
         extended_site.computed.platform_assembly_sites  = clv()
         extended_site.computed.instrument_sites         = clv()
-        extended_site.computed.platform_status          = cld()
-        extended_site.computed.site_status              = cld()
-        extended_site.computed.instrument_status        = cld()
+        extended_site.computed.platform_status          = clv()
+        extended_site.computed.site_status              = clv()
+        extended_site.computed.instrument_status        = clv(instrument_status_list)
 
         return extended_site
 

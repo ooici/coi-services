@@ -19,7 +19,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 #from pyon.core.exception import NotFound, Inconsistent, Unauthorized #, Conflict
-from pyon.public import RT, LCE, PRED,CFG
+from pyon.public import RT, LCE, PRED, CFG, log
 from pyon.ion.resource import OT
 from nose.plugins.attrib import attr
 
@@ -33,19 +33,6 @@ from ion.agents.port.port_agent_process import PortAgentType
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 import string
-
-# some stuff for logging info to the console
-log = DotDict()
-
-def mk_logger(level):
-    def logger(fmt, *args):
-        print "%s %s" % (string.ljust("%s:" % level, 8), (fmt % args))
-
-    return logger
-
-log.debug = mk_logger("DEBUG")
-log.info  = mk_logger("INFO")
-log.warn  = mk_logger("WARNING")
 
 
 @attr('INT', group='sa')

@@ -1,13 +1,13 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
-import string
+
 import unittest
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.public import RT, PRED, OT
+from pyon.public import RT, PRED, OT, log
 from pyon.public import IonObject
 from pyon.event.event import EventPublisher
 from pyon.agent.agent import ResourceAgentState
@@ -26,19 +26,6 @@ from interface.objects import ComputedValueAvailability
 
 from ion.services.sa.test.helpers import any_old
 
-
-# some stuff for logging info to the console
-log = DotDict()
-
-def mk_logger(level):
-    def logger(fmt, *args):
-        print "%s %s" % (string.ljust("%s:" % level, 8), (fmt % args))
-
-    return logger
-
-log.debug = mk_logger("DEBUG")
-log.info  = mk_logger("INFO")
-log.warn  = mk_logger("WARNING")
 
 
 class FakeProcess(LocalContextMixin):

@@ -274,6 +274,7 @@ class AgentStatusBuilder(object):
 
 
     def get_aggregate_status_of_device(self, device_id):
+        assert(type("") == type(device_id))
         aggstatus, reason = self._get_status_of_device(device_id)
 
         if None is aggstatus:
