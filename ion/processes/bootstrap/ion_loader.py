@@ -99,7 +99,10 @@ MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfS
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
 TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AlWnRoFa9JrTdERHR0VzR081OTYxbDB6b2Z5b3JaVEE&output=xls"
-#
+
+### local CSV files are hopelessly out of date, but this is where attachments are
+LOCAL_DOC = "res/preload/r2_ioc"
+
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
@@ -232,6 +235,8 @@ class IONLoader(ImmediateProcess):
         if self.path=='master':
             self.path = MASTER_DOC
         self.attachment_path = config.get("attachments", self.path + '/attachments')
+        if self.attachment_path.startswith("http"):
+                self.attachment_path = LOCAL_DOC + '/attachments'
         self.asset_path = config.get("assets", self.path + "/ooi_assets")
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
 
@@ -396,6 +401,7 @@ class IONLoader(ImmediateProcess):
 
     def _load_system_ids(self):
         """Read some system objects for later reference"""
+        log.debug('loading system ids')
         org_objs,_ = self.container.resource_registry.find_resources(name="ION", restype=RT.Org, id_only=False)
         if not org_objs:
             raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
@@ -444,6 +450,7 @@ class IONLoader(ImmediateProcess):
         Can load the spreadsheets from http or file location.
         Optionally imports OOI assets at the beginning of each category.
         """
+        log.debug("preload starting")
         if self.debug:
             log.warn("WARNING: Debug==True. Certain shortcuts will be taken for easier development")
         if self.bulk:
@@ -611,7 +618,10 @@ class IONLoader(ImmediateProcess):
     def _register_id(self, alias, resid, res_obj=None):
         """Keep preload resource in internal dict for later reference"""
         if alias in self.resource_ids:
-            raise iex.BadRequest("ID alias %s used twice" % alias)
+            if self.resource_ids[alias]==resid:
+                log.warn('ID %s added twice (same object)')
+            else:
+                raise iex.BadRequest("ID alias %s used twice" % alias)
         self.resource_ids[alias] = resid
         self.resource_objs[alias] = res_obj
         log.trace("Added resource alias=%s to id=%s", alias, resid)
