@@ -1256,12 +1256,15 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         dpd.module = 'ion.processes.data.transforms.viz.google_dt'
         dpd.class_name = 'VizTransformGoogleDT'
 
+        stream_definition_id = self.resource_registry.find_objects(output_data_product_id, PRED.hasStreamDefinition, id_only=True)[0][0]
+
         #--------------------------------------------------------------------------------
         # Walk before we base jump
         #--------------------------------------------------------------------------------
 
         data_process_definition_id = self.data_process_management.create_data_process_definition(dpd)
         self.addCleanup(self.data_process_management.delete_data_process_definition, data_process_definition_id)
+        self.data_process_management.assign_stream_definition_to_data_process_definition(stream_definition_id, data_process_definition_id, binding='google_dt')
     
         data_process_id = self.data_process_management.create_data_process(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[output_data_product_id])
         self.addCleanup(self.data_process_management.delete_data_process,data_process_id)
