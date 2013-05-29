@@ -193,7 +193,7 @@ def check_user_notification_interest(event, reverse_user_info):
 #            log.debug("After checking event_type = %s, UNS got no interested users here", event.type_)
             return []
 
-    if event.origin: # for an incoming event that has origin specified (this should be true for almost all events)
+    if event.origin is not None: # for an incoming event that has origin specified (this should be true for almost all events)
         if reverse_user_info['event_origin'].has_key(event.origin):
             user_list_2 = set(reverse_user_info['event_origin'][event.origin])
             if reverse_user_info['event_origin'].has_key(''): # for users who subscribe to any event origins
@@ -204,18 +204,18 @@ def check_user_notification_interest(event, reverse_user_info):
 #            log.debug("After checking  event origin = %s, UNS got no interested users here", event.origin)
             return []
 
-    if event.sub_type: # for an incoming event with the sub type specified
+    if event.sub_type is not None: # for an incoming event with the sub type specified
         if reverse_user_info['event_subtype'].has_key(event.sub_type):
             user_list_3 = reverse_user_info['event_subtype'][event.sub_type]
             if reverse_user_info['event_subtype'].has_key(''): # for users who subscribe to any event subtypes
                 user_list_3.extend(reverse_user_info['event_subtype'][''])
             users = set.intersection(users, user_list_3)
 #            log.debug("For event_subtype = %s too, UNS got interested users here  %s", event.sub_type, users)
-        else:
+#        else:
 #            log.debug("After checking event_subtype = %s, UNS got no interested users here", event.sub_type)
-            return []
+#            return []
 
-    if event.origin_type: # for an incoming event with origin type specified
+    if event.origin_type is not None: # for an incoming event with origin type specified
         if reverse_user_info['event_origin_type'].has_key(event.origin_type):
             user_list_4 = reverse_user_info['event_origin_type'][event.origin_type]
             if reverse_user_info['event_origin_type'].has_key(''): # for users who subscribe to any event origin types
