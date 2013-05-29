@@ -61,7 +61,7 @@ class AgentStreamPublisher(object):
         decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
         for (stream_name, config) in stream_info.iteritems():
             try:
-                if config.has_key('stream_def_dict'):
+                if config.has_key('stream_definition_ref'):
                     stream_def = config['stream_definition_ref']
                     self._stream_defs[stream_name] = stream_def
                     rdt = RecordDictionaryTool(stream_definition_id=stream_def)    
