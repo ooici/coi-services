@@ -61,15 +61,15 @@ class AgentStreamPublisher(object):
         decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
         for (stream_name, config) in stream_info.iteritems():
             try:
-                if config.has_key('stream_definition_ref'):
-                    stream_def = config['stream_definition_ref']
-                    self._stream_defs[stream_name] = stream_def
-                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)    
-                else:
+                if config.has_key('stream_def_dict'):
                     stream_def_dict = config['stream_def_dict']
                     stream_def_obj = decoder.deserialize(stream_def_dict)
                     self._stream_defs[stream_name] = stream_def_obj
                     rdt = RecordDictionaryTool(stream_definition=stream_def_obj)
+                else:
+                    stream_def = config['stream_definition_ref']
+                    self._stream_defs[stream_name] = stream_def
+                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)    
                 self._agent.aparam_streams[stream_name] = rdt.fields
                 self._agent.aparam_pubrate[stream_name] = 0
             except Exception as e:
