@@ -159,8 +159,9 @@ class VisualizationService(BaseVisualizationService):
 
             # detect the output data product of the workflow
             workflow_dp_ids,_ = self.clients.resource_registry.find_objects(subject=workflow_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
-            if len(workflow_dp_ids) != 1:
-                log.warn("Workflow Data Product %s has multiple output data products (%d) - using first one found ", workflow_id, len(workflow_dp_ids))
+            if len(workflow_dp_ids) < 1:
+                log.error("Could not find output data product for existing workflow : ", workflow_id)
+                raise NotFound("Could not find output data product for existing workflow : ", workflow_id)
 
             workflow_product_id = workflow_dp_ids[0]
 
