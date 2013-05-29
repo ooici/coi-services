@@ -183,7 +183,7 @@ class IONLoader(ImmediateProcess):
 
     def __init__(self, *a, **b):
         super(IONLoader, self).__init__(*a,**b)
-
+        log.trace('creating loader')
         # initialize these here instead of on_start
         # to support using IONLoader as a utility -- not just as a process
         self.obj_classes = {}     # Cache of class for object types
@@ -203,6 +203,7 @@ class IONLoader(ImmediateProcess):
 
     def on_start(self):
         cfg = self.CFG.get("cfg", None)
+        log.trace('starting with config: %r', cfg)
         if cfg:
             log.warn("ION loader scripted mode using config file: %s", cfg)
             self.preload_cfg = Config([cfg]).data
@@ -445,6 +446,7 @@ class IONLoader(ImmediateProcess):
 
     def prepare_loader(self):
         """ called by load_ion for full bootstrap; invoke manually to prepare loader when calling load_row directly """
+        log.trace('preparing loader')
         # Loads internal bootstrapped resource ids that will be referenced during preload
         self._load_system_ids()
         # Load existing resources by preload ID
