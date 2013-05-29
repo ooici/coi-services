@@ -645,8 +645,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
 
-        self.addCleanup(dataset_monitor.stop)
-
         self.publish_fake_data(stream_id, route)
 
         self.assertTrue(dataset_monitor.event.wait(30))
