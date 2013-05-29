@@ -443,6 +443,13 @@ class IONLoader(ImmediateProcess):
 
     # -------------------------------------------------------------------------
 
+    def prepare_loader(self):
+        """ called by load_ion for full bootstrap; invoke manually to prepare loader when calling load_row directly """
+        # Loads internal bootstrapped resource ids that will be referenced during preload
+        self._load_system_ids()
+        # Load existing resources by preload ID
+        self._prepare_incremental()
+
     def load_ion(self, scenarios):
         """
         Loads resources for one scenario, by parsing input spreadsheets for all resource categories
@@ -458,11 +465,7 @@ class IONLoader(ImmediateProcess):
         if self.loadooi and self.ooiuntil:
             log.warn("WARNING: Loading OOI assets only until %s cutoff date!", self.ooiuntil)
 
-        # Loads internal bootstrapped resource ids that will be referenced during preload
-        self._load_system_ids()
-
-        # Load existing resources by preload ID
-        self._prepare_incremental()
+        self.prepare_loader()
 
         # read everything ahead of time, not on the fly
         # that way if the Nth CSV is garbled, you don't waste time preloading the other N-1
