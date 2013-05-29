@@ -56,6 +56,7 @@ DEFAULT_TIMEOUT = 60
 PROCESS_BASE_DIR = '/tmp'
 PID_FILE = "%s/port_agent_%d.pid"
 LOCALHOST = 'localhost'
+DEFAULT_HEARTBEAT = 0
 
 class PortAgentProcessType(BaseEnum):
     """
@@ -357,12 +358,13 @@ class UnixPortAgentProcess(PortAgentProcess):
         self._binary_path = config.get("binary_path", "port_agent")
         self._command_port = config.get("command_port");
         self._pa_addr = config.get("port_agent_addr");
+        self._heartbeat_interval = config.get("heartbeat_interval");
         """
         DHE: need to be able to retrieve multiple data ports here
         """
         self._data_port = config.get("data_port");
         self._log_level = config.get("log_level");
-        self._type = config.get("type", PortAgentType.ETHERNET)
+        self._type = config.get("instrument_type", PortAgentType.ETHERNET)
 
         if not self._pa_addr:
             self._pa_addr = LOCALHOST
@@ -370,6 +372,9 @@ class UnixPortAgentProcess(PortAgentProcess):
         if not self._device_addr:
             raise PortAgentMissingConfig("missing config: device_addr")
 
+        if not self._heartbeat_interval:
+            self._heartbeat_interval = DEFAULT_HEARTBEAT
+            
         if PortAgentType.BOTPT == self._type: 
             if not self._device_tx_port:
                 raise PortAgentMissingConfig("missing config: device_tx_port (BOTPT)")
@@ -409,11 +414,14 @@ class UnixPortAgentProcess(PortAgentProcess):
         temp.write("data_dir %s\n" % (PROCESS_BASE_DIR))
         if PortAgentType.BOTPT == self._type:
             temp.write("instrument_type botpt\n")
+            temp.write("instrument_data_tx_port %d\n" % (self._device_tx_port) )
+            temp.write("instrument_data_rx_port %d\n" % (self._device_rx_port) )
         else:
             temp.write("instrument_type tcp\n")
-        temp.write("instrument_data_port %d\n" % (self._device_port) )
+            temp.write("instrument_data_port %d\n" % (self._device_port) )
         temp.write("instrument_addr %s\n" % (self._device_addr) )
         temp.write("data_port %d\n" % (self._data_port) )
+        temp.write("heartbeat_interval %d\n" % (self._heartbeat_interval) )
         temp.flush()
         
         return temp;
