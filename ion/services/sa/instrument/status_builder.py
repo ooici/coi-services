@@ -219,7 +219,7 @@ class AgentStatusBuilder(object):
 
     def _crush_status_list(self, values_list):
         # reported status is worst (highest # value) of the component values
-        status = max(values_list)
+        status = max(values_list) if values_list else DeviceStatusType.STATUS_UNKNOWN
         log.debug("crushing list %s to value %s", values_list, status)
         return status
 

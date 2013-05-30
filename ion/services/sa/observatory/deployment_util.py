@@ -78,7 +78,7 @@ def describe_deployments(deployments, context, instruments=[], instrument_status
     objects3,associations = rr.find_subjects_mult(objects=site_ids)
     if log.isEnabledFor(TRACE):
         log.trace('have %d site-associated objects, %d are hasDeployment', len(associations), sum([1 if assoc.p==PRED.hasDeployment else 0 for assoc in associations]))
-    for obj,assoc in zip(objects2,associations):
+    for obj,assoc in zip(objects3,associations):
         if assoc.p==PRED.hasSite:
             found_match = False
             for description in descriptions.itervalues():
