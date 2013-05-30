@@ -552,12 +552,14 @@ class PlatformAgent(ResourceAgent):
         """
         Connects the driver.
         """
+        log.debug("%r: triggering driver event CONNECT", self._platform_id)
         self._trigger_driver_event(PlatformDriverEvent.CONNECT)
 
     def _go_inactive_this_platform(self):
         """
         Disconnects the driver.
         """
+        log.debug("%r: triggering driver event DISCONNECT")
         self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
 
     def _run_this_platform(self):
