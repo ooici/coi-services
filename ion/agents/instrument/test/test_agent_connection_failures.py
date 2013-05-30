@@ -42,6 +42,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 # Pyon Object Serialization
 from pyon.core.bootstrap import get_obj_registry
 from pyon.core.object import IonObjectDeserializer
+from pyon.core.object import IonObjectSerializer
 
 # Pyon exceptions.
 from pyon.core.exception import BadRequest, Conflict, Timeout, ResourceError
@@ -383,6 +384,8 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         pubsub_client = PubsubManagementServiceClient(node=self.container.node)
         dataset_management = DatasetManagementServiceClient()
         
+        encoder = IonObjectSerializer()
+        
         # Create streams and subscriptions for each stream named in driver.
         self._stream_config = {}
 
@@ -390,7 +393,9 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         param_dict_name = 'ctd_parsed_param_dict'
         pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
         stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
+        stream_def = pubsub_client.read_stream_definition(stream_def_id)
+        stream_def_dict = encoder.serialize(stream_def)        
+        pd = stream_def.parameter_dictionary
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
@@ -398,22 +403,25 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
-                                 parameter_dictionary=pd)
+                                 parameter_dictionary=pd,
+                                 stream_def_dict=stream_def_dict)
         self._stream_config[stream_name] = stream_config
 
         stream_name = 'raw'
         param_dict_name = 'ctd_raw_param_dict'
         pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
         stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
+        stream_def = pubsub_client.read_stream_definition(stream_def_id)
+        stream_def_dict = encoder.serialize(stream_def)
+        pd = stream_def.parameter_dictionary
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
         stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
-                                 stream_definition_ref=stream_def_id,
-                                 parameter_dictionary=pd)
+                                 parameter_dictionary=pd,
+                                 stream_def_dict=stream_def_dict)
         self._stream_config[stream_name] = stream_config
 
     def _start_data_subscribers(self, count, raw_count):
