@@ -16,6 +16,7 @@ from pyon.public import log
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 
 from gevent.pywsgi import WSGIServer
+import socket
 import sys
 import yaml
 
@@ -101,8 +102,27 @@ class OmsEventListener(object):
             log.exception("Could not start http server for receiving event notifications")
             raise
 
-        self._url = "http://%s:%s" % self._http_server.address
-        log.info("http server started: url=%r", self._url)
+        host_name, host_port = self._http_server.address
+
+        log.info("http server started at %s:%s" % (host_name, host_port))
+
+        exposed_host_name = host_name
+
+        ######################################################################
+        # adjust exposed_host_name:
+        # **NOTE**: the adjustment below is commented out because is not robust
+        # enough. For example, the use of the external name for the host would
+        # require the particular port to be open to the world.
+        # And in any case, this overall handling needs a different approach.
+        #
+        # # If the given host is 'localhost', need to get the actual hostname
+        # # for the exposed URL:
+        # if host is 'localhost':
+        #     exposed_host_name = socket.gethostname()
+        ######################################################################
+
+        self._url = "http://%s:%s" % (exposed_host_name, host_port)
+        log.info("http server exposed URL = %r", self._url)
 
     def __application(self, environ, start_response):
 
