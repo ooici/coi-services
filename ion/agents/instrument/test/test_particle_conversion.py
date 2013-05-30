@@ -67,6 +67,9 @@ class TestParticleConversion(IonIntegrationTestCase):
         # Bring up services in a deploy file (no need to message)
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+        
+        # Dataset management client.    
+        dataset_management = DatasetManagementServiceClient()
     
     
     def test_particles(self):
