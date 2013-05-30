@@ -24,7 +24,8 @@ from gevent import sleep
 
 _PYTHON_PATH = 'bin/python'
 _PROGRAM     = "ion/agents/platform/rsn/simulator/oms_simulator_server.py"
-_COMMAND    = [_PYTHON_PATH, _PROGRAM]
+_COMMAND    = [_PYTHON_PATH, _PROGRAM, "--port", "0"]
+# note: "--port 0" to bind the simulator to a newly generated port.
 
 
 class ProcessUtil(object):
@@ -37,45 +38,56 @@ class ProcessUtil(object):
 
     def launch(self):
         """
-        Launches the simulator process.
+        Launches the simulator process as indicated by _COMMAND.
 
-        The oms_simulator_server.py program is launched without arguments.
-        No assumptions here as to what port will be used.
+        @return (rsn_oms, uri) A pair with the CIOMSSimulator instance and the
+                associated URI to establish connection with it.
         """
-        log.debug("Launching: %s", _COMMAND)
+        log.debug("[OMSim] Launching: %s", _COMMAND)
 
         self._process = self._spawn(_COMMAND)
 
         if not self._process or not self.poll():
-            msg = "Failed to launch simulator: %s" % _COMMAND
+            msg = "[OMSim] Failed to launch simulator: %s" % _COMMAND
             log.error(msg)
             raise Exception(msg)
 
-        log.debug("process started, pid: %s", self.getpid())
+        log.debug("[OMSim] process started, pid: %s", self.getpid())
 
         # give it some time to start up
         sleep(5)
 
-        self._rsn_oms = CIOMSClientFactory.create_instance("localsimulator")
-        return self._rsn_oms
+        # get URI:
+        uri = None
+        with open("logs/rsn_oms_simulator.yml", buffering=1) as f:
+            # we expect one of the first few lines to be of the form:
+            # rsn_oms_simulator_uri=xxxx
+            # where xxxx is the uri -- see oms_simulator_server.
+            while uri is None:
+                line = f.readline()
+                if line.index("rsn_oms_simulator_uri=") == 0:
+                    uri = line[len("rsn_oms_simulator_uri="):].strip()
+
+        self._rsn_oms = CIOMSClientFactory.create_instance(uri)
+        return self._rsn_oms, uri
 
     def stop(self):
         """
         Stop the process.
         """
         if self._rsn_oms is not None:
-            log.debug("exit_simulator -> %r", self._rsn_oms.exit_simulator())
+            log.debug("[OMSim] x_exit_simulator -> %r", self._rsn_oms.x_exit_simulator())
 
         if self._process:
             try:
-                log.debug("terminating process %s", self._process.pid)
+                log.debug("[OMSim] terminating process %s", self._process.pid)
                 self._process.send_signal(signal.SIGINT)
-                log.debug("waiting process %s", self._process.pid)
+                log.debug("[OMSim] waiting process %s", self._process.pid)
                 self._process.wait()
-                log.debug("process killed")
+                log.debug("[OMSim] process killed")
 
             except OSError:
-                log.warn("Could not stop process, pid: %s" % self._process.pid)
+                log.warn("[OMSim] Could not stop process, pid: %s" % self._process.pid)
 
             sleep(4)
 
@@ -97,7 +109,7 @@ class ProcessUtil(object):
         try:
             os.kill(self._process.pid, 0)
         except OSError:
-            log.warn("Could not send a signal to the process, pid: %s" % self._process.pid)
+            log.warn("[OMSim] Could not send a signal to the process, pid: %s" % self._process.pid)
             return False
 
         return True
@@ -111,7 +123,7 @@ class ProcessUtil(object):
             if self.poll():
                 return self._process.pid
             else:
-                log.warn("process found, but poll failed for pid %s", 
+                log.warn("[OMSim] process found, but poll failed for pid %s",
                          self._process.pid)
         else:
             return None
@@ -130,9 +142,10 @@ class ProcessUtil(object):
 def _test():  # pragma: no cover
     sim_process = ProcessUtil()
     for _ in range(2):
-        rsn_oms = sim_process.launch()
-        log.debug("ping -> %r", rsn_oms.ping())
-        log.debug("get_platform_map -> %r", rsn_oms.get_platform_map())
+        rsn_oms, uri = sim_process.launch()
+        print("rsn_oms_simulator_uri = %s" % uri)
+        print("ping -> %r" % rsn_oms.ping())
+        print("get_platform_map -> %r" % rsn_oms.get_platform_map())
         sim_process.stop()
 
 # test using nosetest:
