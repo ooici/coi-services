@@ -844,11 +844,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 if a.p==PRED.hasDevice:
                     if a.ot not in (RT.InstrumentDevice, RT.PlatformDevice):
                         log.warn('unexpected association Site %s hasDevice %s %s (was not InstrumentDevice or PlatformDevice)', a.s, a.ot, a.o)
+            log.debug('subsites of %s have %d hasDevice associations', site_id, len(associations))
             extended_site.portal_instruments = [None]*len(extended_site.sites)
             extended_site.computed.portal_status = ComputedListValue(value=[None]*len(extended_site.sites), status=ComputedValueAvailability.PROVIDED if extended_site.computed.instrument_status.value else ComputedValueAvailability.NOTAVAILABLE)
             for i in xrange(len(extended_site.sites)):
                 for a in associations:
-                    if a.p==PRED.hasDevice and a.ot==RT.InstrumentDevice and a.s==extended_site.sites[i]._id:
+                    if a.p==PRED.hasDevice and a.ot in (RT.InstrumentDevice, RT.PlatformDevice) and a.s==extended_site.sites[i]._id:
                         for j in xrange(len(extended_site.instrument_devices)):
                             if extended_site.instrument_devices[j]._id == a.o:
                                 extended_site.portal_instruments[i] = extended_site.instrument_devices[j]
