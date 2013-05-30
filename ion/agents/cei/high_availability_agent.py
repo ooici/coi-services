@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+import sys
 import gevent
 from gevent.event import Event
 
@@ -429,7 +430,9 @@ class HAProcessControl(object):
 
         try:
             self._inner_event_callback(event)
-        except Exception:
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
             log.exception("%sException in event handler. This is a bug!", self.logprefix)
 
     def _inner_event_callback(self, event):
@@ -469,7 +472,10 @@ class HAProcessControl(object):
         if self.callback:
             try:
                 self.callback()
-            except Exception, e:
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except:
+                e = sys.exc_info()[0]
                 log.warn("%sError in HAAgent callback: %s", self.logprefix, e, exc_info=True)
 
     def _associate_process(self, process):

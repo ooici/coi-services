@@ -2151,6 +2151,195 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_i), 2)
 
 
+
+    @attr('LOCOINT')
+    @attr('MULTI_AGENT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    @patch.dict(CFG, {'system':{'load_policy':True}})
+    def test_multiple_instrument_agent_policy(self):
+
+        # This import will dynamically load the driver egg.  It is needed for the MI includes below
+        import ion.agents.instrument.test.test_instrument_agent
+        from mi.core.instrument.instrument_driver import DriverProtocolState
+        from mi.core.instrument.instrument_driver import DriverConnectionState
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+
+        #Make sure that the system policies have been loaded
+        policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
+        self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
+
+        log.debug('Begin testing with policies')
+
+        #Create a new user - should be denied for anonymous access
+        with self.assertRaises(Unauthorized) as cm:
+            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_actor_headers)
+        self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
+
+        #Create user
+        actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
+        log.debug( "actor id=" + actor_id)
+
+        actor_header = get_actor_header(actor_id)
+
+        #Create a third user to be used as observatory operator
+        obs_operator_actor_obj = IonObject(RT.ActorIdentity, name='observatory operator actor')
+        obs_operator_actor_id,_ = self.rr_client.create(obs_operator_actor_obj)
+        assert(obs_operator_actor_id)
+
+        #Create a second Org
+        org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
+        org2_id = self.org_client.create_org(org2, headers=self.system_actor_header)
+
+        org2 = self.org_client.find_org(ORG2)
+        self.assertEqual(org2_id, org2._id)
+
+        roles = self.org_client.find_org_roles(org2_id)
+        self.assertEqual(len(roles),2)
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
+
+        #Create Instrument Operator Role and add it to the second Org
+        operator_role = IonObject(RT.UserRole, governance_name=INSTRUMENT_OPERATOR_ROLE, name='Instrument Operator', description='Instrument Operator')
+        self.org_client.add_user_role(org2_id, operator_role, headers=self.system_actor_header)
+
+        #Create Instrument Operator Role and add it to the second Org
+        obs_operator_role = IonObject(RT.UserRole, governance_name=OBSERVATORY_OPERATOR_ROLE, name='Observatory Operator', description='Observatory Operator')
+        self.org_client.add_user_role(org2_id, obs_operator_role, headers=self.system_actor_header)
+
+        roles = self.org_client.find_org_roles(org2_id)
+        self.assertEqual(len(roles),4)
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE])
+
+        #Grant the role of Observatory Operator to the user
+        self.org_client.enroll_member(org2_id,obs_operator_actor_id, headers=self.system_actor_header)
+        self.org_client.grant_role(org2_id, obs_operator_actor_id, OBSERVATORY_OPERATOR_ROLE, headers=self.system_actor_header)
+        obs_operator_actor_header = get_actor_header(obs_operator_actor_id)
+
+        #Enroll user in second Org
+        self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
+        self.org_client.grant_role(org2_id, actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
+
+        #Refresh header with updated roles
+        actor_header = get_actor_header(actor_id)
+
+        #Create Test InstrumentDevice - use the system admin for now
+        inst_obj1 = IonObject(RT.InstrumentDevice, name='Test_Instrument_1')
+        inst_obj1_id,_ = self.rr_client.create(inst_obj1 )
+
+        #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user role
+        from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
+        ia1_client = start_instrument_agent_process(self.container, resource_id=inst_obj1_id, resource_name=inst_obj1.name,
+            org_governance_name=org2.org_governance_name, message_headers=self.system_actor_header)
+
+        #First try a basic agent operation anonymously - it should be denied
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia1_client.get_capabilities(headers=self.anonymous_actor_headers )
+        self.assertIn('InstrumentDevice(get_capabilities) has been denied',cm.exception.message)
+
+        #however the Inst Operator should be allowed
+        retval = ia1_client.get_capabilities(headers=actor_header)
+
+        #Create Test InstrumentDevice2 - use the system admin for now
+        inst_obj2 = IonObject(RT.InstrumentDevice, name='Test_Instrument_2')
+        inst_obj2_id,_ = self.rr_client.create(inst_obj2 )
+
+        #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user role
+        from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
+        ia2_client = start_instrument_agent_process(self.container, resource_id=inst_obj2_id, resource_name=inst_obj2.name,
+            org_governance_name=org2.org_governance_name, message_headers=self.system_actor_header)
+
+        #First try a basic agent operation anonymously - it should be denied
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia2_client.get_capabilities(headers=self.anonymous_actor_headers )
+        self.assertIn('InstrumentDevice(get_capabilities) has been denied',cm.exception.message)
+
+        #However the Inst Operator should be allowed
+        retval = ia2_client.get_capabilities(headers=actor_header)
+
+        #Create Test InstrumentDevice2 - use the system admin for now
+        inst_obj3 = IonObject(RT.InstrumentDevice, name='Test_Instrument_3')
+        inst_obj3_id,_ = self.rr_client.create(inst_obj3 )
+
+        #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user role
+        from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
+        ia3_client = start_instrument_agent_process(self.container, resource_id=inst_obj3_id, resource_name=inst_obj3.name,
+            org_governance_name=org2.org_governance_name, message_headers=self.system_actor_header)
+
+        #First try a basic agent operation anonymously - it should be denied
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia3_client.get_capabilities(headers=self.anonymous_actor_headers )
+        self.assertIn('InstrumentDevice(get_capabilities) has been denied',cm.exception.message)
+
+        #However the Inst Operator should be allowed
+        retval = ia3_client.get_capabilities(headers=actor_header)
+
+        #The reset command should be allowed
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = ia1_client.execute_agent(cmd, headers=obs_operator_actor_header)
+        retval = ia1_client.get_agent_state(headers=obs_operator_actor_header)
+        self.assertEqual(retval, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = ia1_client.execute_agent(cmd, headers=obs_operator_actor_header)
+        retval = ia1_client.get_agent_state(headers=obs_operator_actor_header)
+        self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = ia2_client.execute_agent(cmd, headers=obs_operator_actor_header)
+        retval = ia2_client.get_agent_state(headers=obs_operator_actor_header)
+        self.assertEqual(retval, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = ia2_client.execute_agent(cmd, headers=obs_operator_actor_header)
+        retval = ia2_client.get_agent_state(headers=obs_operator_actor_header)
+        self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = ia3_client.execute_agent(cmd, headers=obs_operator_actor_header)
+        retval = ia3_client.get_agent_state(headers=obs_operator_actor_header)
+        self.assertEqual(retval, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = ia3_client.execute_agent(cmd, headers=obs_operator_actor_header)
+        retval = ia3_client.get_agent_state(headers=obs_operator_actor_header)
+        self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+
+
+        #This operation should now be allowed with the Instrument Operator role
+        with self.assertRaises(Conflict) as cm:
+            retval = ia1_client.get_resource([SBE37Parameter.ALL], headers=actor_header)
+
+        with self.assertRaises(Conflict) as cm:
+            retval = ia2_client.get_resource([SBE37Parameter.ALL], headers=actor_header)
+
+        with self.assertRaises(Conflict) as cm:
+            retval = ia3_client.get_resource([SBE37Parameter.ALL], headers=actor_header)
+
+
+        testing_header1 = {'test_for_proc_name': 'Test_Instrument_1'}
+        testing_header1.update(actor_header)
+
+        #This operation should now be allowed with the Instrument Operator role
+        with self.assertRaises(Conflict) as cm:
+            retval = ia1_client.get_resource([SBE37Parameter.ALL], headers=testing_header1)
+
+        testing_header2 = {'test_for_proc_name': 'Test_Instrument_2'}
+        testing_header2.update(actor_header)
+
+        with self.assertRaises(Conflict) as cm:
+            retval = ia2_client.get_resource([SBE37Parameter.ALL], headers=testing_header2)
+
+        testing_header3 = {'test_for_proc_name': 'Test_Instrument_3'}
+        testing_header3.update(actor_header)
+
+        with self.assertRaises(Conflict) as cm:
+            retval = ia3_client.get_resource([SBE37Parameter.ALL], headers=testing_header3)
+
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia3_client.get_resource([SBE37Parameter.ALL], headers=testing_header2)
+
+
+
     @attr('LOCOINT')
     @attr('LCS')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')

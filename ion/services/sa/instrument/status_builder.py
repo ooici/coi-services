@@ -274,6 +274,11 @@ class AgentStatusBuilder(object):
 
 
     def get_aggregate_status_of_device(self, device_id):
+        if  device_id is not None and type("") != type(device_id):
+            errmsg = "get_aggregate_status_of_device passed bad type %s" % type(device_id)
+            log.warn(errmsg)
+            raise BadRequest(errmsg)
+
         aggstatus, reason = self._get_status_of_device(device_id)
 
         if None is aggstatus:

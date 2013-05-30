@@ -9,7 +9,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from pyon.core.exception import NotFound, Unauthorized #, Conflict
-from pyon.public import RT, LCS, LCE, PRED, CFG
+from pyon.public import RT, LCS, LCE, PRED, CFG, log
 from nose.plugins.attrib import attr
 
 from ion.services.sa.test.helpers import any_old
@@ -25,18 +25,6 @@ from pyon.core.object import IonObjectSerializer
 from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
 
 
-# some stuff for logging info to the console
-log = DotDict()
-
-def mk_logger(level):
-    def logger(fmt, *args):
-        print "%s %s" % (string.ljust("%s:" % level, 8), (fmt % args))
-
-    return logger
-
-log.debug = mk_logger("DEBUG")
-log.info  = mk_logger("INFO")
-log.warn  = mk_logger("WARNING")
 
 
 @attr('INT', group='sa')
