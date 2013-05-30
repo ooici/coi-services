@@ -22,7 +22,7 @@ from collections import defaultdict
 from ooi.logging import log
 
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import Inconsistent,BadRequest, NotFound, ServerError
+from pyon.core.exception import Inconsistent, BadRequest, NotFound, ServerError, Unauthorized
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.ion_time import IonTime
 from pyon.public import LCE
@@ -1620,14 +1620,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 state = ia_client.get_agent_state()
                 if resource_agent_state_labels.has_key(state):
                     retval.value = resource_agent_state_labels[ state ]
+                    retval.status = ComputedValueAvailability.PROVIDED
                 else:
                     retval.value = 'UNKNOWN'
-                    log.warn('get_operational_state  get_agent_state returned invalid state type: %s', state)
+                    retval.status = ComputedValueAvailability.NOTAVAILABLE
+                    retval.reason = "State not returned in agent response"
 
-            except Exception as e:
+            except Unauthorized:
                 retval.value = 'UNKNOWN'
                 retval.status = ComputedValueAvailability.NOTAVAILABLE
-                log.warn('get_operational_state  get_agent_state returned exception: %s', e)
+                retval.reason = "The requester does not have the proper role to access the status of this agent"
+
+            except Exception as e:
+                raise e
 
         else:
             retval.value = 'UNKNOWN'
