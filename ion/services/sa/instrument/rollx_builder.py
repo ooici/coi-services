@@ -100,11 +100,11 @@ class RollXBuilder(object):
         return dict([(s, site_val_fn(s)) for s in full_list]), acc
 
 
-    def get_network_hierarchy(self, device_id, device__val_fn):
+    def get_network_hierarchy(self, device_id, device_val_fn):
         """
-        return (child_sites, site_ancestors)
-        where child_sites is a dict mapping all child site ids to the value of site_val_fn(child_site_id)
-          and site_ancestors is a dict mapping all site ids to a list of their children as per
+        return (child_devices, device_ancestors)
+        where child_devices is a dict mapping all child device ids to the value of device_val_fn(child_device_id)
+          and device_ancestors is a dict mapping all device ids to a list of their children as per
         """
 
         if not self.RR2.has_cached_prediate(PRED.hasNetworkParent):
@@ -116,10 +116,10 @@ class RollXBuilder(object):
             d_child_ids = self.RR2.find_subjects(d_id, PRED.hasNetworkParent, id_only=True)
             if d_child_ids:
                 acc[d_id] = d_child_ids
-            for scid in d_child_ids:
-                _get_ancestors_h(scid)
-                full_list.append(scid)
+            for dcid in d_child_ids:
+                _get_ancestors_h(dcid)
+                full_list.append(dcid)
 
         _get_ancestors_h(device_id)
 
-        return dict([(d, device__val_fn(d)) for d in full_list]), acc
+        return dict([(d, device_val_fn(d)) for d in full_list]), acc
