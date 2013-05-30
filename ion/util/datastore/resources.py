@@ -8,6 +8,7 @@ __author__ = 'Michael Meisinger'
 import datetime
 import json
 import yaml
+import os
 try:
     import xlrd
     import xlwt
@@ -26,6 +27,12 @@ from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.datastore.couchdb.couchdb_standalone import CouchDataStore
 from pyon.public import log
 
+"""
+from ion.util.datastore.resources import ResourceRegistryHelper
+rrh = ResourceRegistryHelper()
+rrh.dump_resources_as_xlsx()
+rrh.revert_to_snapshot(filename="interface/rrsnapshot_20130530_144619.json")
+"""
 
 class ResourceRegistryHelper(object):
     def __init__(self, container = None):
@@ -283,6 +290,13 @@ class ResourceRegistryHelper(object):
 
     def revert_to_snapshot(self, snapshot=None, filename=None):
         current_snapshot = self.create_resources_snapshot()
+
+        if filename:
+            if not os.path.exists(filename):
+                raise BadRequest("Snapshot file not existing: %s" % filename)
+            with open(filename, "r") as f:
+                content = f.read()
+                snapshot = json.loads(content)
 
         delta_snapshot = self._compare_snapshots(snapshot, current_snapshot)
         if delta_snapshot["resources"] or delta_snapshot["associations"]:
