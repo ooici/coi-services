@@ -36,26 +36,28 @@ log = Logger.get_logger()
 class CIOMSSimulator(CIOMSClient):
     """
     Implementation of CIOMSClient for testing purposes.
+    It adds some methods intended to be used by tests (they are prefixed with
+    "x_" and are "public" to make them visible through the xml/rpc mechanism).
     """
 
-    # see start_raising_exceptions_at
-    _exception_time = 0
+    # _raise_exception: see disable() and enable()
+    _raise_exception = False
 
     @classmethod
-    def start_raising_exceptions_at(cls, at_time):
+    def x_disable(cls):
         """
-        After the given time (if positive), all methods in any created
-        instance of this class will start raising Exceptions. This allows to
-        test for the "lost connection" case in the platform agent and driver
-        when the simulator is run in "embedded" form.
+        Makes any subsequent call to any public API operation to raise an
+        exception. This allows to test for the "lost connection" case.
+        """
+        cls._raise_exception = True
 
-        Note: actual disconnection is performed when the simulator is launched
-        as an external process (via the special URI alias "launchsimulator")
-        and then killing that process at some point during the interaction.
+    @classmethod
+    def x_enable(cls):
         """
-        secs = at_time - time.time()
-        log.debug("(LC) synthetic exceptions starting in %s secs from now", secs)
-        cls._exception_time = at_time
+        Cancels the effect of disable() (so the simulator continues to
+        operate normally).
+        """
+        cls._raise_exception = False
 
     def __init__(self, yaml_filename='ion/agents/platform/rsn/simulator/network.yml'):
         self._ndef = NetworkUtil.deserialize_network_definition(file(yaml_filename))
@@ -106,7 +108,7 @@ class CIOMSSimulator(CIOMSClient):
         Called by all CI_OMS interface methods to dispatch the
         simulation of connection lost.
         """
-        if 0 < self._exception_time <= time.time():
+        if self._raise_exception:
             msg = "(LC) synthetic exception from CIOMSSimulator"
             log.debug(msg)
             raise Exception(msg)
