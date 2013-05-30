@@ -38,6 +38,7 @@
       ooiexclude= synonymous to excludecategories. Don't use
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       exportui= if True, writes interface/ui_specs.json with UI object
+      idmap= if True, the IDMap category is used to substitute preload ids
       revert= if True (and debug==True) remove all resources and associations created if preload fails
 
     TODO:
@@ -116,6 +117,7 @@ OOI_MAPPING_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVU
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
     #'OOIAddl',                          # emulates adding new OOI assets
+    'IDMap',                            # mapping of preload IDs
     'Constraint',                       # in memory only - all scenarios loaded
     'Contact',                          # in memory only - all scenarios loaded
     'User',
@@ -162,6 +164,7 @@ DEFAULT_CATEGORIES = [
 # The following lists all categories that define information used by other categories.
 # A definition in these categories has no persistent side effect on the system.
 DEFINITION_CATEGORIES = [
+    'IDMap',
     'Constraint',
     'Contact',
     'CoordinateSystem',
@@ -211,6 +214,7 @@ class IONLoader(ImmediateProcess):
         self.external_dataset_producer_id = {}  # keep producer ID for later use by AgentInstance
 
         self.addl_ooi = {}              # Additional OOI instruments to load
+        self.idmapping = {}             # Mapping of current to new preload IDs
 
     def on_start(self):
         cfg = self.CFG.get("cfg", None)
@@ -292,8 +296,9 @@ class IONLoader(ImmediateProcess):
             self.update = config.get("update", False)      # Support update to existing resources
             self.bulk = config.get("bulk", False)          # Use bulk insert where available
             self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
-            self.revert = bool(config.get("revert", False)) and self.debug
+            self.revert = bool(config.get("revert", False))
             self.clearcols = config.get("clearcols", None)
+            self.idmap = config.get("idmap", False)
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
 
@@ -562,6 +567,14 @@ class IONLoader(ImmediateProcess):
         func = getattr(self, "_load_%s" % type)
         if self.clearcols:
             row.update({col:"" for col in self.clearcols if col in row})
+        if self.idmap:
+            for key,val in row.iteritems():
+                if key == COL_ID or key.endswith("_id") or key.endswith("_ids"):
+                    new_val = self.idmapping.get(val, None)
+                    if new_val:
+                        row[key] = new_val
+                        log.debug("Substituted %s row ID=%s column %s value %s with %s", type, row.get(COL_ID, ""), key, val, new_val)
+
         func(row)
 
     def _finalize_bulk(self, category):
@@ -938,6 +951,12 @@ class IONLoader(ImmediateProcess):
 
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
+
+    def _load_IDMap(self, row):
+        row_id = row["ROW_ID"]
+        new_id = row["NEW_ID"]
+        if self.idmap and row_id and new_id:
+            self.idmapping[row_id] = new_id
 
     def _add_to_ooiloader(self, group, entry, idattr="id"):
         group = self.ooi_loader.get_type_assets(group)
