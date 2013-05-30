@@ -30,32 +30,9 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from ion.agents.populate_rdt import populate_rdt
 
 """
-        stream_name = 'parsed'
-        param_dict_name = 'ctd_parsed_param_dict'
-        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
-        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-        stream_def = pubsub_client.read_stream_definition(stream_def_id)
-
-                rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-
-                rdt = RecordDictionaryTool(stream_definition=stream_def)
-
-            g = rdt.to_granule(data_producer_id=self._agent.resource_id, connection_id=self._connection_ID.hex,
-                    connection_index=str(self._connection_index[stream_name]))
-"""
-
-"""
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_particle_conversion.py:TestParticleConversion
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_particle_conversion.py:TestParticleConversion.test_sbe37_particles
 """
-
-
-TEST_PARTICLES = {
-    'ctd_parsed' : {
-        'param_dict_name' : 'ctd_parsed_param_dict',
-        'particles' : []
-    }
-}
 
 @attr('INT', group='mi')
 class TestParticleConversion(IonIntegrationTestCase):
