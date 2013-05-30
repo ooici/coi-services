@@ -27,6 +27,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 
+from ion.agents.populate_rdt import populate_rdt
 
 """
         stream_name = 'parsed'
@@ -45,8 +46,16 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 
 """
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_particle_conversion.py:TestParticleConversion
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_particle_conversion.py:TestParticleConversion.test_particles
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_particle_conversion.py:TestParticleConversion.test_sbe37_particles
 """
+
+
+TEST_PARTICLES = {
+    'ctd_parsed' : {
+        'param_dict_name' : 'ctd_parsed_param_dict',
+        'particles' : []
+    }
+}
 
 @attr('INT', group='mi')
 class TestParticleConversion(IonIntegrationTestCase):
@@ -68,16 +77,75 @@ class TestParticleConversion(IonIntegrationTestCase):
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         
-        # Dataset management client.    
-        dataset_management = DatasetManagementServiceClient()
+        # Create a pubsub client to create streams.
+        self.pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
     
-    
-    def test_particles(self):
+    def create_granule(self, stream_name, param_dict_name, particle_list):
+        pd_id = self.dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
+        stream_def_id = self.pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)        
+        stream_def = self.pubsub_client.read_stream_definition(stream_def_id)
+        rdt = RecordDictionaryTool(stream_definition=stream_def)
+        rdt = populate_rdt(rdt, particle_list)
+        g = rdt.to_granule(data_producer_id='fake_agent_id')
+        return g
+        
+    def test_sbe37_particles(self):
         """
         test_particles
         """
-        pass
+        stream_name = 'parsed'
+        param_dict_name = 'ctd_parsed_param_dict'
+        particle_list = [{u'quality_flag': u'ok',
+                          u'preferred_timestamp': u'port_timestamp',
+                          u'stream_name': u'parsed',
+                          u'port_timestamp': 3578927139.3578925,
+                          u'pkt_format_id': u'JSON_Data',
+                          u'pkt_version': 1,
+                          u'values': [{u'value_id': u'temp', u'value': 68.5895},
+                                    {u'value_id': u'conductivity', u'value': 26.72304},
+                                    {u'value_id': u'pressure', u'value': 733.303}],
+                          u'driver_timestamp': 3578927139.4226017}]
+        
+        try:
+            g = self.create_granule(stream_name, param_dict_name, particle_list)
+            #self.assertSBE37ParsedGranule(g)
+            
+        except Exception as e:
+            errmsg = 'Granule creation failed: %s' % str(e)
+            errmsg += '\n stream_name: ' + stream_name
+            errmsg += '\n param_dict_name: ' + param_dict_name
+            errmsg += '\n particle list: %s' % str(particle_list)
+            self.fail(errmsg)
+            
+        stream_name = 'raw'
+        param_dict_name = 'ctd_raw_param_dict'
+        particle_list = [{u'quality_flag': u'ok',
+                          u'preferred_timestamp': u'port_timestamp',
+                          u'stream_name': u'raw',
+                          u'port_timestamp': 3578927113.3578925,
+                          u'pkt_format_id': u'JSON_Data',
+                          u'pkt_version': 1,
+                          u'values': [{u'binary': True,
+                                       u'value_id': u'raw',
+                                       u'value': u'ZAA='},
+                                    {u'value_id': u'length',
+                                     u'value': 2},
+                                    {u'value_id': u'type',
+                                     u'value': 1},
+                                    {u'value_id': u'checksum',
+                                     u'value': None}],
+                          u'driver_timestamp': 3578927113.75216}]
 
-
+        try:
+            g = self.create_granule(stream_name, param_dict_name, particle_list)
+            #self.assertSBE37RawGranule(g)
+            
+        except Exception as e:
+            errmsg = 'Granule creation failed: %s' % str(s)
+            errmsg += '\n stream_name: ' + stream_name
+            errmsg += '\n param_dict_name: ' + param_dict_name
+            errmsg += '\n particle list: %s' % str(particle_list)
+            self.fail(errmsg)
 
 
