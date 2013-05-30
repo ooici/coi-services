@@ -26,6 +26,13 @@ class OmsEventListener(object):
     HTTP server to get RSN OMS event notifications and do corresponding
     notifications to driver/agent via callback.
     """
+    #
+    # TODO The whole asynchronous reception of external RSN OMS events needs
+    # to be handled in a different way, in particular, it should be a separate
+    # service (not a supporting class per platform driver instance) that
+    # listens on a well-known host:port and that publishes the corresponding
+    # CI events directly.
+    #
 
     def __init__(self, notify_driver_event):
         """
@@ -73,11 +80,11 @@ class OmsEventListener(object):
         """
         return self._notifications
 
-    def start_http_server(self, host=None, port=0):
+    def start_http_server(self, host='localhost', port=0):
         """
         Starts a HTTP server that handles the notification of received events.
 
-        @param host Host, by default socket.getfqdn() is used.
+        @param host Host, by default 'localhost'.
         @param port Port, by default 0 to get one dynamically.
         """
 
@@ -85,15 +92,37 @@ class OmsEventListener(object):
         if self._notifications:
             self._notifications = []
 
-        if not host:
-            host = socket.getfqdn()
+        log.info("starting http server for receiving event notifications at"
+                 " %s:%s ...", host, port)
+        try:
+            self._http_server = WSGIServer((host, port), self.__application,
+                                           log=sys.stdout)
+            self._http_server.start()
+        except:
+            log.exception("Could not start http server for receiving event notifications")
+            raise
 
-        self._http_server = WSGIServer((host, port), self.__application,
-                                       log=sys.stdout)
-        log.info("starting http server for receiving event notifications...")
-        self._http_server.start()
-        self._url = "http://%s:%s" % self._http_server.address
-        log.info("http server started: url=%r", self._url)
+        host_name, host_port = self._http_server.address
+
+        log.info("http server started at %s:%s" % (host_name, host_port))
+
+        exposed_host_name = host_name
+
+        ######################################################################
+        # adjust exposed_host_name:
+        # **NOTE**: the adjustment below is commented out because is not robust
+        # enough. For example, the use of the external name for the host would
+        # require the particular port to be open to the world.
+        # And in any case, this overall handling needs a different approach.
+        #
+        # # If the given host is 'localhost', need to get the actual hostname
+        # # for the exposed URL:
+        # if host is 'localhost':
+        #     exposed_host_name = socket.gethostname()
+        ######################################################################
+
+        self._url = "http://%s:%s" % (exposed_host_name, host_port)
+        log.info("http server exposed URL = %r", self._url)
 
     def __application(self, environ, start_response):
 
