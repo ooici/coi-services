@@ -552,12 +552,14 @@ class PlatformAgent(ResourceAgent):
         """
         Connects the driver.
         """
+        log.debug("%r: triggering driver event CONNECT", self._platform_id)
         self._trigger_driver_event(PlatformDriverEvent.CONNECT)
 
     def _go_inactive_this_platform(self):
         """
         Disconnects the driver.
         """
+        log.debug("%r: triggering driver event DISCONNECT")
         self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
 
     def _run_this_platform(self):
@@ -2660,7 +2662,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_inactive_reset", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_inactive_go_active", args, kwargs)
 
         next_state = PlatformAgentState.IDLE
         result = self._go_active(recursion)

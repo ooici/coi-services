@@ -33,8 +33,9 @@ class CIOMSClientFactory(object):
 
     _uri_aliases = None
 
-    # _sim_process: see launch_simulator and related methods
+    # _sim_process, _rsn_oms: see launch_simulator and related methods
     _sim_process = None
+    _rsn_oms = None
 
     @classmethod
     def _load_uri_aliases(cls):
@@ -108,12 +109,21 @@ class CIOMSClientFactory(object):
 
         @return the new URI for a regular call to create_instance(uri).
         """
+
+        # in case there's any ongoing simulator process:
+        ex = cls.stop_launched_simulator()
+        if ex:
+            log.warn("[OMSim] previous process could not be stopped properly. "
+                     "The next launch may fail because of potential conflict.")
+
         from ion.agents.platform.rsn.simulator.process_util import ProcessUtil
         cls._sim_process = ProcessUtil()
-        rsn_oms = cls._sim_process.launch()
+        cls._rsn_oms, uri = cls._sim_process.launch()
+
+        log.debug("launch_simulator: launched. uri=%s", uri)
 
         if inactivity_period:
-            rsn_oms.exit_inactivity(inactivity_period)
+            cls._rsn_oms.x_exit_inactivity(inactivity_period)
 
             def hearbeat():
                 n = 0
@@ -121,30 +131,52 @@ class CIOMSClientFactory(object):
                     sleep(1)
                     n += 1
                     if cls._sim_process and n % 20 == 0:
-                        log.debug("heartbeat sent")
+                        log.debug("[OMSim] heartbeat sent")
                         try:
-                            rsn_oms.ping()
+                            cls._rsn_oms.ping()
                         except:
                             pass
-                log.debug("heartbeat ended")
+                log.debug("[OMSim] heartbeat ended")
 
             Greenlet(hearbeat).start()
-            log.debug("called exit_inactivity with %s and started heartbeat",
+            log.debug("[OMSim] called x_exit_inactivity with %s and started heartbeat",
                       inactivity_period)
 
-        return "localsimulator"
+        return uri
+
+    @classmethod
+    def get_rsn_oms_for_launched_simulator(cls):
+        """
+        Returns the CIOMSCLient instance created in the last call to
+        launch_simulator and that have not been stopped yet, if any.
+        """
+        return cls._rsn_oms
 
     @classmethod
     def stop_launched_simulator(cls):
         """
         Utility to stop the process launched with launch_simulator.
+        The stop is attempted a couple of times in case of errors (with a few
+        seconds of sleep in between).
+
+        @return None if process seems to have been stopped properly.
+                Otherwise the exception of the last attempt to stop it.
         """
         if cls._sim_process:
-            log.debug("stopping launched simulator...")
-            try:
-                cls._sim_process.stop()
-            except Exception as e:
-                log.warn("error while stopping simulator process: %s", e)
-                # and just continue (not critical)
-            finally:
-                cls._sim_process = None
+            sim_proc, cls._sim_process = cls._sim_process, None
+            attempts = 3
+            attempt = 0
+            while attempt <= attempts:
+                attempt += 1
+                log.debug("[OMSim] stopping launched simulator (attempt=%d) ...", attempt)
+                try:
+                    sim_proc.stop()
+                    log.debug("[OMSim] simulator process seems to have stopped properly")
+                    return None
+
+                except Exception as ex:
+                    if attempt < attempts:
+                        sleep(10)
+                    else:
+                        log.warn("[OMSim] error while stopping simulator process: %s", ex)
+                        return ex
