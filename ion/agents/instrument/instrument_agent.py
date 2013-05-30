@@ -321,6 +321,12 @@ class InstrumentAgent(ResourceAgent):
 
     def check_if_direct_access_mode(self, message, headers):
         try:
+            #Putting in a hack for testing
+            if headers.has_key('test_for_proc_name'):
+                test_for_proc_name = headers['test_for_proc_name']
+                if test_for_proc_name != self._proc_name:
+                    return False, "This is not the correct agent (%s != %s)" % (test_for_proc_name, self._proc_name)
+
             state = self._fsm.get_current_state()
             if state == ResourceAgentState.DIRECT_ACCESS:
                 return False, "This operation is unavailable while the agent is in the Direct Access state"
