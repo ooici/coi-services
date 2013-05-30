@@ -2660,7 +2660,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_inactive_reset", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_inactive_go_active", args, kwargs)
 
         next_state = PlatformAgentState.IDLE
         result = self._go_active(recursion)
