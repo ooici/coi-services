@@ -33,18 +33,21 @@
       categories= list of categories to import
       excludecategories= list of categories to NOT import
       clearcols= list of column names to clear (set to empty string) before preloading
+      idmap= if True, the IDMap category is used to substitute preload ids (used in certain OOI preload runs)
       assetmappings= override location for OOI mapping spreadsheet (default is GoogleDoc)
       ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
       ooiexclude= synonymous to excludecategories. Don't use
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
+      ooiparams= if True (default is False) create links to OOI parameter definitions
       exportui= if True, writes interface/ui_specs.json with UI object
-      idmap= if True, the IDMap category is used to substitute preload ids
       revert= if True (and debug==True) remove all resources and associations created if preload fails
 
     TODO:
       support attachments using HTTP URL
-      Owner, Events with bulk
+      Owner, Events with bulk load
       Set lifecycle state through appropriate service operations
+
+        #from pyon.util.breakpoint import breakpoint; breakpoint(locals())
 """
 
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan, Jonathan Newbrough'
@@ -106,7 +109,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdE5jd2w2ekRIV1A2RmtGU1doT1ltcEE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdGJJQVVGQW5UWnNxcUF4UEJaZWZXekE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -296,9 +299,10 @@ class IONLoader(ImmediateProcess):
             self.update = config.get("update", False)      # Support update to existing resources
             self.bulk = config.get("bulk", False)          # Use bulk insert where available
             self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
-            self.revert = bool(config.get("revert", False))
-            self.clearcols = config.get("clearcols", None)
-            self.idmap = config.get("idmap", False)
+            self.revert = bool(config.get("revert", False)) and self.debug    # Revert to RR snapshot on failure
+            self.clearcols = config.get("clearcols", None)          # Clear given columns in rows
+            self.idmap = bool(config.get("idmap", False))           # Substitute column values in rows
+            self.ooiparams = bool(config.get("ooiparams", False))   # Hook up with loaded OOI params
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
 
@@ -315,6 +319,7 @@ class IONLoader(ImmediateProcess):
             try:
                 self.load_ion(scenarios)
             except Exception as ex:
+                log.exception("Reverting because of")
                 if self.revert:
                     self._revert_to_snapshot()
                 raise
@@ -717,6 +722,8 @@ class IONLoader(ImmediateProcess):
         return None
 
     def _resource_exists(self, res_id):
+        if not res_id:
+            return None
         res = self._get_resource_obj(res_id, silent=True)
         return res is not None
 
@@ -965,19 +972,18 @@ class IONLoader(ImmediateProcess):
 
     def _load_OOIAddl(self, row):
         """
-        Additional instruments placed within the OOI observatory structure
+        Additional instruments placed within the OOI observatory structure.
+        UNFINISHED right now.
         """
         if row["res_type"] == "Instrument":
             inst_id = row[COL_ID]
             inst_entry = dict(
                 row=row)
             self.addl_ooi[inst_id] = inst_entry
-
             if not self.loadooi and not self.ooi_loader._extracted:
                 log.info("Extracting OOI information because of additional OOI assets")
                 self.ooi_loader.extract_ooi_assets()
                 self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
-
         else:
             log.warn("Unknown addition to OOI assets: type %s", row["res_type"])
 
@@ -1924,10 +1930,13 @@ Reason: %s
 
         # Set alt_ids so that resource can be found in incremental preload runs
         sdef = self.container.resource_registry.read(res_id)
+        sdef.description = res_obj.description
         sdef.alt_ids = ['PRE:'+row[COL_ID]]
+        sdef.addl["stream_use"] = row.get("stream_use", "")
         self.container.resource_registry.update(sdef)
 
     def _get_science_data_products(self):
+        """Returns several dicts with OOI data product information (to cut off date)"""
         dp_list = []
         dp_type_set = set()
         dp_combo_set = set()
@@ -1952,6 +1961,7 @@ Reason: %s
         return dp_list, dp_type_set, dp_combo_set
 
     def _get_paramdict_param_map(self):
+        """Returns a mapping of ParameterDictionary name to ParameterContext ID"""
         assocs = self.container.resource_registry.find_associations(predicate=PRED.hasParameterContext, id_only=False)
         assocs_filtered = [a for a in assocs if a.st == "ParameterDictionary" and a.ot == "ParameterContext"]
         mapping = {}
@@ -1971,8 +1981,11 @@ Reason: %s
             mapping[pdict.name].append(pdef_alias)
         return mapping
 
-    def _load_StreamDefinition_OOI(self):
+    def _load_ParameterDictionary_OOI(self):
         """Loads both ParameterDictionary and StreamDefinition for derived OOI science data products"""
+        if not self.ooiparams:
+            return
+
         series_objs = self.ooi_loader.get_type_assets("series")
         instagent_objs = self.ooi_loader.get_type_assets("instagent")
 
@@ -1984,8 +1997,6 @@ Reason: %s
         for obj in self.resource_objs.values():
             if obj.type_ == "ParameterDictionary":
                 pdef_by_name[obj.name] = obj
-
-        #from pyon.util.breakpoint import breakpoint; breakpoint(locals())
 
         for dp_combo in science_pd_set:
             series_rd, dp_class, dp_level = dp_combo.split("_")
@@ -2019,19 +2030,6 @@ Reason: %s
                 newrow['SKIP'] = ""
                 if not self._resource_exists(newrow[COL_ID]):
                     self._load_ParameterDictionary(newrow)
-
-                # Create a StreamDefinition in the same swoop
-                newrow = {}
-                newrow[COL_ID] = "StreamDef_" + dp_combo
-                newrow['org_ids'] = ""
-                newrow['sdef/name'] = "%s %s %s" % (series_rd, dp_class, dp_level)
-                newrow['sdef/description'] = "Generated stream definition"
-                newrow['param_dict_name'] = science_pdict_name
-                newrow['parameter_dictionary'] = "PDICT_" + dp_combo
-                newrow['available_fields'] = ""
-                newrow['reference_designator'] = ""    # THIS SHOULD NOT BE HERE
-                if not self._resource_exists(newrow[COL_ID]):
-                    self._load_StreamDefinition(newrow)
 
             else:
                 pass
@@ -2234,11 +2232,13 @@ Reason: %s
             newrow['id/reference_urls'] = ''
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
             newrow['instrument_model_id'] = ooi_rd.series_rd
-            # TODO: Only set the following for non cabled instruments
-            if self._is_cabled(ooi_rd):
-                newrow['platform_device_id'] = ""
-            else:
-                newrow['platform_device_id'] = node_id + "_PD"
+            # Commented out the following because a bug. Create hasDevice links for ALL instrument to platform now.
+            # # TODO: Only set the following for non cabled instruments
+            # if self._is_cabled(ooi_rd):
+            #     newrow['platform_device_id'] = ""
+            # else:
+            #     newrow['platform_device_id'] = node_id + "_PD"
+            newrow['platform_device_id'] = node_id + "_PD"
             newrow['contact_ids'] = ''
             newrow['lcstate'] = "PLANNED_AVAILABLE"
 
@@ -2372,6 +2372,7 @@ Reason: %s
                                                                        headers=headers)
 
     def _load_PlatformAgent_OOI(self):
+        # This will most likely be an entry on the manual spreadsheet
         ooi_objs = self.ooi_loader.get_type_assets("platformagent")
         nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
 
@@ -2579,7 +2580,6 @@ Reason: %s
         agent_config = parse_dict(row['agent_config'])
         driver_config = parse_dict(row['driver_config'])
 
-
         # NOTE: unit tests show additional keys in this configuration
         # but some are handler-specific, others seem just for testing
         # TODO: come back and look again when trying to start this process
@@ -2614,6 +2614,7 @@ Reason: %s
             external_dataset_agent_id=agent._id, external_dataset_id=source_id)
 
     def _load_InstrumentAgentInstance(self, row):
+        # TODO: Allow update via incremental preload
         startup_config = parse_dict(row['startup_config'])
         pubrate = row['publish_rate']
 
@@ -2655,6 +2656,7 @@ Reason: %s
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
 
     def _load_InstrumentAgentInstance_OOI(self):
+        # TODO: Create these resources and associate them
         pass
 
     def _load_TransformFunction(self,row):
@@ -2766,6 +2768,8 @@ Reason: %s
         mapping = {}
         for assoc in assocs_filtered:
             sdef = self._get_resource_obj(assoc.s)
+            if sdef.addl.get("stream_use", None) not in ("Raw", "Parsed", "Eng"):
+                continue
             pdict = self._get_resource_obj(assoc.o)
             sdef_aliases = [aid[4:] for aid in sdef.alt_ids if aid.startswith("PRE:")]
             if len(sdef_aliases) != 1:
@@ -2776,6 +2780,33 @@ Reason: %s
                 log.warn("ParameterDefinition %s already maps to StreamDefinition %s. New %s", pdict.name, mapping[pdict.name], sdef_alias)
             mapping[pdict.name] = sdef_alias
         return mapping
+
+    def _create_dp_stream_def(self, rd, series_rd=None, dp_class=None, dp_level=None, pdict_id=None, sname=None):
+        """Create a StreamDefinition for a given data product"""
+        if pdict_id:
+            sdef_id = "StreamDef_%s_%s" % (rd, sname)
+            sdef_name = "%s %s" % (rd, sname)
+        else:
+            dp_combo = "%s_%s_%s" % (series_rd, dp_class, dp_level)
+            pdict_id = "PDICT_" + dp_combo
+            sdef_id = "StreamDef_%s_%s_%s" % (rd, dp_class, dp_level)
+            sdef_name = "%s %s %s" % (rd, dp_class, dp_level)
+
+        if not self._resource_exists(pdict_id):
+            return
+
+        newrow = {}
+        newrow[COL_ID] = sdef_id
+        newrow['org_ids'] = ""
+        newrow['sdef/name'] = sdef_name
+        newrow['sdef/description'] = "Generated stream definition"
+        newrow['parameter_dictionary'] = pdict_id
+        newrow['available_fields'] = ""
+        newrow['reference_designator'] = rd
+        if not self._resource_exists(sdef_id):
+            self._load_StreamDefinition(newrow)
+
+        return sdef_id
 
     def _load_DataProduct_OOI(self):
         """DataProducts and DataProductLink"""
@@ -2793,8 +2824,18 @@ Reason: %s
             newrow['source_resource_id'] = source_id
             self._load_DataProductLink(newrow, do_bulk=do_bulk)
 
-        sdef_lookup = self._get_paramdict_streamdef_map()
-        log.debug("_get_paramdict_streamdef_map() = %s", sdef_lookup)
+        pdict_by_name = {}
+        for obj in self.resource_objs.values():
+            if obj.type_ == "ParameterDictionary":
+                pdict_aliases = [aid[4:] for aid in obj.alt_ids if aid.startswith("PRE:")]
+                if len(pdict_aliases) != 1:
+                    log.warn("No preload IDs found for ParameterDictionary: %s", obj.alt_ids)
+                    continue
+                pdict_alias = pdict_aliases[0]
+                pdict_by_name[obj.name] = pdict_alias
+
+        #sdef_lookup = self._get_paramdict_streamdef_map()
+        #log.debug("_get_paramdict_streamdef_map() = %s", sdef_lookup)
 
         # I. Platform data products (parsed)
         for node_id, node_obj in node_objs.iteritems():
@@ -2810,7 +2851,8 @@ Reason: %s
             newrow[COL_ID] = node_id + "_DPP1"
             newrow['dp/name'] = "Parsed - platform " + node_id
             newrow['dp/description'] = "Data Product (device, parsed) for: " + node_id
-            newrow['dp/ooi_product_name'] = "Raw"
+            newrow['dp/ooi_product_name'] = ""
+            newrow['dp/processing_level_code'] = "Parsed"
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
             newrow['contact_ids'] = ''
             newrow['geo_constraint_id'] = const_id1
@@ -2857,10 +2899,12 @@ Reason: %s
                     newrow['dp/name'] = "Instrument %s stream '%s' data product" % (inst_id, scfg.stream_name)
                     if index == 0:
                         newrow['dp/description'] = "Raw data for %s" % inst_id
-                        newrow['dp/ooi_product_name'] = "Raw"
+                        newrow['dp/ooi_product_name'] = ""
+                        newrow['dp/processing_level_code'] = "Raw"
                     elif index == 1:
                         newrow['dp/description'] = "Parsed science samples for %s" % inst_id
-                        newrow['dp/ooi_product_name'] = "Parsed"
+                        newrow['dp/ooi_product_name'] = ""
+                        newrow['dp/processing_level_code'] = "Parsed"
                     else:
                         newrow['dp/description'] = "Engineering data for %s" % inst_id
                         newrow['dp/ooi_product_name'] = ""
@@ -2868,20 +2912,20 @@ Reason: %s
                     newrow['contact_ids'] = ''
                     newrow['geo_constraint_id'] = const_id1
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                    newrow['persist_data'] = 'False'
+                    newrow['persist_data'] = 'False'       # TODO: This may need be True
 
-                    if ia_enabled:
-                        sdef_id = sdef_lookup[scfg.parameter_dictionary_name]
-                        newrow['stream_def_id'] = sdef_id
+                    pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
+                    strdef_id = self._create_dp_stream_def(inst_id, pdict_id=pdict_id, sname=scfg.stream_name)
+                    if ia_enabled and strdef_id:
+                        newrow['stream_def_id'] = strdef_id
                         newrow['parent'] = ''
                     else:
+                        if ia_enabled:
+                            log.warn("INCONSISTENCY. Should have StreamDefinition for ParamDict %s", scfg.parameter_dictionary_name)
                         newrow['stream_def_id'] = ''
                         newrow['parent'] = ''
 
                     self._load_DataProduct(newrow)
-
-                    #from pyon.util.breakpoint import breakpoint
-                    #breakpoint(locals())
 
                     create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice', do_bulk=False)
                     create_dp_link(dp_id, inst_id, do_bulk=False)
@@ -2893,7 +2937,8 @@ Reason: %s
                 newrow[COL_ID] = inst_id + "_DPI0"
                 newrow['dp/name'] = "Raw - instrument " + inst_id
                 newrow['dp/description'] = "Data Product (device, raw) for: " + inst_id
-                newrow['dp/ooi_product_name'] = "Parsed"
+                newrow['dp/ooi_product_name'] = ""
+                newrow['dp/processing_level_code'] = "Parsed"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
@@ -2911,7 +2956,8 @@ Reason: %s
                 newrow[COL_ID] = inst_id + "_DPI1"
                 newrow['dp/name'] = "Parsed - instrument " + inst_id
                 newrow['dp/description'] = "Data Product (device, parsed) for: " + inst_id
-                newrow['dp/ooi_product_name'] = "Raw"
+                newrow['dp/ooi_product_name'] = ""
+                newrow['dp/processing_level_code'] = "Raw"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
@@ -2932,8 +2978,9 @@ Reason: %s
                 newrow = {}
                 newrow[COL_ID] = inst_id + "_" + dp_id + "_DPID"
                 platform_obj = node_objs[node_obj['platform_id']]
-                newrow['dp/name'] = "%s %s - %s on %s" % (dp_obj['name'], dp_obj['level'], inst_obj['Class'], platform_obj['name'])
-                newrow['dp/description'] = "Data Product DPS %s level %s for site %s: " % (dp_id,  dp_obj['level'], inst_id)
+                # TODO: Append instrument (port) depth if series not unique for this platform
+                newrow['dp/name'] = "%s %s %s %s" % (dp_obj['name'], dp_obj['level'], inst_obj['Class'], platform_obj['name'])
+                newrow['dp/description'] = "Instrument %s core OOI data product" % (inst_id)
                 newrow['dp/ooi_short_name'] = dp_obj['code']
                 newrow['dp/ooi_product_name'] = dp_obj['name']
                 newrow['dp/processing_level_code'] = dp_obj['level']
@@ -2958,10 +3005,11 @@ Reason: %s
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                newrow['parent'] = ''   # TODO: Need to set this
+                newrow['parent'] = inst_id + "_DPI1"
                 newrow['persist_data'] = 'False'
-                strdef_id = "StreamDef_%s_%s" % (ooi_rd.series_rd, dp_id)
-                if self._get_resource_obj(strdef_id, True):
+
+                strdef_id = self._create_dp_stream_def(inst_id, ooi_rd.series_rd, dp_obj['code'], dp_obj['level'])
+                if self._resource_exists(strdef_id):
                     newrow['stream_def_id'] = strdef_id
 
                     self._load_DataProduct(newrow)
