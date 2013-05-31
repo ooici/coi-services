@@ -845,13 +845,13 @@ class DiscoveryIntTest(IonIntegrationTestCase):
     @skipIf(not use_es, 'No ElasticSearch')
     def test_time_search(self):
         today     = date.today()
-        yesterday = today - timedelta(days=1)
-        tomorrow  = today + timedelta(days=1)
+        past = today - timedelta(days=2)
+        future  = today + timedelta(days=2)
 
         data_product = DataProduct()
         dp_id, _ = self.rr.create(data_product)
         
-        search_string = "search 'ts_created' time from '%s' to '%s' from 'data_products_index'" % (yesterday, tomorrow)
+        search_string = "search 'ts_created' time from '%s' to '%s' from 'data_products_index'" % (past, future)
 
         results = self.poll(9, self.discovery.parse,search_string)
 
@@ -859,7 +859,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self.assertTrue(results[0]['_id'] == dp_id)
         
-        search_string = "search 'ts_created' time from '%s' from 'data_products_index'" % yesterday
+        search_string = "search 'ts_created' time from '%s' from 'data_products_index'" % past
 
         results = self.poll(9, self.discovery.parse,search_string)
 
