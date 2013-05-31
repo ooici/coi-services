@@ -25,6 +25,7 @@ import random, numpy
 from datetime import timedelta, datetime
 from interface.objects import StreamRoute, DeviceStatusType, DeviceCommsType
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
+import calendar
 
 @attr('INT', group='dm')
 @unittest.skip("The event alert transform is on its way to be retired.")
@@ -517,9 +518,6 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         @param date_time Python datetime object
         @retval seconds_since_epoch int
         """
-        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
-        #'2009-07-04 18:30:47'
-        pattern = '%Y-%m-%d %H:%M:%S'
-        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
+        seconds_since_epoch = calendar.timegm(date_time.timetuple())
 
         return seconds_since_epoch
