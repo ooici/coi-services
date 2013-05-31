@@ -1076,7 +1076,7 @@ class InstrumentAgent(ResourceAgent):
                 args = []
                 kwargs = {}
             elif isinstance(val, dict):
-                agt_evt = val[event]
+                agt_evt = val['event']
                 args = val.get('args',[])
                 kwargs = val.get('kwargs',{})
             else:
