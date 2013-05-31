@@ -1153,6 +1153,10 @@ class IONLoader(ImmediateProcess):
             user_attrs['name'] = "%s %s" % (contact.individual_names_given, contact.individual_name_family)
             user_attrs['contact'] = contact
 
+        #set notification pref defaults for all users
+        user_attrs['variables'] = [  {'name' : 'notifications_disabled', 'value' : False},
+                                                      {'name' : 'notifications_daily_digest', 'value' : False}  ]
+
         headers = self._get_webauth_actor_headers()
 
         if alias in self.resource_ids or re.match(UUID_RE, alias):
