@@ -265,14 +265,14 @@ def calculate_reverse_user_info(user_info=None):
 
         notifications = value['notifications']
 
-        notification_preferences = value['notification_preferences']
+        notifications_disabled = value.get('notifications_disabled', False)
+        notifications_daily_digest = value.get('notifications_daily_digest', False)
 
         # Ignore users who do NOT want REALTIME notifications or who have disabled the delivery switch
         # However, if notification preferences have not been set at all for the user, do not bother
-        if notification_preferences:
-            if notification_preferences.delivery_mode != NotificationDeliveryModeEnum.REALTIME\
-            or not notification_preferences.delivery_enabled:
-                continue
+
+        if notifications_disabled or not not notifications_daily_digest:
+            continue
 
         if notifications:
 

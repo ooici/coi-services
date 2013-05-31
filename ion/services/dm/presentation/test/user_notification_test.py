@@ -555,13 +555,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create user 1
         #--------------------------------------------------------------------------------------
 
-        notification_preferences_1 = NotificationPreferences()
-        notification_preferences_1.delivery_mode = NotificationDeliveryModeEnum.REALTIME
-
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@yahoo.com'
-        user_1.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_1})
+        user_1.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
+                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
         user_id_1, _ = self.rrc.create(user_1)
 
@@ -569,15 +567,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user 2
         #--------------------------------------------------------------------------------------
 
-        notification_preferences_2 = NotificationPreferences()
-        notification_preferences_2.delivery_mode = NotificationDeliveryModeEnum.BATCH
-        notification_preferences_2.delivery_enabled = False
-
-
         user_2 = UserInfo()
         user_2.name = 'user_2'
         user_2.contact.email = 'user_2@yahoo.com'
-        user_2.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_2})
+        user_2.variables.extend( [  {'name' : 'notifications_disabled', 'value' : True},
+                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
         user_id_2, _ = self.rrc.create(user_2)
 
@@ -592,11 +586,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
-        #--------------------------------------------------------------------------------------------------------------------------------------
-        # check user_info dictionary to see that the notification preferences are properly loaded to the user info dictionaries
-        #--------------------------------------------------------------------------------------------------------------------------------------
-        self.assertEquals(proc1.user_info[user_id_1]['notification_preferences'], notification_preferences_1)
-        self.assertEquals(proc1.user_info[user_id_2]['notification_preferences'], notification_preferences_2)
 
 
     @attr('LOCOINT')
@@ -780,38 +769,32 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Create a user subscribed to REALTIME notifications
         #--------------------------------------------------------------------------------------
-        notification_preferences = NotificationPreferences()
-        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.REALTIME
-        notification_preferences.delivery_enabled = True
-
         user = UserInfo()
         user.name = 'new_user'
         user.contact.email = 'new_user@gmail.com'
-        user.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
+        user.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
+                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
         #--------------------------------------------------------------------------------------
         # Create a user subscribed to BATCH notifications
         #--------------------------------------------------------------------------------------
-        notification_preferences_2 = NotificationPreferences()
-        notification_preferences_2.delivery_mode = NotificationDeliveryModeEnum.BATCH
-        notification_preferences_2.delivery_enabled = True
 
         user_batch = UserInfo()
         user_batch.name = 'user_batch'
         user_batch.contact.email = 'user_batch@gmail.com'
-        user_batch.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_2})
+        user_batch.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
+                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
+
 
         #--------------------------------------------------------------------------------------
         # Create a user subscribed to REALTIME notifications but with delivery turned OFF
         #--------------------------------------------------------------------------------------
-        notification_preferences_3 = NotificationPreferences()
-        notification_preferences_3.delivery_mode = NotificationDeliveryModeEnum.REALTIME
-        notification_preferences_3.delivery_enabled = False
 
         user_disabled = UserInfo()
         user_disabled.name = 'user_disabled'
         user_disabled.contact.email = 'user_disabled@gmail.com'
-        user_disabled.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_3})
+        user_disabled.variables.extend( [  {'name' : 'notifications_disabled', 'value' : True},
+                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
 
         # this part of code is in the beginning to allow enough time for users_index creation
@@ -883,18 +866,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(reloaded_user_info)
         self.assertIsNotNone(reloaded_reverse_user_info)
 
+
         # read back the registered notification request objects
         notification_request_correct = self.rrc.read(notification_id_1)
 
-        self.assertEquals(reloaded_user_info[user_id]['notifications'][0].name, "notification_1" )
-        self.assertEquals(reloaded_user_info[user_id]['notification_preferences'].delivery_mode, notification_preferences.delivery_mode )
-        self.assertEquals(reloaded_user_info[user_id]['notification_preferences'].delivery_enabled, notification_preferences.delivery_enabled )
+        self.assertEquals(reloaded_user_info[user_id]['notifications_daily_digest'], False )
+        self.assertEquals(reloaded_user_info[user_id]['notifications_disabled'], False )
 
-        self.assertEquals(reloaded_user_info[user_batch_id]['notification_preferences'].delivery_mode, notification_preferences_2.delivery_mode )
-        self.assertEquals(reloaded_user_info[user_batch_id]['notification_preferences'].delivery_enabled, notification_preferences_2.delivery_enabled )
+        self.assertEquals(reloaded_user_info[user_batch_id]['notifications_daily_digest'], True )
+        self.assertEquals(reloaded_user_info[user_batch_id]['notifications_disabled'], False )
 
-        self.assertEquals(reloaded_user_info[user_disabled_id]['notification_preferences'].delivery_mode, notification_preferences_3.delivery_mode )
-        self.assertEquals(reloaded_user_info[user_disabled_id]['notification_preferences'].delivery_enabled, notification_preferences_3.delivery_enabled )
+        self.assertEquals(reloaded_user_info[user_disabled_id]['notifications_daily_digest'], False )
+        self.assertEquals(reloaded_user_info[user_disabled_id]['notifications_disabled'], True )
 
         self.assertEquals(reloaded_user_info[user_id]['user_contact'].email, 'new_user@gmail.com')
 
@@ -1005,45 +988,36 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_1.contact.email = 'user_1@gmail.com'
 
         # user_2   --- prefers BATCH notification
-        notification_preferences_2 = NotificationPreferences()
-        notification_preferences_2.delivery_mode = NotificationDeliveryModeEnum.BATCH
-        notification_preferences_2.delivery_enabled = True
-
         user_2 = UserInfo()
         user_2.name = 'user_2'
         user_2.contact.email = 'user_2@gmail.com'
-        user_2.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_2})
+        user_2.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
+                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
+
 
         # user_3  --- delivery enabled at default
-        notification_preferences_3 = NotificationPreferences()
-        notification_preferences_3.delivery_mode = NotificationDeliveryModeEnum.BATCH
 
         user_3 = UserInfo()
         user_3.name = 'user_3'
         user_3.contact.email = 'user_3@gmail.com'
-        user_3.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_3})
+        user_3.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
+                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
         # user_4   --- prefers REALTIME notification
-
-        notification_preferences_4 = NotificationPreferences()
-        notification_preferences_4.delivery_mode = NotificationDeliveryModeEnum.REALTIME
-        notification_preferences_4.delivery_enabled = True
 
         user_4 = UserInfo()
         user_4.name = 'user_4'
         user_4.contact.email = 'user_4@gmail.com'
-        user_4.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_4})
+        user_4.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
+                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
         # user_5   --- delivery disabled
-
-        notification_preferences_5 = NotificationPreferences()
-        notification_preferences_5.delivery_mode = NotificationDeliveryModeEnum.BATCH
-        notification_preferences_5.delivery_enabled = False
 
         user_5 = UserInfo()
         user_5.name = 'user_5'
         user_5.contact.email = 'user_5@gmail.com'
-        user_5.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_5})
+        user_5.variables.extend( [  {'name' : 'notifications_disabled', 'value' : True},
+                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
         # this part of code is in the beginning to allow enough time for the users_index creation
 
@@ -1160,14 +1134,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------
 
         # user_1
-        notification_preferences = NotificationPreferences()
-        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.REALTIME
-        notification_preferences.delivery_enabled = True
 
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@gmail.com'
-        user_1.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
+        user_1.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
+                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
         # user_2
         user_2 = UserInfo()
@@ -1175,24 +1147,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_2.contact.email = 'user_2@gmail.com'
 
         # user_3
-        notification_preferences = NotificationPreferences()
-        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.REALTIME
-        notification_preferences.delivery_enabled = False
-
         user_3 = UserInfo()
         user_3.name = 'user_3'
         user_3.contact.email = 'user_3@gmail.com'
-        user_3.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
+        user_3.variables.extend( [  {'name' : 'notifications_disabled', 'value' : True},
+                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
         # user_4
-        notification_preferences = NotificationPreferences()
-        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.BATCH
-        notification_preferences.delivery_enabled = True
-
         user_4 = UserInfo()
         user_4.name = 'user_4'
         user_4.contact.email = 'user_4@gmail.com'
-        user_4.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
+        user_4.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
+                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
 
         user_id_1, _ = self.rrc.create(user_1)
@@ -1912,14 +1878,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #----------------------------------------------------------------------------------------
 
         # user_1
-        notification_preferences_1 = NotificationPreferences()
-        notification_preferences_1.delivery_mode = NotificationDeliveryModeEnum.BATCH
-        notification_preferences_1.delivery_enabled = True
-
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@gmail.com'
-        user_1.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_1})
+        user_1.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
+                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
         # this part of code is in the beginning to allow enough time for the users_index creation
 
