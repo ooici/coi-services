@@ -1572,6 +1572,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if t:
             t.complete_step('ims.instrument_device_extension.container')
 
+        # retrieve the statuses for the instrument
+        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
+                                                                                    extended_instrument.computed)
+        
         #retrieve the aggregate status for the instrument
         status_values = [ extended_instrument.computed.communications_status_roll_up,
                           extended_instrument.computed.data_status_roll_up,
