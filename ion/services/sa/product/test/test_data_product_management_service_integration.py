@@ -563,7 +563,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         publisher.publish(granule)
 
         self.assertTrue(dataset_monitor.event.wait(10))
-        dataset_monitor.stop()
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt2 = RecordDictionaryTool.load_from_granule(granule)

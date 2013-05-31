@@ -16,15 +16,23 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
+from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
+from interface.services.ans.ivisualization_service import VisualizationServiceClient
 
 from pyon.public import RT
 from interface.objects import DataProduct
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.util.context import LocalContextMixin
-
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.breakpoint import breakpoint
+from pyon.container.cc import Container
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+
+import numpy as np
+import time
+import gevent
+from gevent.event import Event
 
 class FakeProcess(LocalContextMixin):
     """
@@ -51,6 +59,8 @@ class DMTestCase(IonIntegrationTestCase):
         self.data_retriever = DataRetrieverServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
         self.user_notification = UserNotificationServiceClient()
+        self.workflow_management = WorkflowManagementServiceClient()
+        self.visualization = VisualizationServiceClient()
 
     def create_stream_definition(self, *args, **kwargs):
         stream_def_id = self.pubsub_management.create_stream_definition(*args, **kwargs)
@@ -79,4 +89,53 @@ class DMTestCase(IonIntegrationTestCase):
     def activate_data_product(self, data_product_id):
         self.data_product_management.activate_data_product_persistence(data_product_id)
         self.addCleanup(self.data_product_management.suspend_data_product_persistence, data_product_id)
+
+class Streamer(object):
+    def __init__(self, data_product_id, interval=1):
+        self.resource_registry = Container.instance.resource_registry
+        self.pubsub_management = PubsubManagementServiceClient()
+        self.data_product_id = data_product_id
+        self.i=0
+        self.interval = interval
+        self.finished = Event()
+        self.g = gevent.spawn(self.run)
+
+    def run(self):
+        while not self.finished.wait(self.interval):
+            gevent.sleep(self.interval)
+            rdt = ParameterHelper.rdt_for_data_product(self.data_product_id)
+            now = time.time()
+            rdt['time'] = np.array([now + 2208988800])
+            rdt['temp'] = self.float_range(10,14,np.array([now]))
+            rdt['pressure'] = self.float_range(11,12,np.array([now]))
+            rdt['lat'] = [41.205]
+            rdt['lon'] = [-71.74]
+            rdt['conductivity'] = self.float_range(3.3,3.5,np.array([now]))
+            rdt['driver_timestamp'] = np.array([now + 2208988800])
+            rdt['preferred_timestamp'] = ['driver_timestamp']
+            ParameterHelper.publish_rdt_to_data_product(self.data_product_id, rdt)
+            self.i += 1
+    
+    def stop(self):
+        self.finished.set()
+        self.g.join(5)
+        self.g.kill()
+
+    def start(self):
+        self.finished.clear()
+        self.g = gevent.spawn(self.run)
+    
+    @classmethod
+    def float_range(cls, minvar, maxvar,t):
+        '''
+        Produces a signal with values between minvar and maxvar 
+        at a frequency of 1/60 Hz centered at the midpoint 
+        between minvar and maxvar.
+
+
+        This method provides a deterministic function that 
+        varies over time and is sinusoidal when graphed.
+        '''
+        a = (maxvar-minvar)/2
+        return np.sin(np.pi * 2 * t /60) * a + (minvar + a)
 

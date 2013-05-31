@@ -22,7 +22,6 @@ log = Logger.get_logger()
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
 from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
-import time
 
 
 class HelperTestMixin:
@@ -134,17 +133,17 @@ class HelperTestMixin:
         self.assertTrue(attr_id in dic, "%s in %s" %(attr_id, dic))
         val = dic[attr_id]
         self.assertIsInstance(val, (tuple, list))
-        self.assertNotEquals(InvalidResponse.ATTRIBUTE_NAME, val)
+        self.assertNotEquals(InvalidResponse.ATTRIBUTE_ID, val)
         return val
 
     def _verify_invalid_attribute_id(self, attr_id, dic):
         """
         verifies the attr_id is an entry in the dict with a
-        value equal to InvalidResponse.ATTRIBUTE_NAME
+        value equal to InvalidResponse.ATTRIBUTE_ID
         """
         self.assertTrue(attr_id in dic)
         val = dic[attr_id]
-        self.assertEquals(InvalidResponse.ATTRIBUTE_NAME, val,
+        self.assertEquals(InvalidResponse.ATTRIBUTE_ID, val,
                           "attr_id=%r, val=%r" % (attr_id, val))
 
     def _verify_attribute_value_out_of_range(self, attr_id, dic):
@@ -227,9 +226,9 @@ class HelperTestMixin:
 
         In case of launched simulator:
         - addCleanup is called here to stop the launched simulator at end of test.
-        - _simulator_disable can be called by a test to stop the simulator
+        - _simulator_disable can be called by a test to disable the simulator
           at any time (for example, for testing connection lost).
-        - _simulator_enable can be called to explicitly re-launch it.
+        - _simulator_enable can be called to explicitly re-enable it.
 
         @param oms_uri            The initial URI
         @param inactivity_period  If launched, the simulator process will
@@ -244,25 +243,24 @@ class HelperTestMixin:
 
     def _launch_simulator(self):
         if self._oms_uri == "launchsimulator":
-            self.addCleanup(self._stop_launched_simulator)
+            self.addCleanup(CIOMSClientFactory.stop_launched_simulator)
             log.debug("launch_simulator inactivity: %s", self._inactivity_period)
             return CIOMSClientFactory.launch_simulator(self._inactivity_period)
         else:
             return self._oms_uri
 
-    def _stop_launched_simulator(self):
-        if self._oms_uri == "launchsimulator":
-            CIOMSClientFactory.stop_launched_simulator()
-
     def _simulator_disable(self):
         """
-        This will cause the connection to the simulator to get lost.
+        Disables the simulator to cause the effect of having lost the connection.
         """
         if self._oms_uri == "launchsimulator":
-            self._stop_launched_simulator()
+            rsn_oms = CIOMSClientFactory.get_rsn_oms_for_launched_simulator()
+            self.assertIsNotNone(rsn_oms, "the simulator must have been "
+                                          "launched and be running")
+            rsn_oms.x_disable()
 
         elif self._oms_uri == "embsimulator":
-            CIOMSSimulator.start_raising_exceptions_at(time.time())
+            CIOMSSimulator.x_disable()
 
         else:
             self.fail("_simulator_disable does not work for: %s" % self._oms_uri)
@@ -272,10 +270,13 @@ class HelperTestMixin:
         Reenables the simulator.
         """
         if self._oms_uri == "launchsimulator":
-            self._launch_simulator()
+            rsn_oms = CIOMSClientFactory.get_rsn_oms_for_launched_simulator()
+            self.assertIsNotNone(rsn_oms, "the simulator must have been "
+                                          "launched and be running")
+            rsn_oms.x_enable()
 
         elif self._oms_uri == "embsimulator":
-            CIOMSSimulator.start_raising_exceptions_at(0)
+            CIOMSSimulator.x_enable()
 
         else:
             self.fail("_simulator_enable does not work for: %s" % self._oms_uri)

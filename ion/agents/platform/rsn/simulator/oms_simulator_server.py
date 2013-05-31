@@ -22,6 +22,8 @@ __license__ = 'Apache 2.0'
 from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
+import logging
+
 from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.util.network_util import NetworkUtil
 from SimpleXMLRPCServer import SimpleXMLRPCServer
@@ -34,13 +36,16 @@ class CIOMSSimulatorWithExit(CIOMSSimulator):
     """
     Adds some special methods for coordination from integration tests:
 
-    exit_simulator: to exit the simulator process.
+    x_exit_simulator:  to exit the simulator process.
 
-    exit_inactivity: to make the simulator shutdown itself after a period of
-                     inactivity.
+    x_exit_inactivity: to make the simulator shutdown itself after a period of
+                       inactivity.
     """
 
     def __init__(self, oss):
+        """
+        @param oss   CIOMSSimulatorServer
+        """
         CIOMSSimulator.__init__(self)
         self._oss = oss
 
@@ -48,22 +53,22 @@ class CIOMSSimulatorWithExit(CIOMSSimulator):
         self._last_activity = time.time()
         self._inactivity_period = None
 
-    def exit_simulator(self):
-        log.info("exit_simulator called. event_generator=%s; %s listeners registered",
+    def x_exit_simulator(self):
+        log.info("x_exit_simulator called. event_generator=%s; %s listeners registered",
                  self._event_generator, len(self._reg_event_listeners))
         if self._event_generator:
             self._event_generator.stop()
             self._event_generator = None
 
         def call_exit():
+            self._oss.shutdown_server()
             time.sleep(4)
-            self._oss.shutdown()
             quit()
 
         Thread(target=call_exit).start()
         return "Will exit in a couple of secs"
 
-    def exit_inactivity(self, inactivity_period):
+    def x_exit_inactivity(self, inactivity_period):
         if self._inactivity_period is None:
             # first call.
             self._inactivity_period = inactivity_period
@@ -88,13 +93,13 @@ class CIOMSSimulatorWithExit(CIOMSSimulator):
 
             if inactive >= self._inactivity_period:
                 log.warn("%.1f secs of inactivity. Exiting...", inactive)
-                self._oss.shutdown()
+                self._oss.shutdown_server()
                 quit()
 
             elif inactive >= warn_per and int(inactive) % warn_per == 0:
                 log.warn("%.1f secs of inactivity", inactive)
 
-            time.sleep(1)
+            time.sleep(0.5)
 
 
 class CIOMSSimulatorServer(object):
@@ -114,11 +119,20 @@ class CIOMSSimulatorServer(object):
         self._running = True
         self._sim = CIOMSSimulatorWithExit(self)
 
-        ser = NetworkUtil.serialize_network_definition(self._sim._ndef)
-        log.debug("network serialization:\n   %s" % ser.replace('\n', '\n   '))
-        log.debug("network.get_map() = %s\n" % self._sim.config.get_platform_map())
+        if log.isEnabledFor(logging.DEBUG):
+            ser = NetworkUtil.serialize_network_definition(self._sim._ndef)
+            log.debug("network serialization:\n   %s" % ser.replace('\n', '\n   '))
+            log.debug("network.get_map() = %s\n" % self._sim.config.get_platform_map())
 
         self._server = SimpleXMLRPCServer((host, port), allow_none=True)
+
+        actual_port = self._server.socket.getsockname()[1]
+        uri = "http://%s:%s/" % (host, actual_port)
+
+        # write the URI to a file for launching process to see it:
+        with open("logs/rsn_oms_simulator.yml", 'w') as f:
+            f.write("rsn_oms_simulator_uri=%s\n" % uri)
+
         self._server.register_introspection_functions()
         self._server.register_instance(self._sim, allow_dotted_names=True)
 
@@ -130,15 +144,15 @@ class CIOMSSimulatorServer(object):
         runnable.setDaemon(True)
         runnable.start()
 
-        log.info("OMS simulator xmlrpc server listening on %s:%s ..." % (host, port))
+        log.info("OMS simulator xmlrpc server listening on %s" % uri)
 
         if inactivity_period:
-            self._sim.exit_inactivity(inactivity_period)
+            self._sim.x_exit_inactivity(inactivity_period)
 
-    def shutdown(self):
-        log.info("RNS OMS simulator exiting...")
+    def shutdown_server(self):
         self._running = False
         if self._sim:
+            log.info("RSN OMS simulator exiting...")
             self._sim = None
             self._server.shutdown()
             self._server = None
@@ -147,7 +161,7 @@ class CIOMSSimulatorServer(object):
         while self._running:
             time.sleep(1)
 
-        self.shutdown()
+        self.shutdown_server()
 
     @staticmethod
     def _check_pyon():
@@ -189,7 +203,7 @@ if __name__ == "__main__":  # pragma: no cover
 
     def handler(signum, frame):
         log.info("\n--SIGINT--")
-        oss.shutdown()
+        oss.shutdown_server()
         quit()
 
     signal.signal(signal.SIGINT, handler)

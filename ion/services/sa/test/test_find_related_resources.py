@@ -10,27 +10,13 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, log
 
 from nose.plugins.attrib import attr
 
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
 from interface.objects import OrgTypeEnum
 
-import string
-
-# some stuff for logging info to the console
-log = DotDict()
-
-def mk_logger(level):
-    def logger(fmt, *args):
-        print "%s %s" % (string.ljust("%s:" % level, 8), (fmt % args))
-
-    return logger
-
-log.debug = mk_logger("DEBUG")
-log.info  = mk_logger("INFO")
-log.warn  = mk_logger("WARNING")
 
 RT_SITE = "Site"
 RT_SUBPLATFORMSITE = "SubPlatformSite"

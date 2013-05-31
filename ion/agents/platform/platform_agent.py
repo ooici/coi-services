@@ -552,12 +552,14 @@ class PlatformAgent(ResourceAgent):
         """
         Connects the driver.
         """
+        log.debug("%r: triggering driver event CONNECT", self._platform_id)
         self._trigger_driver_event(PlatformDriverEvent.CONNECT)
 
     def _go_inactive_this_platform(self):
         """
         Disconnects the driver.
         """
+        log.debug("%r: triggering driver event DISCONNECT")
         self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
 
     def _run_this_platform(self):
@@ -641,7 +643,7 @@ class PlatformAgent(ResourceAgent):
         except Exception, e:
             log.warning("Could not determine the state of the agent:", e.message)
 
-        return True
+        return True, ''
 
     def check_resource_operation_policy(self, process, message, headers):
         '''
@@ -1083,18 +1085,9 @@ class PlatformAgent(ResourceAgent):
 
     def _handle_external_event_driver_event(self, driver_event):
 
-        event_type = driver_event.event_type
-
         event_instance = driver_event.event_instance
-        platform_id = event_instance.get('platform_id', None)
-        message = event_instance.get('message', None)
-        timestamp = event_instance.get('timestamp', None)
-        group = event_instance.get('group', None)
 
-        description  = "message: %s" % message
-        description += "; group: %s" % group
-        description += "; external_event_type: %s" % event_type
-        description += "; external_timestamp: %s" % timestamp
+        description  = "external event payload: %s" % str(event_instance)
 
         event_data = {
             'description':  description,
@@ -1112,7 +1105,8 @@ class PlatformAgent(ResourceAgent):
                 **event_data)
 
         except:
-            log.exception("Error while publishing platform event")
+            log.exception("%r: Error while publishing external platform event: %s",
+                          self._platform_id, event_data)
 
     def _async_driver_event_agent_event(self, event):
         """
@@ -2668,7 +2662,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_inactive_reset", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_inactive_go_active", args, kwargs)
 
         next_state = PlatformAgentState.IDLE
         result = self._go_active(recursion)

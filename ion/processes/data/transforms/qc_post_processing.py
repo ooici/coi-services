@@ -36,16 +36,14 @@ class QCPostProcessing(SimpleProcess):
 
     qc_suffixes = ['glblrng_qc', 'spketst_qc', 'stuckvl_qc']
     def on_start(self):
+        SimpleProcess.on_start(self)
         self.data_retriever = DataRetrieverServiceProcessClient(process=self)
         self.interval_key = self.CFG.get_safe('process.interval_key',None)
         self.qc_params    = self.CFG.get_safe('process.qc_params',[])
         validate_is_not_none(self.interval_key, 'An interval key is necessary to paunch this process')
         self.event_subscriber = EventSubscriber(event_type=OT.TimerEvent, origin=self.interval_key, callback=self._event_callback, auto_delete=True)
+        self.add_endpoint(self.event_subscriber)
         self.resource_registry = self.container.resource_registry
-        self.event_subscriber.start()
-
-    def on_quit(self):
-        self.event_subscriber.stop()
     
     def _event_callback(self, *args, **kwargs):
         log.info('QC Post Processing Triggered')

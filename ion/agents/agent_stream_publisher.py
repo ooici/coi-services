@@ -27,6 +27,12 @@ from pyon.ion.stream import StreamPublisher
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import StreamRoute
 
+# Pyon Object Serialization
+from pyon.core.bootstrap import get_obj_registry
+from pyon.core.object import IonObjectDeserializer
+
+from ion.agents.populate_rdt import populate_rdt
+
 class AgentStreamPublisher(object):
     """
     """
@@ -53,18 +59,31 @@ class AgentStreamPublisher(object):
         agent.aparam_set_streams = self.aparam_set_streams
         
     def _construct_streams(self, stream_info):
+        decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
         for (stream_name, config) in stream_info.iteritems():
-            stream_def = config['stream_definition_ref']
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-            self._agent.aparam_streams[stream_name] = rdt.fields
-            self._agent.aparam_pubrate[stream_name] = 0
+            try:
+                if config.has_key('stream_def_dict'):
+                    stream_def_dict = config['stream_def_dict']
+                    stream_def_obj = decoder.deserialize(stream_def_dict)
+                    self._stream_defs[stream_name] = stream_def_obj
+                    rdt = RecordDictionaryTool(stream_definition=stream_def_obj)
+                else:
+                    stream_def = config['stream_definition_ref']
+                    self._stream_defs[stream_name] = stream_def
+                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)    
+                self._agent.aparam_streams[stream_name] = rdt.fields
+                self._agent.aparam_pubrate[stream_name] = 0
+            except Exception as e:
+                errmsg = 'Instrument agent %s' % self._agent._proc_name
+                errmsg += 'error constructing stream %s. ' % stream_name
+                errmsg += str(e)
+                log.error(errmsg)
+                
         self._agent.aparam_set_pubrate = self.aparam_set_pubrate
 
     def _construct_publishers(self, stream_info):
         for (stream_name, stream_config) in stream_info.iteritems():
-            try:
-                stream_def = stream_config['stream_definition_ref']
-                self._stream_defs[stream_name] = stream_def
+            try:                
                 exchange_point = stream_config['exchange_point']
                 routing_key = stream_config['routing_key']
                 route = StreamRoute(exchange_point=exchange_point,
@@ -153,41 +172,19 @@ class AgentStreamPublisher(object):
                 return
 
             stream_def = self._stream_defs[stream_name]
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+            if isinstance(stream_def, str):
+                rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+            else:
+                rdt = RecordDictionaryTool(stream_definition=stream_def)
+                
             publisher = self._publishers[stream_name]
                 
             vals = []
             for x in xrange(buf_len):
                 vals.append(self._stream_buffers[stream_name].pop())
     
-            data_arrays = {}
-            data_arrays[rdt.temporal_parameter] = [None] * len(vals)
-
-            for i,tomato in enumerate(vals):
-                if 'values' in tomato:
-                    for inner_dict in tomato['values']:
-                        field = inner_dict['value_id']
-                        value = inner_dict['value']
-                        if field not in rdt:
-                            continue
-                        if field not in data_arrays:
-                            data_arrays[field] = [None] * len(vals)
-                        data_arrays[field][i] = value if not inner_dict.get('binary',None) else base64.b64decode(value)
-                for k,v in tomato.iteritems():
-                    if k == 'values' or k not in rdt:
-                        continue
-                    if k not in data_arrays:
-                        data_arrays[k] = [None] * len(vals)
-                    if k == 'driver_timestamp':
-                        data_arrays[rdt.temporal_parameter][i] = v
-                    data_arrays[k][i] = v
-                        
-
-
-            for (k,v) in data_arrays.iteritems():
-                if v and any(v):
-                    rdt[k] = numpy.array(v)
-
+            rdt = populate_rdt(rdt, vals)
+            
             log.info('Outgoing granule: %s',
                      ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
             g = rdt.to_granule(data_producer_id=self._agent.resource_id, connection_id=self._connection_ID.hex,

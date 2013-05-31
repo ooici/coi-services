@@ -56,6 +56,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             spatial_domain = sdom.dump())
 
         ctd_parsed_data_product_id = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
+        self.addCleanup(self.dataproductclient.delete_data_product, ctd_parsed_data_product_id)
 
         log.debug('new ctd_parsed_data_product_id = %s' % ctd_parsed_data_product_id)
 
@@ -70,6 +71,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product_id)
 
         self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_parsed_data_product_id)
+        self.addCleanup(self.dataproductclient.suspend_data_product_persistence, ctd_parsed_data_product_id)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product_id, PRED.hasStream, None, True)

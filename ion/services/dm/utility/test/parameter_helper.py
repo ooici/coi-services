@@ -55,7 +55,8 @@ class ParameterHelper(object):
                 continue
             self.fill_parameter(rdt,field,t)
 
-    def publish_rdt_to_data_product(self,data_product_id, rdt, connection_id='', connection_index=''):
+    @classmethod
+    def publish_rdt_to_data_product(cls,data_product_id, rdt, connection_id='', connection_index=''):
         resource_registry       = Container.instance.resource_registry
         pubsub_management       = PubsubManagementServiceClient()
         stream_ids, _ = resource_registry.find_objects(data_product_id,'hasStream',id_only=True)
@@ -64,6 +65,12 @@ class ParameterHelper(object):
         publisher = StandaloneStreamPublisher(stream_id,route)
         publisher.publish(rdt.to_granule(connection_id=connection_id, connection_index=connection_index))
 
+    @classmethod
+    def rdt_for_data_product(cls, data_product_id=''):
+        resource_registry       = Container.instance.resource_registry
+        stream_def_ids, _ = resource_registry.find_objects(data_product_id,'hasStreamDefinition',id_only=True)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_ids[0])
+        return rdt
 
     def fill_parameter(self,rdt,parameter,t):
         tn = np.arange(t)

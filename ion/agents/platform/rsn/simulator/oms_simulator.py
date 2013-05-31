@@ -27,30 +27,37 @@ import ntplib
 from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
+###########################################################################
+# NOTE: several operations related with "event types" were removed/adjusted
+# from the CI-OMS interface per April/2013 telecons.
+###########################################################################
+
 
 class CIOMSSimulator(CIOMSClient):
     """
     Implementation of CIOMSClient for testing purposes.
+    It adds some methods intended to be used by tests (they are prefixed with
+    "x_" and are "public" to make them visible through the xml/rpc mechanism).
     """
 
-    # see start_raising_exceptions_at
-    _exception_time = 0
+    # _raise_exception: see disable() and enable()
+    _raise_exception = False
 
     @classmethod
-    def start_raising_exceptions_at(cls, at_time):
+    def x_disable(cls):
         """
-        After the given time (if positive), all methods in any created
-        instance of this class will start raising Exceptions. This allows to
-        test for the "lost connection" case in the platform agent and driver
-        when the simulator is run in "embedded" form.
+        Makes any subsequent call to any public API operation to raise an
+        exception. This allows to test for the "lost connection" case.
+        """
+        cls._raise_exception = True
 
-        Note: actual disconnection is performed when the simulator is launched
-        as an external process (via the special URI alias "launchsimulator")
-        and then killing that process at some point during the interaction.
+    @classmethod
+    def x_enable(cls):
         """
-        secs = at_time - time.time()
-        log.debug("(LC) synthetic exceptions starting in %s secs from now", secs)
-        cls._exception_time = at_time
+        Cancels the effect of disable() (so the simulator continues to
+        operate normally).
+        """
+        cls._raise_exception = False
 
     def __init__(self, yaml_filename='ion/agents/platform/rsn/simulator/network.yml'):
         self._ndef = NetworkUtil.deserialize_network_definition(file(yaml_filename))
@@ -101,7 +108,7 @@ class CIOMSSimulator(CIOMSClient):
         Called by all CI_OMS interface methods to dispatch the
         simulation of connection lost.
         """
-        if 0 < self._exception_time <= time.time():
+        if self._raise_exception:
             msg = "(LC) synthetic exception from CIOMSSimulator"
             log.debug(msg)
             raise Exception(msg)
@@ -170,7 +177,7 @@ class CIOMSSimulator(CIOMSClient):
                 vals[attrName] = values
                 # Note: values == [] if there are no values.
             else:
-                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME
+                vals[attrName] = InvalidResponse.ATTRIBUTE_ID
 
         return {platform_id: vals}
 
@@ -196,7 +203,7 @@ class CIOMSSimulator(CIOMSClient):
                 else:
                     vals[attrName] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
             else:
-                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME
+                vals[attrName] = InvalidResponse.ATTRIBUTE_ID
 
         retval = {platform_id: vals}
         log.debug("set_platform_attribute_values returning: %s", str(retval))
@@ -340,38 +347,6 @@ class CIOMSSimulator(CIOMSClient):
 
         return {platform_id: {port_id: result}}
 
-    def describe_event_types(self, event_type_ids):
-        self._enter()
-
-        if len(event_type_ids) == 0:
-            return EventInfo.EVENT_TYPES
-
-        result = {}
-        for k in event_type_ids:
-            if not k in EventInfo.EVENT_TYPES:
-                result[k] = InvalidResponse.EVENT_TYPE
-            else:
-                result[k] = EventInfo.EVENT_TYPES[k]
-
-        return result
-
-    def get_events_by_platform_type(self, platform_types):
-        self._enter()
-
-        if len(platform_types) == 0:
-            platform_types = self._platform_types.keys()
-
-        result = {}
-        for platform_type in platform_types:
-            if not platform_type in self._platform_types:
-                result[platform_type] = InvalidResponse.PLATFORM_TYPE
-                continue
-
-            result[platform_type] = [v for v in EventInfo.EVENT_TYPES.itervalues() \
-                if v['platform_type'] == platform_type]
-
-        return result
-
     def _validate_event_listener_url(self, url):
         """
         Does a basic, static validation of the url.
@@ -379,11 +354,16 @@ class CIOMSSimulator(CIOMSClient):
         # TODO implement it; for now always returning True
         return True
 
-    def register_event_listener(self, url, event_types):
+    def register_event_listener(self, url):
         self._enter()
 
+        # NOTE: event_types was previously a parameter to this operation. To
+        # minimize changes in the code, I introduced an 'ALL' event type to
+        # be used here explicitly.
+        event_types = ['ALL']
+
         log.debug("register_event_listener called: url=%r, event_types=%s",
-                 url, str(event_types))
+                  url, str(event_types))
 
         if not self._validate_event_listener_url(url):
             return {url: InvalidResponse.EVENT_LISTENER_URL}
@@ -426,11 +406,16 @@ class CIOMSSimulator(CIOMSClient):
 
         return {url: result_list}
 
-    def unregister_event_listener(self, url, event_types):
+    def unregister_event_listener(self, url):
         self._enter()
 
+        # NOTE: event_types was previously a parameter to this operation. To
+        # minimizes changes in the code, I introduced an 'ALL' event type to
+        # be used here explicitly.
+        event_types = ['ALL']
+
         log.debug("unregister_event_listener called: url=%r, event_types=%s",
-                 url, str(event_types))
+                  url, str(event_types))
 
         if not url in self._reg_event_listeners:
             return {url: InvalidResponse.EVENT_LISTENER_URL}

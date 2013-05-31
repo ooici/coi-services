@@ -121,8 +121,8 @@ class TestR3PCSocket(IonIntegrationTestCase):
 
         self.enqueue_all()
         
-        self._req_recv_evt.get(timeout=15)
-        self._ack_recv_evt.get(timeout=15)
+        self._req_recv_evt.get(timeout=60)
+        self._ack_recv_evt.get(timeout=60)
 
         self._client.stop()
         self._server.stop()
@@ -147,8 +147,8 @@ class TestR3PCSocket(IonIntegrationTestCase):
 
         self.enqueue_all()
                 
-        self._req_recv_evt.get(timeout=15)
-        self._ack_recv_evt.get(timeout=15)
+        self._req_recv_evt.get(timeout=60)
+        self._ack_recv_evt.get(timeout=60)
 
         self._client.stop()
         self._server.stop()
@@ -174,8 +174,8 @@ class TestR3PCSocket(IonIntegrationTestCase):
 
         self.enqueue_all()
 
-        self._req_recv_evt.get(timeout=25)
-        self._ack_recv_evt.get(timeout=25)
+        self._req_recv_evt.get(timeout=60)
+        self._ack_recv_evt.get(timeout=60)
 
         self._client.stop()
         self._server.stop()
@@ -200,8 +200,8 @@ class TestR3PCSocket(IonIntegrationTestCase):
 
         self.enqueue_all()
 
-        self._req_recv_evt.get(timeout=25)
-        self._ack_recv_evt.get(timeout=25)
+        self._req_recv_evt.get(timeout=60)
+        self._ack_recv_evt.get(timeout=60)
 
         self._client.stop()
         self._server.stop()

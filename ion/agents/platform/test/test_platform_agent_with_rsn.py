@@ -751,9 +751,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._start_resource_monitoring()
 
-        # let normal activity go on for a while - note, the sleep here should
-        # be large enough to allow for some retrievals during the monitoring
-        # so that the lost connection is detected.
+        # let normal activity go on for a while:
         sleep(15)
 
         ######################################################
@@ -771,7 +769,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         ######################################################
         # reconnect phase
 
-        # launch simulator again so connection is re-established:
+        # re-enable simulator so connection is re-established:
         log.debug("re-enabling simulator")
         self._simulator_enable()
 

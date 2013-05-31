@@ -3037,13 +3037,13 @@ Reason: %s
         if not filename:
             raise iex.BadRequest('attachment did not include a filename: ' + row[COL_ID])
 
-        path = "%s/%s" % (self.attachment_path, filename)
         try:
+            path = "%s/%s" % (self.attachment_path, filename)
             with open(path, "rb") as f:
                 att_obj.content = f.read()
-        except IOError, ioe:
+        except:
             # warn instead of fail here
-            log.warn("Failed to open attachment file: %s/%s" % (path, ioe))
+            log.warn("Failed to open attachment file: %s", filename, exc_info=True)
 
         att_id = self.container.resource_registry.create_attachment(res_id, att_obj)
         self._register_id(row[COL_ID], att_id, att_obj)

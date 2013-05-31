@@ -22,7 +22,7 @@ from collections import defaultdict
 from ooi.logging import log
 
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import Inconsistent,BadRequest, NotFound, ServerError
+from pyon.core.exception import Inconsistent, BadRequest, NotFound, ServerError, Unauthorized
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.ion_time import IonTime
 from pyon.public import LCE
@@ -1571,15 +1571,24 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             user_id=user_id)
         if t:
             t.complete_step('ims.instrument_device_extension.container')
-        #retrieve the aggregate status for the instrument
+
+        # retrieve the statuses for the instrument
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
                                                                                     extended_instrument.computed)
+        
+        #retrieve the aggregate status for the instrument
+        status_values = [ extended_instrument.computed.communications_status_roll_up,
+                          extended_instrument.computed.data_status_roll_up,
+                          extended_instrument.computed.location_status_roll_up,
+                          extended_instrument.computed.power_status_roll_up  ]
+        status = self.agent_status_builder._crush_status_list(status_values)
+
         log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
         if t:
             t.complete_step('ims.instrument_device_extension.rollup')
 
         # add UI details for deployments in same order as deployments
-        extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients)
+        extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients, instruments=[extended_instrument.resource], instrument_status=[status])
         if t:
             t.complete_step('ims.instrument_device_extension.deploy')
             stats.add(t)
@@ -1620,14 +1629,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 state = ia_client.get_agent_state()
                 if resource_agent_state_labels.has_key(state):
                     retval.value = resource_agent_state_labels[ state ]
+                    retval.status = ComputedValueAvailability.PROVIDED
                 else:
                     retval.value = 'UNKNOWN'
-                    log.warn('get_operational_state  get_agent_state returned invalid state type: %s', state)
+                    retval.status = ComputedValueAvailability.NOTAVAILABLE
+                    retval.reason = "State not returned in agent response"
 
-            except Exception as e:
+            except Unauthorized:
                 retval.value = 'UNKNOWN'
                 retval.status = ComputedValueAvailability.NOTAVAILABLE
-                log.warn('get_operational_state  get_agent_state returned exception: %s', e)
+                retval.reason = "The requester does not have the proper role to access the status of this agent"
+
+            except Exception as e:
+                raise e
 
         else:
             retval.value = 'UNKNOWN'
@@ -1815,15 +1829,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                     #    continue
                     #found_association = True
                     # no need to query devices from DB, just find in existing list -- but order with index of portal
-                    found_instrument = False
+#                    found_instrument = False
                     for j in xrange(len(extended_platform.instrument_devices)):
                         if extended_platform.instrument_devices[j]._id == a.o:
-                            found_instrument = True
+#                            found_instrument = True
                             extended_platform.portal_instruments[i] = extended_platform.instrument_devices[j]
                             extended_platform.computed.portal_status.value[i] = extended_platform.computed.instrument_status.value[j] if statuses else None
                             break
-                    if not found_instrument:
-                        log.warn('portal device %s of PlatformDevice %s not found in instrument_device list', a.o, platform_device_id)
+#                    if not found_instrument:
+#                        log.warn('portal device %s of PlatformDevice %s not found in instrument_device list', a.o, platform_device_id)
         log.debug("Building network rollups")
         rollx_builder = RollXBuilder(self)
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
@@ -1857,7 +1871,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.platform_device_extension.crush')
 
         # add UI details for deployments
-        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients)
+        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients, instruments=extended_platform.instrument_devices, instrument_status=extended_platform.computed.instrument_status.value)
         if t:
             t.complete_step('ims.platform_device_extension.deploy')
             stats.add(t)

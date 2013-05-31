@@ -46,6 +46,7 @@ from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, Compu
 from interface.objects import DeviceEvent, NotificationPreferences, NotificationDeliveryModeEnum
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from interface.objects import NotificationRequest, TemporalBounds, DeviceStatusType
+from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
@@ -1294,19 +1295,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Check that the workers processed the events
         #--------------------------------------------------------------------------------------
-
-        worker_that_sent_email = None
-        for proc in procs:
-            if not proc.smtp_client.sent_mail.empty():
-                worker_that_sent_email = proc
-                break
-
+        smtp_client = setting_up_smtp_client()
         email_tuples = []
 
-        while not worker_that_sent_email.smtp_client.sent_mail.empty():
-            email_tuple  = worker_that_sent_email.smtp_client.sent_mail.get(timeout=20)
+        while not smtp_client.sent_mail.empty():
+            email_tuple  = smtp_client.sent_mail.get(timeout=20)
             email_tuples.append(email_tuple)
-            log.debug("size of sent_mail queue: %s" % worker_that_sent_email.smtp_client.sent_mail.qsize())
+            log.debug("size of sent_mail queue: %s" % smtp_client.sent_mail.qsize())
             log.debug("email tuple::: %s" % str(email_tuple))
 
         for email_tuple in email_tuples:

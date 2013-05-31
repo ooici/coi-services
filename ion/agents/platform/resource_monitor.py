@@ -111,7 +111,10 @@ class ResourceMonitor(object):
                 slept += incr
 
             if self._active:
-                self._retrieve_attribute_values()
+                try:
+                    self._retrieve_attribute_values()
+                except:
+                    log.exception("exception in _retrieve_attribute_values")
 
         log.debug("%r: monitoring greenlet stopped. rate_secs=%s; attr_ids=%s",
                   self._platform_id, self._rate_secs, self._attr_ids)
@@ -122,9 +125,10 @@ class ResourceMonitor(object):
         _values_retrieved.
         """
 
-        # TODO: note that the "from_time" parameters for the request below was
-        # influenced by the RSN case (see CI-OMS interface). Need to see
-        # whether it also applies to CGSN so eventually adjustments may be needed.
+        # TODO: note that the "from_time" parameters for the request below
+        # as well as the expected response are influenced by the RSN case
+        # (see CI-OMS interface). Need to see whether it also applies to
+        # CGSN so eventually adjustments may be needed.
         #
 
         current_time_secs = current_time_millis() / 1000.0
@@ -153,29 +157,53 @@ class ResourceMonitor(object):
             # lost connection; nothing else to do here:
             return
 
+        good_retrieved_vals = {}
+
+        # do validation: we expect an array of tuples (val, timestamp) for
+        # each attribute. If not, log a warning for the attribute and
+        # continue processing with the other valid attributes:
+        for attr_id, vals in retrieved_vals.iteritems():
+            if not isinstance(vals, (list, tuple)):
+                log.warn("%r: expecting an array for attribute %r, but got: %r",
+                         self._platform_id, attr_id, vals)
+                continue
+
+            if len(vals):
+                if not isinstance(vals[0], (tuple, list)):
+                    log.warn("%r: expecting elements in array to be tuples "
+                             "(val, ts) for attribute %r, but got: %r",
+                             self._platform_id, attr_id, vals[0])
+                    continue
+
+            good_retrieved_vals[attr_id] = vals  # even if empty array.
+
+        if not good_retrieved_vals:
+            # nothing else to do.  TODO perhaps an additional warning?
+            return
+
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             summary = {attr_id: "(%d vals)" % len(vals)
-                       for attr_id, vals in retrieved_vals.iteritems()}
+                       for attr_id, vals in good_retrieved_vals.iteritems()}
             log.debug("%r: _retrieve_attribute_values: _get_attribute_values "
                       "for attrs=%s returned %s",
                       self._platform_id, attrs, summary)
         elif log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            # show retrieved_vals as retrieved (might be large)
+            # show good_retrieved_vals as retrieved (might be large)
             log.trace("%r: _retrieve_attribute_values: _get_attribute_values "
                       "for attrs=%s returned %s",
-                      self._platform_id, attrs, retrieved_vals)
+                      self._platform_id, attrs, good_retrieved_vals)
 
         # vals_dict: attributes with non-empty reported values:
         vals_dict = {}
         for attr_id, from_time in attrs:
-            if not attr_id in retrieved_vals:
+            if not attr_id in good_retrieved_vals:
                 log.warn("%r: _retrieve_attribute_values: unexpected: "
                          "response does not include requested attribute %r. "
                          "Response is: %s",
-                         self._platform_id, attr_id, retrieved_vals)
+                         self._platform_id, attr_id, good_retrieved_vals)
                 continue
 
-            attr_vals = retrieved_vals[attr_id]
+            attr_vals = good_retrieved_vals[attr_id]
             if not attr_vals:
                 log.debug("%r: No values reported for attribute=%r from_time=%f",
                           self._platform_id, attr_id, from_time)

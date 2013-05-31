@@ -94,9 +94,13 @@ class AgentStatusBuilder(object):
             #retrieve the platform status from the platform agent
             this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
             log.debug("this_status for %s is %s", device_id, this_status)
+
+        except Unauthorized:
+            log.warn("The requester does not have the proper role to access the status of this agent")
+            return None, "Error getting status: : InstrumentDevice(get_agent) has been denied"
+
         except Exception as e:
-            log.warn("failed to get status for device %s", device_id, exc_info=True)
-            return None, "Error getting status: %s" % e
+            raise e
 
         out_status = {device_id: this_status}
 
@@ -117,10 +121,13 @@ class AgentStatusBuilder(object):
             if child_agg_status:
                 out_status = dict(out_status.items() + child_agg_status.items())
             return out_status, None
-        except Exception as e:
-            log.warn("failed to get status for device %s", device_id, exc_info=True)
-            return out_status, "Error getting child status: %s" % e
 
+        except Unauthorized:
+            log.warn("The requester does not have the proper role to access the child_agg_status of this agent")
+            return out_status, "Error getting child status: InstrumentDevice(get_agent) has been denied"
+
+        except Exception as e:
+            raise e
 
 
     #return this aggregate status, reason for fail, dict of device_id -> agg status
@@ -211,15 +218,8 @@ class AgentStatusBuilder(object):
 
 
     def _crush_status_list(self, values_list):
-        if DeviceStatusType.STATUS_CRITICAL in values_list:
-            status = DeviceStatusType.STATUS_CRITICAL
-        elif DeviceStatusType.STATUS_WARNING in values_list:
-            status = DeviceStatusType.STATUS_WARNING
-        elif DeviceStatusType.STATUS_OK  in values_list:
-            status = DeviceStatusType.STATUS_OK
-        else:
-            status = DeviceStatusType.STATUS_UNKNOWN
-
+        # reported status is worst (highest # value) of the component values
+        status = max(values_list) if values_list else DeviceStatusType.STATUS_UNKNOWN
         log.debug("crushing list %s to value %s", values_list, status)
         return status
 
@@ -274,6 +274,11 @@ class AgentStatusBuilder(object):
 
 
     def get_aggregate_status_of_device(self, device_id):
+        if  device_id is not None and type("") != type(device_id):
+            errmsg = "get_aggregate_status_of_device passed bad type %s" % type(device_id)
+            log.warn(errmsg)
+            raise BadRequest(errmsg)
+
         aggstatus, reason = self._get_status_of_device(device_id)
 
         if None is aggstatus:

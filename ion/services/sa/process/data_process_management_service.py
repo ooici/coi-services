@@ -605,11 +605,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         out_streams = {}
         if data_process_definition_id:
             dpd = self.read_data_process_definition(data_process_definition_id)
-
-        for dp_id in out_data_product_ids:
-            stream_id = self._get_stream_from_dp(dp_id)
-            out_streams[stream_id] = stream_id
-            if data_process_definition_id:
+            for dp_id in out_data_product_ids:
+                stream_id = self._get_stream_from_dp(dp_id)
                 stream_definition = self.clients.pubsub_management.read_stream_definition(stream_id=stream_id)
                 stream_definition_id = stream_definition._id
 
@@ -619,6 +616,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                     if stream_def_id == stream_definition_id:
                         out_streams[binding] = stream_id
                         break
+        if not out_streams: # Either there was no process definition or it doesn't have any bindings
+            for dp_id in out_data_product_ids:
+                stream_id = self._get_stream_from_dp(dp_id)
+                out_streams[stream_id] = stream_id
 
         return self._launch_process(queue_name, out_streams, process_definition_id, configuration)
 

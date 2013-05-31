@@ -835,12 +835,14 @@ class HeartbeaterIntTest(IonIntegrationTestCase):
         self.beat_subscriber = HeartbeatSubscriber("heartbeat_queue",
             callback=heartbeat_callback, node=self.container.node)
         self.beat_subscriber.start()
-
-        self._start_eeagent()
-        for i in range(0, 5):
-            if beat_died[0] is True:
-                assert False, "A Hearbeat callback wasn't able to contact the eeagent"
-            gevent.sleep(0.5)
+        try:
+            self._start_eeagent()
+            for i in range(0, 5):
+                if beat_died[0] is True:
+                    assert False, "A Hearbeat callback wasn't able to contact the eeagent"
+                gevent.sleep(0.5)
+        finally:
+            self.beat_subscriber.stop()
 
 
 @attr('UNIT', group='cei')
