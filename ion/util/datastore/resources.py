@@ -7,6 +7,8 @@ __author__ = 'Michael Meisinger'
 
 import datetime
 import json
+import yaml
+import os
 try:
     import xlrd
     import xlwt
@@ -25,6 +27,12 @@ from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.datastore.couchdb.couchdb_standalone import CouchDataStore
 from pyon.public import log
 
+"""
+from ion.util.datastore.resources import ResourceRegistryHelper
+rrh = ResourceRegistryHelper()
+rrh.dump_resources_as_xlsx()
+rrh.revert_to_snapshot(filename="interface/rrsnapshot_20130530_144619.json")
+"""
 
 class ResourceRegistryHelper(object):
     def __init__(self, container = None):
@@ -244,3 +252,68 @@ class ResourceRegistryHelper(object):
 
         path = filename or "interface/accumulators_%s.xls" % (dtstr)
         self.dump_dicts_as_xlsx(all_acc_dict, path)
+
+    def create_resources_snapshot(self, persist=False, filename=None):
+        ds = CouchDataStore(DataStore.DS_RESOURCES, profile=DataStore.DS_PROFILE.RESOURCES, config=CFG, scope=self.sysname)
+        all_objs = ds.find_docs_by_view("_all_docs", None, id_only=False)
+
+        log.info("Found %s objects in datastore resources", len(all_objs))
+
+        resources = {}
+        associations = {}
+        snapshot = dict(resources=resources, associations=associations)
+
+        for obj_id, key, obj in all_objs:
+            if obj_id.startswith("_design"):
+                continue
+            if not isinstance(obj, dict):
+                raise Inconsistent("Object of bad type found: %s" % type(obj))
+            obj_type = obj.get("type_", None)
+            if obj_type == "Association":
+                associations[obj_id] = obj.get("ts", None)
+            elif obj_type:
+                resources[obj_id] = obj.get("ts_updated", None)
+            else:
+                raise Inconsistent("Object with no type_ found: %s" % obj)
+
+        if persist:
+            dtstr = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
+            path = filename or "interface/rrsnapshot_%s.json" % dtstr
+            snapshot_json = json.dumps(snapshot)
+            with open(path, "w") as f:
+                #yaml.dump(snapshot, f, default_flow_style=False)
+                f.write(snapshot_json)
+
+        log.debug("Created resource registry snapshot. %s resources, %s associations", len(resources), len(associations))
+
+        return snapshot
+
+    def revert_to_snapshot(self, snapshot=None, filename=None):
+        current_snapshot = self.create_resources_snapshot()
+
+        if filename:
+            if not os.path.exists(filename):
+                raise BadRequest("Snapshot file not existing: %s" % filename)
+            with open(filename, "r") as f:
+                content = f.read()
+                snapshot = json.loads(content)
+
+        delta_snapshot = self._compare_snapshots(snapshot, current_snapshot)
+        if delta_snapshot["resources"] or delta_snapshot["associations"]:
+            res_ids = delta_snapshot["resources"].keys()
+            assoc_ids = delta_snapshot["associations"].keys()
+
+            log.debug("Reverting to old snapshot. Deleting %s resources and %s associations", len(res_ids), len(assoc_ids))
+            self.container.resource_registry.rr_store.delete_mult(res_ids + assoc_ids)
+
+    def _compare_snapshots(self, old_snapshot, new_snapshot):
+        delta_snapshot = {}
+        for key in new_snapshot:
+            key_delta = {}
+            delta_snapshot[key] = key_delta
+            old_key_snapshot = old_snapshot[key]
+            for obj_id, ts in new_snapshot[key].iteritems():
+                if obj_id not in old_key_snapshot or ts != old_key_snapshot[obj_id]:
+                    key_delta[obj_id] = ts
+
+        return delta_snapshot
