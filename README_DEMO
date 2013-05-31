@@ -22,7 +22,7 @@ Start the services container with Container UI:
 > bin/pycc -fc -r res/deploy/r2deploy.yml --mx
 
 Preload ALPHA setup (with UI, OOI assets, demo resources):
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_load_config.yml
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_alpha.yml
 
 Start the UI (in ion-ux, virtualenv prepared as documented):
 > python main.py
@@ -65,20 +65,11 @@ Preload system with UI (without OOI assets)
 OR: Preload system OOI assets only, create User/Org on the fly; bulk+debug mode not ready for production). Exclude data product etc
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load loadooi=True assets=res/preload/r2_ioc/ooi_assets bulk=True debug=True ooiexclude=DataProduct,DataProductLink,Deployment,Workflow,WorkflowDefinition
 
-OR: Preload system with UI and OOI assets, bulk mode not ready for production)
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True loadooi=True bulk=True
-
 OR: Run preload from file (not GoogleDoc master):
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO path=res/preload/r2_ioc/R2PreloadedResources.xlsx ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
 
-OR: Load OOI assets, filter to only Global Papa:
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True loadooi=True ooifilter=GP
-
 Delete OOI assets for a retry:
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=deleteooi
-
-Reload OOI assets, filter to only Global Papa:
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load assets=res/preload/r2_ioc/ooi_assets loadooi=True
 
 To restart services container (without full process relaunch):
 > bin/pycc -r res/deploy/r2deploy.yml bootmode=restart
