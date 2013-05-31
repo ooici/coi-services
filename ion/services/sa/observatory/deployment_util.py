@@ -5,7 +5,7 @@ suitable for the UI table:
  { deployment_id: { 'ui_column': 'string_value'... } }
 """
 
-from ooi.logging import log, TRACE
+from ooi.logging import log, TRACE, DEBUG
 from pyon.ion.resource import RT, PRED, LCS, OT
 import time
 
@@ -75,6 +75,7 @@ def describe_deployments(deployments, context, instruments=[], instrument_status
                                  assoc.s, description['site_name'], assoc.o, description['device_name'])
                     description['is_primary']=found_match=True
 
+    # finally get parents of sites using hasSite
     objects3,associations = rr.find_subjects_mult(objects=site_ids)
     if log.isEnabledFor(TRACE):
         log.trace('have %d site-associated objects, %d are hasDeployment', len(associations), sum([1 if assoc.p==PRED.hasDeployment else 0 for assoc in associations]))
@@ -92,5 +93,8 @@ def describe_deployments(deployments, context, instruments=[], instrument_status
     # convert to array
     descriptions = [ descriptions[d._id] for d in deployments ]
 
-    log.debug('%d deployments, %d associated sites/devices, %d activations', len(deployments), len(objects), len(objects2))
+    if log.isEnabledFor(DEBUG):
+        log.debug('%d deployments, %d associated sites/devices, %d activations, %d missing status', len(deployments), len(objects), len(objects2),
+            sum([0 if 'device_status' in d else 1 for d in descriptions]))
+
     return descriptions

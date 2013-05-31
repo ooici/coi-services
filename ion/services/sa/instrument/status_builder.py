@@ -231,8 +231,9 @@ class AgentStatusBuilder(object):
             return ComputedListValue(reason="Top platform's child_agg_status is '%s'" % type(child_agg_status).__name__)
 
         for k in keys:
-            if not type("") == type(k):
-                raise BadRequest("attempted to compute_status_list with type(v) = %s : %s" % (type(k), k))
+            # map None keys to UNKNOWN status
+#            if not type("") == type(k):
+#                raise BadRequest("attempted to compute_status_list with type(v) = %s : %s" % (type(k), k))
             if k in child_agg_status:
                 ret.append(self._crush_status_dict(child_agg_status[k]))
             else:
