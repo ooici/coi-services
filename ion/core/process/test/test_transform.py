@@ -61,12 +61,14 @@ class TestTransforms(IonIntegrationTestCase):
         sub_proc.container = self.container
         subscriber = StreamSubscriber(process=sub_proc, exchange_name='subscriber', callback=verify)
 
+
         #                       Bind the transports
         #--------------------------------------------------------------------------------
 
         transform.subscriber.xn.bind(input_route.routing_key, publisher.xp)
         subscriber.xn.bind(output_route.routing_key, transform.publisher.xp)
         subscriber.start()
+        self.addCleanup(subscriber.stop)
 
 
         publisher.publish('test')
