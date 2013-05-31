@@ -109,7 +109,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdGJJQVVGQW5UWnNxcUF4UEJaZWZXekE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdEw0cTZCSmFscVpNcEhDdlJmaEhRSlE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -119,7 +119,6 @@ OOI_MAPPING_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVU
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
-    #'OOIAddl',                          # emulates adding new OOI assets
     'IDMap',                            # mapping of preload IDs
     'Constraint',                       # in memory only - all scenarios loaded
     'Contact',                          # in memory only - all scenarios loaded
@@ -216,7 +215,6 @@ class IONLoader(ImmediateProcess):
         self.alerts = {}                # id -> alert definition dict
         self.external_dataset_producer_id = {}  # keep producer ID for later use by AgentInstance
 
-        self.addl_ooi = {}              # Additional OOI instruments to load
         self.idmapping = {}             # Mapping of current to new preload IDs
 
     def on_start(self):
@@ -969,23 +967,6 @@ class IONLoader(ImmediateProcess):
         group = self.ooi_loader.get_type_assets(group)
         rid = entry.get(idattr, None)
         group[rid] = entry
-
-    def _load_OOIAddl(self, row):
-        """
-        Additional instruments placed within the OOI observatory structure.
-        UNFINISHED right now.
-        """
-        if row["res_type"] == "Instrument":
-            inst_id = row[COL_ID]
-            inst_entry = dict(
-                row=row)
-            self.addl_ooi[inst_id] = inst_entry
-            if not self.loadooi and not self.ooi_loader._extracted:
-                log.info("Extracting OOI information because of additional OOI assets")
-                self.ooi_loader.extract_ooi_assets()
-                self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
-        else:
-            log.warn("Unknown addition to OOI assets: type %s", row["res_type"])
 
     def _load_Contact(self, row):
         """
@@ -2762,25 +2743,6 @@ Reason: %s
         self._resource_assign_org(row, res_id)
         self._resource_advance_lcs(row, res_id)
 
-    def _get_paramdict_streamdef_map(self):
-        assocs = self.container.resource_registry.find_associations(predicate=PRED.hasParameterDictionary, id_only=False)
-        assocs_filtered = [a for a in assocs if a.st == "StreamDefinition" and a.ot == "ParameterDictionary"]
-        mapping = {}
-        for assoc in assocs_filtered:
-            sdef = self._get_resource_obj(assoc.s)
-            if sdef.addl.get("stream_use", None) not in ("Raw", "Parsed", "Eng"):
-                continue
-            pdict = self._get_resource_obj(assoc.o)
-            sdef_aliases = [aid[4:] for aid in sdef.alt_ids if aid.startswith("PRE:")]
-            if len(sdef_aliases) != 1:
-                log.warn("No preload IDs found for StreamDefinition: %s", sdef.alt_ids)
-                continue
-            sdef_alias = sdef_aliases[0]
-            if pdict.name in mapping:
-                log.warn("ParameterDefinition %s already maps to StreamDefinition %s. New %s", pdict.name, mapping[pdict.name], sdef_alias)
-            mapping[pdict.name] = sdef_alias
-        return mapping
-
     def _create_dp_stream_def(self, rd, series_rd=None, dp_class=None, dp_level=None, pdict_id=None, sname=None):
         """Create a StreamDefinition for a given data product"""
         if pdict_id:
@@ -2824,6 +2786,7 @@ Reason: %s
             newrow['source_resource_id'] = source_id
             self._load_DataProductLink(newrow, do_bulk=do_bulk)
 
+        # Create a mapping of ParamDict name to preload ID
         pdict_by_name = {}
         for obj in self.resource_objs.values():
             if obj.type_ == "ParameterDictionary":
@@ -2833,9 +2796,6 @@ Reason: %s
                     continue
                 pdict_alias = pdict_aliases[0]
                 pdict_by_name[obj.name] = pdict_alias
-
-        #sdef_lookup = self._get_paramdict_streamdef_map()
-        #log.debug("_get_paramdict_streamdef_map() = %s", sdef_lookup)
 
         # I. Platform data products (parsed)
         for node_id, node_obj in node_objs.iteritems():
