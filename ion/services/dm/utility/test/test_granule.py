@@ -95,6 +95,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
         subscriber = StandaloneStreamSubscriber('sub', self.verify_incoming)
         subscriber.start()
+        self.addCleanup(subscriber.stop)
 
         subscription_id = self.pubsub_management.create_subscription('sub', stream_ids=[stream_id])
         self.pubsub_management.activate_subscription(subscription_id)
