@@ -161,6 +161,12 @@ class TypesManager(object):
 
     def get_cc_value(self, value):
         placeholder = value.lower()
+        # Check to see if this coefficient exists already
+
+        hits, _ = Container.instance.resource_registry.find_resources(name=placeholder, restype=RT.ParameterContext, id_only=True)
+        if hits:
+            return hits[0], placeholder
+
         pc = ParameterContext(name=placeholder, param_type=SparseConstantType(value_encoding='float64'), fill_value=-9999.)
         pc.uom = '1'
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
@@ -168,11 +174,9 @@ class TypesManager(object):
 
 
     def has_lookup_value(self, context):
-        if isinstance(context.param_type, ParameterFunctionType):
-            if hasattr(context.function,'lookup_values'):
-                return True
-        else:
-            return False
+        if isinstance(context.param_type, ParameterFunctionType) and hasattr(context.function,'lookup_values'):
+            return True
+        return False
 
     def get_lookup_value_ids(self, context):
         if isinstance(context.param_type, ParameterFunctionType):
