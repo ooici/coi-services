@@ -87,8 +87,9 @@ class TestLoader(IonIntegrationTestCase):
                       loadooi=loadooi,
                       path=path, ui_path=ui_path,
                       assets='res/preload/r2_ioc/ooi_assets',
-                      bulk=loadooi,
-                      ooiexclude='DataProduct,DataProductLink')
+                      bulk=loadooi)
+        if loadooi:
+            config["excludecategories"] = 'DataProduct,DataProductLink'
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
     @attr('PRELOAD')
