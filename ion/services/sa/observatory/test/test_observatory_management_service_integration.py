@@ -608,6 +608,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
     #@unittest.skip("in development...")
     @attr('EXT')
+    @attr('EXT1')
     def test_observatory_org_extended(self):
 
         stuff = self._make_associations()
@@ -691,6 +692,9 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(2, len(extended_org.instrument_models) )
 
         self.assertEqual(1, len(extended_org.members))
+        self.assertNotEqual(extended_org.members[0]._id, member_actor_id)
+        self.assertEqual(extended_org.members[0]._id, member_user_id)
+
         self.assertEqual(1, len(extended_org.open_requests))
 
         self.assertTrue(len(extended_site.deployments)>0)
