@@ -1185,29 +1185,26 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             'skip': 0
         }
 
-        # set org members from the ION org
-        ion_org = self.clients.org_management.find_org()
-        if org_id == ion_org._id:
 
-            # clients.resource_registry may return us the container's resource_registry instance
-            self._rr = self.clients.resource_registry
-            log.debug("get_marine_facility_extension: self._rr:  %s ", str(self._rr))
+        # clients.resource_registry may return us the container's resource_registry instance
+        self._rr = self.clients.resource_registry
 
-            actors_list = self.clients.org_management.find_enrolled_users(org_id)
-            log.debug("get_marine_facility_extension: actors_list:  %s ", str(actors_list))
-            for actor in actors_list:
-                log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
-                user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
-                if user_info_objs:
-                    log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
-                    extended_org.members.append( user_info_objs[0] )
+        # extended object contains list of member actors, so need to change to user info
+        actors_list = extended_org.members
+        user_list = []
+        for actor in actors_list:
+            log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
+            user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
+            if user_info_objs:
+                log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
+                user_list.append( user_info_objs[0] )
+
+        extended_org.members = user_list
 
 
         #Convert Negotiations to OrgUserNegotiationRequest
         extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
         extended_org.closed_requests = self._convert_negotiations_to_requests(extended_org, extended_org.closed_requests)
-
-
 
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id (model)
