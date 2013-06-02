@@ -144,7 +144,7 @@ class OOILoader(object):
         self._extracted = True
 
     def get_type_assets(self, objtype):
-        return self.ooi_objects.get(objtype, None)
+        return self.ooi_objects.get(objtype, {})
 
     def _add_object_attribute(self, objtype, objid, key, value, value_is_list=False, list_dup_ok=False, change_ok=False, mapping=None, **kwargs):
         """
@@ -552,7 +552,8 @@ class OOILoader(object):
         self._add_object_attribute('instagent',
                                    agent_code, None, None,
                                    active=row['Active'] == "Yes",
-                                   present=row['Present'] == "Yes")
+                                   present=row['Present'] == "Yes",
+                                   parsed_sc=row['Parsed SC'])
 
 
     # ---- Post-processing and validation ----
@@ -958,18 +959,18 @@ class OOILoader(object):
         report_lines.append((1, "    Instruments (postponed): %s" % self._asset_counts["insti"]))
         ser_list = self._get_unique(deploy_instruments, "series")
         report_lines.append((0, "  Instrument models (unique): %s (%s)" % (len(ser_list), ",".join(ser_list))))
-        ser_list = self._get_unique(deploy_instruments, "series", "rtia", True)
+        ser_list = self._get_unique(deploy_instruments, "series", "iart", True)
         report_lines.append((0, "  Instrument models (RT inst agent): %s (%s)" % (len(ser_list), ",".join(ser_list))))
-        ser_list = self._get_unique(deploy_instruments, "series", "rtda", True)
+        ser_list = self._get_unique(deploy_instruments, "series", "dart", True)
         report_lines.append((0, "  Instrument models (RT data agent): %s (%s)" % (len(ser_list), ",".join(ser_list))))
 
 
-        agent_list = self._get_unique(deploy_instruments, "iatype", "rtia", True)
+        agent_list = self._get_unique(deploy_instruments, "iatype", "iart", True)
         report_lines.append((0, "  Instrument agent types: %s (%s)" % (len(agent_list), ",".join(agent_list))))
         agent_list = self._get_unique(deploy_instruments, "iatype", "ia_ready", True)
         report_lines.append((0, "    Ready types: %s (%s)" % (len(agent_list), ",".join(agent_list))))
 
-        agent_list = self._get_unique(deploy_instruments, "iatype", "rtda", True)
+        agent_list = self._get_unique(deploy_instruments, "iatype", "dart", True)
         report_lines.append((0, "  RT data agent types: %s (%s)" % (len(agent_list), ",".join(agent_list))))
 
         serpa_list = self._get_unique(deploy_instruments, "series_patype")

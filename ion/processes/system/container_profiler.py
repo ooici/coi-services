@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
-"""Process performing system profiling"""
+""" Process performing system profiling.
+
+    Use in the container shell with:
+      cc.spawn_process("profiler", "ion.processes.system.container_profiler", "ContainerProfiler")
+"""
 
 __author__ = 'Michael Meisinger'
 

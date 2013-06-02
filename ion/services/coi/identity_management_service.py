@@ -14,6 +14,7 @@ from uuid import uuid4
 from datetime import datetime, timedelta
 import time
 import copy
+import calendar
 
 from interface.services.coi.iidentity_management_service import BaseIdentityManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
@@ -365,7 +366,7 @@ class IdentityManagementService(BaseIdentityManagementService):
             raise NotFound("__validate_token: Token data not found")
         token_obj = token_obj[0]
         # Validate the expiration time and token status
-        current_time = time.mktime((datetime.utcnow()).timetuple())
+        current_time = calendar.timegm((datetime.utcnow()).timetuple())
         if current_time > token_obj.expires or "OPEN" != token_obj.status:
             raise BadRequest("__validate_token: access token expired or token status is invalid")
         return token_obj
@@ -389,7 +390,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         if self.find_user_info_by_id(self.__get_current_user_id())._id == merge_user_info._id:
             raise BadRequest("initiate_account_merge: current and merge accounts are the same")
         token_str = self.__generate_token()
-        expire_time = time.mktime((datetime.utcnow() + timedelta(days=2)).timetuple())  # Set token expire time
+        expire_time = calendar.timegm((datetime.utcnow() + timedelta(days=2)).timetuple())  # Set token expire time
         token = IonObject("TokenInformation", {"token_string": token_str, "expires": expire_time, "status": "OPEN", "merge_email": merge_user_email})
         self.__update_user_info_token(token)
 

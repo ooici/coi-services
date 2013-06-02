@@ -102,8 +102,9 @@ class NotificationWorker(TransformEventListener):
 
         user_ids = []
         if self.reverse_user_info:
-            log.debug("Notification worker checking for users interested in %s" % msg.type_)
             user_ids = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
+
+            log.debug("Notification worker found interested users %s" % user_ids)
 
         #------------------------------------------------------------------------------------
         # Send email to the users
@@ -132,14 +133,22 @@ class NotificationWorker(TransformEventListener):
 
         for user in users:
             notifications = []
-            notification_preferences = None
+            notifications_disabled = False
+            notifications_daily_digest = False
+
+            log.debug('load_user_info: user.variables:  %s', user.variables)
             for variable in user.variables:
                 if variable['name'] == 'notifications':
                     notifications = variable['value']
 
-                if variable['name'] == 'notification_preferences':
-                    notification_preferences = variable['value']
+                if variable['name'] == 'notifications_daily_digest':
+                    notifications_daily_digest = variable['value']
 
-            user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
+                if variable['name'] == 'notifications_disabled':
+                    notifications_disabled = variable['value']
+
+            user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications,
+                                    'notifications_daily_digest' : notifications_daily_digest, 'notifications_disabled' : notifications_disabled}
+
 
         return user_info

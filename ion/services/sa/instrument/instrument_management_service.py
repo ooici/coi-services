@@ -1571,9 +1571,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             user_id=user_id)
         if t:
             t.complete_step('ims.instrument_device_extension.container')
-        #retrieve the aggregate status for the instrument
-        status = self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
+
+        # retrieve the statuses for the instrument
+        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
                                                                                     extended_instrument.computed)
+        
+        #retrieve the aggregate status for the instrument
+        status_values = [ extended_instrument.computed.communications_status_roll_up,
+                          extended_instrument.computed.data_status_roll_up,
+                          extended_instrument.computed.location_status_roll_up,
+                          extended_instrument.computed.power_status_roll_up  ]
+        status = self.agent_status_builder._crush_status_list(status_values)
+
         log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
         if t:
             t.complete_step('ims.instrument_device_extension.rollup')
@@ -1820,15 +1829,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                     #    continue
                     #found_association = True
                     # no need to query devices from DB, just find in existing list -- but order with index of portal
-                    found_instrument = False
+#                    found_instrument = False
                     for j in xrange(len(extended_platform.instrument_devices)):
                         if extended_platform.instrument_devices[j]._id == a.o:
-                            found_instrument = True
+#                            found_instrument = True
                             extended_platform.portal_instruments[i] = extended_platform.instrument_devices[j]
                             extended_platform.computed.portal_status.value[i] = extended_platform.computed.instrument_status.value[j] if statuses else None
                             break
-                    if not found_instrument:
-                        log.warn('portal device %s of PlatformDevice %s not found in instrument_device list', a.o, platform_device_id)
+#                    if not found_instrument:
+#                        log.warn('portal device %s of PlatformDevice %s not found in instrument_device list', a.o, platform_device_id)
         log.debug("Building network rollups")
         rollx_builder = RollXBuilder(self)
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)

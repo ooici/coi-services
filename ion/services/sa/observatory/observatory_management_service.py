@@ -787,59 +787,79 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    An object with the specified observatory_id does not exist
         """
 
-        if not site_id:
-            raise BadRequest("The site_id parameter is empty")
-
-        extended_resource_handler = ExtendedResourceContainer(self)
-
-        extended_site = extended_resource_handler.create_extended_resource_container(
-            extended_resource_type=OT.SiteExtension,
-            resource_id=site_id,
-            computed_resource_type=OT.SiteComputedAttributes,
-            ext_associations=ext_associations,
-            ext_exclude=ext_exclude,
-            user_id=user_id)
-
-
-        RR2 = EnhancedResourceRegistryClient(self.RR)
-        RR2.cache_predicate(PRED.hasModel)
-
-        log.debug("Getting status of Site instruments.")
-        a, b =  self._get_instrument_states(extended_site.instrument_devices)
-        extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
-
-        log.debug("Building list of model objs")
-        # lookup all hasModel predicates
-        # lookup is a 2d associative array of [subject type][subject id] -> object id
-        lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
-        for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
-            lookup[a.st][a.s] = a.o
-
-
-        def retrieve_model_objs(rsrc_list, object_type):
-        # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
-        # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
-        #  look up all the model ids, then create the proper output
-            model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
-            model_uniq = list(set([m for m in model_list if m is not None]))
-            model_objs = self.RR2.read_mult(model_uniq)
-            model_dict = dict(zip(model_uniq, model_objs))
-            return [model_dict.get(m) for m in model_list]
-
-        extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
-        extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
-
-        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients, instruments=extended_site.instrument_devices, instrument_status=extended_site.computed.instrument_status.value)
-
-        this_device_id = None
         try:
-            this_device_id = RR2.find_object(site_id, predicate=PRED.hasDevice, id_only=True)
-        except NotFound:
-            pass
+            if not site_id:
+                raise BadRequest("The site_id parameter is empty")
 
-        return extended_site, RR2, this_device_id
+            extended_resource_handler = ExtendedResourceContainer(self)
+
+            extended_site = extended_resource_handler.create_extended_resource_container(
+                extended_resource_type=OT.SiteExtension,
+                resource_id=site_id,
+                computed_resource_type=OT.SiteComputedAttributes,
+                ext_associations=ext_associations,
+                ext_exclude=ext_exclude,
+                user_id=user_id)
 
 
+            RR2 = EnhancedResourceRegistryClient(self.RR)
+            RR2.cache_predicate(PRED.hasModel)
+
+            log.debug("Getting status of Site instruments.")
+            a, b =  self._get_instrument_states(extended_site.instrument_devices)
+            extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
+
+            log.debug("Building list of model objs")
+            # lookup all hasModel predicates
+            # lookup is a 2d associative array of [subject type][subject id] -> object id
+            lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
+            for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
+                lookup[a.st][a.s] = a.o
+
+
+            def retrieve_model_objs(rsrc_list, object_type):
+            # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
+            # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
+            #  look up all the model ids, then create the proper output
+                model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
+                model_uniq = list(set([m for m in model_list if m is not None]))
+                model_objs = self.RR2.read_mult(model_uniq)
+                model_dict = dict(zip(model_uniq, model_objs))
+                return [model_dict.get(m) for m in model_list]
+
+            extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
+            extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
+
+            extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients, instruments=extended_site.instrument_devices, instrument_status=extended_site.computed.instrument_status.value)
+
+            this_device_id = None
+            try:
+                this_device_id = RR2.find_object(site_id, predicate=PRED.hasDevice, id_only=True)
+            except NotFound:
+                pass
+
+            # have portals but need to reduce to appropriate subset...
+            _,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_site.sites], id_only=True)
+            for a in associations:
+                if a.p==PRED.hasDevice:
+                    if a.ot not in (RT.InstrumentDevice, RT.PlatformDevice):
+                        log.warn('unexpected association Site %s hasDevice %s %s (was not InstrumentDevice or PlatformDevice)', a.s, a.ot, a.o)
+            log.debug('subsites of %s have %d hasDevice associations', site_id, len(associations))
+            extended_site.portal_instruments = [None]*len(extended_site.sites)
+            extended_site.computed.portal_status = ComputedListValue(value=[None]*len(extended_site.sites), status=ComputedValueAvailability.PROVIDED if extended_site.computed.instrument_status.value else ComputedValueAvailability.NOTAVAILABLE)
+            for i in xrange(len(extended_site.sites)):
+                for a in associations:
+                    if a.p==PRED.hasDevice and a.ot in (RT.InstrumentDevice, RT.PlatformDevice) and a.s==extended_site.sites[i]._id:
+                        for j in xrange(len(extended_site.instrument_devices)):
+                            if extended_site.instrument_devices[j]._id == a.o:
+                                extended_site.portal_instruments[i] = extended_site.instrument_devices[j]
+                                extended_site.computed.portal_status.value[i] = extended_site.computed.instrument_status.value[j] if extended_site.computed.instrument_status.value else None
+                                break
+
+            return extended_site, RR2, this_device_id
+        except:
+            log.error('failed', exc_info=True)
+            raise
 
     def _get_hierarchy_devices_sites(self, a_site_id, RR2):
         log.debug("beginning related resources crawl for subsites")
@@ -1165,29 +1185,26 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             'skip': 0
         }
 
-        # set org members from the ION org
-        ion_org = self.clients.org_management.find_org()
-        if org_id == ion_org._id:
 
-            # clients.resource_registry may return us the container's resource_registry instance
-            self._rr = self.clients.resource_registry
-            log.debug("get_marine_facility_extension: self._rr:  %s ", str(self._rr))
+        # clients.resource_registry may return us the container's resource_registry instance
+        self._rr = self.clients.resource_registry
 
-            actors_list = self.clients.org_management.find_enrolled_users(org_id)
-            log.debug("get_marine_facility_extension: actors_list:  %s ", str(actors_list))
-            for actor in actors_list:
-                log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
-                user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
-                if user_info_objs:
-                    log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
-                    extended_org.members.append( user_info_objs[0] )
+        # extended object contains list of member actors, so need to change to user info
+        actors_list = extended_org.members
+        user_list = []
+        for actor in actors_list:
+            log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
+            user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
+            if user_info_objs:
+                log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
+                user_list.append( user_info_objs[0] )
+
+        extended_org.members = user_list
 
 
         #Convert Negotiations to OrgUserNegotiationRequest
         extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
         extended_org.closed_requests = self._convert_negotiations_to_requests(extended_org, extended_org.closed_requests)
-
-
 
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id (model)

@@ -12,7 +12,7 @@ import sys
 if sys.platform == 'darwin':
     os.environ['C_INCLUDE_PATH'] = '/usr/local/include'
 
-version = '2.0.45-dev'
+version = '2.0.47-dev'
 
 setup(  name = 'coi-services',
         version = version,
@@ -37,7 +37,7 @@ setup(  name = 'coi-services',
             'python-dateutil==1.5',
             'WebTest==1.4.0',
             'seawater==2.0.1',
-            'pygsw==0.0.6',
+            'pygsw==0.0.9',
             'matplotlib==1.1.1',
             'Pydap==3.1.RC1',
             'netCDF4>=1.0',
@@ -54,3 +54,4 @@ setup(  name = 'coi-services',
             coverage = ion.util.pydap.handlers.coverage:Handler
         """,
      )
+

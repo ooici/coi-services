@@ -93,6 +93,7 @@ class InstrumentAgentEvent(BaseEnum):
     LOST_CONNECTION = ResourceAgentEvent.LOST_CONNECTION
     AUTORECONNECT = ResourceAgentEvent.AUTORECONNECT
     GET_RESOURCE_SCHEMA = ResourceAgentEvent.GET_RESOURCE_SCHEMA
+    CHANGE_STATE_ASYNC = ResourceAgentEvent.CHANGE_STATE_ASYNC
 
 class InstrumentAgentCapability(BaseEnum):
     INITIALIZE = ResourceAgentEvent.INITIALIZE
@@ -487,6 +488,23 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_done(self, *args, **kwargs):
         return (ResourceAgentState.COMMAND, None)
+
+    def _handler_state_change_async(self, *args, **kwargs):
+        try:
+            next_state = args[0]
+        except KeyError:
+            log.error('_handler_state_change_async did not recieve required state parameter.')
+            return (None, None)
+        
+        if next_state not in [
+            InstrumentAgentState.CALIBRATE,
+            InstrumentAgentState.BUSY,
+            InstrumentAgentState.COMMAND,
+            InstrumentAgentState.STREAMING,
+            InstrumentAgentState.TEST]:
+            log.error('_handler_state_change_async: invalid async state change: %s', next_state)
+            next_state = None
+        return (next_state, None)
 
     ##############################################################
     # UNINITIALIZED event handlers.
@@ -1053,10 +1071,21 @@ class InstrumentAgent(ResourceAgent):
         Driver initiated agent FSM event.
         """
         try:
-            self._fsm.on_event(val)
+            if isinstance(val,str):
+                agt_evt = val
+                args = []
+                kwargs = {}
+            elif isinstance(val, dict):
+                agt_evt = val['event']
+                args = val.get('args',[])
+                kwargs = val.get('kwargs',{})
+            else:
+                raise Exception('Invalid async agent event type.')
+                
+            self._fsm.on_event(agt_evt, *args, **kwargs)
             
         except:
-            log.warning('Instrument agent %s error processing asynchronous agent event %s', self.id, val)
+            log.warning('Instrument agent %s error processing asynchronous agent event %s', self.id, str(val))
 
 
     ##############################################################
@@ -1113,6 +1142,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.CHANGE_STATE_ASYNC, self._handler_state_change_async)
         
         # STREAMING state event handlers.
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.RESET, self._handler_streaming_reset)
@@ -1123,6 +1153,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.CHANGE_STATE_ASYNC, self._handler_state_change_async)
         
         # TEST state event handlers.
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1132,6 +1163,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.DONE, self._handler_done)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.CHANGE_STATE_ASYNC, self._handler_state_change_async)
         
         # CALIBRATE state event handlers.
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1141,6 +1173,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.DONE, self._handler_done)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.CHANGE_STATE_ASYNC, self._handler_state_change_async)
                 
         # BUSY state event handlers.
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1150,6 +1183,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.DONE, self._handler_done)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.CHANGE_STATE_ASYNC, self._handler_state_change_async)
 
         # DIRECT_ACCESS state event handlers.
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
