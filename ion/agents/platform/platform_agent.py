@@ -787,7 +787,7 @@ class PlatformAgent(ResourceAgent):
             log.warning("%r: No agent config found in agent config.", self._platform_id)
         else:
             self.resource_id = agent_info['resource_id']
-            log.debug("%r: resource_id set to %r", self.resource_id, self.resource_id)
+            log.debug("%r: resource_id set to %r", self._platform_id, self.resource_id)
 
         stream_configs = self.CFG.get('stream_config', None)
         if stream_configs is None:
