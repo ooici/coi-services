@@ -33,9 +33,14 @@ class TestConversations(IonIntegrationTestCase):
 
         # give at least 2 seconds for the persister to save in the repository
         # test may fail if it does not wait long enough for the persister
-        time.sleep(2)
+        no_of_conv = 0
+        retried = 0
 
-        # assert that the 2 messages have been persisted
-        no_of_conv = len(ds.list_objects())
+        while (no_of_conv != 2 and retried < 5):
+            time.sleep(2)
+            # assert that the 2 messages have been persisted
+            no_of_conv = len(ds.list_objects())
+            retried = retried + 1
+
         self.assertEquals(no_of_conv, 2)
 
