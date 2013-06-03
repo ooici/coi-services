@@ -755,15 +755,15 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s for s in site_children.keys()])
             site_status_dict = dict(zip(site_children.keys(), site_status))
             log.debug('get_sites_devices_status  site_status_dict:   %s ', site_status_dict)
-
             result_dict["site_aggregate_status"] = site_status_dict
 
-            log.debug("calculate device aggregate status")
-            inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
-                           for k in all_device_statuses.keys()]
-            device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
-            log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
-            result_dict["device_aggregate_status"] = device_agg_status_dict
+            if include_devices:
+                log.debug("calculate device aggregate status")
+                inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
+                               for k in all_device_statuses.keys()]
+                device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
+                log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
+                result_dict["device_aggregate_status"] = device_agg_status_dict
 
 
         return result_dict
