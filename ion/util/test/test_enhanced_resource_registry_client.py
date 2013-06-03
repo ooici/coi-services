@@ -609,7 +609,7 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
 
         self.RR2.cache_predicate(PRED.hasModel)
 
-        self.assertTrue(self.RR2.has_cached_prediate(PRED.hasModel))
+        self.assertTrue(self.RR2.has_cached_predicate(PRED.hasModel))
         self.rr.find_associations.assert_called_once_with(predicate=PRED.hasModel, id_only=False)
 
         # object searches that should return 0, 0, 1 results

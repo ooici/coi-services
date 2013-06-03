@@ -183,7 +183,7 @@ class AgentConfigurationBuilder(object):
                                  str(self.agent_instance_obj.agent_process_id))
 
         # fetch caches just in time
-        if any([not self.RR2.has_cached_prediate(x) for x in self._predicates_to_cache()]):
+        if any([not self.RR2.has_cached_predicate(x) for x in self._predicates_to_cache()]):
             self._update_cached_predicates()
 
         if any([not self.RR2.has_cached_resource(x) for x in self._resources_to_cache()]):
