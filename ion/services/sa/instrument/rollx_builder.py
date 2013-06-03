@@ -32,7 +32,7 @@ class RollXBuilder(object):
 
 
     def get_toplevel_platformsite(self, site_id):
-        if not self.RR2.has_cached_prediate(PRED.hasSite):
+        if not self.RR2.has_cached_predicate(PRED.hasSite):
             self.RR2.cache_predicate(PRED.hasSite)
 
         parent_ids = self.RR2.find_platform_site_ids_by_platform_site_using_has_site(site_id)
@@ -47,7 +47,7 @@ class RollXBuilder(object):
         """
         return the parent nodes of this network node, including the given node
         """
-        if not self.RR2.has_cached_prediate(PRED.hasNetworkParent):
+        if not self.RR2.has_cached_predicate(PRED.hasNetworkParent):
             self.RR2.cache_predicate(PRED.hasNetworkParent)
 
         def get_h(acc, some_id):
@@ -60,7 +60,7 @@ class RollXBuilder(object):
         return get_h([], site_id)
 
     def get_toplevel_network_node(self, device_id):
-        if not self.RR2.has_cached_prediate(PRED.hasNetworkParent):
+        if not self.RR2.has_cached_predicate(PRED.hasNetworkParent):
             self.RR2.cache_predicate(PRED.hasNetworkParent)
 
         parent_ids = self.RR2.find_platform_device_ids_of_platform_device_using_has_network_parent(device_id)
@@ -82,7 +82,7 @@ class RollXBuilder(object):
           and site_ancestors is a dict mapping all site ids to a list of their hasSite children.
         """
 
-        if not self.RR2.has_cached_prediate(PRED.hasSite):
+        if not self.RR2.has_cached_predicate(PRED.hasSite):
             self.RR2.cache_predicate(PRED.hasSite)
 
         full_list = [site_id]
@@ -107,7 +107,7 @@ class RollXBuilder(object):
           and device_ancestors is a dict mapping all device ids to a list of their children as per
         """
 
-        if not self.RR2.has_cached_prediate(PRED.hasNetworkParent):
+        if not self.RR2.has_cached_predicate(PRED.hasNetworkParent):
             self.RR2.cache_predicate(PRED.hasNetworkParent)
 
         full_list = [device_id]
