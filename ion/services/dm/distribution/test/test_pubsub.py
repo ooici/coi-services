@@ -362,6 +362,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
         subscriber = StandaloneStreamSubscriber('second_queue', verify)
         subscriber.start()
+        self.addCleanup(subscriber.stop)
 
         self.pubsub_management.move_subscription(subscription_id, exchange_name='second_queue')
 
