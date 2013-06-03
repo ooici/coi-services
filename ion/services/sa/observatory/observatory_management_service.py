@@ -736,24 +736,35 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             site_id = parent_resource_id
 
         result_dict = {}
+
+        site_resources, site_children = self.outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
+        result_dict["site_resources"] = site_resources
+        result_dict["site_children"] = site_children
         if include_status:
-            status_rollups = self.outil.get_status_roll_ups(parent_resource_id, parent_resource.type_, include_structure=True)
-            struct_dict = status_rollups.pop("_system") if "_system" in status_rollups else {}
+            RR2 = EnhancedResourceRegistryClient(self.RR)
+            RR2.cache_predicate(PRED.hasSite)
+            RR2.cache_predicate(PRED.hasDevice)
+            #add code to grab the master status table to pass in to the get_status_roll_ups calc
+            all_device_statuses = self._get_master_status_table( RR2, site_children.keys())
+            log.debug('get_sites_devices_status site master_status_table:   %s ', all_device_statuses)
+            result_dict["site_status"] = all_device_statuses
 
-            result_dict["site_resources"] = struct_dict.get("sites", {})
-            result_dict["site_children"] = struct_dict.get("ancestors", {})
+            #create the aggreagate_status for each device and site
+
+            log.debug("calculate site aggregate status")
+            site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s for s in site_children.keys()])
+            site_status_dict = dict(zip(site_children.keys(), site_status))
+            log.debug('get_sites_devices_status  site_status_dict:   %s ', site_status_dict)
+            result_dict["site_aggregate_status"] = site_status_dict
+
             if include_devices:
-                site_devices = struct_dict.get("devices", {})
-                result_dict["site_devices"] = site_devices
-                device_ids = [tuple_list[0][1] for tuple_list in site_devices.values() if tuple_list]
-                device_objs = self.RR.read_mult(device_ids)
-                result_dict["device_resources"] = dict(zip(device_ids, device_objs))
-            result_dict["site_status"] = status_rollups
+                log.debug("calculate device aggregate status")
+                inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
+                               for k in all_device_statuses.keys()]
+                device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
+                log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
+                result_dict["device_aggregate_status"] = device_agg_status_dict
 
-        else:
-            site_resources, site_children = self.outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
-            result_dict["site_resources"] = site_resources
-            result_dict["site_children"] = site_children
 
         return result_dict
 
@@ -1182,29 +1193,26 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             'skip': 0
         }
 
-        # set org members from the ION org
-        ion_org = self.clients.org_management.find_org()
-        if org_id == ion_org._id:
 
-            # clients.resource_registry may return us the container's resource_registry instance
-            self._rr = self.clients.resource_registry
-            log.debug("get_marine_facility_extension: self._rr:  %s ", str(self._rr))
+        # clients.resource_registry may return us the container's resource_registry instance
+        self._rr = self.clients.resource_registry
 
-            actors_list = self.clients.org_management.find_enrolled_users(org_id)
-            log.debug("get_marine_facility_extension: actors_list:  %s ", str(actors_list))
-            for actor in actors_list:
-                log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
-                user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
-                if user_info_objs:
-                    log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
-                    extended_org.members.append( user_info_objs[0] )
+        # extended object contains list of member actors, so need to change to user info
+        actors_list = extended_org.members
+        user_list = []
+        for actor in actors_list:
+            log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
+            user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
+            if user_info_objs:
+                log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
+                user_list.append( user_info_objs[0] )
+
+        extended_org.members = user_list
 
 
         #Convert Negotiations to OrgUserNegotiationRequest
         extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
         extended_org.closed_requests = self._convert_negotiations_to_requests(extended_org, extended_org.closed_requests)
-
-
 
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id (model)

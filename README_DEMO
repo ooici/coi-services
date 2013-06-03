@@ -1,7 +1,7 @@
 This file contains hints for running a demo of OOI ION Release 2 out of this repository.
 
 Prerequisites:
-=================
+==============
 
 - Git repos in $CODE_DIR:
   $CODE_DIR/pyon
@@ -18,40 +18,39 @@ Prepare for start:
 > bin/buildout
 > bin/generate_interfaces
 
-Start the services container:
-> bin/pycc -fc -r res/deploy/r2deploy.yml
+Start the services container with Container UI:
+> bin/pycc -fc -r res/deploy/r2deploy.yml --mx
+
+Preload ALPHA setup (with UI, OOI assets, demo resources):
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_alpha.yml
+
+Start the UI (in ion-ux, virtualenv prepared as documented):
+> python main.py
+
+
+Demo steps (e.g. ALPHA preload):
+===========================================
+
+Go to "CI Bench Test Facility", choose "Platforms", select "Low Power JBox - RSN Bench Testing"
+- From commands menu, select command
+- Start platform agent, then initialize, go_active, run
+
+Go to "CI Bench Test Facility", choose "Instruments", select "CTD Simulator 1 Demo"
+- From commands menu, select command
+- Start instrument agent, then initialize, go_active, run
+
+
+Individual preload commands:
+============================
 
 Preload system resources (base demo setup, without OOI resources or UI)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO attachments=res/preload/r2_ioc/attachments
 
 Preload OOI assets (bulk mode)
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=X assets=res/preload/r2_ioc/ooi_assets loadooi=True bulk=True
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load assets=res/preload/r2_ioc/ooi_assets loadooi=True bulk=True
 
 Preload system UI only
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable'
-
-Start the UI (in ion-ux, virtualenv prepared as documented):
-> python main.py
-
-To restart services container (without full process relaunch):
-> bin/pycc -r res/deploy/r2deploy.yml bootmode=restart
-
-To show debugging UI:
-> bin/pycc --mx
-or in the shell:
-><> start_mx()
-
-
-Demo steps (require BETA,R2_DEMO):
-==================================
-
-Go to "Beta Example Facility", choose "Platforms", select "Beta Demonstration Platform Device"
-- From commands menu, select command
-- Start platform agent, then initialize, go_active, run
-
-Go to "Beta Example Facility", choose "Instruments", select "CTD Simulator 1 Demo"
-- From commands menu, select command
-- Start instrument agent, then initialize, go_active, run
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path='https://userexperience.oceanobservatories.org/database-exports/Candidates'
 
 
 Variant steps:
@@ -64,25 +63,34 @@ Preload system with UI (without OOI assets)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
 
 OR: Preload system OOI assets only, create User/Org on the fly; bulk+debug mode not ready for production). Exclude data product etc
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=X loadooi=True assets=res/preload/r2_ioc/ooi_assets bulk=True debug=True ooiexclude=DataProduct,DataProductLink,Deployment,Workflow,WorkflowDefinition
-
-OR: Preload system with UI and OOI assets, bulk mode not ready for production)
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True loadooi=True bulk=True
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load loadooi=True assets=res/preload/r2_ioc/ooi_assets bulk=True debug=True ooiexclude=DataProduct,DataProductLink,Deployment,Workflow,WorkflowDefinition
 
 OR: Run preload from file (not GoogleDoc master):
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO path=res/preload/r2_ioc/R2PreloadedResources.xlsx ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
 
-OR: Load OOI assets, filter to only Global Papa:
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO path=master ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True loadooi=True ooifilter=GP
-
 Delete OOI assets for a retry:
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=deleteooi
 
-Reload OOI assets, filter to only Global Papa:
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=X path=master assets=res/preload/r2_ioc/ooi_assets loadooi=True
+To restart services container (without full process relaunch):
+> bin/pycc -r res/deploy/r2deploy.yml bootmode=restart
 
-Load OOI assets based on a preload script file
+To show debugging UI:
+> bin/pycc --mx
+or in the shell:
+><> start_mx()
+
+
+Load OOI assets using preload scripts:
+======================================
+
+Production OOI load:
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_load_config.yml
+
+Development OOI load (debug mode, bulk load)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/dev_ooi_load.yml
+
+Development OOI reload (deleteooi, debug mode, bulk load)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/dev_ooi_reload.yml
 
 
 Loading Instrument specific resources (requires BETA):
@@ -90,3 +98,9 @@ Loading Instrument specific resources (requires BETA):
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=CTDBP attachments=res/preload/r2_ioc/attachments
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=PREST attachments=res/preload/r2_ioc/attachments
 
+
+Datastore work:
+===============
+
+Dump the contents of the resource registry as XLSX file in ./interface/resources_<timestamp>.
+> bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=dumpres

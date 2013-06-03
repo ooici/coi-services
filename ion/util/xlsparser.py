@@ -18,6 +18,8 @@ class XLSParser(object):
         for sheet_name, sheet in sheets.iteritems():
             csv_doc = self.dumps_csv(sheet)
             csv_docs[sheet_name] = csv_doc.splitlines()
+#            csv_doc = self.dumps_csv_list(sheet)
+#            csv_docs[sheet_name] = csv_doc
         return csv_docs
 
     def extract_worksheets(self, file_content):
@@ -41,6 +43,17 @@ class XLSParser(object):
         csv_doc = stream.getvalue()
         stream.close()
         return csv_doc
+
+    def dumps_csv_list(self, sheet):
+        cvs_lines = []
+        for line in sheet:
+            stream = StringIO.StringIO()
+            csvout = csv.writer(stream, delimiter=',', doublequote=False, escapechar='\\')
+            csvout.writerow(self.utf8ize(line))
+            csv_doc = stream.getvalue()
+            stream.close()
+            cvs_lines.append(csv_doc)
+        return cvs_lines
 
     def tupledate_to_isodate(self, tupledate):
         (y,m,d, hh,mm,ss) = tupledate

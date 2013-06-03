@@ -26,9 +26,9 @@ import time
 import elasticpy as ep
 import heapq
 
-SEARCH_BUFFER_SIZE=1024
 
 class DiscoveryService(BaseDiscoveryService):
+    SEARCH_BUFFER_SIZE=CFG.get_safe('service.discovery.search_buffer_size', 1048576)
 
     """
     class docstring
@@ -1124,13 +1124,13 @@ class DiscoveryService(BaseDiscoveryService):
         # Tier-2 Query
         #================================================
         
-        query_queue.append(self.query_request(query.query,limit=SEARCH_BUFFER_SIZE, id_only=True))
+        query_queue.append(self.query_request(query.query,limit=self.SEARCH_BUFFER_SIZE, id_only=True))
         
         #==================
         # Intersection
         #==================
         for q in query['and']:
-            query_queue.append(self.query_request(q, limit=SEARCH_BUFFER_SIZE, id_only=True))
+            query_queue.append(self.query_request(q, limit=self.SEARCH_BUFFER_SIZE, id_only=True))
         while len(query_queue) > 1:
             tmp = self.intersect(query_queue.pop(), query_queue.pop())
             query_queue.append(tmp)
@@ -1139,7 +1139,7 @@ class DiscoveryService(BaseDiscoveryService):
         # Union
         #==================
         for q in query['or']:
-            query_queue.append(self.query_request(q, limit=SEARCH_BUFFER_SIZE, id_only=True))
+            query_queue.append(self.query_request(q, limit=self.SEARCH_BUFFER_SIZE, id_only=True))
         while len(query_queue) > 1:
             tmp = self.union(query_queue.pop(), query_queue.pop())
             query_queue.append(tmp)
@@ -1164,7 +1164,7 @@ class DiscoveryService(BaseDiscoveryService):
         hits = response['hits']['hits']
        
         if len(hits) > 0:
-            if len(hits) >= SEARCH_BUFFER_SIZE:
+            if len(hits) >= self.SEARCH_BUFFER_SIZE:
                 log.warning("Query results exceeded search buffer limitations")
                 self.raise_search_buffer_exceeded()
             if id_only:

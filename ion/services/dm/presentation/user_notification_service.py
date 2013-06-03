@@ -204,10 +204,9 @@ class UserNotificationService(BaseUserNotificationService):
         @param process_batch_key str
         """
 
+
         def process(event_msg, headers):
             self.end_time = get_ion_ts()
-
-            log.debug("process_batch being called with start_time = %s, end_time = %s", self.start_time, self.end_time)
 
             # run the process_batch() method
             self.process_batch(start_time=self.start_time, end_time=self.end_time)
@@ -220,7 +219,6 @@ class UserNotificationService(BaseUserNotificationService):
         self.batch_processing_subscriber = EventSubscriber(
             event_type="TimerEvent",
             origin=process_batch_key,
-            queue_name='user_notification',
             callback=process
         )
         self.add_endpoint(self.batch_processing_subscriber)
@@ -756,13 +754,13 @@ class UserNotificationService(BaseUserNotificationService):
         for user_id, value in self.user_info.iteritems():
 
             notifications = value['notifications']
-            notification_preferences = value['notification_preferences']
+            notifications_disabled = value['notifications_disabled']
+            notifications_daily_digest = value['notifications_daily_digest']
+
 
             # Ignore users who do NOT want batch notifications or who have disabled the delivery switch
             # However, if notification preferences have not been set for the user, use the default mechanism and do not bother
-            if notification_preferences:
-                if notification_preferences.delivery_mode != NotificationDeliveryModeEnum.BATCH \
-                    or not notification_preferences.delivery_enabled:
+            if notifications_disabled or not notifications_daily_digest:
                     continue
 
             events_for_message = []
@@ -770,25 +768,24 @@ class UserNotificationService(BaseUserNotificationService):
             search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (start_time, end_time)
 
             for notification in notifications:
-
                 # If the notification request has expired, then do not use it in the search
                 if notification.temporal_bounds.end_datetime:
                     continue
 
                 if notification.origin:
-                    search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
+                    search_origin = ' "origin" is "%s" from "events_index"' % notification.origin
                 else:
-                    search_origin = 'search "origin" is "*" from "events_index"'
+                    search_origin = ' "origin" is "*" from "events_index"'
 
                 if notification.origin_type:
-                    search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
+                    search_origin_type= ' "origin_type" is "%s" from "events_index"' % notification.origin_type
                 else:
-                    search_origin_type= 'search "origin_type" is "*" from "events_index"'
+                    search_origin_type= ' "origin_type" is "*" from "events_index"'
 
                 if notification.event_type:
-                    search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
+                    search_event_type = ' "type_" is "%s" from "events_index"' % notification.event_type
                 else:
-                    search_event_type = 'search "type_" is "*" from "events_index"'
+                    search_event_type = ' "type_" is "*" from "events_index"'
 
                 search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
 
@@ -1057,18 +1054,25 @@ class UserNotificationService(BaseUserNotificationService):
 
         for user in users:
             notifications = []
-            notification_preferences = None
+            notifications_disabled = False
+            notifications_daily_digest = False
+
 
             for variable in user.variables:
                 if type(variable) is dict and variable.has_key('name'):
                     if variable['name'] == 'notifications':
                         notifications = variable['value']
 
-                    if variable['name'] == 'notification_preferences':
-                        notification_preferences = variable['value']
+                    if variable['name'] == 'notifications_daily_digest':
+                        notifications_daily_digest = variable['value']
+
+                    if variable['name'] == 'notifications_disabled':
+                        notifications_disabled = variable['value']
+
                 else:
                     log.warning('Invalid variables attribute on UserInfo instance. UserInfo: %s', user)
 
-            user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
+            user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications,
+                                    'notifications_daily_digest' : notifications_daily_digest, 'notifications_disabled' : notifications_disabled}
 
         return user_info
