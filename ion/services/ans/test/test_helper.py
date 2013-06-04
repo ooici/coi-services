@@ -300,31 +300,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
     def create_google_dt_data_process_definition(self):
-
-        #First look to see if it exists and if not, then create it
-        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
-        if len(dpd) > 0:
-            return dpd[0]
-
-        # Data Process Definition
-        log.debug("Create data process definition GoogleDtTransform")
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-            name='google_dt_transform',
-            description='Convert data streams to Google DataTables',
-            module='ion.processes.data.transforms.viz.google_dt',
-            class_name='VizTransformGoogleDT')
-        try:
-            procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except Exception as ex:
-            self.fail("failed to create new VizTransformGoogleDT data process definition: %s" %ex)
-
-        pdict_id = self.datasetclient.read_parameter_dictionary_by_name('google_dt', id_only=True)
-
-        # create a stream definition for the data from the
-        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
-
-        return procdef_id
+        return helper_create_google_dt_data_process_definition(self.container)
 
 
     def validate_google_dt_transform_results(self, results):
@@ -463,21 +439,74 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         return
 
     def create_google_dt_workflow_def(self):
-        # Check to see if the workflow defnition already exist
-        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
 
-        if len(workflow_def_ids) > 0:
-            workflow_def_id = workflow_def_ids[0]
-        else:
-            # Build the workflow definition
-            workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_Google_DT',description='Convert stream data to Google Datatable')
+        return helper_create_google_dt_workflow_def(self.container)
 
-            #Add a transformation process definition
-            google_dt_procdef_id = self.create_google_dt_data_process_definition()
-            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id)
-            workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
-            #Create it in the resource registry
-            workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
 
-        return workflow_def_id
+def helper_create_google_dt_data_process_definition(container):
+
+    from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+    rrclient = ResourceRegistryServiceClient(node=container.node)
+
+    #First look to see if it exists and if not, then create it
+    dpd,_ = rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
+    if len(dpd) > 0:
+        return dpd[0]
+
+    # Data Process Definition
+    log.debug("Create data process definition GoogleDtTransform")
+    dpd_obj = IonObject(RT.DataProcessDefinition,
+        name='google_dt_transform',
+        description='Convert data streams to Google DataTables',
+        module='ion.processes.data.transforms.viz.google_dt',
+        class_name='VizTransformGoogleDT')
+
+    from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+    dataprocessclient = DataProcessManagementServiceClient(node=container.node)
+
+    procdef_id = dataprocessclient.create_data_process_definition(dpd_obj)
+
+    from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+    datasetclient = DatasetManagementServiceClient(node=container.node)
+
+    pdict_id = datasetclient.read_parameter_dictionary_by_name('google_dt', id_only=True)
+
+    from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+    pubsubclient = PubsubManagementServiceClient(node=container.node)
+
+    # create a stream definition for the data from the
+    stream_def_id = pubsubclient.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
+    dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
+
+    return procdef_id
+
+
+def helper_create_google_dt_workflow_def(container):
+
+    from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+    rrclient = ResourceRegistryServiceClient(node=container.node)
+
+    # Check to see if the workflow defnition already exist
+    workflow_def_ids,_ = rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+
+    if len(workflow_def_ids) > 0:
+        workflow_def_id = workflow_def_ids[0]
+    else:
+        # Build the workflow definition
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_Google_DT',description='Convert stream data to Google Datatable')
+
+        #Add a transformation process definition
+        google_dt_procdef_id = helper_create_google_dt_data_process_definition(container)
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id)
+        workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+        #Create it in the resource registry
+        from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
+        workflowclient = WorkflowManagementServiceClient(node=container.node)
+
+        workflow_def_id = workflowclient.create_workflow_definition(workflow_def_obj)
+
+    return workflow_def_id
+
+

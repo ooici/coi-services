@@ -932,7 +932,7 @@ class DatasetMonitor(object):
         self.dataset_id = dataset_id
         self.event = Event()
 
-        self.es = EventSubscriber(event_type=OT.DatasetModiied, callback=self.cb, origin=self.dataset_id, auto_delete=True)
+        self.es = EventSubscriber(event_type=OT.DatasetModified, callback=self.cb, origin=self.dataset_id, auto_delete=True)
         self.es.start()
     
     def cb(self, *args, **kwargs):

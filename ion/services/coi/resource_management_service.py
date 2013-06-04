@@ -7,6 +7,7 @@ import re
 from pyon.agent.agent import ResourceAgentClient
 from pyon.core.bootstrap import get_service_registry
 from pyon.public import log, IonObject, iex, NotFound, BadRequest, PRED
+from pyon.core.exception import Unauthorized
 from pyon.util.config import Config
 from pyon.util.containers import get_safe, named_any, get_ion_ts, is_basic_identifier
 
@@ -596,9 +597,14 @@ class ResourceManagementService(BaseResourceManagementService):
             else:
                 log.error("Unknown call target expression: %s", target)
 
+        except Unauthorized as ex:
+            # No need to log as this is not an application error, however, need to pass on the exception because
+            # when called by the Service Gateway, the error message in the exception is required
+            raise ex
+
         except Exception as ex:
             log.exception("_call_target exception")
-            return None
+            raise ex  #Should to pass it back because when called by the Service Gateway, the error message in the exception is required
 
 
     def _get_call_args(self, func_arg_str, resource_id, res_type, value=None, cmd_args=None):
