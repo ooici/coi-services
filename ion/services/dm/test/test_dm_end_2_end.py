@@ -111,10 +111,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         pid = self.container.spawn_process('better_data_producer', 'ion.processes.data.example_data_producer', 'BetterDataProducer', {'process':{'stream_id':stream_id}})
         self.addCleanup(self.container.terminate_process, pid)
 
-    def launch_cc_producer(self, stream_id=''):
-        pid = self.container.spawn_process('simple_data_producer', 'ion.processes.data.example_data_producer', 'CCDataProducer', {'process': {'stream_id': stream_id}})
-        self.addCleanup(self.container.terminate_process, pid)
-
     def make_simple_dataset(self):
         '''
         Makes a stream, a stream definition and a dataset, the essentials for most of these tests
@@ -189,44 +185,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 else:
                     gevent.sleep(0.2)
 
-
-    def make_cal_dataset(self):
-        # Get a precompiled parameter dictionary with basic ctd fields
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
-        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
-
-        # Add a handful of Calibration Coefficient parameters
-        for cc in ['cc_ta0', 'cc_ta1', 'cc_ta2', 'cc_ta3', 'cc_toffset']:
-            c = ParameterContext(cc, param_type=SparseConstantType(value_encoding='float32', fill_value=-9999))
-            c.uom = '1'
-            context_ids.append(self.dataset_management.create_parameter_context(cc, c.dump()))
-
-        pdict_id = self.dataset_management.create_parameter_dictionary('calcoeff_dict', context_ids, temporal_context='time')
-        stream_def_id = self.pubsub_management.create_stream_definition('calcoeff_stream_def', parameter_dictionary_id=pdict_id)
-        stream_id, route = self.pubsub_management.create_stream('calcoeff stream %i' % self.cci, 'xp1', stream_definition_id=stream_def_id)
-        dataset_id = self.create_dataset(pdict_id)
-
-        self.cci += 1
-        return stream_id, route, stream_def_id, dataset_id
-
-    def make_manual_upload_dataset(self):
-        # Get a precompiled parameter dictionary with basic ctd fields
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
-        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
-
-        # Add a handful of Calibration Coefficient parameters
-        for cc in ['temp_hitl_qc', 'cond_hitl_qc']:
-            c = ParameterContext(cc, param_type=BooleanType())
-            c.uom = '1'
-            context_ids.append(self.dataset_management.create_parameter_context(cc, c.dump()))
-
-        pdict_id = self.dataset_management.create_parameter_dictionary('manup_dict', context_ids, temporal_context='time')
-        stream_def_id = self.pubsub_management.create_stream_definition('manup_stream_def', parameter_dictionary_id=pdict_id)
-        stream_id, route = self.pubsub_management.create_stream('manual upload stream %i' % self.cci, 'xp1', stream_definition_id=stream_def_id)
-        dataset_id = self.create_dataset(pdict_id)
-
-        self.cci += 1
-        return stream_id, route, stream_def_id, dataset_id
 
     #--------------------------------------------------------------------------------
     # Test Methods
@@ -461,83 +419,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         granule = self.data_retriever.retrieve(dataset_id)
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_almost_equal(rdt2['time'], np.arange(20))
-
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_upload_calibration_coefficients(self):
-        stream_id, route, stream_def_id, dataset_id = self.make_cal_dataset()
-        self.start_ingestion(stream_id, dataset_id)
-
-        self.launch_cc_producer(stream_id)
-
-        # Let a little data accumulate
-        monitor = DatasetMonitor(dataset_id)
-        self.addCleanup(monitor.stop)
-        monitor.event.wait(10)
-
-
-        # Verify that the CC parameters are fill value
-        with DirectCoverageAccess() as dca:
-            cov = dca.get_read_only_coverage(dataset_id)
-            for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
-                np.testing.assert_equal(cov.get_parameter_values(p, -1), -9999.)
-            cov = None
-            del cov
-
-        # Upload the calibration coefficients - this pauses ingestion, performs the upload, and resumes ingestion
-        with DirectCoverageAccess() as dca:
-            dca.upload_calibration_coefficients(dataset_id, 'test_data/testcalcoeff.csv', 'test_data/testcalcoeff.yml')
-
-        # Let a little more data accumulate
-        gevent.sleep(2)
-
-        # Verify that the CC parameters now have the correct values
-        want_vals = {
-            'cc_ta0': np.float32(1.155787e-03),
-            'cc_ta1': np.float32(2.725208e-04),
-            'cc_ta2': np.float32(-7.526811e-07),
-            'cc_ta3': np.float32(1.716270e-07),
-            'cc_toffset': np.float32(0.000000e+00)
-        }
-        with DirectCoverageAccess() as dca:
-            cov = dca.get_read_only_coverage(dataset_id)
-            for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
-                np.testing.assert_equal(cov.get_parameter_values(p, -1), want_vals[p])
-
-
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_manual_data_upload(self):
-        stream_id, route, stream_def_id, dataset_id = self.make_manual_upload_dataset()
-        self.start_ingestion(stream_id, dataset_id)
-
-        self.launch_cc_producer(stream_id)
-
-        # Let at least 20 samples accumulate
-        gevent.sleep(2)
-
-        # Verify that the HITL parameters are fill value
-        with DirectCoverageAccess() as dca:
-            cov = dca.get_read_only_coverage(dataset_id)
-            fillarr = np.array([False]*10)
-            for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
-                np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), fillarr)
-
-        # Upload the data - this pauses ingestion, performs the upload, and resumes ingestion
-        with DirectCoverageAccess() as dca:
-            dca.manual_upload(dataset_id, 'test_data/testmanualupload.csv', 'test_data/testmanualupload.yml')
-
-        # Wait a moment
-        gevent.sleep(0.5)
-
-        # Verify that the HITL parameters now have the correct values
-        want_vals = {
-            'temp_hitl_qc': np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0], dtype=bool),
-            'cond_hitl_qc': np.array([1, 0, 1, 0, 0, 0, 1, 1, 0, 0], dtype=bool)
-        }
-        with DirectCoverageAccess() as dca:
-            cov = dca.get_read_only_coverage(dataset_id)
-            for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
-                np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), want_vals[p])
-
 
     def test_retrieve_and_transform(self):
         # Make a simple dataset and start ingestion, pretty standard stuff.
