@@ -740,12 +740,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         site_resources, site_children = self.outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
         result_dict["site_resources"] = site_resources
         result_dict["site_children"] = site_children
-        if include_status:
+
+
+        all_device_statuses = {}
+        if include_devices or include_status:
             RR2 = EnhancedResourceRegistryClient(self.RR)
             RR2.cache_predicate(PRED.hasSite)
             RR2.cache_predicate(PRED.hasDevice)
-            #add code to grab the master status table to pass in to the get_status_roll_ups calc
             all_device_statuses = self._get_master_status_table( RR2, site_children.keys())
+
+        if include_status:
+
+            #add code to grab the master status table to pass in to the get_status_roll_ups calc
             log.debug('get_sites_devices_status site master_status_table:   %s ', all_device_statuses)
             result_dict["site_status"] = all_device_statuses
 
@@ -757,13 +763,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             log.debug('get_sites_devices_status  site_status_dict:   %s ', site_status_dict)
             result_dict["site_aggregate_status"] = site_status_dict
 
-            if include_devices:
-                log.debug("calculate device aggregate status")
-                inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
-                               for k in all_device_statuses.keys()]
-                device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
-                log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
-                result_dict["device_aggregate_status"] = device_agg_status_dict
+        if include_devices:
+            log.debug("calculate device aggregate status")
+            inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
+                           for k in all_device_statuses.keys()]
+            device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
+            log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
+            result_dict["device_aggregate_status"] = device_agg_status_dict
 
 
         return result_dict
