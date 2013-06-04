@@ -219,7 +219,7 @@ if __name__ == "__main__":  # pragma: no cover
             else:
                 reterr = "empty dict of ports for platform %r" % platform_id
         else:
-            reterr = "expecting a dict for platform %r. got: %s" % (platform_id, type(retval))
+            reterr = "expecting a dict {%r: ...}. got: %s" % (platform_id, type(retval))
         if reterr:
             tried[full_method_name] = reterr
             format_err(reterr)
@@ -231,8 +231,8 @@ if __name__ == "__main__":  # pragma: no cover
         retval, reterr = run(full_method_name, "dummy_platform_id")
         retval, reterr = verify_entry_in_dict(retval, reterr, "dummy_platform_id")
         if retval is not INVALID_PLATFORM_ID:
-            reterr = "expecting %r for platform %r. got: %r" % (
-                INVALID_PLATFORM_ID, "dummy_platform_id", retval)
+            reterr = "expecting dict {%r: %r}. got: %r" % (
+                "dummy_platform_id", INVALID_PLATFORM_ID, retval)
             tried[full_method_name] = reterr
             format_err(reterr)
 
