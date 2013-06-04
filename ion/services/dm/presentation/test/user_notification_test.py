@@ -982,7 +982,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create users and get the user_ids
         #----------------------------------------------------------------------------------------
 
-        # user_1  -- default notification preferences
+        # user_1  -- default notification preferences  - notifications_disabled and notifications_daily_digest are False
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@gmail.com'
@@ -1092,7 +1092,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             email_tuple = proc1.smtp_client.sent_mail.get(timeout=10)
             email_list.append(email_tuple)
 
-        self.assertEquals(len(email_list), 2)
+        self.assertEquals(len(email_list), 1)
 
         for email_tuple in email_list:
             msg_sender, msg_recipient, msg = email_tuple
