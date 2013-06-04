@@ -21,7 +21,6 @@ from ion.services.dm.inventory.data_retriever_service import DataRetrieverServic
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.util.stored_values import StoredValueManager
-from ion.util.direct_coverage_utils import DirectCoverageAccess
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType

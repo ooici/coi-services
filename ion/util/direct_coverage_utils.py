@@ -74,8 +74,8 @@ class DirectCoverageAccess(object):
 
     def pause_ingestion(self, stream_id):
         if not self._context_managed:
-            print "Warning: Pausing ingestion when not using a context manager is potentially unsafe - " \
-                  "be sure to resume ingestion for all stream ids in self._paused_streams"
+            print 'Warning: Pausing ingestion when not using a context manager is potentially unsafe - ' \
+                  'be sure to resume ingestion for all stream ids in self._paused_streams'
 
         if stream_id not in self._paused_streams:
             self.ingestion_management.pause_data_stream(stream_id, self.get_ingestion_config())
@@ -98,8 +98,8 @@ class DirectCoverageAccess(object):
 
     def get_read_only_coverage(self, dataset_id):
         if not self._context_managed:
-            print "Warning: Coverages will remain open until they are closed or go out of scope - " \
-                  "be sure to close coverage instances when you're finished working with them"
+            print 'Warning: Coverages will remain open until they are closed or go out of scope - ' \
+                  'be sure to close coverage instances when you are finished working with them'
 
         if dataset_id in self._ro_covs:
             return self._ro_covs[dataset_id]
