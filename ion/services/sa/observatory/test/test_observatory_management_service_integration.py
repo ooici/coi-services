@@ -138,44 +138,24 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         result_dict = self.OMS.get_sites_devices_status(resources.org_id, include_devices=True, include_status=True)
 
+        log.debug("RESULT DICT: %s", result_dict.keys())
         site_resources = result_dict.get("site_resources", None)
         site_children = result_dict.get("site_children", None)
-        site_devices = result_dict.get("site_devices", None)
-        device_resources = result_dict.get("device_resources", None)
         site_status = result_dict.get("site_status", None)
 
         self.assertEquals(len(site_resources), 14)
         self.assertEquals(len(site_children), 9)
-        self.assertEquals(len(site_devices), 18)
-        self.assertEquals(site_devices[resources.observatory_id], [])
-        self.assertEquals(site_devices[resources.platform_site_id][0][0], RT.PlatformSite)
-        self.assertEquals(site_devices[resources.platform_site_id][0][1], resources.platform_device_id)
-        self.assertEquals(site_devices[resources.platform_site_id][0][2], RT.PlatformDevice)
 
-        self.assertEquals(site_devices[resources.instrument_site_id][0][0], RT.InstrumentSite)
-        self.assertEquals(site_devices[resources.instrument_site_id][0][1], resources.instrument_device_id)
-        self.assertEquals(site_devices[resources.instrument_site_id][0][2], RT.InstrumentDevice)
-
-        self.assertEquals(len(device_resources), 4)
-        self.assertEquals(device_resources[resources.instrument_device_id].type_, RT.InstrumentDevice)
-
-        self.assertIsInstance(site_status[resources.org_id], dict)
-        self.assertIsInstance(site_status[resources.observatory_id], dict)
-        self.assertIsInstance(site_status[resources.platform_site_id], dict)
-        self.assertIsInstance(site_status[resources.instrument_device_id], dict)
-        self.assertEquals(set(site_status[resources.instrument_device_id].keys()), set(["agg","power","comms","data","loc"]))
 
         result_dict = self.OMS.get_sites_devices_status(resources.observatory_id, include_devices=True, include_status=True)
 
         site_resources = result_dict.get("site_resources")
         site_children = result_dict.get("site_children")
-        site_devices = result_dict.get("site_devices")
-        device_resources = result_dict.get("device_resources")
         site_status = result_dict.get("site_status")
 
         self.assertEquals(len(site_resources), 13)
         self.assertEquals(len(site_children), 8)
-        self.assertEquals(len(site_devices), 17)
+
 
     def _do_test_find_site_data_products(self, resources):
         res_dict = self.OMS.find_site_data_products(resources.org_id)
