@@ -27,6 +27,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from ion.services.dm.utility.granule_utils import time_series_domain
 
+from ion.services.ans.test.test_helper import helper_create_google_dt_workflow_def
 
 
 class VisStreamLauncher(ImmediateProcess):
@@ -122,6 +123,9 @@ class VisStreamLauncher(ImmediateProcess):
             self.container.spawn_process(name='ctd_test.' + self.data_source_name ,
                 module='ion.processes.data.ctd_stream_publisher',cls='SimpleCtdPublisher',config={'process':{'stream_id':stream_ids[0]}})
 
+        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+        if not len(workflow_def_ids):
+            helper_create_google_dt_workflow_def(self.container)
 
 
 
