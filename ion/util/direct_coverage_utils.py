@@ -20,15 +20,20 @@ from StringIO import StringIO
 
 from pyon.public import RT, PRED
 from coverage_model import utils
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from coverage_model.recovery import CoverageDoctor
 
 
 class DirectCoverageAccess(object):
     def __init__(self):
         self.ingestion_management = IngestionManagementServiceClient()
         self.resource_registry = ResourceRegistryServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
+        self.dataset_management = DatasetManagementServiceClient()
         self._paused_streams = []
         self._w_covs = {}
         self._ro_covs = {}
@@ -84,6 +89,12 @@ class DirectCoverageAccess(object):
     def get_stream_id(self, dataset_id):
         sid, _ = self.resource_registry.find_objects(dataset_id, predicate=PRED.hasStream, id_only=True)
         return sid[0] if len(sid) > 0 else None
+
+    def get_dataset_object(self, dataset_id):
+        return self.dataset_management.read_dataset(dataset_id=dataset_id)
+
+    def get_data_product_object(self, data_product_id):
+        return self.data_product_management.read_data_product(data_product_id=data_product_id)
 
     def get_read_only_coverage(self, dataset_id):
         if not self._context_managed:
@@ -151,6 +162,48 @@ class DirectCoverageAccess(object):
                         cov.set_parameter_values(n, dat[n])
                     else:
                         log.warn('Skipping column \'%s\': matching parameter not found in coverage!', n)
+
+    def get_coverage_doctor(self, dataset_id, data_product_id=None):
+        # Get the associated objects required for rebuilding
+        dset_obj = self.get_dataset_object(dataset_id)
+
+        if data_product_id is None:
+            # Go find the first data product associated with dataset_id
+            data_product_id, _ = self.resource_registry.find_subjects(object=dataset_id, predicate=PRED.hasDataset, id_only=True)
+            data_product_id = data_product_id[0] if len(data_product_id) > 0 else None
+
+        if data_product_id is None:
+            raise ValueError('Cannot find any Data Products associated with dataset_id \'{0}\''.format(dataset_id))
+
+        dprod_obj = self.get_data_product_object(data_product_id)
+
+        # Get the path to the editible coverage - also ensures ingestion is paused
+        cpth = None
+        try:
+            with self.get_editable_coverage(dataset_id) as cov:
+                cpth = cov.persistence_dir
+        except IOError, ex:
+            fs = 'Unable to open reference coverage: \''
+            if fs in ex.message:
+                cpth = ex.message[len(fs):-1]
+            else:
+                raise
+
+        # Return the CoverageDoctor instance
+        return CoverageDoctor(cpth, dprod_obj, dset_obj)
+
+    def run_coverage_doctor(self, dataset_id, data_product_id=None):
+        dr = self.get_coverage_doctor(dataset_id, data_product_id=data_product_id)
+
+        if dr.analyze().is_corrupt:
+            dr.repair()
+        else:
+            return "Repair Not Necessary"
+
+        if not dr.analyze(reanalyze=True).is_corrupt:
+            return "Repair Successful"
+        else:
+            return "Repair Failed"
 
 
 class SimpleCSVParser(object):
