@@ -347,10 +347,12 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
     @patch.dict(CFG, {'user_queue_monitor_timeout': 5})
     @patch.dict(CFG, {'user_queue_monitor_size': 25})
     @attr('CLEANUP')
+    @unittest.skipIf(os.getenv('PYCC_MODE', False),'Not integrated for CEI')
     def test_realtime_visualization_cleanup(self):
 
         #Start up multiple vis service workers if not a CEI launch
         if not os.getenv('CEI_LAUNCH_TEST', False):
+            #TODO - to enable this test for pycc mode, launch these workers using PD instead of container.
             vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
             self.addCleanup(self.container.terminate_process, vpid1)
             vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
