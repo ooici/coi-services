@@ -1826,9 +1826,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                         extended_platform.portal_instruments[i] = o
 
         log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
-        extended_platform.computed.portal_status = csl([i._id if i else None for i in extended_platform.portal_instruments])
 
+        ids =[i._id if i else None for i in extended_platform.portal_instruments]
+        extended_platform.computed.portal_status = csl(ids)
         log.debug('%d portals, %d instruments, %d status: %r', len(extended_platform.portals), len(extended_platform.portal_instruments), len(extended_platform.computed.portal_status.value), ids)
+
         rollx_builder = RollXBuilder(self)
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
         if t:
