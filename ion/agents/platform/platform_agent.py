@@ -1184,6 +1184,20 @@ class PlatformAgent(ResourceAgent):
 
         return recursion
 
+    def _create_event_subscriber(self, **kwargs):
+        """
+        Creates and returns an EventSubscriber, which is registered with the
+        Managed Endpoint API.
+
+        @param kwargs passed to the EventSubscriber constructor.
+
+        @see https://lists.oceanobservatories.org/mailman/private/ciswdev/2013-April/001668.html
+        @see https://jira.oceanobservatories.org/tasks/browse/OOIION-987
+        """
+        sub = EventSubscriber(**kwargs)
+        self.add_endpoint(sub)
+        return sub
+
     def _prepare_await_state(self, origin, state):
         """
         Does preparations to wait until the given origin publishes a
@@ -1203,11 +1217,10 @@ class PlatformAgent(ResourceAgent):
             if evt.state == state:
                 asyn_res.set(evt)
 
-        subscriber = EventSubscriber(event_type="ResourceAgentStateEvent",
-                                     origin=origin,
-                                     callback=consume_event)
+        subscriber = self._create_event_subscriber(event_type="ResourceAgentStateEvent",
+                                                   origin=origin,
+                                                   callback=consume_event)
 
-        subscriber.start()
         log.debug("%r: registered event subscriber to wait for state=%r from origin %r",
                   self._platform_id, state, origin)
         subscriber._ready_event.wait(timeout=self._timeout)
