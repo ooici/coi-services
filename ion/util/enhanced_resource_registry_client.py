@@ -329,7 +329,7 @@ class EnhancedResourceRegistryClient(object):
         assert predicate != ''
         object_id, object_type = self._extract_id_and_type(object)
 
-        if not self.has_cached_prediate(predicate):
+        if not self.has_cached_predicate(predicate):
             ret, _ = self.RR.find_subjects(subject_type=subject_type,
                                            predicate=predicate,
                                            object=object_id,
@@ -370,7 +370,7 @@ class EnhancedResourceRegistryClient(object):
     def find_objects(self, subject, predicate, object_type='', id_only=False):
         subject_id, subject_type = self._extract_id_and_type(subject)
 
-        if not self.has_cached_prediate(predicate):
+        if not self.has_cached_predicate(predicate):
             ret, _ = self.RR.find_objects(subject=subject_id,
                                          predicate=predicate,
                                          object_type=object_type,
@@ -517,7 +517,7 @@ class EnhancedResourceRegistryClient(object):
 
 
     def filter_cached_associations(self, predicate, is_match_fn):
-        if not self.has_cached_prediate(predicate):
+        if not self.has_cached_predicate(predicate):
             raise BadRequest("Attempted to filter cached associations of uncached predicate '%s'" % predicate)
 
         return [a for a in self._cached_predicates[predicate] if is_match_fn(a)]
@@ -565,7 +565,7 @@ class EnhancedResourceRegistryClient(object):
         log.info("Cached %s %s resources in %s seconds", len(resource_objs), resource_type, total_time / 1000.0)
 
 
-    def has_cached_prediate(self, predicate):
+    def has_cached_predicate(self, predicate):
         return predicate in self._cached_predicates
 
 

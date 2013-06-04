@@ -773,23 +773,24 @@ class UserNotificationService(BaseUserNotificationService):
                     continue
 
                 if notification.origin:
-                    search_origin = ' "origin" is "%s" from "events_index"' % notification.origin
+                    search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
                 else:
-                    search_origin = ' "origin" is "*" from "events_index"'
+                    search_origin = 'search "origin" is "*" from "events_index"'
 
                 if notification.origin_type:
-                    search_origin_type= ' "origin_type" is "%s" from "events_index"' % notification.origin_type
+                    search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
                 else:
-                    search_origin_type= ' "origin_type" is "*" from "events_index"'
+                    search_origin_type= 'search "origin_type" is "*" from "events_index"'
 
                 if notification.event_type:
-                    search_event_type = ' "type_" is "%s" from "events_index"' % notification.event_type
+                    search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
                 else:
-                    search_event_type = ' "type_" is "*" from "events_index"'
+                    search_event_type = 'search "type_" is "*" from "events_index"'
 
                 search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
 
                 # get the list of ids corresponding to the events
+                log.debug('process_batch  search_string: %s', search_string)
                 ret_vals = self.discovery.parse(search_string)
 
                 events_for_message.extend(self.datastore.read_mult(ret_vals))

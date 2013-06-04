@@ -10,14 +10,47 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-
-
-
 import numpy
 import base64
 
-
-
+def populate_rdt(rdt, vals):
+    
+    
+    array_size = len(vals)
+    data_arrays = {}    
+        
+    # Populate the temporal parameter.
+    data_arrays[rdt.temporal_parameter] = [None] * array_size
+        
+    
+    for i, particle in enumerate(vals):
+        for k,v in particle.iteritems():
+            if k == 'values':
+                for value_dict in v:
+                    value_id = value_dict['value_id']
+                    value = value_dict['value']
+                    if value_id in rdt:
+                        if value_id not in data_arrays:
+                            data_arrays[value_id] = [None] * array_size
+                        if 'binary' in value_dict:
+                            value = base64.b64decode(value)
+                        data_arrays[value_id][i] = value
+            
+            elif k == 'driver_timestamp':
+                data_arrays[rdt.temporal_parameter][i] = v
+            
+            elif k in rdt:
+                if k not in data_arrays:
+                    data_arrays[k] = [None] * array_size
+                data_arrays[k][i] = v
+                
+    for k,v in data_arrays.iteritems():
+        rdt[k] = numpy.array(v)
+    
+    return rdt
+                
+"""
+OLD
 def populate_rdt(rdt, vals):
     data_arrays = {}
     data_arrays[rdt.temporal_parameter] = [None] * len(vals)
@@ -46,3 +79,7 @@ def populate_rdt(rdt, vals):
             rdt[k] = numpy.array(v)
 
     return rdt
+"""
+
+
+            

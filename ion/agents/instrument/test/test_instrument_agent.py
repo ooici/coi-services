@@ -30,6 +30,7 @@ import gevent
 from gevent.event import AsyncResult
 from nose.plugins.attrib import attr
 from mock import patch
+import numpy
 
 # Pyon pubsub and event support.
 from pyon.event.event import EventSubscriber, EventPublisher
@@ -91,7 +92,6 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_schema
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_streaming_memuse
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities_new
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_exit_da_timing
@@ -602,6 +602,25 @@ class InstrumentAgentTest():
             else:
                 # int, bool, str.
                 self.assertEqual(val, correct_val)
+
+    def assertGranule(self, granule):
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        self.assertIsInstance(rdt['temp'][0], numpy.float32)
+        self.assertIsInstance(rdt['conductivity'][0], numpy.float32)
+        self.assertIsInstance(rdt['pressure'][0], numpy.float32)
+        self.assertIsInstance(rdt['time'][0], numpy.float64)
+
+    def assertRawGranule(self, granule):
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        self.assertIsInstance(rdt['raw'][0], str)            
+        self.assertIsInstance(rdt['time'][0], numpy.float64)            
+
+    def assertVectorGranules(self, granule_list, field):
+        sizes = []
+        for granule in granule_list:
+            rdt = RecordDictionaryTool.load_from_granule(granule)
+            sizes.append(rdt[field].size)
+        self.assertTrue(any([x>1 for x in sizes]))
 
     ###############################################################################
     # Tests.
@@ -1204,7 +1223,11 @@ class InstrumentAgentTest():
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertEqual(len(self._samples_received), 3)
+        for x in self._samples_received:
+            self.assertGranule(x)
         self.assertGreater(len(self._raw_samples_received), 10)
+        for x in self._raw_samples_received:
+            self.assertRawGranule(x)
         
     def test_autosample(self):
         """
@@ -1257,9 +1280,15 @@ class InstrumentAgentTest():
 
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertGreaterEqual(len(self._samples_received), 3)
-
+        
+        for x in self._samples_received:
+            self.assertGranule(x)
+                        
         self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertGreaterEqual(len(self._raw_samples_received), 10)
+
+        for x in self._raw_samples_received:
+            self.assertRawGranule(x)
 
     def test_capabilities(self):
         """
@@ -2111,67 +2140,11 @@ class InstrumentAgentTest():
 
         # Add check here to assure parsed granules are buffered.
         for x in self._samples_received:
-            rdt = RecordDictionaryTool.load_from_granule(x)
-            self.assertGreater(rdt['temp'].size, 1)
-            self.assertGreater(rdt['conductivity'].size, 1)
-            self.assertGreater(rdt['pressure'].size, 1)
-        
-        # Check that some of the raw granules are buffered.
-        raw_sizes = []
+            self.assertGranule(x)
+        self.assertVectorGranules(self._samples_received, 'temp')
         for x in self._raw_samples_received:
-            rdt = RecordDictionaryTool.load_from_granule(x)
-            raw_sizes.append(rdt['raw'].size)
-        raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
-        self.assertTrue(any(raw_sizes_greater_than_one))
-
-    @unittest.skip('Deprecated.')
-    def test_schema(self):
-        """
-        test_schema
-        Test agent get_schema command. Transition to intialized and
-        query for agent and resource schema json.
-        """
-
-        # We start in uninitialized state.
-        # In this state there is no driver process.
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        
-        # Ping the agent.
-        retval = self._ia_client.ping_agent()
-        log.info(retval)
-
-        # Initialize the agent.
-        # The agent is spawned with a driver config, but you can pass one in
-        # optinally with the initialize command. This validates the driver
-        # config, launches a driver process and connects to it via messaging.
-        # If successful, we switch to the inactive state.
-        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.INACTIVE)
-
-        # Ping the driver proc.
-        retval = self._ia_client.ping_resource()
-        log.info(retval)
-
-        retval = self._ia_client.get_schema()
-        log.info('Agent schema received: %s',str(retval))
-
-        #print '##################################'
-        #print json.dumps(json.loads(retval.agent_schema),indent=4)
-        #print '##################################'
-
-        self.assertIsInstance(retval.agent_schema, str)
-        self.assertIsInstance(retval.resource_schema, str)
-
-        # Reset the agent. This causes the driver messaging to be stopped,
-        # the driver process to end and switches us back to uninitialized.
-        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-
+            self.assertRawGranule(x)
+        self.assertVectorGranules(self._raw_samples_received, 'raw')
 
     @unittest.skip('A manual test for memory use and leaks.')
     def test_streaming_memuse(self):
