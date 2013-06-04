@@ -64,6 +64,7 @@ class AgentStreamPublisher(object):
             try:
                 if config.has_key('stream_def_dict'):
                     stream_def_dict = config['stream_def_dict']
+                    stream_def_dict['type_'] = 'StreamDefinition'
                     stream_def_obj = decoder.deserialize(stream_def_dict)
                     self._stream_defs[stream_name] = stream_def_obj
                     rdt = RecordDictionaryTool(stream_definition=stream_def_obj)
