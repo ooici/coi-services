@@ -681,6 +681,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         # Get the extended Org
         #--------------------------------------------------------------------------------
         #test the extended resource
+        log.info('getting marine facility %s', stuff.org_id)
         extended_org = self.OMS.get_marine_facility_extension(stuff.org_id)
         log.debug("test_observatory_org_extended: extended_org:  %s ", str(extended_org))
         #self.assertEqual(2, len(extended_org.instruments_deployed) )

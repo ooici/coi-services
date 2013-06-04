@@ -909,12 +909,31 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         site_id = extended_site._id
 
+        # have portals but need to reduce to appropriate subset...
+        objects,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_site.sites], id_only=False)
+        log.debug('subsites of %s have %d hasDevice associations', site_id, len(associations))
+        extended_site.portal_instruments = [None]*len(extended_site.sites)
+        for i in xrange(len(extended_site.sites)):
+            for o,a in zip(objects,associations):
+                if a.p==PRED.hasDevice:
+                    if a.ot not in (RT.InstrumentDevice, RT.PlatformDevice):
+                        log.warn('unexpected association Site %s hasDevice %s %s (was not InstrumentDevice or PlatformDevice)', a.s, a.ot, a.o)
+                    elif a.s==extended_site.sites[i]._id:
+                        extended_site.portal_instruments[i] = o
 
         # prepare to make a lot of rollups
         site_object_dict, site_children = self.outil.get_child_sites(parent_site_id=site_id, id_only=False)
         log.debug("Found these site children: %s", site_children.keys())
-        all_device_statuses = self._get_master_status_table(RR2, site_children.keys())
+        devices_for_status = set(site_children.keys())
+        for i in extended_site.portal_instruments:
+            if i:
+                devices_for_status.add(i._id)
+        all_device_statuses = self._get_master_status_table(RR2, devices_for_status)
         log.debug("Found all device statuses: %s", all_device_statuses)
+
+        # portal status rollup
+        portal_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k._id, {})) if k else DeviceStatusType.STATUS_UNKNOWN for k in extended_site.portal_instruments]
+        extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=portal_status)
 
         log.debug("generating site status rollup")
         site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s._id for s in extended_site.sites])
@@ -958,22 +977,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.instrument_sites         = clv(ifs(lambda _: True))
 
         extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients, instruments=extended_site.instrument_devices, instrument_status=extended_site.computed.instrument_status.value)
-
-        # have portals but need to reduce to appropriate subset...
-        objects,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_site.sites], id_only=False)
-        log.debug('subsites of %s have %d hasDevice associations', site_id, len(associations))
-        extended_site.portal_instruments = [None]*len(extended_site.sites)
-        portal_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k._id, {})) for k in extended_site.instrument_devices]
-        extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=portal_status)
-
-        extended_site.computed.portal_status = ComputedListValue(value=[None]*len(extended_site.sites), status=ComputedValueAvailability.PROVIDED if extended_site.computed.instrument_status.value else ComputedValueAvailability.NOTAVAILABLE)
-        for i in xrange(len(extended_site.sites)):
-            for o,a in zip(objects,associations):
-                if a.p==PRED.hasDevice:
-                    if a.ot not in (RT.InstrumentDevice, RT.PlatformDevice):
-                        log.warn('unexpected association Site %s hasDevice %s %s (was not InstrumentDevice or PlatformDevice)', a.s, a.ot, a.o)
-                    elif a.s==extended_site.sites[i]._id:
-                        extended_site.portal_instruments[i] = o
 
     # TODO: will remove this one
     def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
@@ -1201,14 +1204,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         actors_list = extended_org.members
         user_list = []
         for actor in actors_list:
-            log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
+            log.debug("get_marine_facility_extension: actor:  %s ", actor)
             user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
             if user_info_objs:
-                log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
+                log.debug("get_marine_facility_extension: user_info_obj  %s ", user_info_objs[0])
                 user_list.append( user_info_objs[0] )
 
         extended_org.members = user_list
-
 
         #Convert Negotiations to OrgUserNegotiationRequest
         extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)

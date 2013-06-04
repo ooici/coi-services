@@ -1796,13 +1796,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                                     list(subdevice_ids))
 
         statuses, reason = self.agent_status_builder.get_cumulative_status_dict(platform_device_id)
-
         def csl(device_id_list):
             return self.agent_status_builder.compute_status_list(statuses, device_id_list)
-        log.debug("Building instrument and platform status dicts")
+
         extended_platform.computed.instrument_status = csl([dev._id for dev in extended_platform.instrument_devices])
         extended_platform.computed.platform_status   = csl([platform._id for platform in extended_platform.platforms])
-        log.info('instrument_status: %s %r instruments %d\nplatform_status: %s %r platforms %d',
+        log.debug('instrument_status: %s %r instruments %d\nplatform_status: %s %r platforms %d',
             extended_platform.computed.instrument_status.reason, extended_platform.computed.instrument_status.value, len(extended_platform.instrument_devices),
             extended_platform.computed.platform_status.reason, extended_platform.computed.platform_status.value, len(extended_platform.platforms))
         if t:
@@ -1819,10 +1818,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                         log.warn('unexpected association InstrumentSite %s hasDevice %s %s (was not InstrumentDevice)', a.s, a.ot, a.o)
                     elif a.s==extended_platform.portals[i]._id:
                         extended_platform.portal_instruments[i] = o
-
+        log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
         extended_platform.computed.portal_status = csl([i._id if i else None for i in extended_platform.portal_instruments])
 
-        log.debug("Building network rollups")
+        log.debug('%d portals, %d instruments, %d status: %r', len(extended_platform.portals), len(extended_platform.portal_instruments), len(extended_platform.computed.portal_status.value), ids)
+
         rollx_builder = RollXBuilder(self)
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
         if t:
