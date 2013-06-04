@@ -318,6 +318,7 @@ class IONLoader(ImmediateProcess):
                 self.load_ion(scenarios)
             except Exception as ex:
                 log.exception("Reverting because of")
+                #from pyon.util.breakpoint import breakpoint; breakpoint(locals())
                 if self.revert:
                     self._revert_to_snapshot()
                 raise
@@ -2845,7 +2846,7 @@ Reason: %s
 
             ia_code = series_obj["ia_code"]
             iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
-            log.debug("Generating DataProducts for %s from %s", inst_id, ia_code if ia_code else "DEFAULT")
+            log.debug("Generating DataProducts for %s %s", inst_id, " from agent %s streams and SAF" % ia_code if ia_code else " by DEFAULT using SAF (no streams)")
 
             const_id1 = ''
             if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
@@ -3162,6 +3163,7 @@ Reason: %s
             newrow[COL_ID] = node_id + "_DEP"
             newrow['site_id'] = node_id
             newrow['device_id'] = node_id + "_PD"
+            # TODO: Activating a Deployment in preload is probably a shortcut. This should be an operator action!
             newrow['activate'] = "FALSE"
             newrow['d/name'] = "Deployment of platform " + node_id
             newrow['d/description'] = ""
@@ -3169,9 +3171,11 @@ Reason: %s
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['context_type'] = 'CabledNodeDeploymentContext'
+            newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
             # TODO: If RSN primary node (past), activate and set to DEPLOYED
 
+            log.info("Create & activate deployment for PD %s", node_id)
             self._load_Deployment(newrow)
 
         # II. Instrument deployments (RSN and cabled EA only)
@@ -3201,14 +3205,17 @@ Reason: %s
             newrow[COL_ID] = inst_id + "_DEP"
             newrow['site_id'] = inst_id
             newrow['device_id'] = inst_id + "_ID"
-            newrow['activate'] = "FALSE"
+            # TODO: Activating a Deployment in preload is probably a shortcut. This should be an operator action!
+            newrow['activate'] = "TRUE"
             newrow['d/name'] = "Deployment of instrument " + inst_id
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['context_type'] = 'CabledInstrumentDeploymentContext'
+            newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
+            log.info("Create & activate deployment for ID %s", inst_id)
             self._load_Deployment(newrow)
 
     def _load_Scheduler(self, row):
