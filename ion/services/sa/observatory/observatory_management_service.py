@@ -904,7 +904,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def _augment_platformsite_extension(self, extended_site, RR2, platform_device_id):
         log.debug("_augment_platformsite_extension")
-        if not RR2.has_cached_prediate(PRED.hasDevice):
+        if not RR2.has_cached_predicate(PRED.hasDevice):
             RR2.cache_predicate(PRED.hasDevice)
 
         site_id = extended_site._id

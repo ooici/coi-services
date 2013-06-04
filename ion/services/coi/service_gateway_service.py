@@ -692,17 +692,17 @@ def delete_attachment(attachment_id):
 
 # Get a visualization image for a specific data product
 #TODO - will need to update this to handle parameters to pass on to the Vis service and to use proper return keys
-@service_gateway_app.route('/ion-service/visualization/<data_product_id>/<img_name>')
-def get_visualization_image(data_product_id, img_name):
+@service_gateway_app.route('/ion-service/get_visualization_image/')
+def get_visualization_image():
 
     # Create client to interface with the viz service
     vs_cli = VisualizationServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-    
-    visualization_params = dict()
-    visualization_params['image_name'] = img_name
-    #TODO - add additional query string parameters as needed to dict
+    params = request.args
 
-    image_info = vs_cli.get_visualization_image(data_product_id, visualization_params)
+    data_product_id = params["data_product_id"]
+    visualization_parameters = simplejson.loads(params["visualization_parameters"])
+    image_info = vs_cli.get_visualization_image(data_product_id, visualization_parameters)
+
     return service_gateway_app.response_class(image_info['image_obj'],mimetype=image_info['content_type'])
 
 # Get version information about this copy of coi-services

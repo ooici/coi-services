@@ -91,21 +91,24 @@ class DMTestCase(IonIntegrationTestCase):
         self.addCleanup(self.data_product_management.suspend_data_product_persistence, data_product_id)
 
 class Streamer(object):
-    def __init__(self, data_product_id, interval=1):
+    def __init__(self, data_product_id, interval=1, simple_time=False):
         self.resource_registry = Container.instance.resource_registry
         self.pubsub_management = PubsubManagementServiceClient()
         self.data_product_id = data_product_id
         self.i=0
         self.interval = interval
+        self.simple_time = simple_time
         self.finished = Event()
         self.g = gevent.spawn(self.run)
 
     def run(self):
         while not self.finished.wait(self.interval):
-            gevent.sleep(self.interval)
             rdt = ParameterHelper.rdt_for_data_product(self.data_product_id)
             now = time.time()
-            rdt['time'] = np.array([now + 2208988800])
+            if self.simple_time:
+                rdt['time'] = [self.i]
+            else:
+                rdt['time'] = np.array([now + 2208988800])
             rdt['temp'] = self.float_range(10,14,np.array([now]))
             rdt['pressure'] = self.float_range(11,12,np.array([now]))
             rdt['lat'] = [41.205]

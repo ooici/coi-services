@@ -277,7 +277,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         log.info("Cached %s resource types in %s seconds", len(rsrcs), total_time / 1000.0)
 
     def _fetch_caches(self):
-        if any([not self.RR2.has_cached_prediate(x) for x in self._predicates_to_cache()]):
+        if any([not self.RR2.has_cached_predicate(x) for x in self._predicates_to_cache()]):
             self._update_cached_predicates()
 
         if any([not self.RR2.has_cached_resource(x) for x in self._resources_to_cache()]):

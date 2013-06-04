@@ -36,7 +36,7 @@ class RelatedResourcesCrawler(object):
                 RR2 = EnhancedResourceRegistryClient(resource_registry_client)
 
             for p in predicate_list:
-                if not RR2.has_cached_prediate(p):
+                if not RR2.has_cached_predicate(p):
                     RR2.cache_predicate(p)
 
 

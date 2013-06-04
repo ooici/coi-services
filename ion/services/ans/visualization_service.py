@@ -413,10 +413,6 @@ class VisualizationService(BaseVisualizationService):
 
     def get_visualization_data(self, data_product_id='', visualization_parameters=None):
 
-        #    FOR TESTING ONLY
-        #print ">>>>>>>>>>  HERE <<<<<<<<<<<"
-        #raise BadRequest("FOR ERROR TESTING> PLEASE REMOVE LATER")
-
         if visualization_parameters is None:
             return self._get_google_dt(data_product_id)
         
@@ -430,7 +426,10 @@ class VisualizationService(BaseVisualizationService):
             return self._get_google_dt(data_product_id, vp_dict)
 
         if (vp_dict['query_type'] == 'mpl_image'):
-            return self._get_visualization_image(data_product_id, vp_dict)
+            image_info = self.get_visualization_image(data_product_id, vp_dict)
+            # Encode actual image object as base64 string so that it can be passed as json string back.
+            image_info['image_obj'] = base64.encodestring(image_info["image_obj"])
+            return simplejson.dumps(image_info)
 
 
 
@@ -558,20 +557,20 @@ class VisualizationService(BaseVisualizationService):
         return gdt.ToJSon()
 
 
-    def _get_visualization_image(self, data_product_id='', visualization_parameters=None):
+    def get_visualization_image(self, data_product_id='', visualization_parameters=None):
 
         # Error check
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
         if visualization_parameters == {}:
             visualization_parameters = None
-
         # Extract the retrieval related parameters. Definitely init all parameters first
         query = None
         image_name = None
         if visualization_parameters :
             #query = {'parameters':[]}
             query = {}
+
             # Error check and damage control. Definitely need time
             if 'parameters' in visualization_parameters:
                 if not 'time' in visualization_parameters['parameters']:
@@ -624,9 +623,11 @@ class VisualizationService(BaseVisualizationService):
         ret_dict['content_type'] = (get_safe(mpl_rdt, "content_type"))[0]
         ret_dict['image_name'] = (get_safe(mpl_rdt, "image_name"))[0]
         # reason for encoding as base64 string is otherwise message pack complains about the bit stream
-        ret_dict['image_obj'] = base64.encodestring((get_safe(mpl_rdt, "image_obj"))[0])
+        #ret_dict['image_obj'] = base64.encodestring((get_safe(mpl_rdt, "image_obj"))[0])
+        ret_dict['image_obj'] = (get_safe(mpl_rdt, "image_obj"))[0]
 
-        return simplejson.dumps(ret_dict)
+        return ret_dict
+
 
 
     def _get_data_product_metadata(self, data_product_id=""):

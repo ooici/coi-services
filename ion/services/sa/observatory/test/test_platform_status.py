@@ -622,6 +622,7 @@ class Test(BaseIntTestPlatform):
         # start up the root platform
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._shutdown)
         log.debug("started root platform")
 
         #####################################################################

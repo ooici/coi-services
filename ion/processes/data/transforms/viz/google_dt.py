@@ -82,7 +82,6 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         stream_definition_id = params
 
         #init stuff
-        var_tuple = []
         data_description = []
         data_table_content = []
         gdt_allowed_numerical_types = ['int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32',
@@ -136,6 +135,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             # If a config block was passed, consider only the params listed in it
             if config and 'parameters' in config and len(config['parameters']) > 0:
                 if not field in config['parameters']:
+                    log.info("Skipping ", field, " since it was not present in the list of allowed parameters")
                     continue
 
             # only consider fields which are allowed.
@@ -159,6 +159,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                     data_description.append(('%s[%s]' % (field,i), 'number', '%s[%s]' % (field,i), {'precision':str(precisions[field])}))
             else:
                 data_description.append((field, 'number', field, {'precision':str(precisions[field])} ))
+
 
         for i in xrange(len(rdt)):
             varTuple = []
