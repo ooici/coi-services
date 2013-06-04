@@ -2825,6 +2825,7 @@ Reason: %s
             newrow['stream_def_id'] = ''
             newrow['parent'] = ''
             newrow['persist_data'] = 'False'
+            newrow['lcstate'] = "DEPLOYED_AVAILABLE"
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_DataProduct(newrow, do_bulk=self.bulk)
 
@@ -2846,7 +2847,7 @@ Reason: %s
 
             ia_code = series_obj["ia_code"]
             iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
-            log.debug("Generating DataProducts for %s %s", inst_id, " from agent %s streams and SAF" % ia_code if ia_code else " by DEFAULT using SAF (no streams)")
+            log.debug("Generating DataProducts for %s %s", inst_id, "from agent %s streams and SAF" % ia_code if ia_code else "using SAF and defaults (no streams)")
 
             const_id1 = ''
             if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
@@ -2884,6 +2885,7 @@ Reason: %s
                     if ia_enabled and strdef_id:
                         newrow['stream_def_id'] = strdef_id
                         newrow['parent'] = ''
+                        newrow['lcstate'] = "DEPLOYED_AVAILABLE"
                     else:
                         if ia_enabled:
                             log.warn("INCONSISTENCY. Should have StreamDefinition for ParamDict %s", scfg.parameter_dictionary_name)
@@ -2976,6 +2978,7 @@ Reason: %s
                 strdef_id = self._create_dp_stream_def(inst_id, ooi_rd.series_rd, dp_obj['code'], dp_obj['level'])
                 if self._resource_exists(strdef_id):
                     newrow['stream_def_id'] = strdef_id
+                    newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
                     self._load_DataProduct(newrow)
 
@@ -3175,7 +3178,7 @@ Reason: %s
 
             # TODO: If RSN primary node (past), activate and set to DEPLOYED
 
-            log.info("Create & activate deployment for PD %s", node_id)
+            log.debug("Create (not activated) Deployment for PD %s", node_id)
             self._load_Deployment(newrow)
 
         # II. Instrument deployments (RSN and cabled EA only)
@@ -3215,7 +3218,7 @@ Reason: %s
             newrow['context_type'] = 'CabledInstrumentDeploymentContext'
             newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
-            log.info("Create & activate deployment for ID %s", inst_id)
+            log.debug("Create & activate Deployment for ID %s", inst_id)
             self._load_Deployment(newrow)
 
     def _load_Scheduler(self, row):
