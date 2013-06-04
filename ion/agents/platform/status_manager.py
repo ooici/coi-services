@@ -20,8 +20,6 @@ from ion.agents.platform.exceptions import PlatformException
 from interface.objects import AggregateStatusType
 from interface.objects import DeviceStatusType
 
-from pyon.event.event import EventSubscriber
-
 import logging
 
 from gevent.coros import RLock
@@ -78,6 +76,8 @@ class StatusManager(object):
 
         assert pa._platform_id is not None
         assert pa._children_resource_ids is not None
+
+        self._create_event_subscriber = pa._create_event_subscriber
 
         self._platform_id            = pa._platform_id
         self.resource_id             = pa.resource_id
@@ -351,13 +351,12 @@ class StatusManager(object):
         @param origin    the resource_id associated with child
         """
         event_type = "DeviceStatusEvent"
-        sub = EventSubscriber(event_type=event_type,
-                              origin=origin,
-                              callback=self._got_device_status_event)
+        sub = self._create_event_subscriber(event_type=event_type,
+                                            origin=origin,
+                                            callback=self._got_device_status_event)
 
         with self._lock:
             self._event_subscribers[origin] = sub
-            sub.start()
 
         log.debug("%r: registered event subscriber for event_type=%r"
                   " coming from origin=%r",
@@ -563,13 +562,12 @@ class StatusManager(object):
         @param origin    the resource_id associated with child
         """
         event_type = "DeviceAggregateStatusEvent"
-        sub = EventSubscriber(event_type=event_type,
-                              origin=origin,
-                              callback=self._got_device_aggregate_status_event)
+        sub = self._create_event_subscriber(event_type=event_type,
+                                            origin=origin,
+                                            callback=self._got_device_aggregate_status_event)
 
         with self._lock:
             self._event_subscribers[origin] = sub
-            sub.start()
 
         log.debug("%r: registered event subscriber for event_type=%r",
                   self._platform_id, event_type)
@@ -791,12 +789,10 @@ Published event: AGGREGATE_POWER -> STATUS_OK
             log.info("%r: (%s) status report triggered by diagnostic event:\n%s\n",
                      self._platform_id, self.resource_id, statuses)
 
-        self._diag_sub = EventSubscriber(event_type=event_type,
-                                         origin=origin,
-                                         sub_type=sub_type,
-                                         callback=got_event)
-        self._diag_sub.start()
-
+        self._diag_sub = self._create_event_subscriber(event_type=event_type,
+                                                       origin=origin,
+                                                       sub_type=sub_type,
+                                                       callback=got_event)
         log.info("%r: registered diagnostics event subscriber", self._platform_id)
 
 
