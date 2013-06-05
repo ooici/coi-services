@@ -723,54 +723,61 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return site_resources, site_children
 
 
-    def get_sites_devices_status(self, parent_resource_id='', include_devices=False, include_status=False):
-        if not parent_resource_id:
+    def get_sites_devices_status(self, parent_resource_ids=None, include_sites = False, include_devices=False, include_status=False):
+        if not parent_resource_ids:
             raise BadRequest("Must provide a parent parent_resource_id")
-
-        parent_resource = self.RR.read(parent_resource_id)
-
-        org_id, site_id = None, None
-        if parent_resource.type_ == RT.Org:
-            org_id = parent_resource_id
-        elif RT.Site in parent_resource._get_extends():
-            site_id = parent_resource_id
 
         result_dict = {}
 
-        site_resources, site_children = self.outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
-        result_dict["site_resources"] = site_resources
-        result_dict["site_children"] = site_children
+        #loop thru all the provided site ids and create the result structure
+        for parent_resource_id in parent_resource_ids:
+
+            parent_resource = self.RR.read(parent_resource_id)
+
+            org_id, site_id = None, None
+            if parent_resource.type_ == RT.Org:
+                org_id = parent_resource_id
+            elif RT.Site in parent_resource._get_extends():
+                site_id = parent_resource_id
+
+            site_result_dict = {}
+
+            site_resources, site_children = self.outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
+
+            if include_sites:
+                site_result_dict["site_resources"] = site_resources
+                site_result_dict["site_children"] = site_children
 
 
-        all_device_statuses = {}
-        if include_devices or include_status:
-            RR2 = EnhancedResourceRegistryClient(self.RR)
-            RR2.cache_predicate(PRED.hasSite)
-            RR2.cache_predicate(PRED.hasDevice)
-            all_device_statuses = self._get_master_status_table( RR2, site_children.keys())
+            all_device_statuses = {}
+            if include_devices or include_status:
+                RR2 = EnhancedResourceRegistryClient(self.RR)
+                RR2.cache_predicate(PRED.hasSite)
+                RR2.cache_predicate(PRED.hasDevice)
+                all_device_statuses = self._get_master_status_table( RR2, site_children.keys())
 
-        if include_status:
+            if include_status:
+                #add code to grab the master status table to pass in to the get_status_roll_ups calc
+                log.debug('get_sites_devices_status site master_status_table:   %s ', all_device_statuses)
+                site_result_dict["site_status"] = all_device_statuses
 
-            #add code to grab the master status table to pass in to the get_status_roll_ups calc
-            log.debug('get_sites_devices_status site master_status_table:   %s ', all_device_statuses)
-            result_dict["site_status"] = all_device_statuses
+                #create the aggreagate_status for each device and site
 
-            #create the aggreagate_status for each device and site
+                log.debug("calculate site aggregate status")
+                site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s for s in site_children.keys()])
+                site_status_dict = dict(zip(site_children.keys(), site_status))
+                log.debug('get_sites_devices_status  site_status_dict:   %s ', site_status_dict)
+                site_result_dict["site_aggregate_status"] = site_status_dict
 
-            log.debug("calculate site aggregate status")
-            site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s for s in site_children.keys()])
-            site_status_dict = dict(zip(site_children.keys(), site_status))
-            log.debug('get_sites_devices_status  site_status_dict:   %s ', site_status_dict)
-            result_dict["site_aggregate_status"] = site_status_dict
+            if include_devices:
+                log.debug("calculate device aggregate status")
+                inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
+                               for k in all_device_statuses.keys()]
+                device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
+                log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
+                site_result_dict["device_aggregate_status"] = device_agg_status_dict
 
-        if include_devices:
-            log.debug("calculate device aggregate status")
-            inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
-                           for k in all_device_statuses.keys()]
-            device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
-            log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
-            result_dict["device_aggregate_status"] = device_agg_status_dict
-
+            result_dict[parent_resource_id] = site_result_dict
 
         return result_dict
 
