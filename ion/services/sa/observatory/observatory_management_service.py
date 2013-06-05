@@ -1143,6 +1143,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             user_id=user_id)
         # have device, site objects
 
+        if not extended_deployment.device or not extended_deployment.site:
+            return extended_deployment
+
         RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
         finder = RelatedResourcesCrawler()
         get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasDevice])
