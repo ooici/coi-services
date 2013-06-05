@@ -289,7 +289,7 @@ class AgentConfigurationBuilder(object):
 
                     stream_config[model_stream_name] = {'routing_key'           : stream_route.routing_key,
                                                         'stream_id'             : product_stream_id,
-                                                        #'stream_definition_ref' : stream_def_id,
+                                                        'stream_definition_ref' : stream_def_id,
                                                         'stream_def_dict'       : stream_def_dict,
                                                         'exchange_point'        : stream_route.exchange_point,
                                                         'parameter_dictionary'  : stream_def.parameter_dictionary,
