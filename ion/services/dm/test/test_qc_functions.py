@@ -74,8 +74,16 @@ class TestQCFunctions(DMTestCase):
         self.rdt['tempwat_glblrng_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         self.rdt['tempwat_spketst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         self.rdt['tempwat_stuckvl_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
-        
+        self.rdt['tempwat_gradtst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         np.testing.assert_array_equal(self.rdt['cmbnflg_qc'], [0, 1, 1, 1, 1, 1, 1, 0])
+    
+    def test_gradient_test(self):
+        self.svm.stored_value_cas('grad_QCTEST_TEMPWAT_time', {'d_dat_dx': 50, 'min_dx': 0, 'start_dat': 0, 'tol_dat': 5})
+        self.rdt['time'] = np.arange(5)
+        self.rdt['temp'] = [3, 5, 98, 99, 4]
+        self.rdt.fetch_lookup_values()
+
+        np.testing.assert_array_equal(self.rdt['tempwat_gradtst_qc'], [1, 1, 0, 0, 1])
 
 
     
@@ -110,6 +118,23 @@ class TestCoverageQC(TestQCFunctions):
         rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(self.dataset_id))
         np.testing.assert_array_almost_equal(rdt['tempwat_glblrng_qc'], [0, 1, 1, 1, 1, 1, 1, 0])
         self.assertTrue(flagged.wait(10))
+
+    def test_fill_value_qc(self):
+        self.rdt['time'] = np.arange(5)
+        self.rdt['temp'] = [12] * 5
+        self.rdt.fetch_lookup_values()
+
+        np.testing.assert_array_equal(self.rdt['tempwat_glblrng_qc'], [-99] * 5)
+        np.testing.assert_array_equal(self.rdt['tempwat_spketst_qc'], [-99] * 5)
+        np.testing.assert_array_equal(self.rdt['tempwat_stuckvl_qc'], [-99] * 5)
+        self.ph.publish_rdt_to_data_product(self.dp_id, self.rdt)
+
+        self.dataset_monitor.event.wait(10)
+        rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(self.dataset_id))
+        np.testing.assert_array_equal(rdt['tempwat_glblrng_qc'], [-99] * 5)
+        np.testing.assert_array_equal(rdt['tempwat_spketst_qc'], [-99] * 5)
+        np.testing.assert_array_equal(rdt['tempwat_stuckvl_qc'], [-99] * 5)
+
 
     def test_spike_test(self):
         TestQCFunctions.test_spike_test(self)
