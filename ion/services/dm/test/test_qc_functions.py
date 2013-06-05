@@ -68,6 +68,18 @@ class TestQCFunctions(DMTestCase):
 
         np.testing.assert_array_almost_equal(self.rdt['tempwat_stuckvl_qc'], [1, 1, 0, 0, 0, 0, 1, 1, 1, 1])
 
+    def test_propagate_test(self):
+        self.rdt['time'] = np.arange(8)
+        self.rdt['temp'] = [9, 10, 16, 17, 18, 19, 20, 25]
+        self.rdt['tempwat_glblrng_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
+        self.rdt['tempwat_spketst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
+        self.rdt['tempwat_stuckvl_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
+
+        from pyon.util.breakpoint import breakpoint
+        breakpoint(locals())
+        np.testing.assert_array_equal(self.rdt['cmbnflg_qc'], [0, 1, 1, 1, 1, 1, 1, 0])
+
+
     
 
 @attr('INT', group='dm')

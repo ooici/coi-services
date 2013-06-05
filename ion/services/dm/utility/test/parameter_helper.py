@@ -705,6 +705,10 @@ class ParameterHelper(object):
         context_ids.extend(contexts['temp'][0].qc_contexts)
         for qc_context in contexts['temp'][0].qc_contexts:
             context_ids.extend(types_manager.get_lookup_value_ids(DatasetManagementService.get_parameter_context(qc_context)))
+        context_names = [self.dataset_management.read_parameter_context(i).name for i in context_ids]
+        qc_names = [i for i in context_names if i.endswith('_qc')]
+        ctxt_id, pc = types_manager.make_propagate_qc(qc_names)
+        context_ids.append(ctxt_id)
         pdict_id = self.dataset_management.create_parameter_dictionary('simple_qc', parameter_context_ids=context_ids, temporal_context='time')
         self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 
