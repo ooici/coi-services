@@ -12,7 +12,6 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log, RT
-from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
@@ -27,7 +26,7 @@ from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_o
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 
 
-from ion.agents.platform.exceptions import PlatformException, PlatformConfigurationException
+from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
@@ -38,9 +37,6 @@ from ion.agents.agent_alert_manager import AgentAlertManager
 
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
 
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-import numpy
-
 from pyon.util.containers import DotDict
 
 from pyon.agent.common import BaseEnum
@@ -50,10 +46,8 @@ from ion.agents.platform.launcher import Launcher
 
 from ion.agents.platform.platform_resource_monitor import PlatformResourceMonitor
 
-from coverage_model.parameter import ParameterDictionary
-from interface.objects import StreamRoute
-
 from ion.agents.platform.status_manager import StatusManager
+from ion.agents.platform.platform_agent_stream_publisher import PlatformAgentStreamPublisher
 
 import logging
 import time
@@ -169,7 +163,6 @@ class PlatformAgent(ResourceAgent):
 
         #This is the type of Resource managed by this agent
         self.resource_type = RT.PlatformDevice
-        self.resource_id = None
 
         #########################################
         # <platform configuration and dependent elements>
@@ -195,16 +188,6 @@ class PlatformAgent(ResourceAgent):
 
         # PlatformResourceMonitor
         self._platform_resource_monitor = None
-
-        # Dictionaries used for data publishing. Constructed in _initialize_this_platform
-        self._data_streams = {}
-        self._param_dicts = {}
-        self._stream_defs = {}
-        self._data_publishers = {}
-
-        # Set of parameter names received in event notification but not
-        # configured. Allows to log corresponding warning only once.
-        self._unconfigured_params = set()
 
         # {subplatform_id: DotDict(ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
@@ -259,6 +242,9 @@ class PlatformAgent(ResourceAgent):
 
         # State when lost.
         self._state_when_lost = None
+
+        # Agent stream publisher.
+        self._asp = None
 
         log.info("PlatformAgent constructor complete.")
 
@@ -543,7 +529,7 @@ class PlatformAgent(ResourceAgent):
         Does the main initialize sequence for this platform: creation of
         publishers and creation/configuration of the driver.
         """
-        self._construct_data_publishers()
+        self._asp = PlatformAgentStreamPublisher(self)
         self._create_driver()
         self._configure_driver()
         log.debug("%r: _initialize_this_platform completed.", self._platform_id)
@@ -593,7 +579,8 @@ class PlatformAgent(ResourceAgent):
             self._plat_driver.destroy()
             self._plat_driver = None
 
-        self._unconfigured_params.clear()
+        if self._asp:
+            self._asp.reset()
 
     def _shutdown_this_platform(self):
         """
@@ -771,59 +758,6 @@ class PlatformAgent(ResourceAgent):
     # misc supporting routines
     ##############################################################
 
-    def _create_publisher(self, stream_id=None, stream_route=None):
-        publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=stream_route)
-        return publisher
-
-    def _construct_data_publishers(self):
-        """
-        Construct the stream publishers from the stream_config agent
-        config variable.
-        @retval None
-        """
-
-        agent_info = self.CFG.get('agent', None)
-        if not agent_info:
-            log.warning("%r: No agent config found in agent config.", self._platform_id)
-        else:
-            self.resource_id = agent_info['resource_id']
-            log.debug("%r: resource_id set to %r", self._platform_id, self.resource_id)
-
-        stream_configs = self.CFG.get('stream_config', None)
-        if stream_configs is None:
-            raise PlatformConfigurationException(
-                "%r: No stream_config given in CFG", self._platform_id)
-
-        for stream_name, stream_config in stream_configs.iteritems():
-            self._construct_data_publisher_using_stream_config(stream_name, stream_config)
-
-        log.debug("%r: _construct_data_publishers complete", self._platform_id)
-
-    def _construct_data_publisher_using_stream_config(self, stream_name, stream_config):
-
-        # granule_publish_rate
-        # records_per_granule
-
-        if log.isEnabledFor(logging.TRACE):
-            log.trace("%r: _construct_data_publisher_using_stream_config: "
-                      "stream_name:%r, stream_config=%s",
-                      self._platform_id, stream_name, self._pp.pformat(stream_config))
-
-        routing_key           = stream_config['routing_key']
-        stream_id             = stream_config['stream_id']
-        exchange_point        = stream_config['exchange_point']
-        parameter_dictionary  = stream_config['parameter_dictionary']
-        stream_definition_ref = stream_config['stream_definition_ref']
-
-        self._data_streams[stream_name] = stream_id
-        self._param_dicts[stream_name] = ParameterDictionary.load(parameter_dictionary)
-        self._stream_defs[stream_name] = stream_definition_ref
-        stream_route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
-        publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
-        self._data_publishers[stream_name] = publisher
-
-        log.debug("%r: created publisher for stream_name=%r", self._platform_id, stream_name)
-
     def _create_driver(self):
         """
         Creates the platform driver object for this platform agent.
@@ -913,7 +847,7 @@ class PlatformAgent(ResourceAgent):
         """
 
         if isinstance(driver_event, AttributeValueDriverEvent):
-            self._handle_attribute_value_event(driver_event)
+            self._asp.handle_attribute_value_event(driver_event)
             return
 
         if isinstance(driver_event, ExternalEventDriverEvent):
@@ -947,126 +881,6 @@ class PlatformAgent(ResourceAgent):
         except:
             log.exception('%r: platform agent could not publish driver state change event',
                           self._platform_id)
-
-    def _handle_attribute_value_event(self, driver_event):
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: driver_event = %s", self._platform_id, driver_event.brief())
-        elif log.isEnabledFor(logging.TRACE):
-            # show driver_event as retrieved (driver_event.vals_dict might be large)
-            log.trace("%r: driver_event = %s", self._platform_id, driver_event)
-
-        stream_name = driver_event.stream_name
-
-        publisher = self._data_publishers.get(stream_name, None)
-        if not publisher:
-            log.warn('%r: no publisher configured for stream_name=%r. '
-                     'Configured streams are: %s',
-                     self._platform_id, stream_name, self._data_publishers.keys())
-            return
-
-        param_dict = self._param_dicts[stream_name]
-        stream_def = self._stream_defs[stream_name]
-
-        self._publish_granule_with_multiple_params(publisher, driver_event,
-                                                   param_dict, stream_def)
-
-    def _publish_granule_with_multiple_params(self, publisher, driver_event,
-                                              param_dict, stream_def):
-
-        stream_name = driver_event.stream_name
-
-        rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(),
-                                   stream_definition_id=stream_def)
-
-        pub_params = {}
-        selected_timestamps = None
-
-        for param_name, param_value in driver_event.vals_dict.iteritems():
-
-            param_name = param_name.lower()
-
-            if param_name not in rdt:
-                if param_name not in self._unconfigured_params:
-                    # an unrecognized attribute for this platform:
-                    self._unconfigured_params.add(param_name)
-                    log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r'
-                             ' rdt.keys=%s',
-                             self._platform_id, param_name, stream_name. rdt.keys())
-                continue
-
-            # Note that notification from the driver has the form
-            # of a non-empty list of pairs (val, ts)
-            assert isinstance(param_value, list)
-            assert isinstance(param_value[0], tuple)
-
-            # separate values and timestamps:
-            vals, timestamps = zip(*param_value)
-
-            self._dispatch_value_alerts(stream_name, param_name, vals)
-
-            # Use fill_value in context to replace any None values:
-            param_ctx = param_dict.get_context(param_name)
-            if param_ctx:
-                fill_value = param_ctx.fill_value
-                log.debug("%r: param_name=%r fill_value=%s",
-                          self._platform_id, param_name, fill_value)
-                # do the replacement:
-                vals = [fill_value if val is None else val for val in vals]
-            else:
-                log.warn("%r: unexpected: parameter context not found for %r",
-                         self._platform_id, param_name)
-
-            # Set values in rdt:
-            rdt[param_name] = numpy.array(vals)
-
-            pub_params[param_name] = vals
-
-            selected_timestamps = timestamps
-
-        if selected_timestamps is None:
-            # that is, all param_name's were unrecognized; just return:
-            return
-
-        self._publish_granule(stream_name, publisher, param_dict, rdt,
-                              pub_params, selected_timestamps)
-
-    def _publish_granule(self, stream_name, publisher, param_dict, rdt,
-                         pub_params, timestamps):
-
-        # Set timestamp info in rdt:
-        if param_dict.temporal_parameter_name is not None:
-            temp_param_name = param_dict.temporal_parameter_name
-            rdt[temp_param_name]       = numpy.array(timestamps)
-            #@TODO: Ensure that the preferred_timestamp field is correct
-            rdt['preferred_timestamp'] = numpy.array(['internal_timestamp'] * len(timestamps))
-            log.warn('Preferred timestamp is unresolved, using "internal_timestamp"')
-        else:
-            log.warn("%r: Not including timestamp info in granule: "
-                     "temporal_parameter_name not defined in parameter dictionary",
-                     self._platform_id)
-
-        g = rdt.to_granule(data_producer_id=self.resource_id)
-        try:
-            publisher.publish(g)
-
-            if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-                summary_params = {attr_id: "(%d vals)" % len(vals)
-                                  for attr_id, vals in pub_params.iteritems()}
-                summary_timestamps = "(%d vals)" % len(timestamps)
-                log.debug("%r: Platform agent published data granule on stream %r: "
-                          "%s  timestamps: %s",
-                          self._platform_id, stream_name,
-                          summary_params, summary_timestamps)
-            elif log.isEnabledFor(logging.TRACE):  # pragma: no cover
-                log.trace("%r: Platform agent published data granule on stream %r: "
-                          "%s  timestamps: %s",
-                          self._platform_id, stream_name,
-                          self._pp.pformat(pub_params), self._pp.pformat(timestamps))
-
-        except:
-            log.exception("%r: Platform agent could not publish data on stream %s.",
-                          self._platform_id, stream_name)
 
     def _dispatch_value_alerts(self, stream_name, param_name, vals):
         """
