@@ -697,9 +697,6 @@ class ParameterHelper(object):
 
     def create_simple_qc_pdict(self):
         types_manager = TypesManager(self.dataset_management,None,None)
-        self.create_global_range_function()
-        self.create_spike_test_function()
-        self.create_stuck_value_test_function()
         contexts = self.create_simple_qc()
         context_ids = [i[1] for i in contexts.itervalues()]
         context_ids.extend(contexts['temp'][0].qc_contexts)

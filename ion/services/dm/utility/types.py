@@ -251,7 +251,8 @@ class TypesManager(object):
                         self.make_grt_qc,
                         self.make_spike_qc,
                         self.make_stuckvalue_qc,
-                        #self.make_trendtest_qc, # Not supported
+                        self.make_trendtest_qc, # was not supported
+                        self.make_gradienttest_qc,
                         ]
 
         for factory in qc_factories:
@@ -329,14 +330,13 @@ class TypesManager(object):
 
         pfunc_id, pfunc = self.find_trend_test()
 
-        time_id, time_name = self.get_lookup_value('LV_trend_$designator_%s||time_interval' % data_product)
         order_id, order_name = self.get_lookup_value('LV_trend_$designator_%s||polynomial_order' % data_product)
         dev_id, dev_name = self.get_lookup_value('LV_trend_$designator_%s||standard_deviation' % data_product)
 
-        pmap = {"dat":name ,"t":time_name,"ord_n":order_name,"ntsd":dev_name}
+        pmap = {"dat":name ,"t":'time',"ord_n":order_name,"ntsd":dev_name}
 
         pfunc.param_map = pmap
-        pfunc.lookup_values = [time_id, order_id, dev_id]
+        pfunc.lookup_values = [order_id, dev_id]
         dp_name = self.dp_name(data_product)
         pc = ParameterContext(name='%s_trndtst_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc,value_encoding='|i1'))
         pc.uom = '1'
@@ -344,6 +344,28 @@ class TypesManager(object):
         pc.display_name = '%s Trend Test Test Quality Control Flag' % dp_name
         pc.description = 'The OOI Trend Test quality control algorithm generates flags on data values within a time series where a significant fraction of the variability in the time series can be explained by a drift, where the drift is assumed to be a polynomial of specified order.'
         ctxt_id = self.dataset_management.create_parameter_context(name='%s_trndtst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', display_name=pc.display_name, description=pc.description)
+        return ctxt_id, pc
+
+    def make_gradienttest_qc(self, name, data_product):
+
+        pfunc_id, pfunc = self.find_gradient_test()
+
+        ddatdx_id, ddatdx = self.get_lookup_value('LV_grad_$designator_%s_time||d_dat_dx' % data_product)
+        mindx_id, mindx = self.get_lookup_value('LV_grad_$designator_%s_time||min_dx' % data_product)
+        startdat_id, startdat = self.get_lookup_value('LV_grad_$designator_%s_time||start_dat' % data_product)
+        toldat_id, toldat = self.get_lookup_value('LV_grad_$designator_%s_time||tol_dat' % data_product)
+
+        pmap = {"dat":name, "x": 'time', 'ddatdx': ddatdx, 'mindx':mindx, 'startdat': startdat, 'toldat':toldat}
+        pfunc.param_map = pmap
+        pfunc.lookup_values = [ddatdx_id, mindx_id, startdat_id, toldat_id]
+        dp_name = self.dp_name(data_product)
+
+        pc = ParameterContext(name='%s_gradtst_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
+        pc.uom = '1'
+        pc.ooi_short_name = '%s_GRADTST_QC' % dp_name
+        pc.display_name = '%s Gradient Test Quality Control Flag' % dp_name
+        pc.description = 'The OOI Gradient Test is an automated quality control algorithm used on various OOI data products. This automated algorithm generates flags for data points according to whether changes between successive points are within a pre-determined range.'
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_gradtst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', display_name=pc.display_name, description=pc.description)
         return ctxt_id, pc
 
     def make_propagate_qc(self,inputs):
