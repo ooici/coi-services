@@ -5,37 +5,31 @@ and the relationships between them"""
 import string
 
 import time
-from ion.services.sa.instrument.rollx_builder import RollXBuilder
-from ion.services.sa.instrument.status_builder import AgentStatusBuilder
-from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
-from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from collections import defaultdict
+
+from ooi.logging import log
 
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.agent.agent import ResourceAgentState
 
-from ooi.logging import log
-
-
+from ion.services.sa.instrument.rollx_builder import RollXBuilder
+from ion.services.sa.instrument.status_builder import AgentStatusBuilder
+from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.util.geo_utils import GeoUtils
+from ion.util.related_resources_crawler import RelatedResourcesCrawler
+from ion.services.sa.observatory.deployment_util import describe_deployments
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue, AggregateStatusType, DeviceStatusType
 from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum
-from collections import defaultdict
-
-from ion.util.related_resources_crawler import RelatedResourcesCrawler
-
-from ion.services.sa.observatory.deployment_util import describe_deployments
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
 DATA_OPERATOR_ROLE        = 'DATA_OPERATOR'
-AGENT_STATUS_EVENT_DELTA_DAYS = 5
+
 
 class ObservatoryManagementService(BaseObservatoryManagementService):
 
@@ -83,19 +77,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #shortcut names for the import sub-services
         if hasattr(new_clients, "resource_registry"):
-            self.RR    = new_clients.resource_registry
+            self.RR = new_clients.resource_registry
             
         if hasattr(new_clients, "instrument_management"):
-            self.IMS   = new_clients.instrument_management
+            self.IMS = new_clients.instrument_management
 
         if hasattr(new_clients, "data_process_management"):
-            self.PRMS  = new_clients.data_process_management
-
-        #farm everything out to the impls
-
-
-        self.dataproductclient = DataProductManagementServiceClient()
-        self.dataprocessclient = DataProcessManagementServiceClient()
+            self.PRMS = new_clients.data_process_management
 
     def _calc_geospatial_point_center(self, site):
 
@@ -105,7 +93,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             for constraint in site.constraint_list:
                 if constraint.type_ == OT.GeospatialBounds:
                     site.geospatial_point_center = GeoUtils.calc_geospatial_point_center(constraint)
-
 
     ##########################################################################
     #
@@ -170,7 +157,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         org_id = self.clients.org_management.create_org(org)
 
         return org_id
-
 
     def create_observatory(self, observatory=None, org_id=""):
         """Create a Observatory resource. An observatory  is coupled
@@ -385,8 +371,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-    #todo: convert to resource_impl
-
     def create_deployment(self, deployment=None, site_id="", device_id=""):
         """
         Create a Deployment resource. Represents a (possibly open-ended) time interval
@@ -535,15 +519,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-
-
-
     ##########################################################################
     #
     # DEPLOYMENTS
     #
     ##########################################################################
-
 
 
     def deploy_instrument_site(self, instrument_site_id='', deployment_id=''):
@@ -633,9 +613,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 #
 #        # mark deployment as not deployed (developed seems appropriate)
 #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
-
-
-
 
 
 
@@ -780,6 +757,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return res_dict
 
 
+
     ############################
     #
     #  EXTENDED RESOURCES
@@ -816,17 +794,19 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             RR2 = EnhancedResourceRegistryClient(self.RR)
             RR2.cache_predicate(PRED.hasModel)
 
-            log.debug("Getting status of Site instruments.")
-            a, b =  self._get_instrument_states(extended_site.instrument_devices)
-            extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
+
+            # Find all subsites and devices
+            #@TODO
+
+            #a, b =  self._get_instrument_states(extended_site.instrument_devices)
+            extended_site.instruments_operational, extended_site.instruments_not_operational = [], []
 
             log.debug("Building list of model objs")
-            # lookup all hasModel predicates
+            # Build a lookup for device models via hasModel predicates.
             # lookup is a 2d associative array of [subject type][subject id] -> object id
-            lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
+            lookup = {rt : {} for rt in [RT.InstrumentDevice, RT.PlatformDevice]}
             for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
                 lookup[a.st][a.s] = a.o
-
 
             def retrieve_model_objs(rsrc_list, object_type):
             # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
@@ -1047,50 +1027,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.instrument_status        = clv(instrument_status_list)
 
         return extended_site
-
-
-    def _get_instrument_states(self, instrument_device_obj_list=None):
-
-        op = []
-        non_op = []
-        if instrument_device_obj_list is None:
-            instrument_device_list = []
-
-        #call eventsdb to check  data-related events from this device. Use UNix vs NTP tiem for now, as
-        # resource timestaps are in Unix, data is in NTP
-
-        now = str(int(time.time() * 1000))
-        query_interval = str(int(time.time() - (AGENT_STATUS_EVENT_DELTA_DAYS * 86400) )  *1000)
-
-        for device_obj in instrument_device_obj_list:
-            # first check the instrument lifecycle state
-#            if not ( device_obj.lcstate in [LCS.DEPLOYED_AVAILABLE, LCS.INTEGRATED_DISCOVERABLE] ):
-            # TODO: check that this is the intended lcs behavior and maybe check availability
-            if not ( device_obj.lcstate in [LCS.DEPLOYED, LCS.INTEGRATED] ):
-                non_op.append(device_obj)
-
-            else:
-                # we dont have a find_events that takes a list yet so loop thru the instruments and get
-                # recent events for each.
-                events = self.clients.user_notification.find_events(origin=device_obj._id,
-                                                                    type= 'ResourceAgentStateEvent',
-                                                                    max_datetime = now,
-                                                                    min_datetime = query_interval,
-                                                                    limit=1)
-                # the most recent event is first so assume that is the current state
-                if not events:
-                    non_op.append(device_obj)
-                else:
-                    current_instrument_state = events[0].state
-                    if current_instrument_state in [ResourceAgentState.STREAMING,
-                                                    ResourceAgentState.CALIBRATE,
-                                                    ResourceAgentState.BUSY,
-                                                    ResourceAgentState.DIRECT_ACCESS]:
-                        op.append(device_obj)
-                    else:
-                        op.append(device_obj)
-
-        return op, non_op
 
     def get_deployment_extension(self, deployment_id='', ext_associations=None, ext_exclude=None, user_id=''):
 
