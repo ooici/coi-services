@@ -111,7 +111,7 @@ class AgentStatusBuilder(object):
             child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
             log.debug('get_cumulative_status_dict child_agg_status : %s', child_agg_status)
             if child_agg_status:
-                out_status += child_agg_status.items()
+                out_status.update(child_agg_status)
             return out_status, None
         except Unauthorized:
             log.warn("The requester does not have the proper role to access the child_agg_status of this agent")
