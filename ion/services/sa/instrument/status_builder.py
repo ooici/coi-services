@@ -75,9 +75,6 @@ class AgentStatusBuilder(object):
         except Unauthorized:
             return None, "The requester does not have the proper role to access the status of this agent"
 
-        except Exception as e:
-            raise e
-
         return h_agent, ""
 
 
@@ -99,9 +96,6 @@ class AgentStatusBuilder(object):
             log.warn("The requester does not have the proper role to access the status of this agent")
             return None, "Error getting status: : InstrumentDevice(get_agent) has been denied"
 
-        except Exception as e:
-            raise e
-
         out_status = {device_id: this_status}
 
         if DriverTypingMethod.ByAgent == self.dtm:
@@ -112,22 +106,16 @@ class AgentStatusBuilder(object):
             device_obj = self.RR2.read(device_id)
             if RT.PlatformDevice != device_obj._get_type():
                 return out_status, None
-        elif DriverTypingMethod.ByException == self.dtm:
-            pass # just let it happen
 
         try:
             child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
             log.debug('get_cumulative_status_dict child_agg_status : %s', child_agg_status)
             if child_agg_status:
-                out_status = dict(out_status.items() + child_agg_status.items())
+                out_status += child_agg_status.items()
             return out_status, None
-
         except Unauthorized:
             log.warn("The requester does not have the proper role to access the child_agg_status of this agent")
             return out_status, "Error getting child status: InstrumentDevice(get_agent) has been denied"
-
-        except Exception as e:
-            raise e
 
 
     #return this aggregate status, reason for fail, dict of device_id -> agg status
@@ -231,8 +219,9 @@ class AgentStatusBuilder(object):
             return ComputedListValue(reason="Top platform's child_agg_status is '%s'" % type(child_agg_status).__name__)
 
         for k in keys:
-            if not type("") == type(k):
-                raise BadRequest("attempted to compute_status_list with type(v) = %s : %s" % (type(k), k))
+            # map None to UNKNOWN
+            #if not type("") == type(k):
+            #    raise BadRequest("attempted to compute_status_list with type(v) = %s : %s" % (type(k), k))
             if k in child_agg_status:
                 ret.append(self._crush_status_dict(child_agg_status[k]))
             else:

@@ -279,14 +279,18 @@ class AgentConfigurationBuilder(object):
                     product_stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(d._id)
                     stream_def = psm.read_stream_definition(stream_def_id)
                     stream_route = psm.read_stream_route(stream_id=product_stream_id)
-
+                    
+                    from pyon.core.object import IonObjectSerializer
+                    stream_def_dict = IonObjectSerializer().serialize(stream_def)
+                    sdtype = stream_def_dict.pop('type_')
 
                     if model_stream_name in stream_config:
                         log.warn("Overwiting stream_config[%s]", model_stream_name)
 
                     stream_config[model_stream_name] = {'routing_key'           : stream_route.routing_key,
                                                         'stream_id'             : product_stream_id,
-                                                        'stream_definition_ref' : stream_def_id,
+                                                        #'stream_definition_ref' : stream_def_id,
+                                                        'stream_def_dict'       : stream_def_dict,
                                                         'exchange_point'        : stream_route.exchange_point,
                                                         'parameter_dictionary'  : stream_def.parameter_dictionary,
                                                         'records_per_granule'   : stream_info_dict.get('records_per_granule'),
