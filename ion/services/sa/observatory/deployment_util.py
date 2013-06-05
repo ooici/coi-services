@@ -43,6 +43,9 @@ def describe_deployments(deployments, context, instruments=[], instrument_status
         if assoc.p == PRED.hasDeployment:
             description = descriptions[assoc.o]
 
+            # always save the id in one known field (used by UI)
+            description['resource_id'] = obj._id
+
             # save site or device info in the description
             type = obj.type_
             if type==RT.InstrumentSite or type==RT.PlatformSite:
