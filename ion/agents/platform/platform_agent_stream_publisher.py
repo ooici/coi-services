@@ -6,8 +6,9 @@
 @author  Carlos Rueda
 @brief   Stream publishing support for platform agents.
          NOTE immediate goal is to extract the functionality from the platform
-         agent code itself for modularization purposes. This will also
-         facilitate eventual alignment with AgentStreamPublisher.
+         agent code itself for modularization purposes and
+         facilitate alignment with AgentStreamPublisher. For the moment there
+         is some replication here of part of the functions there.
 """
 
 __author__ = 'Carlos Rueda'
@@ -25,6 +26,8 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 import numpy
 
 from coverage_model.parameter import ParameterDictionary
+
+import uuid
 
 import logging
 
@@ -53,6 +56,9 @@ class PlatformAgentStreamPublisher(object):
         self._param_dicts = {}
         self._stream_defs = {}
         self._data_publishers = {}
+
+        self._connection_ID = None
+        self._connection_index = {}
 
         # Set of parameter names received in event notification but not
         # configured. Allows to log corresponding warning only once.
@@ -99,6 +105,13 @@ class PlatformAgentStreamPublisher(object):
                                     stream_id=stream_id,
                                     stream_route=stream_route)
         return publisher
+
+    def reset_connection(self):
+        self._connection_ID = uuid.uuid4()
+        self._connection_index = {stream_name : 0 for
+                                  stream_name in self._data_streams.keys()}
+        log.debug("%r: reset_connection: connection_id=%s, connection_index=%s",
+                  self._platform_id, self._connection_ID.hex, self._connection_index)
 
     def handle_attribute_value_event(self, driver_event):
 
@@ -208,7 +221,9 @@ class PlatformAgentStreamPublisher(object):
                      "temporal_parameter_name not defined in parameter dictionary",
                      self._platform_id)
 
-        g = rdt.to_granule(data_producer_id=self.resource_id)
+        g = rdt.to_granule(data_producer_id=self.resource_id,
+                           connection_id=self._connection_ID.hex,
+                           connection_index=str(self._connection_index[stream_name]))
         try:
             publisher.publish(g)
 
@@ -225,6 +240,12 @@ class PlatformAgentStreamPublisher(object):
                           "%s  timestamps: %s",
                           self._platform_id, stream_name,
                           summary_params, summary_timestamps)
+
+            log.debug("%r: granule published with connection_id=%s, connection_index=%i",
+                      self._platform_id,
+                      self._connection_ID.hex,
+                      self._connection_index[stream_name])
+            self._connection_index[stream_name] += 1
 
         except:
             log.exception("%r: Platform agent could not publish data on stream %s.",

@@ -243,9 +243,11 @@ class PlatformAgent(ResourceAgent):
         # State when lost.
         self._state_when_lost = None
 
+        #####################################
         # Agent stream publisher.
         self._asp = None
 
+        #####################################
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
@@ -536,10 +538,13 @@ class PlatformAgent(ResourceAgent):
 
     def _go_active_this_platform(self):
         """
-        Connects the driver.
+        Connects the driver
+        and resets stream publisher connection id and index.
         """
         log.debug("%r: triggering driver event CONNECT", self._platform_id)
         self._trigger_driver_event(PlatformDriverEvent.CONNECT)
+
+        self._asp.reset_connection()
 
     def _go_inactive_this_platform(self):
         """
@@ -2786,6 +2791,9 @@ class PlatformAgent(ResourceAgent):
                   self._platform_id)
         try:
             driver_state = self._trigger_driver_event(PlatformDriverEvent.CONNECT)
+
+            # Reset the connection id and index.
+            self._asp.reset_connection()
 
         except Exception as e:
             log.debug("%r: (LC) Exception while trying CONNECT: %s", self._platform_id, e)
