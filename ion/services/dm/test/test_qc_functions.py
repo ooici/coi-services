@@ -68,6 +68,16 @@ class TestQCFunctions(DMTestCase):
 
         np.testing.assert_array_almost_equal(self.rdt['tempwat_stuckvl_qc'], [1, 1, 0, 0, 0, 0, 1, 1, 1, 1])
 
+    def test_trend_test(self):
+        self.svm.stored_value_cas('trend_QCTEST_TEMPWAT', {'time_interval':0, 'polynomial_order': 1, 'standard_deviation': 3})
+        self.rdt['time'] = np.arange(10)
+        self.rdt['temp'] = [0.8147, 0.9058, 0.1270, 0.9134, 0.6324, 0.0975, 0.2785, 0.5469, 0.9575, 0.9649]
+
+        self.rdt.fetch_lookup_values()
+
+        np.testing.assert_array_equal(self.rdt['tempwat_trndtst_qc'], [1] * 10)
+
+
     def test_propagate_test(self):
         self.rdt['time'] = np.arange(8)
         self.rdt['temp'] = [9, 10, 16, 17, 18, 19, 20, 25]
@@ -75,6 +85,7 @@ class TestQCFunctions(DMTestCase):
         self.rdt['tempwat_spketst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         self.rdt['tempwat_stuckvl_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         self.rdt['tempwat_gradtst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
+        self.rdt['tempwat_trndtst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         np.testing.assert_array_equal(self.rdt['cmbnflg_qc'], [0, 1, 1, 1, 1, 1, 1, 0])
     
     def test_gradient_test(self):
@@ -127,6 +138,8 @@ class TestCoverageQC(TestQCFunctions):
         np.testing.assert_array_equal(self.rdt['tempwat_glblrng_qc'], [-99] * 5)
         np.testing.assert_array_equal(self.rdt['tempwat_spketst_qc'], [-99] * 5)
         np.testing.assert_array_equal(self.rdt['tempwat_stuckvl_qc'], [-99] * 5)
+        np.testing.assert_array_equal(self.rdt['tempwat_trndtst_qc'], [-99] * 5)
+        np.testing.assert_array_equal(self.rdt['tempwat_gradtst_qc'], [-99] * 5)
         self.ph.publish_rdt_to_data_product(self.dp_id, self.rdt)
 
         self.dataset_monitor.event.wait(10)
@@ -134,7 +147,8 @@ class TestCoverageQC(TestQCFunctions):
         np.testing.assert_array_equal(rdt['tempwat_glblrng_qc'], [-99] * 5)
         np.testing.assert_array_equal(rdt['tempwat_spketst_qc'], [-99] * 5)
         np.testing.assert_array_equal(rdt['tempwat_stuckvl_qc'], [-99] * 5)
-
+        np.testing.assert_array_equal(rdt['tempwat_trndtst_qc'], [-99] * 5)
+        np.testing.assert_array_equal(rdt['tempwat_gradtst_qc'], [-99] * 5)
 
     def test_spike_test(self):
         TestQCFunctions.test_spike_test(self)
@@ -152,4 +166,20 @@ class TestCoverageQC(TestQCFunctions):
 
         rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(self.dataset_id))
         np.testing.assert_array_almost_equal(rdt['tempwat_stuckvl_qc'], [1, 1, 0, 0, 0, 0, 1, 1, 1, 1])
+    
+    def test_gradient_test(self):
+        TestQCFunctions.test_gradient_test(self)
+        self.ph.publish_rdt_to_data_product(self.dp_id, self.rdt)
+        self.dataset_monitor.event.wait(10)
+
+        rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(self.dataset_id))
+        np.testing.assert_array_equal(rdt['tempwat_gradtst_qc'], [1, 1, 0, 0, 1])
+
+    def test_trend_test(self):
+        TestQCFunctions.test_trend_test(self)
+        self.ph.publish_rdt_to_data_product(self.dp_id, self.rdt)
+        self.dataset_monitor.event.wait(10)
+
+        rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(self.dataset_id))
+        np.testing.assert_array_almost_equal(rdt['tempwat_trndtst_qc'], [1] * 10)
 

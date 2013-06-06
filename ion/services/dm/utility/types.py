@@ -251,7 +251,7 @@ class TypesManager(object):
                         self.make_grt_qc,
                         self.make_spike_qc,
                         self.make_stuckvalue_qc,
-                        #self.make_trendtest_qc, # Not supported
+                        self.make_trendtest_qc, # was not supported
                         self.make_gradienttest_qc,
                         ]
 
@@ -330,14 +330,13 @@ class TypesManager(object):
 
         pfunc_id, pfunc = self.find_trend_test()
 
-        time_id, time_name = self.get_lookup_value('LV_trend_$designator_%s||time_interval' % data_product)
         order_id, order_name = self.get_lookup_value('LV_trend_$designator_%s||polynomial_order' % data_product)
         dev_id, dev_name = self.get_lookup_value('LV_trend_$designator_%s||standard_deviation' % data_product)
 
-        pmap = {"dat":name ,"t":time_name,"ord_n":order_name,"ntsd":dev_name}
+        pmap = {"dat":name ,"t":'time',"ord_n":order_name,"ntsd":dev_name}
 
         pfunc.param_map = pmap
-        pfunc.lookup_values = [time_id, order_id, dev_id]
+        pfunc.lookup_values = [order_id, dev_id]
         dp_name = self.dp_name(data_product)
         pc = ParameterContext(name='%s_trndtst_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc,value_encoding='|i1'))
         pc.uom = '1'
