@@ -1771,7 +1771,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # JIRA OOIION934: REMOVE THIS BLOCK WHEN FIXED
         # add portals, sites related to platforms (SHOULD HAPPEN AUTOMATICALLY USING THE COMPOUND ASSOCIATION)
         if extended_platform.deployed_site and not extended_platform.portals:
-            extended_platform.portals = RR2.find_objects(object_type=RT.InstrumentSite, predicate=PRED.hasSite, subject=extended_platform.deployed_site._id)
+            extended_platform.portals = RR2.find_objects(object_type=RT.InstrumentSite, predicate=PRED.hasSite, subject=extended_platform.deployed_site[0]._id)
             if extended_platform.portals:
                 log.warn('compound association failed, manual workaround found %d portals', len(extended_platform.portals))
         # END JIRA BLOCK
