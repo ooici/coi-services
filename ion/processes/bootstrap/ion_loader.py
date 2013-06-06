@@ -1692,6 +1692,7 @@ Reason: %s
             temporal_parameter_name = ''
 
         context_ids = {}
+        qc_bin = []
         for i in definitions:
             try:
                 res_id = self.resource_ids[i]
@@ -1701,6 +1702,8 @@ Reason: %s
                     log.warning('Duplicate: %s (%s)', name, i)
                 context_ids[self.resource_ids[i]] = 0
                 res = self.resource_objs[i]
+                if res.name.endswith('_qc'):
+                    qc_bin.append(res.name)
                 context = ParameterContext.load(res.parameter_context)
                 
                 lookup_values = types_manager.get_lookup_value_ids(context)
@@ -1719,6 +1722,10 @@ Reason: %s
                     definitions.extend(context.qc_contexts)
             except KeyError:
                 pass
+
+        if qc_bin:
+            ctxt_id, ctxt = types_manager.make_propagate_qc(qc_bin)
+            context_ids[ctxt_id] = 0
 
         if not context_ids:
             log.warning('No valid parameters: %s', row['name'])

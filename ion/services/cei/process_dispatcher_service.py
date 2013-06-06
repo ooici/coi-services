@@ -835,8 +835,30 @@ class HeartbeatSubscriber(Subscriber):
 class AnyEEAgentClient(object):
     """Client abstraction for talking to any EEAgent
     """
-    def __init__(self, process):
+    def __init__(self, process, thread_pool_size=None):
+        """
+        @param process: the pyon process that will use this client
+        @param thread_pool_size: the size of the gevent thread pool to use
+            If it is set to None, there will be no limit to the size of the pool
+            but if it is set to 0, no threadpool will be used, and messages will
+            be sent synchronously
+        """
+        if thread_pool_size == 0:
+            self.pool = None
+        else:
+            self.pool = gevent.pool.Pool(size=thread_pool_size)
         self.process = process
+
+    def _spawn(self, function, *args, **kwargs):
+        if self.pool is not None:
+            return self.pool.spawn(function, *args, **kwargs)
+        else:
+            return function(*args, **kwargs)
+
+    def close(self):
+        if self.pool is not None:
+            self.pool.kill()
+            self.pool.join()
 
     def _get_client_for_eeagent(self, eeagent_id):
         eeagent_id = str(eeagent_id)
@@ -847,23 +869,23 @@ class AnyEEAgentClient(object):
     def launch_process(self, eeagent, upid, round, run_type, parameters):
         client = self._get_client_for_eeagent(eeagent)
         log.debug("sending launch request to EEAgent")
-        return client.launch_process(upid, round, run_type, parameters)
+        return self._spawn(client.launch_process, upid, round, run_type, parameters)
 
     def restart_process(self, eeagent, upid, round):
         client = self._get_client_for_eeagent(eeagent)
-        return client.restart_process(upid, round)
+        return self._spawn(client.restart_process, upid, round)
 
     def terminate_process(self, eeagent, upid, round):
         client = self._get_client_for_eeagent(eeagent)
-        return client.terminate_process(upid, round)
+        return self._spawn(client.terminate_process, upid, round)
 
     def cleanup_process(self, eeagent, upid, round):
         client = self._get_client_for_eeagent(eeagent)
-        return client.cleanup_process(upid, round)
+        return self._spawn(client.cleanup_process, upid, round)
 
     def dump_state(self, eeagent):
         client = self._get_client_for_eeagent(eeagent)
-        return client.dump_state()
+        return self._spawn(client.dump_state)
 
 
 class PDNativeBackend(object):
@@ -921,7 +943,8 @@ class PDNativeBackend(object):
 
         self.notifier = Notifier()
 
-        self.eeagent_client = AnyEEAgentClient(service)
+        thread_pool_size = conf.get('eeagent_thread_pool_size', None)
+        self.eeagent_client = AnyEEAgentClient(service, thread_pool_size=thread_pool_size)
 
         run_type = 'pyon'
 
@@ -962,6 +985,8 @@ class PDNativeBackend(object):
         self.beat_subscriber.start()
 
     def shutdown(self):
+        self.eeagent_client.close()
+
         try:
             self.store.shutdown()
         except Exception:
