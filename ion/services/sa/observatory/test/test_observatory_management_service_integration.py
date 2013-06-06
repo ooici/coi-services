@@ -544,9 +544,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
     @attr('EXT')
     def test_observatory_extensions(self):
-
-
-
         obs_id = self.RR2.create(any_old(RT.Observatory))
         pss_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="StationSite")))
         pas_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="PlatformAssemblySite")))
@@ -647,6 +644,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
             log.error('failed to get extended site', exc_info=True)
             raise
         log.debug("extended_site:  %r ", extended_site)
+        self.assertEquals(stuff.subsiteb_id, extended_site.parent_site._id)
+        self.assertEqual(2, len(extended_site.sites))
         self.assertEqual(2, len(extended_site.platform_devices))
         self.assertEqual(2, len(extended_site.platform_models))
         self.assertIn(stuff.platform_device_id, [o._id for o in extended_site.platform_devices])
