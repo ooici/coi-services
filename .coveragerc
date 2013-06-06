@@ -21,5 +21,9 @@ omit =
     */oms_simulator_server*
     */cgsn_simulator*
     */load_csv*
+    */gviz_api*
+    */SBE37_SMP_simulator*
+    */geo_utils*
+    */preservation_management_service*
 [html]
 directory = coverage_results

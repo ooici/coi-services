@@ -1773,12 +1773,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 log.warn('compound association failed, manual workaround found %d portals', len(extended_platform.portals))
         # END JIRA BLOCK
 
-        # add device and status of portals
-        _,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_platform.portals], id_only=True)
-        for a in associations:
-            if a.p==PRED.hasDevice:
-                if a.ot!=RT.InstrumentDevice:
-                    log.warn('unexpected association InstrumentSite %s hasDevice %s %s (was not InstrumentDevice)', a.s, a.ot, a.o)
+#        # add device and status of portals
+#        _,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_platform.portals], id_only=True)
+#        for a in associations:
+#            if a.p==PRED.hasDevice:
+#                if a.ot!=RT.InstrumentDevice:
+#                    log.warn('unexpected association InstrumentSite %s hasDevice %s %s (was not InstrumentDevice)', a.s, a.ot, a.o)
 
         # use the related resources crawler to get ALL sub-devices
         finder = RelatedResourcesCrawler()
@@ -1803,42 +1803,34 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                                     list(subdevice_ids))
 
         statuses, reason = self.agent_status_builder.get_cumulative_status_dict(platform_device_id)
-
         def csl(device_id_list):
             return self.agent_status_builder.compute_status_list(statuses, device_id_list)
-        log.debug("Building instrument and platform status dicts")
+
         extended_platform.computed.instrument_status = csl([dev._id for dev in extended_platform.instrument_devices])
         extended_platform.computed.platform_status   = csl([platform._id for platform in extended_platform.platforms])
-        log.info('instrument_status: %s %r instruments %d\nplatform_status: %s %r platforms %d',
+        log.debug('instrument_status: %s %r instruments %d\nplatform_status: %s %r platforms %d',
             extended_platform.computed.instrument_status.reason, extended_platform.computed.instrument_status.value, len(extended_platform.instrument_devices),
             extended_platform.computed.platform_status.reason, extended_platform.computed.platform_status.value, len(extended_platform.platforms))
         if t:
             t.complete_step('ims.platform_device_extension.status')
 
-#        extended_platform.computed.portal_status     = csl([dev._id if dev else None for dev in extended_platform.portal_instruments])
-        # use associations to create portal_instrument array such that portal[i] --hasDevice--> portal_instrument[i]
-        # use existing InstrumentDevice objects in instrument_devices array
+        # add device and status of portals
+        objects,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_platform.portals], id_only=False)
         extended_platform.portal_instruments = [None]*len(extended_platform.portals)
-        extended_platform.computed.portal_status = ComputedListValue(value=[None]*len(extended_platform.portals), status=ComputedValueAvailability.PROVIDED if statuses else ComputedValueAvailability.NOTAVAILABLE)
         for i in xrange(len(extended_platform.portals)):
-        #found_association = False
-            for a in associations:
-                if a.p==PRED.hasDevice and a.ot==RT.InstrumentDevice and a.s==extended_platform.portals[i]._id:
-                    #if found_association:
-                    #    log.warn('found more than one InstrumentDevice for InstrumentSite %s: had %s, now also %s', target_site_id, extended_platform.portal_instruments[i]._id, a.o)
-                    #    continue
-                    #found_association = True
-                    # no need to query devices from DB, just find in existing list -- but order with index of portal
-#                    found_instrument = False
-                    for j in xrange(len(extended_platform.instrument_devices)):
-                        if extended_platform.instrument_devices[j]._id == a.o:
-#                            found_instrument = True
-                            extended_platform.portal_instruments[i] = extended_platform.instrument_devices[j]
-                            extended_platform.computed.portal_status.value[i] = extended_platform.computed.instrument_status.value[j] if statuses else None
-                            break
-#                    if not found_instrument:
-#                        log.warn('portal device %s of PlatformDevice %s not found in instrument_device list', a.o, platform_device_id)
-        log.debug("Building network rollups")
+            for o,a in zip(objects,associations):
+                if a.p==PRED.hasDevice:
+                    if a.ot!=RT.InstrumentDevice:
+                        log.warn('unexpected association InstrumentSite %s hasDevice %s %s (was not InstrumentDevice)', a.s, a.ot, a.o)
+                    elif a.s==extended_platform.portals[i]._id:
+                        extended_platform.portal_instruments[i] = o
+
+        log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
+
+        ids =[i._id if i else None for i in extended_platform.portal_instruments]
+        extended_platform.computed.portal_status = csl(ids)
+        log.debug('%d portals, %d instruments, %d status: %r', len(extended_platform.portals), len(extended_platform.portal_instruments), len(extended_platform.computed.portal_status.value), ids)
+
         rollx_builder = RollXBuilder(self)
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
         if t:
