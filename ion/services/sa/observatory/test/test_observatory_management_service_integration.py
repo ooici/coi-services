@@ -565,25 +565,25 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.RR2.create_association(pcs_id, PRED.hasSite, ins_id)
 
         extended_obs = self.OMS.get_observatory_site_extension(obs_id, user_id=12345)
-        self.assertEqual([pss_obj], extended_obs.computed.platform_station_sites.value)
-        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_obs.computed.platform_station_sites.status)
-        self.assertEqual([pas_obj], extended_obs.computed.platform_assembly_sites.value)
-        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_obs.computed.platform_assembly_sites.status)
-        self.assertEqual([pcs_obj], extended_obs.computed.platform_component_sites.value)
-        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_obs.computed.platform_component_sites.status)
-        self.assertEqual([ins_obj], extended_obs.computed.instrument_sites.value)
+        self.assertEqual([pss_obj], extended_obs.platform_station_sites.value)
+        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_obs.platform_station_sites.status)
+        self.assertEqual([pas_obj], extended_obs.platform_assembly_sites.value)
+        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_obs.platform_assembly_sites.status)
+        self.assertEqual([pcs_obj], extended_obs.platform_component_sites.value)
+        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_obs.platform_component_sites.status)
+        self.assertEqual([ins_obj], extended_obs.instrument_sites.value)
 
         extended_pss = self.OMS.get_observatory_site_extension(obs_id, user_id=12345)
-        self.assertEqual([pas_obj], extended_pss.computed.platform_assembly_sites.value)
-        self.assertEqual([pcs_obj], extended_pss.computed.platform_component_sites.value)
-        self.assertEqual([ins_obj], extended_pss.computed.instrument_sites.value)
+        self.assertEqual([pas_obj], extended_pss.platform_assembly_sites.value)
+        self.assertEqual([pcs_obj], extended_pss.platform_component_sites.value)
+        self.assertEqual([ins_obj], extended_pss.instrument_sites.value)
 
         extended_pas = self.OMS.get_observatory_site_extension(pas_id, user_id=12345)
-        self.assertEqual([pcs_obj], extended_pas.computed.platform_component_sites.value)
-        self.assertEqual([ins_obj], extended_pas.computed.instrument_sites.value)
+        self.assertEqual([pcs_obj], extended_pas.platform_component_sites.value)
+        self.assertEqual([ins_obj], extended_pas.instrument_sites.value)
 
         extended_pcs = self.OMS.get_platform_component_site_extension(pcs_id, user_id=12345)
-        self.assertEqual([ins_obj], extended_pcs.computed.instrument_sites.value)
+        self.assertEqual([ins_obj], extended_pcs.instrument_sites.value)
 
 
     #@unittest.skip("in development...")
@@ -647,10 +647,10 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
             log.error('failed to get extended site', exc_info=True)
             raise
         log.debug("extended_site:  %r ", extended_site)
-        self.assertEqual(1, len(extended_site.platform_devices))
-        self.assertEqual(1, len(extended_site.platform_models))
-        self.assertEqual(stuff.platform_device_id, extended_site.platform_devices[0]._id)
-        self.assertEqual(stuff.platform_model_id, extended_site.platform_models[0]._id)
+        self.assertEqual(2, len(extended_site.platform_devices))
+        self.assertEqual(2, len(extended_site.platform_models))
+        self.assertIn(stuff.platform_device_id, [o._id for o in extended_site.platform_devices])
+        self.assertIn(stuff.platform_model_id, [o._id for o in extended_site.platform_models if o is not None])
 
         log.debug("verify that PlatformDeviceb is linked to PlatformDevice with hasNetworkParent link")
         associations = self.RR.find_associations(subject=stuff.platform_deviceb_id, predicate=PRED.hasNetworkParent, object=stuff.platform_device_id, id_only=True)
