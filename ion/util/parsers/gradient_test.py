@@ -6,6 +6,7 @@
 
 from csv import DictReader
 from StringIO import StringIO
+from pyon.util.log import log
 
 def gradient_test_parser(document):
     '''
@@ -55,20 +56,27 @@ def gradient_test_parser(document):
 
     dr = DictReader(sio)
     for row in dr:
-        key = '_'.join(['grad',row['Reference Designator'],row['Data Product used as Input Data (DAT)'],row['Data Product used as Input Parameter X']])
+        try:
+            key = '_'.join(['grad',row['Reference Designator'],row['Data Product used as Input Data (DAT)'],row['Data Product used as Input Parameter X']])
 
-        document = {}
-        document['array']                = row['Array']
-        document['instrument_class']     = row['Instrument Class']
-        document['reference_designator'] = row['Reference Designator']
-        document['dat']                  = row['Data Product used as Input Data (DAT)']
-        document['x']                    = row['Data Product used as Input Parameter X']
-        document['units_dat']            = row['Units of DAT']
-        document['units_x']              = row['Units of X']
-        document['d_dat_dx']             = float(row['DDATDX'])
-        document['min_dx']               = float(row['MINDX'])
-        document['start_dat']            = float(row['STARTDAT'])
-        document['tol_dat']              = float(row['TOLDAT'])
-        yield key,document
+            document = {}
+            document['array']                = row['Array']
+            document['instrument_class']     = row['Instrument Class']
+            document['reference_designator'] = row['Reference Designator']
+            document['dat']                  = row['Data Product used as Input Data (DAT)']
+            document['x']                    = row['Data Product used as Input Parameter X']
+            document['units_dat']            = row['Units of DAT']
+            document['units_x']              = row['Units of X']
+            document['d_dat_dx']             = float(row['DDATDX'])
+            document['min_dx']               = float(row['MINDX']) if row['MINDX'] else 0.
+            document['start_dat']            = float(row['STARTDAT']) if row['STARTDAT'] else 0.
+            document['tol_dat']              = float(row['TOLDAT'])
+            yield key,document
+        except TypeError:
+            log.exception("Couldn't parse row")
+            continue
+        except ValueError:
+            log.exception("Couldn't parse row")
+            continue
     return
 
