@@ -75,8 +75,9 @@ class PlatformAgentStreamPublisher(object):
 
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r: _construct_stream_and_publisher: "
-                      "stream_name:%r, stream_config=%s",
-                      self._platform_id, stream_name, self._pp.pformat(stream_config))
+                      "stream_name:%r, stream_config:\n%s",
+                      self._platform_id, stream_name,
+                      self._pp.pformat(stream_config))
 
         routing_key           = stream_config['routing_key']
         stream_id             = stream_config['stream_id']
