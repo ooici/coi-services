@@ -1130,12 +1130,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return op, non_op
 
     def get_deployment_extension(self, deployment_id='', ext_associations=None, ext_exclude=None, user_id=''):
-
         if not deployment_id:
             raise BadRequest("The deployment_id parameter is empty")
 
         extended_resource_handler = ExtendedResourceContainer(self)
-
         extended_deployment = extended_resource_handler.create_extended_resource_container(
             extended_resource_type=OT.DeploymentExtension,
             resource_id=deployment_id,
@@ -1143,46 +1141,82 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
             user_id=user_id)
+        # have device, site objects
 
-        devices = set()
-        instrument_device_ids = []
-        iplatform_device_ids = []
-        subjs, _ = self.RR.find_subjects( predicate=PRED.hasDeployment, object=deployment_id, id_only=False)
-        for subj in subjs:
+        if not extended_deployment.device or not extended_deployment.site:
+            return extended_deployment
 
-            if subj.type_ == "InstrumentDevice":
-                extended_deployment.instrument_devices.append(subj)
-                devices.add((subj._id, PRED.hasModel))
-            elif subj.type_ == "InstrumentSite":
-                extended_deployment.instrument_sites.append(subj)
-            elif subj.type_ == "PlatformDevice":
-                extended_deployment.platform_devices.append(subj)
-                devices.add((subj._id, PRED.hasModel))
-            elif subj.type_ == "PlatformSite":
-                extended_deployment.platform_sites.append(subj)
-            else:
-                log.warning("get_deployment_extension found invalid type connected to deployment %s. Object details: %s ", deployment_id, subj)
+        RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+        finder = RelatedResourcesCrawler()
+        get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasDevice])
+        full_crawllist = [RT.InstrumentDevice, RT.PlatformDevice]
+        # search from PlatformDevice to subplatform or InstrumentDevice
+        search_down = get_assns({PRED.hasDevice: (True, False)}, [RT.InstrumentDevice, RT.PlatformDevice])
 
-        all_models = set()
-        device_to_model_map = {}
-        model_map = {}
-        assocs = self.RR.find_associations(anyside=list(devices), id_only=False)
-        for assoc in assocs:
+        # collect ids of devices below deployment target
+        platform_device_ids = set()
+        instrument_device_ids = set()
+        # make sure main device in deployment is in the list
+        if extended_deployment.device.type_==RT.InstrumentDevice:
+            instrument_device_ids.add(extended_deployment.device._id)
+        else:
+            platform_device_ids.add(extended_deployment.device._id)
+        for a in search_down(extended_deployment.device._id, -1):
+            if a.o != extended_deployment.device._id:
+                if a.ot == RT.InstrumentDevice:
+                    instrument_device_ids.add(a.o)
+                else: # a.ot == RT.PlatformDevice:
+                    platform_device_ids.add(a.o)
 
-            all_models.add(assoc.o)
-            device_to_model_map[assoc.s] = assoc.o
+        # get sites (portals)
+        extended_deployment.computed.portals = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[extended_deployment.site])
+        subsite_ids = set()
+        device_by_site = { extended_deployment.site._id: extended_deployment.device._id }
+        for did in platform_device_ids:
+            related_sites = RR2.find_platform_site_ids_by_platform_device(did)
+            for sid in related_sites:
+                subsite_ids.add(sid)
+                device_by_site[sid] = did
+        for did in instrument_device_ids:
+            related_sites = RR2.find_instrument_site_ids_by_instrument_device(did)
+            for sid in related_sites:
+                subsite_ids.add(sid)
+                device_by_site[sid] = did
 
-        model_objs = self.RR.read_mult( list(all_models) )
-        for model_obj in model_objs:
-            model_map[model_obj._id] = model_obj
+        # sort the objects into the lists to be displayed
+        ids = list(platform_device_ids|instrument_device_ids|subsite_ids)
+        device_by_id = { extended_deployment.device._id: extended_deployment.device }
+        objs = self.RR.read_mult(ids)
+        for obj in objs:
+            if obj.type_==RT.InstrumentDevice:
+                extended_deployment.instruments.add(obj)
+            elif obj.type_==RT.PlatformDevice:
+                extended_deployment.platforms.add(obj)
+            else: # InstrumentSite or PlatformSite
+                extended_deployment.computed.portals.value.add(obj)
 
-        for instrument in extended_deployment.instrument_devices:
-            model_id = device_to_model_map[instrument._id]
-            extended_deployment.instrument_models.append( model_map[model_id] )
+        # get associated models for all devices
+        devices = list(platform_device_ids|instrument_device_ids)
+        assocs = self.RR.find_associations(assoc_type=PRED.hasModel, anyside=list(devices), id_only=False)
+        model_id_by_device = { a.s: a.o for a in assocs }
+        model_ids = set( [ a.o for a in assocs ])
+        models = self.RR.read_mult( list(model_ids) )
+        model_by_id = { o._id: o for o in models }
 
-        for platform in extended_deployment.platform_devices:
-            model_id = device_to_model_map[platform._id]
-            extended_deployment.platform_models.append( model_map[model_id] )
+        extended_deployment.instrument_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.instrument_devices ]
+        extended_deployment.platform_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.platform_devices ]
+        extended_deployment.computed.portal_devices = ComputedListValue(status=ComputedValueAvailability.PROVIDED)
+        extended_deployment.computed.portal_devices.value = [ device_by_id[device_by_site[p._id]] for p in extended_deployment.computed.portals.value ]
+
+        # TODO -- all status values
+        #
+        #status: !ComputedIntValue
+        ## combined list of sites and their status
+        ##@ResourceType=InstrumentSite,PlatformSite
+        #portal_status: !ComputedListValue
+        ## status of device lists
+        #instrument_status: !ComputedListValue
+        #platform_status: !ComputedListValue
 
         return extended_deployment
 
