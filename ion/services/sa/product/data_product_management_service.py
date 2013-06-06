@@ -1237,13 +1237,13 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                        'data_acquisition_management',
                                                        'assign_data_product_source',
                                                        {'data_product_id': data_product_id,
-                                                        'source_id': '$(source_id)'})
+                                                        'source_id': '$(data_product_id)'}) # yes this is odd, but its the variable name we want to substitute based on resource_identifier (i'm not sure where that is set)
 
         extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDeviceHasSource'].unassign_request,
                                                        'data_acquisition_management',
                                                        'unassign_data_product_source',
                                                        {'data_product_id': data_product_id,
-                                                        'source_id': '$(source_id)'})
+                                                        'source_id': '$(data_product_id)'})
 
         resource_data.associations['InstrumentDeviceHasSource'].multiple_associations = True
 
