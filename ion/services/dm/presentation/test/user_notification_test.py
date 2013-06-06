@@ -346,7 +346,14 @@ class UserNotificationEventsTest(PyonTestCase):
                 desc="DRIVER_EVENT_STOP_AUTOSAMPLE",
                 result=None)),
 
-       dict(et='DeviceStatusEvent', o='ID_1', ot='PlatformDevice', st='input_voltage',
+        dict(et='ResourceAgentConnectionLostErrorEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(error_msg="Connection to resource device was lost.",
+                error_code=-1)),
+
+        dict(et='ResourceAgentEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict()),
+
+        dict(et='DeviceStatusEvent', o='ID_1', ot='PlatformDevice', st='input_voltage',
             attr=dict(status=DeviceStatusType.STATUS_OK,
                 description="Event to deliver the status of instrument.")),
     ]

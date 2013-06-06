@@ -626,6 +626,10 @@ class UserNotificationService(BaseUserNotificationService):
             summary = "%s agent command '%s(%s)' failed: %s:%s (%s)" % (event.origin_type, event.command, event.execute_command, event.error_type, event.error_msg, event.error_code)
         elif "ResourceAgentAsyncResultEvent" in event_types:
             summary = "%s agent async command '%s(%s)' succeeded: %s" % (event.origin_type, event.command, event.desc, "" if event.result is None else event.result)
+        elif "ResourceAgentConnectionLostErrorEvent" in event_types:
+            summary = "%s agent: %s (%s)" % (event.origin_type, event.error_msg, event.error_code)
+        elif "ResourceAgentEvent" in event_types:
+            summary = "%s agent: %s" % (event.origin_type, event.type_)
 
         elif "ResourceAgentResourceCommandEvent" in event_types:
             summary = "%s agent resource command '%s(%s)' executed: %s" % (event.origin_type, event.command, event.execute_command, "OK" if event.result is None else event.result)

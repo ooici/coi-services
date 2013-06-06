@@ -2,43 +2,36 @@
 
 """Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
 and the relationships between them"""
-import string
 
+import string
 import time
+from collections import defaultdict
+
+from ooi.logging import log
+
+from pyon.core.exception import NotFound, BadRequest, Inconsistent
+from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
+from pyon.ion.resource import ExtendedResourceContainer
+
 from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
-
-from pyon.core.exception import NotFound, BadRequest
-from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
-from pyon.ion.resource import ExtendedResourceContainer
-from pyon.agent.agent import ResourceAgentState
-
-from ooi.logging import log
-
-
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.util.geo_utils import GeoUtils
+from ion.util.related_resources_crawler import RelatedResourcesCrawler
+from ion.services.sa.observatory.deployment_util import describe_deployments
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue, AggregateStatusType, DeviceStatusType
 from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum
-from collections import defaultdict
-
-from ion.util.related_resources_crawler import RelatedResourcesCrawler
-
-from ion.services.sa.observatory.deployment_util import describe_deployments
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
 DATA_OPERATOR_ROLE        = 'DATA_OPERATOR'
-AGENT_STATUS_EVENT_DELTA_DAYS = 5
+
 
 class ObservatoryManagementService(BaseObservatoryManagementService):
-
 
     def on_init(self):
         IonObject("Resource")  # suppress pyflakes error
@@ -78,34 +71,25 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
         Replaces the service clients with a new set of them... and makes sure they go to the right places
         """
-
         self.RR2   = EnhancedResourceRegistryClient(new_clients.resource_registry)
 
         #shortcut names for the import sub-services
         if hasattr(new_clients, "resource_registry"):
-            self.RR    = new_clients.resource_registry
+            self.RR = new_clients.resource_registry
             
         if hasattr(new_clients, "instrument_management"):
-            self.IMS   = new_clients.instrument_management
+            self.IMS = new_clients.instrument_management
 
         if hasattr(new_clients, "data_process_management"):
-            self.PRMS  = new_clients.data_process_management
-
-        #farm everything out to the impls
-
-
-        self.dataproductclient = DataProductManagementServiceClient()
-        self.dataprocessclient = DataProcessManagementServiceClient()
+            self.PRMS = new_clients.data_process_management
 
     def _calc_geospatial_point_center(self, site):
-
         siteTypes = [RT.Site, RT.Subsite, RT.Observatory, RT.PlatformSite, RT.InstrumentSite]
         if site and site.type_ in siteTypes:
             # if the geospatial_bounds is set then calculate the geospatial_point_center
             for constraint in site.constraint_list:
                 if constraint.type_ == OT.GeospatialBounds:
                     site.geospatial_point_center = GeoUtils.calc_geospatial_point_center(constraint)
-
 
     ##########################################################################
     #
@@ -170,7 +154,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         org_id = self.clients.org_management.create_org(org)
 
         return org_id
-
 
     def create_observatory(self, observatory=None, org_id=""):
         """Create a Observatory resource. An observatory  is coupled
@@ -385,8 +368,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-    #todo: convert to resource_impl
-
     def create_deployment(self, deployment=None, site_id="", device_id=""):
         """
         Create a Deployment resource. Represents a (possibly open-ended) time interval
@@ -535,15 +516,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-
-
-
     ##########################################################################
     #
     # DEPLOYMENTS
     #
     ##########################################################################
-
 
 
     def deploy_instrument_site(self, instrument_site_id='', deployment_id=''):
@@ -637,9 +614,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-
-
-
     ##########################################################################
     #
     # FIND OPS
@@ -723,11 +697,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return site_resources, site_children
 
 
-    def get_sites_devices_status(self, parent_resource_ids=None, include_sites = False, include_devices=False, include_status=False):
+    def get_sites_devices_status(self, parent_resource_ids=None, include_sites=False, include_devices=False, include_status=False):
         if not parent_resource_ids:
             raise BadRequest("Must provide a parent parent_resource_id")
 
         result_dict = {}
+
+        RR2 = EnhancedResourceRegistryClient(self.RR)
+        outil = ObservatoryUtil(self, enhanced_rr=RR2)
 
         #loop thru all the provided site ids and create the result structure
         for parent_resource_id in parent_resource_ids:
@@ -742,19 +719,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
             site_result_dict = {}
 
-            site_resources, site_children = self.outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
-
+            site_resources, site_children = outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
             if include_sites:
                 site_result_dict["site_resources"] = site_resources
                 site_result_dict["site_children"] = site_children
 
-
             all_device_statuses = {}
             if include_devices or include_status:
-                RR2 = EnhancedResourceRegistryClient(self.RR)
                 RR2.cache_predicate(PRED.hasSite)
                 RR2.cache_predicate(PRED.hasDevice)
-                all_device_statuses = self._get_master_status_table( RR2, site_children.keys())
+                all_device_statuses = self._get_master_status_table(RR2, site_children.keys())
 
             if include_status:
                 #add code to grab the master status table to pass in to the get_status_roll_ups calc
@@ -793,12 +767,62 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return res_dict
 
 
+
     ############################
     #
     #  EXTENDED RESOURCES
     #
     ############################
 
+    # TODO: Make every incoming call to this one
+    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        site_extension = None
+
+        # Make a case decision on what what to do
+        site_obj = self.RR2.read(site_id)
+        site_type = site_obj._get_type()
+
+        if site_type == RT.InstrumentSite:
+            site_extension = self._get_instrument_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        elif site_type in (RT.Observatory, RT.Subsite):
+            site_extension = self._get_platform_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        elif site_type == RT.PlatformSite:
+            site_extension = self._get_platform_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        else:
+            raise BadRequest("Unknown site type '%s' for site %s" % (site_type, site_id))
+
+        return site_extension
+
+    # TODO: Redundant, remove operation and use get_site_extension
+    def get_observatory_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        return self.get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+    # TODO: Redundant, remove operation and use get_site_extension
+    def get_platform_station_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        return self.get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+    # TODO: Redundant, remove operation and use get_site_extension
+    def get_platform_assembly_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        return self.get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+    # TODO: Redundant, remove operation and use get_site_extension
+    def get_platform_component_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        return self.get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+    # TODO: Redundant, remove operation and use get_site_extension
+    def get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        return self.get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+    def _get_site_device(self, site_id, device_relations):
+        site_devices = [tup[1] for tup in device_relations.get(site_id, []) if tup[2] in (RT.InstrumentDevice, RT.PlatformDevice)]
+        if len(site_devices) > 1:
+            log.error("Inconsistent: Site %s has multiple devices: %s", site_id, site_devices)
+        if not site_devices:
+            return None
+        return site_devices[0]
 
     def _get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns a site extension object containing common information, plus some helper objects
@@ -806,11 +830,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param site_id    str
         @param ext_associations    dict
         @param ext_exclude    list
-        @retval observatory    ObservatoryExtension
+        @retval TBD
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified observatory_id does not exist
         """
-
         try:
             if not site_id:
                 raise BadRequest("The site_id parameter is empty")
@@ -825,21 +848,61 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 ext_exclude=ext_exclude,
                 user_id=user_id)
 
-
             RR2 = EnhancedResourceRegistryClient(self.RR)
-            RR2.cache_predicate(PRED.hasModel)
+            outil = ObservatoryUtil(self, enhanced_rr=RR2)
 
-            log.debug("Getting status of Site instruments.")
-            a, b =  self._get_instrument_states(extended_site.instrument_devices)
-            extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
+            # Find all subsites and devices
+            site_resources, site_children = outil.get_child_sites(parent_site_id=site_id, include_parents=False, id_only=False)
+            site_ids = site_resources.keys() + [site_id]  # IDs of this site and all child sites
+            device_relations = outil.get_device_relations(site_ids)
+
+            # Set parent immediate child sites
+            parent_site_ids = [a.s for a in RR2.filter_cached_associations(PRED.hasSite, lambda a: a.p ==PRED.hasSite and a.o == site_id)]
+            if parent_site_ids:
+                extended_site.parent_site = RR2.read(parent_site_ids[0])
+            else:
+                extended_site.parent_site = None
+            extended_site.sites = [site_resources[ch_id] for ch_id in site_children[site_id]] if site_children.get(site_id, None) is not None else []
+
+            # Set all nested child devices
+            instrument_device_ids = [tup[1] for (parent,dlst) in device_relations.iteritems() for tup in dlst if tup[2] == RT.InstrumentDevice]
+            platform_device_ids = [tup[1] for (parent,dlst) in device_relations.iteritems() for tup in dlst if tup[2] == RT.PlatformDevice]
+
+            device_ids = list(set(instrument_device_ids + platform_device_ids))
+            device_objs = self.RR2.read_mult(device_ids)
+            devices_by_id = dict(zip(device_ids, device_objs))
+
+            extended_site.instrument_devices = [devices_by_id[did] for did in instrument_device_ids]
+            extended_site.platform_devices = [devices_by_id[did] for did in platform_device_ids]
+
+            # Set primary device at immediate child sites
+            extended_site.sites_devices = []
+            for ch_site in extended_site.sites:
+                device_id = self._get_site_device(ch_site._id, device_relations)
+                extended_site.sites_devices.append(devices_by_id.get(device_id, None))
+            extended_site.portal_instruments = extended_site.sites_devices   # ALIAS
+
+            # Set deployments
+            RR2.cache_predicate(PRED.hasDeployment)
+            deployment_assocs = RR2.filter_cached_associations(PRED.hasDeployment, lambda a: a.s in site_ids)
+            deployment_ids = [a.o for a in deployment_assocs]
+            deployment_objs = RR2.read_mult(list(set(deployment_ids)))
+            extended_site.deployments = deployment_objs
+
+            # Set data products
+            RR2.cache_predicate(PRED.hasSource)
+            dataproduct_assocs = RR2.filter_cached_associations(PRED.hasSource, lambda a: a.o in site_ids)
+            dataproduct_ids = [a.s for a in dataproduct_assocs]
+            dataproduct_objs = RR2.read_mult(list(set(dataproduct_ids)))
+            extended_site.data_products = dataproduct_objs
 
             log.debug("Building list of model objs")
-            # lookup all hasModel predicates
+            # Build a lookup for device models via hasModel predicates.
             # lookup is a 2d associative array of [subject type][subject id] -> object id
-            lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
+            RR2.cache_predicate(PRED.hasModel)
+            lookup = {rt : {} for rt in [RT.InstrumentDevice, RT.PlatformDevice]}
             for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
                 lookup[a.st][a.s] = a.o
-
 
             def retrieve_model_objs(rsrc_list, object_type):
             # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
@@ -854,116 +917,51 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
             extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
-#            extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients, instruments=extended_site.instrument_devices, instrument_status=extended_site.computed.instrument_status.value)
-#
-            this_device_id = None
-            try:
-                this_device_id = RR2.find_object(site_id, predicate=PRED.hasDevice, id_only=True)
-            except NotFound:
-                pass
+            primary_device_id = self._get_site_device(site_id, device_relations)
 
-#            # have portals but need to reduce to appropriate subset...
-#            _,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_site.sites], id_only=True)
-#            for a in associations:
-#                if a.p==PRED.hasDevice:
-#                    if a.ot not in (RT.InstrumentDevice, RT.PlatformDevice):
-#                        log.warn('unexpected association Site %s hasDevice %s %s (was not InstrumentDevice or PlatformDevice)', a.s, a.ot, a.o)
-#            log.debug('subsites of %s have %d hasDevice associations', site_id, len(associations))
-#            extended_site.portal_instruments = [None]*len(extended_site.sites)
-#            extended_site.computed.portal_status = ComputedListValue(value=[None]*len(extended_site.sites), status=ComputedValueAvailability.PROVIDED if extended_site.computed.instrument_status.value else ComputedValueAvailability.NOTAVAILABLE)
-#            for i in xrange(len(extended_site.sites)):
-#                for a in associations:
-#                    if a.p==PRED.hasDevice and a.ot in (RT.InstrumentDevice, RT.PlatformDevice) and a.s==extended_site.sites[i]._id:
-#                        for j in xrange(len(extended_site.instrument_devices)):
-#                            if extended_site.instrument_devices[j]._id == a.o:
-#                                extended_site.portal_instruments[i] = extended_site.instrument_devices[j]
-#                                extended_site.computed.portal_status.value[i] = extended_site.computed.instrument_status.value[j] if extended_site.computed.instrument_status.value else None
-#                                break
+            # Filtered subsites by type/alt type
+            def fs(resource_type, filter_fn):
+                both = lambda s: ((resource_type == s._get_type()) and filter_fn(s))
+                return filter(both, site_resources.values())
 
-            return extended_site, RR2, this_device_id
+            extended_site.platform_station_sites   = fs(RT.PlatformSite, lambda s: s.alt_resource_type == "StationSite")
+            extended_site.platform_component_sites = fs(RT.PlatformSite, lambda s: s.alt_resource_type == "PlatformComponentSite")
+            extended_site.platform_assembly_sites  = fs(RT.PlatformSite, lambda s: s.alt_resource_type == "PlatformAssemblySite")
+            extended_site.instrument_sites         = fs(RT.InstrumentSite, lambda _: True)
+
+            #from pyon.util.breakpoint import breakpoint; breakpoint(locals())
+
+            context = dict(
+                extended_site=extended_site,
+                enhanced_RR=RR2,
+                site_device_id=primary_device_id,
+                site_resources=site_resources,
+                site_children=site_children,
+                device_relations=device_relations
+            )
+            return context
         except:
-            log.error('failed', exc_info=True)
+            log.error('_get_site_extension failed', exc_info=True)
             raise
 
-    def _get_hierarchy_devices_sites(self, a_site_id, RR2):
-        log.debug("beginning related resources crawl for subsites")
-        finder = RelatedResourcesCrawler()
-        get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasSite])
-        full_crawllist = [RT.InstrumentSite, RT.PlatformSite, RT.Subsite]
-        search_down = get_assns({PRED.hasSite: (True, False)}, full_crawllist)
+    def _get_platform_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        """Creates a SiteExtension and status for platforms and higher level sites"""
+        log.debug("_get_platform_site_extension")
+        context = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, platform_device_id, site_resources, site_children, device_relations = \
+            context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
+            context["site_resources"], context["site_children"], context["device_relations"]
 
-        # the searches return a list of association objects, so compile all the ids by extracting them
-        subsite_ids = set([])
-
-        # we want only those IDs that are not the input resource id
-        for a in search_down(a_site_id, -1):
-            if a.o != a_site_id:
-                subsite_ids.add(a.o)
-
-        subsite_ids = list(subsite_ids)
-        log.debug("converting retrieved ids to objects = %s" % subsite_ids)
-        subsite_objs = RR2.read_mult(subsite_ids)
-
-        log.debug("building tree of child devices from site")
-        all_child_inst_devices = []
-        all_child_plat_devices = []
-        device_of_site = {}
-        for s_id in subsite_ids:
-            try:
-                device_of_site[s_id] = RR2.find_instrument_device_id_of_instrument_site_using_has_device(s_id)
-                all_child_inst_devices.append(device_of_site[s_id])
-            except NotFound:
-                pass
-
-            try:
-                device_of_site[s_id] = RR2.find_platform_device_id_of_platform_site_using_has_device(s_id)
-                all_child_plat_devices.append(device_of_site[s_id])
-            except NotFound:
-                pass
-
-        return subsite_objs, all_child_inst_devices, all_child_plat_devices, device_of_site
-
-
-    def _get_root_platforms(self, RR2, platform_device_list):
-        # get all relevant assocation objects
-        filter_fn = lambda a: a.o in platform_device_list
-
-        # get child -> parent dict
-        lookup = dict([(a.o, a.s) for a in RR2.filter_cached_associations(PRED.hasDevice, filter_fn)])
-
-        # root platforms have no parent, or a parent that's not in our list
-        return [r for r in platform_device_list if (r not in lookup or (lookup[r] not in platform_device_list))]
-
-
-    def _augment_platformsite_extension(self, extended_site, RR2, platform_device_id):
-        log.debug("_augment_platformsite_extension")
-        if not RR2.has_cached_predicate(PRED.hasDevice):
-            RR2.cache_predicate(PRED.hasDevice)
-
-        site_id = extended_site._id
-
-        # get portals
-        objects,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_site.sites], id_only=False)
-        log.debug('subsites of %s have %d hasDevice associations', site_id, len(associations))
-        extended_site.portal_instruments = [None]*len(extended_site.sites)
-        for i in xrange(len(extended_site.sites)):
-            for o,a in zip(objects,associations):
-                if a.p==PRED.hasDevice:
-                    if a.ot not in (RT.InstrumentDevice, RT.PlatformDevice):
-                        log.warn('unexpected association Site %s hasDevice %s %s (was not InstrumentDevice or PlatformDevice)', a.s, a.ot, a.o)
-                    elif a.s==extended_site.sites[i]._id:
-                        extended_site.portal_instruments[i] = o
-
-
+        RR2.cache_predicate(PRED.hasDevice)
 
         # prepare to make a lot of rollups
-        site_object_dict, site_children = self.outil.get_child_sites(parent_site_id=site_id, id_only=False)
         log.debug("Found these site children: %s", site_children.keys())
 
         devices_for_status = set(site_children.keys())
-        for i in extended_site.portal_instruments:
-            if i:
-                devices_for_status.add(i._id)
+        for dev in extended_site.sites_devices:
+            if dev:
+                devices_for_status.add(dev._id)
+
         all_device_statuses = self._get_master_status_table(RR2, devices_for_status)
         log.debug("Found all device statuses: %s", all_device_statuses)
 
@@ -993,67 +991,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                                                  site_aggregate,
                                                                  ComputedValueAvailability.PROVIDED)
 
-        # filtered subsites
-        def fs(resource_type, filter_fn):
-            both = lambda s: ((resource_type == s._get_type()) and filter_fn(s))
-            return filter(both, site_object_dict.values())
-
-        def pfs(filter_fn):
-            return fs(RT.PlatformSite, filter_fn)
-
-        def ifs(filter_fn):
-            return fs(RT.InstrumentSite, filter_fn)
-
-        def clv(value):
-            return ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=value)
-
-        extended_site.computed.platform_station_sites   = clv(pfs(lambda s: "StationSite" == s.alt_resource_type))
-        extended_site.computed.platform_component_sites = clv(pfs(lambda s: "PlatformComponentSite" == s.alt_resource_type))
-        extended_site.computed.platform_assembly_sites  = clv(pfs(lambda s: "PlatformAssemblySite" == s.alt_resource_type))
-        extended_site.computed.instrument_sites         = clv(ifs(lambda _: True))
-
-        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients, instruments=extended_site.instrument_devices, instrument_status=extended_site.computed.instrument_status.value)
-
-    # TODO: will remove this one
-    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        # make a very basic determination of what to do
-        site_type = self.RR2.read(site_id)._get_type()
-
-        if RT.InstrumentSite == site_type:
-            return self.get_instrument_site_extension(site_id, ext_associations, ext_exclude, user_id)
-
-        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
-        self._augment_platformsite_extension(extended_site, RR2, device_id)
-        return extended_site
-
-
-    def get_observatory_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
-        self._augment_platformsite_extension(extended_site, RR2, device_id)
+        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients,
+                                                             instruments=extended_site.instrument_devices,
+                                                             instrument_status=extended_site.computed.instrument_status.value)
 
         return extended_site
 
-
-    def get_platform_station_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
-        self._augment_platformsite_extension(extended_site, RR2, device_id)
-        return extended_site
-
-
-    def get_platform_assembly_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
-        self._augment_platformsite_extension(extended_site, RR2, device_id)
-        return extended_site
-
-    def get_platform_component_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
-        self._augment_platformsite_extension(extended_site, RR2, device_id)
-        return extended_site
-
-
-    def get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-
-        extended_site, RR2, inst_device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+    def _get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        """Creates a SiteExtension and status for instruments"""
+        context = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, inst_device_id, site_resources, site_children, device_relations = \
+            context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
+            context["site_resources"], context["site_children"], context["device_relations"]
 
         log.debug("Reading status for device '%s'", inst_device_id)
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
@@ -1064,70 +1013,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                   for d in extended_site.instrument_devices]
 
         def clv(value=None):
-            if value is None: value = []
-            return ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=value)
-
+            return ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=value if value is not None else [])
 
         # there are no child sites, and therefore no child statuses
-        extended_site.computed.platform_station_sites   = clv()
-        extended_site.computed.platform_component_sites = clv()
-        extended_site.computed.platform_assembly_sites  = clv()
-        extended_site.computed.instrument_sites         = clv()
-        extended_site.computed.platform_status          = clv()
-        extended_site.computed.site_status              = clv()
-        extended_site.computed.instrument_status        = clv(instrument_status_list)
+        extended_site.computed.platform_status   = clv()
+        extended_site.computed.site_status       = clv()
+        extended_site.computed.instrument_status = clv(instrument_status_list)
 
-        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients, instruments=extended_site.instrument_devices, instrument_status=extended_site.computed.instrument_status.value)
+        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients,
+                                                             instruments=extended_site.instrument_devices,
+                                                             instrument_status=extended_site.computed.instrument_status.value)
 
         # have portals but need to reduce to appropriate subset...
-        extended_site.portal_instruments = []#*len(extended_site.sites)
-        extended_site.computed.portal_status = clv() #ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=portal_status)
+        extended_site.computed.portal_status = clv()
 
         return extended_site
-
-
-    def _get_instrument_states(self, instrument_device_obj_list=None):
-
-        op = []
-        non_op = []
-        if instrument_device_obj_list is None:
-            instrument_device_list = []
-
-        #call eventsdb to check  data-related events from this device. Use UNix vs NTP tiem for now, as
-        # resource timestaps are in Unix, data is in NTP
-
-        now = str(int(time.time() * 1000))
-        query_interval = str(int(time.time() - (AGENT_STATUS_EVENT_DELTA_DAYS * 86400) )  *1000)
-
-        for device_obj in instrument_device_obj_list:
-            # first check the instrument lifecycle state
-#            if not ( device_obj.lcstate in [LCS.DEPLOYED_AVAILABLE, LCS.INTEGRATED_DISCOVERABLE] ):
-            # TODO: check that this is the intended lcs behavior and maybe check availability
-            if not ( device_obj.lcstate in [LCS.DEPLOYED, LCS.INTEGRATED] ):
-                non_op.append(device_obj)
-
-            else:
-                # we dont have a find_events that takes a list yet so loop thru the instruments and get
-                # recent events for each.
-                events = self.clients.user_notification.find_events(origin=device_obj._id,
-                                                                    type= 'ResourceAgentStateEvent',
-                                                                    max_datetime = now,
-                                                                    min_datetime = query_interval,
-                                                                    limit=1)
-                # the most recent event is first so assume that is the current state
-                if not events:
-                    non_op.append(device_obj)
-                else:
-                    current_instrument_state = events[0].state
-                    if current_instrument_state in [ResourceAgentState.STREAMING,
-                                                    ResourceAgentState.CALIBRATE,
-                                                    ResourceAgentState.BUSY,
-                                                    ResourceAgentState.DIRECT_ACCESS]:
-                        op.append(device_obj)
-                    else:
-                        op.append(device_obj)
-
-        return op, non_op
 
     def get_deployment_extension(self, deployment_id='', ext_associations=None, ext_exclude=None, user_id=''):
         if not deployment_id:
@@ -1349,6 +1249,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.deployment_info = describe_deployments(extended_org.deployments, self.clients, instruments=extended_org.instruments, instrument_status=extended_org.computed.instrument_status.value)
 
         return extended_org
+
+    def _get_root_platforms(self, RR2, platform_device_list):
+        # get all relevant assocation objects
+        filter_fn = lambda a: a.o in platform_device_list
+
+        # get child -> parent dict
+        lookup = dict([(a.o, a.s) for a in RR2.filter_cached_associations(PRED.hasDevice, filter_fn)])
+
+        # root platforms have no parent, or a parent that's not in our list
+        return [r for r in platform_device_list if (r not in lookup or (lookup[r] not in platform_device_list))]
 
     # return a table of device statuses for all given device ids
     def _get_master_status_table(self, RR2, site_tree_ids):
