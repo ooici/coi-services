@@ -23,7 +23,7 @@ class FakeProcess(LocalContextMixin):
     id = 'scheduler_client'
     process_type = 'simple'
 
-@attr('INT', group='cei')
+@attr('INT', group='coi')
 class TestSchedulerService(IonIntegrationTestCase):
 
     def setUp(self):
@@ -120,7 +120,7 @@ class TestSchedulerService(IonIntegrationTestCase):
 
         start_time = self.now_utc()
         self.interval_timer_end_time = start_time + 20
-        id = self.ssclient.create_interval_timer(start_time="now" , interval=self.interval_timer_interval,
+        id = self.ssclient.create_interval_timer(start_time="now", interval=self.interval_timer_interval,
             end_time=self.interval_timer_end_time,
             event_origin=event_origin, event_subtype="")
         self.interval_timer_sent_time = datetime.datetime.utcnow()
@@ -274,8 +274,8 @@ class TestSchedulerService(IonIntegrationTestCase):
         sub.start()
         self.addCleanup(sub.stop)
 
-        id = self.ssclient.create_interval_timer(start_time= self.now_utc(), interval=self.interval_timer_interval,
-            end_time=-1,
+        id = self.ssclient.create_interval_timer(start_time=str(self.now_utc()), interval=self.interval_timer_interval,
+            end_time="-1",
             event_origin=event_origin, event_subtype=event_origin)
         self.interval_timer_sent_time = datetime.datetime.utcnow()
         self.assertEqual(type(id), str)
@@ -422,6 +422,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.addCleanup(sub.stop)
 
         tid = self.ssclient.create_interval_timer(start_time="now",
+                                                  end_time=-1,
                                                   interval=1,
                                                   event_origin=event_origin)
 
