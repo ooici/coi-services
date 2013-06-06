@@ -984,8 +984,8 @@ LCS
 
         </Rule> '''
 
-        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Role_Permitted_Operations',
-            'Permit these operations in the Instrument Management Service for role of Instrument Operator, Observatory Operator or Org Manager',
+        policy_id = policy_client.create_service_access_policy('data_product_management', 'DPMS_Role_Permitted_Operations',
+            'Permit these operations in the Data Product Management Service for role of Instrument Operator, Data Operator, Observatory Operator or Org Manager',
             policy_text, headers=sa_user_header)
 
 
