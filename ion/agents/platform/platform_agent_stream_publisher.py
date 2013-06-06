@@ -73,7 +73,7 @@ class PlatformAgentStreamPublisher(object):
         # granule_publish_rate
         # records_per_granule
 
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r: _construct_stream_and_publisher: "
                       "stream_name:%r, stream_config=%s",
                       self._platform_id, stream_name, self._pp.pformat(stream_config))
@@ -103,11 +103,14 @@ class PlatformAgentStreamPublisher(object):
 
         assert isinstance(driver_event, AttributeValueDriverEvent)
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: driver_event = %s", self._platform_id, driver_event.brief())
-        elif log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             # show driver_event as retrieved (driver_event.vals_dict might be large)
             log.trace("%r: driver_event = %s", self._platform_id, driver_event)
+            log.trace("%r: vals_dict:\n%s",
+                      self._platform_id, self._pp.pformat(driver_event.vals_dict))
+
+        elif log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            log.debug("%r: driver_event = %s", self._platform_id, driver_event.brief())
 
         stream_name = driver_event.stream_name
 
@@ -166,6 +169,11 @@ class PlatformAgentStreamPublisher(object):
                           self._platform_id, param_name, fill_value)
                 # do the replacement:
                 vals = [fill_value if val is None else val for val in vals]
+
+                if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+                    log.trace("%r: vals array after replacing None with fill_value:\n%s",
+                              self._platform_id, self._pp.pformat(vals))
+
             else:
                 log.warn("%r: unexpected: parameter context not found for %r",
                          self._platform_id, param_name)
@@ -203,7 +211,12 @@ class PlatformAgentStreamPublisher(object):
         try:
             publisher.publish(g)
 
-            if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+                log.trace("%r: Platform agent published data granule on stream %r: "
+                          "%s  timestamps: %s",
+                          self._platform_id, stream_name,
+                          self._pp.pformat(pub_params), self._pp.pformat(timestamps))
+            elif log.isEnabledFor(logging.DEBUG):  # pragma: no cover
                 summary_params = {attr_id: "(%d vals)" % len(vals)
                                   for attr_id, vals in pub_params.iteritems()}
                 summary_timestamps = "(%d vals)" % len(timestamps)
@@ -211,11 +224,6 @@ class PlatformAgentStreamPublisher(object):
                           "%s  timestamps: %s",
                           self._platform_id, stream_name,
                           summary_params, summary_timestamps)
-            elif log.isEnabledFor(logging.TRACE):  # pragma: no cover
-                log.trace("%r: Platform agent published data granule on stream %r: "
-                          "%s  timestamps: %s",
-                          self._platform_id, stream_name,
-                          self._pp.pformat(pub_params), self._pp.pformat(timestamps))
 
         except:
             log.exception("%r: Platform agent could not publish data on stream %s.",
