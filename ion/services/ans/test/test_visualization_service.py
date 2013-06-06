@@ -294,12 +294,12 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
     @attr('SMOKE')
     def test_realtime_visualization(self):
 
-        #Start up multiple vis service workers if not a CEI launch
-        if not os.getenv('CEI_LAUNCH_TEST', False):
-            vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
-            self.addCleanup(self.container.terminate_process, vpid1)
-            vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
-            self.addCleanup(self.container.terminate_process, vpid2)
+#        #Start up multiple vis service workers if not a CEI launch
+#        if not os.getenv('CEI_LAUNCH_TEST', False):
+#            vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
+#            self.addCleanup(self.container.terminate_process, vpid1)
+#            vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
+#            self.addCleanup(self.container.terminate_process, vpid2)
 
         # Create the google_dt workflow definition since there is no preload for the test
         workflow_def_id = self.create_google_dt_workflow_def()
@@ -349,12 +349,12 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
     @attr('CLEANUP')
     def test_realtime_visualization_cleanup(self):
 
-        #Start up multiple vis service workers if not a CEI launch
-        if not os.getenv('CEI_LAUNCH_TEST', False):
-            vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
-            self.addCleanup(self.container.terminate_process, vpid1)
-            vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
-            self.addCleanup(self.container.terminate_process, vpid2)
+#        #Start up multiple vis service workers if not a CEI launch
+#        if not os.getenv('CEI_LAUNCH_TEST', False):
+#            vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
+#            self.addCleanup(self.container.terminate_process, vpid1)
+#            vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
+#            self.addCleanup(self.container.terminate_process, vpid2)
 
         #get the list of queues and message counts on the broker for the user vis queues
         try:
@@ -497,7 +497,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         # Use the data product to test the data retrieval and google dt generation capability of the vis service
         vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id, simplejson.dumps(viz_params))
 
-        print " >>>>>>>>>>>>>>> type of vis_data : ", type(vis_data)
         # validate the returned data
         self.validate_vis_service_mpl_graphs_results(vis_data)
 
