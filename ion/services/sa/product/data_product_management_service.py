@@ -1208,13 +1208,13 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         #Fill out service request information for assigning an instrument
-        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].assign_request, 'data_acquisition_management',
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDeviceHasOutputProduct'].assign_request, 'data_acquisition_management',
             'assign_data_product', {"data_product_id": data_product_id,
                                     "input_resource_id": "$(instrument_device_id)"})
 
 
         #Fill out service request information for unassigning an instrument
-        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].unassign_request, 'data_acquisition_management',
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDeviceHasOutputProduct'].unassign_request, 'data_acquisition_management',
             'unassign_data_product', {"data_product_id": data_product_id,
                                       "input_resource_id": "$(instrument_device_id)" })
 
@@ -1232,5 +1232,19 @@ class DataProductManagementService(BaseDataProductManagementService):
                                       "input_resource_id": "$(platform_device_id)" })
 
 
+        # DataProduct hasSource InstrumentDevice*
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDeviceHasSource'].assign_request,
+                                                       'data_acquisition_management',
+                                                       'assign_data_product_source',
+                                                       {'data_product_id': data_product_id,
+                                                        'source_id': '$(data_product_id)'}) # yes this is odd, but its the variable name we want to substitute based on resource_identifier (i'm not sure where that is set)
+
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDeviceHasSource'].unassign_request,
+                                                       'data_acquisition_management',
+                                                       'unassign_data_product_source',
+                                                       {'data_product_id': data_product_id,
+                                                        'source_id': '$(data_product_id)'})
+
+        resource_data.associations['InstrumentDeviceHasSource'].multiple_associations = True
 
         return resource_data

@@ -128,7 +128,9 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
     def _do_test_get_sites_devices_status(self, resources):
 
-        result_dict = self.OMS.get_sites_devices_status(resources.org_id)
+        full_result_dict = self.OMS.get_sites_devices_status(parent_resource_ids=[resources.org_id], include_sites=True)
+
+        result_dict = full_result_dict[resources.org_id]
 
         site_resources = result_dict.get("site_resources", None)
         site_children = result_dict.get("site_children", None)
@@ -136,7 +138,9 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEquals(len(site_resources), 14)
         self.assertEquals(len(site_children), 9)
 
-        result_dict = self.OMS.get_sites_devices_status(resources.org_id, include_devices=True, include_status=True)
+        full_result_dict = self.OMS.get_sites_devices_status(parent_resource_ids=[resources.org_id], include_sites=True, include_devices=True, include_status=True)
+
+        result_dict = full_result_dict[resources.org_id]
 
         log.debug("RESULT DICT: %s", result_dict.keys())
         site_resources = result_dict.get("site_resources", None)
@@ -147,7 +151,9 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEquals(len(site_children), 9)
 
 
-        result_dict = self.OMS.get_sites_devices_status(resources.observatory_id, include_devices=True, include_status=True)
+        full_result_dict = self.OMS.get_sites_devices_status(parent_resource_ids=[resources.observatory_id], include_sites=True, include_devices=True, include_status=True)
+
+        result_dict = full_result_dict[resources.observatory_id]
 
         site_resources = result_dict.get("site_resources")
         site_children = result_dict.get("site_children")

@@ -1748,6 +1748,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             if a.st in lookup:
                 lookup[a.st][a.s] = a.o
 
+        #set the platform device children
+        extended_platform.platforms, _ = self.clients.resource_registry.find_objects(subject=platform_device_id, predicate=PRED.hasDevice, object_type=RT.PlatformDevice, id_only=False)
+
         def retrieve_model_objs(rsrc_list, object_type):
         # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
         # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
@@ -1767,8 +1770,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # JIRA OOIION934: REMOVE THIS BLOCK WHEN FIXED
         # add portals, sites related to platforms (SHOULD HAPPEN AUTOMATICALLY USING THE COMPOUND ASSOCIATION)
-        if extended_platform.platforms and not extended_platform.portals:
-            extended_platform.portals = RR2.find_objects(object_type=RT.InstrumentSite, predicate=PRED.hasSite, subject=extended_platform.platforms[0]._id)
+        if extended_platform.deployed_site and not extended_platform.portals:
+            extended_platform.portals = RR2.find_objects(object_type=RT.InstrumentSite, predicate=PRED.hasSite, subject=extended_platform.deployed_site._id)
             if extended_platform.portals:
                 log.warn('compound association failed, manual workaround found %d portals', len(extended_platform.portals))
         # END JIRA BLOCK

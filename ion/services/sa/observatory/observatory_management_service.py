@@ -697,52 +697,61 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return site_resources, site_children
 
 
-    def get_sites_devices_status(self, parent_resource_id='', include_devices=False, include_status=False):
-        if not parent_resource_id:
+    def get_sites_devices_status(self, parent_resource_ids=None, include_sites=False, include_devices=False, include_status=False):
+        if not parent_resource_ids:
             raise BadRequest("Must provide a parent parent_resource_id")
 
-        parent_resource = self.RR.read(parent_resource_id)
-
-        org_id, site_id = None, None
-        if parent_resource.type_ == RT.Org:
-            org_id = parent_resource_id
-        elif RT.Site in parent_resource._get_extends():
-            site_id = parent_resource_id
+        result_dict = {}
 
         RR2 = EnhancedResourceRegistryClient(self.RR)
         outil = ObservatoryUtil(self, enhanced_rr=RR2)
 
-        result_dict = {}
+        #loop thru all the provided site ids and create the result structure
+        for parent_resource_id in parent_resource_ids:
 
-        site_resources, site_children = outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
-        result_dict["site_resources"] = site_resources
-        result_dict["site_children"] = site_children
+            parent_resource = self.RR.read(parent_resource_id)
 
-        all_device_statuses = {}
-        if include_devices or include_status:
-            RR2.cache_predicate(PRED.hasSite)
-            RR2.cache_predicate(PRED.hasDevice)
-            all_device_statuses = self._get_master_status_table(RR2, site_children.keys())
+            org_id, site_id = None, None
+            if parent_resource.type_ == RT.Org:
+                org_id = parent_resource_id
+            elif RT.Site in parent_resource._get_extends():
+                site_id = parent_resource_id
 
-        if include_status:
-            #add code to grab the master status table to pass in to the get_status_roll_ups calc
-            log.debug('get_sites_devices_status site master_status_table:   %s ', all_device_statuses)
-            result_dict["site_status"] = all_device_statuses
+            site_result_dict = {}
 
-            #create the aggreagate_status for each device and site
-            log.debug("calculate site aggregate status")
-            site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s for s in site_children.keys()])
-            site_status_dict = dict(zip(site_children.keys(), site_status))
-            log.debug('get_sites_devices_status  site_status_dict:   %s ', site_status_dict)
-            result_dict["site_aggregate_status"] = site_status_dict
+            site_resources, site_children = outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
+            if include_sites:
+                site_result_dict["site_resources"] = site_resources
+                site_result_dict["site_children"] = site_children
 
-        if include_devices:
-            log.debug("calculate device aggregate status")
-            inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
-                           for k in all_device_statuses.keys()]
-            device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
-            log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
-            result_dict["device_aggregate_status"] = device_agg_status_dict
+            all_device_statuses = {}
+            if include_devices or include_status:
+                RR2.cache_predicate(PRED.hasSite)
+                RR2.cache_predicate(PRED.hasDevice)
+                all_device_statuses = self._get_master_status_table(RR2, site_children.keys())
+
+            if include_status:
+                #add code to grab the master status table to pass in to the get_status_roll_ups calc
+                log.debug('get_sites_devices_status site master_status_table:   %s ', all_device_statuses)
+                site_result_dict["site_status"] = all_device_statuses
+
+                #create the aggreagate_status for each device and site
+
+                log.debug("calculate site aggregate status")
+                site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s for s in site_children.keys()])
+                site_status_dict = dict(zip(site_children.keys(), site_status))
+                log.debug('get_sites_devices_status  site_status_dict:   %s ', site_status_dict)
+                site_result_dict["site_aggregate_status"] = site_status_dict
+
+            if include_devices:
+                log.debug("calculate device aggregate status")
+                inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
+                               for k in all_device_statuses.keys()]
+                device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
+                log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
+                site_result_dict["device_aggregate_status"] = device_agg_status_dict
+
+            result_dict[parent_resource_id] = site_result_dict
 
         return result_dict
 
@@ -1021,12 +1030,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return extended_site
 
     def get_deployment_extension(self, deployment_id='', ext_associations=None, ext_exclude=None, user_id=''):
-
         if not deployment_id:
             raise BadRequest("The deployment_id parameter is empty")
 
         extended_resource_handler = ExtendedResourceContainer(self)
-
         extended_deployment = extended_resource_handler.create_extended_resource_container(
             extended_resource_type=OT.DeploymentExtension,
             resource_id=deployment_id,
@@ -1034,46 +1041,82 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
             user_id=user_id)
+        # have device, site objects
 
-        devices = set()
-        instrument_device_ids = []
-        iplatform_device_ids = []
-        subjs, _ = self.RR.find_subjects( predicate=PRED.hasDeployment, object=deployment_id, id_only=False)
-        for subj in subjs:
+        if not extended_deployment.device or not extended_deployment.site:
+            return extended_deployment
 
-            if subj.type_ == "InstrumentDevice":
-                extended_deployment.instrument_devices.append(subj)
-                devices.add((subj._id, PRED.hasModel))
-            elif subj.type_ == "InstrumentSite":
-                extended_deployment.instrument_sites.append(subj)
-            elif subj.type_ == "PlatformDevice":
-                extended_deployment.platform_devices.append(subj)
-                devices.add((subj._id, PRED.hasModel))
-            elif subj.type_ == "PlatformSite":
-                extended_deployment.platform_sites.append(subj)
-            else:
-                log.warning("get_deployment_extension found invalid type connected to deployment %s. Object details: %s ", deployment_id, subj)
+        RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+        finder = RelatedResourcesCrawler()
+        get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasDevice])
+        full_crawllist = [RT.InstrumentDevice, RT.PlatformDevice]
+        # search from PlatformDevice to subplatform or InstrumentDevice
+        search_down = get_assns({PRED.hasDevice: (True, False)}, [RT.InstrumentDevice, RT.PlatformDevice])
 
-        all_models = set()
-        device_to_model_map = {}
-        model_map = {}
-        assocs = self.RR.find_associations(anyside=list(devices), id_only=False)
-        for assoc in assocs:
+        # collect ids of devices below deployment target
+        platform_device_ids = set()
+        instrument_device_ids = set()
+        # make sure main device in deployment is in the list
+        if extended_deployment.device.type_==RT.InstrumentDevice:
+            instrument_device_ids.add(extended_deployment.device._id)
+        else:
+            platform_device_ids.add(extended_deployment.device._id)
+        for a in search_down(extended_deployment.device._id, -1):
+            if a.o != extended_deployment.device._id:
+                if a.ot == RT.InstrumentDevice:
+                    instrument_device_ids.add(a.o)
+                else: # a.ot == RT.PlatformDevice:
+                    platform_device_ids.add(a.o)
 
-            all_models.add(assoc.o)
-            device_to_model_map[assoc.s] = assoc.o
+        # get sites (portals)
+        extended_deployment.computed.portals = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[extended_deployment.site])
+        subsite_ids = set()
+        device_by_site = { extended_deployment.site._id: extended_deployment.device._id }
+        for did in platform_device_ids:
+            related_sites = RR2.find_platform_site_ids_by_platform_device(did)
+            for sid in related_sites:
+                subsite_ids.add(sid)
+                device_by_site[sid] = did
+        for did in instrument_device_ids:
+            related_sites = RR2.find_instrument_site_ids_by_instrument_device(did)
+            for sid in related_sites:
+                subsite_ids.add(sid)
+                device_by_site[sid] = did
 
-        model_objs = self.RR.read_mult( list(all_models) )
-        for model_obj in model_objs:
-            model_map[model_obj._id] = model_obj
+        # sort the objects into the lists to be displayed
+        ids = list(platform_device_ids|instrument_device_ids|subsite_ids)
+        device_by_id = { extended_deployment.device._id: extended_deployment.device }
+        objs = self.RR.read_mult(ids)
+        for obj in objs:
+            if obj.type_==RT.InstrumentDevice:
+                extended_deployment.instruments.add(obj)
+            elif obj.type_==RT.PlatformDevice:
+                extended_deployment.platforms.add(obj)
+            else: # InstrumentSite or PlatformSite
+                extended_deployment.computed.portals.value.add(obj)
 
-        for instrument in extended_deployment.instrument_devices:
-            model_id = device_to_model_map[instrument._id]
-            extended_deployment.instrument_models.append( model_map[model_id] )
+        # get associated models for all devices
+        devices = list(platform_device_ids|instrument_device_ids)
+        assocs = self.RR.find_associations(assoc_type=PRED.hasModel, anyside=list(devices), id_only=False)
+        model_id_by_device = { a.s: a.o for a in assocs }
+        model_ids = set( [ a.o for a in assocs ])
+        models = self.RR.read_mult( list(model_ids) )
+        model_by_id = { o._id: o for o in models }
 
-        for platform in extended_deployment.platform_devices:
-            model_id = device_to_model_map[platform._id]
-            extended_deployment.platform_models.append( model_map[model_id] )
+        extended_deployment.instrument_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.instrument_devices ]
+        extended_deployment.platform_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.platform_devices ]
+        extended_deployment.computed.portal_devices = ComputedListValue(status=ComputedValueAvailability.PROVIDED)
+        extended_deployment.computed.portal_devices.value = [ device_by_id[device_by_site[p._id]] for p in extended_deployment.computed.portals.value ]
+
+        # TODO -- all status values
+        #
+        #status: !ComputedIntValue
+        ## combined list of sites and their status
+        ##@ResourceType=InstrumentSite,PlatformSite
+        #portal_status: !ComputedListValue
+        ## status of device lists
+        #instrument_status: !ComputedListValue
+        #platform_status: !ComputedListValue
 
         return extended_deployment
 

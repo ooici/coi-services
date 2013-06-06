@@ -44,7 +44,7 @@ def describe_deployments(deployments, context, instruments=[], instrument_status
             description = descriptions[assoc.o]
 
             # always save the id in one known field (used by UI)
-            description['resource_id'] = obj._id
+            description['resource_id'] = assoc.o
 
             # save site or device info in the description
             type = obj.type_

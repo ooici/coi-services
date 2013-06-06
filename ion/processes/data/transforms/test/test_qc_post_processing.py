@@ -55,6 +55,7 @@ class TestQCPostProcessing(DMTestCase):
                 self.process_id,
                 ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30))
+        self.addCleanup(self.process_dispatcher.cancel_process, self.process_id)
 
     def make_data_product(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)

@@ -20,6 +20,7 @@ from datetime import datetime
 import simplejson
 import gevent
 import base64
+import sys
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
@@ -45,66 +46,67 @@ PERSIST_REALTIME_DATA_PRODUCTS = False
 class VisualizationService(BaseVisualizationService):
 
     def on_init(self):
-
         self.create_workflow_timeout = get_safe(self.CFG, 'create_workflow_timeout', 60)
         self.terminate_workflow_timeout = get_safe(self.CFG, 'terminate_workflow_timeout', 60)
-        self.monitor_timeout = get_safe(self.CFG, 'user_queue_monitor_timeout', 300)
-        self.monitor_queue_size = get_safe(self.CFG, 'user_queue_monitor_size', 100)
-
-        #Setup and event object for use by the queue monitoring greenlet
-        self.monitor_event = gevent.event.Event()
-        self.monitor_event.clear()
-
-
-        #Start up queue monitor
-        self._process.thread_manager.spawn(self.user_vis_queue_monitor)
+#        self.monitor_timeout = get_safe(self.CFG, 'user_queue_monitor_timeout', 300)
+#        self.monitor_queue_size = get_safe(self.CFG, 'user_queue_monitor_size', 100)
+#
+#        #Setup and event object for use by the queue monitoring greenlet
+#        self.monitor_event = gevent.event.Event()
+#        self.monitor_event.clear()
+#
+#
+#        #Start up queue monitor
+#        self._process.thread_manager.spawn(self.user_vis_queue_monitor)
+        return
 
 
     def on_quit(self):
-        self.monitor_event.set()
+#        self.monitor_event.set()
+        return
 
 
-    def user_vis_queue_monitor(self, **kwargs):
-
-        log.debug("Starting Monitor Loop worker: %s timeout=%s" , self.id,  self.monitor_timeout)
-
-        while not self.monitor_event.wait(timeout=self.monitor_timeout):
-
-            if self.container.is_terminating():
-                break
-
-            #get the list of queues and message counts on the broker for the user vis queues
-            queues = []
-            try:
-                queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'], use_ems=False)
-            except Exception, e:
-                log.warn('Unable to get queue information from broker management plugin: ' + e.message)
-                pass
-
-            log.debug( "In Monitor Loop worker: %s", self.id)
-            for queue in queues:
-
-                log.debug('queue name: %s, messages: %d', queue['name'], queue['messages'])
-
-                #Check for queues which are getting too large and clean them up if need be.
-                if queue['messages'] > self.monitor_queue_size:
-                    vis_token = queue['name'][queue['name'].index('UserVisQueue'):]
-
-                    try:
-                        log.warn("Real-time visualization queue %s had too many messages %d, so terminating this queue and associated resources.", queue['name'], queue['messages'] )
-
-                        #Clear out the queue
-                        msgs = self.get_realtime_visualization_data(query_token=vis_token)
-
-                        #Now terminate it
-                        self.terminate_realtime_visualization_data(query_token=vis_token)
-                    except NotFound, e:
-                        log.warn("The token %s could not not be found by the terminate_realtime_visualization_data operation; another worked may have cleaned it up already", vis_token)
-                    except Exception, e1:
-                        #Log errors and keep going!
-                        log.exception(e1)
-
-        log.debug('Exiting user_vis_queue_monitor')
+#    def user_vis_queue_monitor(self, **kwargs):
+#
+#        log.debug("Starting Monitor Loop worker: %s timeout=%s" , self.id,  self.monitor_timeout)
+#
+#        while not self.monitor_event.wait(timeout=self.monitor_timeout):
+#
+#            if self.container.is_terminating():
+#                break
+#
+#            #get the list of queues and message counts on the broker for the user vis queues
+#            queues = []
+#            try:
+#                queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'], use_ems=False)
+#            except Exception, e:
+#                log.warn('Unable to get queue information from broker management plugin: ' + e.message)
+#                pass
+#
+#            log.debug( "In Monitor Loop worker: %s", self.id)
+#            for queue in queues:
+#
+#                log.debug('queue name: %s, messages: %d', queue['name'], queue['messages'])
+#
+#                #Check for queues which are getting too large and clean them up if need be.
+#                if queue['messages'] > self.monitor_queue_size:
+#                    vis_token = queue['name'][queue['name'].index('UserVisQueue'):]
+#
+#                    try:
+#                        log.warn("Real-time visualization queue %s had too many messages %d, so terminating this queue and associated resources.", queue['name'], queue['messages'] )
+#
+#                        #Clear out the queue
+#                        msgs = self.get_realtime_visualization_data(query_token=vis_token)
+#
+#                        #Now terminate it
+#                        self.terminate_realtime_visualization_data(query_token=vis_token)
+#                    except NotFound, e:
+#                        log.warn("The token %s could not not be found by the terminate_realtime_visualization_data operation; another worked may have cleaned it up already", vis_token)
+#                    except Exception, e1:
+#                        #Log errors and keep going!
+#                        log.exception(e1)
+#
+#        log.debug('Exiting user_vis_queue_monitor')
 
 
     def initiate_realtime_visualization_data(self, data_product_id='', visualization_parameters=None):
