@@ -1748,6 +1748,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             if a.st in lookup:
                 lookup[a.st][a.s] = a.o
 
+        #set the platform device children
+        extended_platform.platforms = self.clients.resource_registry.find_objects(subject=platform_device_id, predicate=PRED.hasSite, object_type=RT.PlatformDevice, id_only=False)
+
         def retrieve_model_objs(rsrc_list, object_type):
         # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
         # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
