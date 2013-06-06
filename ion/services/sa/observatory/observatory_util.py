@@ -14,9 +14,32 @@ from interface.objects import ComputedValueAvailability
 
 
 class ObservatoryUtil(object):
-    def __init__(self, process=None, container=None):
+    def __init__(self, process=None, container=None, enhanced_rr=None):
         self.process = process
         self.container = container if container else process.container
+        self.RR2 = enhanced_rr
+
+
+    # -------------------------------------------------------------------------
+    # Resource registry access
+
+    def _set_enhanced_rr(self, enhanced_rr=None):
+        self.RR2 = enhanced_rr
+
+    def _get_predicate_assocs(self, predicate):
+        if self.RR2:
+            if not self.RR2.has_cached_predicate(predicate):
+                self.RR2.cache_predicate(predicate)
+            assoc_list = self.RR2.get_cached_associations(predicate)
+        else:
+            assoc_list = self.container.resource_registry.find_associations(predicate=predicate, id_only=False)
+        return assoc_list
+
+    def _find_objects(self, subject, predicate, object_type='', id_only=False):
+        if self.RR2:
+            return self.RR2.find_objects(subject, predicate, object_type, id_only=id_only), None
+        else:
+            return self.container.resource_registry.find_objects(subject, predicate, object_type, id_only=id_only)
 
     # -------------------------------------------------------------------------
     # Observatory site traversal
@@ -25,9 +48,9 @@ class ObservatoryUtil(object):
         """
         Returns all child sites and parent site for a given parent site_id.
         Returns all child sites and org for a given org_id.
-        Return type is a tuple of two elements.
-        The first element is a dict mapping site_id to Site object (or None if id_only==True).
-        The second element is a dict mapping site_id to a list of direct child site_ids.
+        Return type is a tuple (site_resources, site_children) of two elements.
+        - site_resources is a dict mapping site_id to Site object (or None if id_only==True).
+        - site_children is a dict mapping site_id to a list of direct child site_ids.
         @param include_parents if True, walk up the parents all the way to the root and include
         @param id_only if True, return Site objects
         """
@@ -39,8 +62,7 @@ class ObservatoryUtil(object):
         parents = self._get_site_parents()   # Note: root elements are not in list
 
         if org_id:
-            obsite_ids,_ = self.container.resource_registry.find_objects(
-                org_id, PRED.hasResource, RT.Observatory, id_only=True)
+            obsite_ids,_ = self._find_objects(org_id, PRED.hasResource, RT.Observatory, id_only=True)
             if not obsite_ids:
                 return {}, {}
             parent_site_id = org_id
@@ -103,20 +125,20 @@ class ObservatoryUtil(object):
     def _get_site_parents(self):
         """Returns a dict mapping a site_id to site type and parent site_id."""
         # This function makes one RR call retrieving all hasSite associations.
-        # @TODO: exclude retired sites
         # @TODO: see if this can be done with an id_only=False argument
         parents = {}
-        assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasSite, id_only=False)
+        assoc_list = self._get_predicate_assocs(PRED.hasSite)
         for assoc in assoc_list:
             parents[assoc.o] = (assoc.ot, assoc.s, assoc.st)
         return parents
 
     def get_device_relations(self, site_list):
         """
-        Returns a dict of site_id/device_id mapped to list of (site/device type, device_id, device type)
+        Returns a dict of site_id or device_id mapped to list of (site/device type, device_id, device type)
         tuples, or None, based on hasDevice associations.
+        This is a combination of 2 results: site->device(primary) and device(parent)->device(child)
         """
-        assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasDevice, id_only=False)
+        assoc_list = self._get_predicate_assocs(PRED.hasDevice)
 
         res_dict = {}
 
@@ -149,7 +171,7 @@ class ObservatoryUtil(object):
         """
         sites = {}
         if not assoc_list:
-            assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasDevice, id_only=False)
+            assoc_list = self._get_predicate_assocs(PRED.hasDevice)
         for assoc in assoc_list:
             if assoc.st in [RT.PlatformSite, RT.InstrumentSite]:
                 sites[assoc.s] = (assoc.st, assoc.o, assoc.ot)
@@ -177,7 +199,7 @@ class ObservatoryUtil(object):
         """
         sites = {}
         if not assoc_list:
-            assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasDevice, id_only=False)
+            assoc_list = self._get_predicate_assocs(PRED.hasDevice)
         for assoc in assoc_list:
             if assoc.st in [RT.PlatformDevice, RT.InstrumentDevice] and assoc.ot in [RT.PlatformDevice, RT.InstrumentDevice]:
                 if assoc.s not in sites:
@@ -385,7 +407,7 @@ class ObservatoryUtil(object):
         """
         data_products = {}
         if not assoc_list:
-            assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasSource, id_only=False)
+            assoc_list = self._get_predicate_assocs(PRED.hasSource)
         for assoc in assoc_list:
             if assoc.st == RT.DataProduct:
                 if assoc.o not in data_products:

@@ -506,6 +506,10 @@ class EnhancedResourceRegistryClient(object):
         """
         log.info("Caching predicates: %s", predicate)
         log.debug("This cache is %s", self)
+        if self.has_cached_predicate(predicate):
+            log.debug("Reusing prior cached predicate %s", predicate)
+            return
+
         time_caching_start = get_ion_ts()
         preds = self.RR.find_associations(predicate=predicate, id_only=False)
         time_caching_stop = get_ion_ts()
@@ -522,6 +526,8 @@ class EnhancedResourceRegistryClient(object):
 
         return [a for a in self._cached_predicates[predicate] if is_match_fn(a)]
 
+    def get_cached_associations(self, predicate):
+        return self.filter_cached_associations(predicate, lambda x: True)
 
     def _add_resource_to_cache(self, resource_type, resource_obj):
         self._cached_resources[resource_type].by_id[resource_obj._id] = resource_obj
