@@ -825,7 +825,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified observatory_id does not exist
         """
-
         try:
             if not site_id:
                 raise BadRequest("The site_id parameter is empty")
