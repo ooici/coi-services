@@ -1755,6 +1755,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 model_dict = dict(zip(model_uniq, model_objs))
                 return [model_dict.get(m) for m in model_list]
 
+            if extended_platform.deployed_site and not "_id" in extended_platform.deployed_site:
+                extended_platform.deployed_site = None
+
             # Set platform parents
             device_relations = outil.get_child_devices(platform_device_id)
 
@@ -1783,8 +1786,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 t.complete_step('ims.platform_device_extension.index')
 
             # Set network connected devices
-            up_devices = RR2.find_objects(subject=platform_device_id, predicate=PRED.hasNetworkParent, id_only=False)
-            down_devices = RR2.find_subjects(predicate=PRED.hasNetworkParent, object=platform_device_id, id_only=False)
+            up_devices = self.RR.find_objects(subject=platform_device_id, predicate=PRED.hasNetworkParent, id_only=False)
+            down_devices = self.RR.find_subjects(predicate=PRED.hasNetworkParent, object=platform_device_id, id_only=False)
             extended_platform.connected_devices = up_devices + down_devices
             extended_platform.connected_device_info = []
             for dev in extended_platform.connected_devices:
@@ -1797,8 +1800,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             # add portals, sites related to platforms (SHOULD HAPPEN AUTOMATICALLY USING THE COMPOUND ASSOCIATION)
             if extended_platform.deployed_site and not extended_platform.portals:
                 extended_platform.portals = RR2.find_objects(subject=extended_platform.deployed_site._id, predicate=PRED.hasSite, id_only=False)
-                if extended_platform.portals:
-                    log.warn('compound association failed, manual workaround found %d portals', len(extended_platform.portals))
             # END JIRA BLOCK
 
             # Set primary device (as children of self) at immediate child sites
