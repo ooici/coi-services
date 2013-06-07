@@ -79,11 +79,11 @@ class TestQCPostProcessing(DMTestCase):
         es = EventSubscriber(event_type=OT.DatasetModified, origin=dataset_id, auto_delete=True, callback = lambda *args, **kwargs : monitor_queue.put(1))
         es.start()
         self.addCleanup(es.stop)
-        for rdt in self.populate_vectors(stream_def_id, 27, temp_vector):
+        for rdt in self.populate_vectors(stream_def_id, 3, temp_vector):
             ph.publish_rdt_to_data_product(data_product_id, rdt)
 
         try:
-            for i in xrange(27):
+            for i in xrange(3):
                 monitor_queue.get(timeout=10)
         except Empty:
             raise AssertionError('Failed to populate dataset in time')
@@ -111,6 +111,9 @@ class TestQCPostProcessing(DMTestCase):
         async_queue = Queue()
 
         def cb(event, *args, **kwargs):
+            if '_'.join(event.qc_parameter.split('_')[1:]) not in qc_params:
+                # I don't care about
+                return
             times = event.temporal_values
             self.assertEquals(len(times), bad_times)
             async_queue.put(1)
@@ -130,10 +133,10 @@ class TestQCPostProcessing(DMTestCase):
         ep.publish_event(origin=interval_key)
 
         try:
-            for i in xrange(24):
+            for i in xrange(2):
                 async_queue.get(timeout=10)
         except Empty:
-            raise AssertionError('QC was not flagged in time: %d', i)
+            raise AssertionError('QC was not flagged in time: %d'% i)
 
     def test_glblrng_qc_processing(self):
         def temp_vector(size):

@@ -7,7 +7,7 @@
 
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceProcessClient
-from pyon.public import RT
+from pyon.public import RT,CFG
 from ion.core.bootstrap_process import BootstrapPlugin
 from pyon.util.containers import DotDict
 from interface.objects import ProcessDefinition
@@ -27,6 +27,7 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
 
         self.scheduler_service = SchedulerServiceProcessClient(process=process)
         self.process_dispatcher = ProcessDispatcherServiceProcessClient(process=process)
+        self.run_interval = CFG.get_safe('service.qc_processing.run_interval', 24)
 
         interval_key = uuid4().hex # Unique identifier for this process
 
@@ -43,7 +44,7 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
 
         timer_id = self.scheduler_service.create_interval_timer(start_time=time.time(),
                 end_time=-1, #Run FOREVER
-                interval=3600*24,
+                interval=3600*self.run_interval,
                 event_origin=interval_key)
 
     def process_exists(self, process, name):
