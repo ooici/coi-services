@@ -84,6 +84,7 @@ class TestDirectCoverageAccess(DMTestCase):
 
         return data_product_id, dataset_id[0]
 
+    @attr('LOCOINT')
     def test_dca_ingestion_pause_resume(self):
         data_product_id, dataset_id = self.make_ctd_data_product()
 
@@ -115,6 +116,7 @@ class TestDirectCoverageAccess(DMTestCase):
             with dca.get_read_only_coverage(dataset_id) as cov:
                 self.assertGreaterEqual(cov.num_timesteps, 9)
 
+    @attr('LOCOINT')
     def test_dca_coverage_reuse(self):
         data_product_id, dataset_id = self.make_ctd_data_product()
 
@@ -140,6 +142,7 @@ class TestDirectCoverageAccess(DMTestCase):
 
             self.assertTrue(cov.closed)
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_upload_calibration_coefficients(self):
         data_product_id, dataset_id = self.make_cal_data_product()
@@ -176,6 +179,7 @@ class TestDirectCoverageAccess(DMTestCase):
                 for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
                     np.testing.assert_equal(cov.get_parameter_values(p, -1), want_vals[p])
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_manual_data_upload(self):
         data_product_id, dataset_id = self.make_manual_upload_data_product()
