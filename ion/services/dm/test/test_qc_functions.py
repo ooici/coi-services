@@ -119,7 +119,7 @@ class TestCoverageQC(TestQCFunctions):
             self.assertEquals(times,[0.0, 7.0])
             flagged.set()
 
-        event_subscriber = EventSubscriber(event_type=OT.ParameterQCEvent,origin=self.dataset_id, callback=cb, auto_delete=True)
+        event_subscriber = EventSubscriber(event_type=OT.ParameterQCEvent,origin=self.dp_id, callback=cb, auto_delete=True)
         event_subscriber.start()
         self.addCleanup(event_subscriber.stop)
 

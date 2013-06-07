@@ -223,7 +223,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
                 except:
                     continue
     def flag_qc_parameter(self, dataset_id, parameter, temporal_values, configuration):
-        self.qc_publisher.publish_event(origin=dataset_id, qc_parameter=parameter, temporal_values=temporal_values, configuration=configuration)
+        data_product_ids, _ = self.container.resource_registry.find_subjects(object=dataset_id, predicate=PRED.hasDataset, subject_type=RT.DataProduct, id_only=True)
+        for data_product_id in data_product_ids:
+            description = 'Automated Quality Control Alerted on %s' % parameter
+            self.qc_publisher.publish_event(origin=data_product_id, qc_parameter=parameter, temporal_values=temporal_values, configuration=configuration, description=description)
 
     def update_connection_index(self, connection_id, connection_index):
         self.connection_id = connection_id
