@@ -27,6 +27,9 @@ import numpy
 
 from coverage_model.parameter import ParameterDictionary
 
+from pyon.core.bootstrap import get_obj_registry
+from pyon.core.object import IonObjectDeserializer
+
 import uuid
 
 import logging
@@ -85,15 +88,27 @@ class PlatformAgentStreamPublisher(object):
                       self._platform_id, stream_name,
                       self._pp.pformat(stream_config))
 
+        decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
+
+        if 'stream_def_dict' in stream_config:
+            stream_def_dict = stream_config['stream_def_dict']
+            stream_def_dict['type_'] = 'StreamDefinition'
+            stream_def_obj = decoder.deserialize(stream_def_dict)
+            self._stream_defs[stream_name] = stream_def_obj
+            log.debug("%r: using stream_def_dict", self._platform_id)
+
+        else:  # TODO this case to be removed.
+            stream_definition_ref = stream_config['stream_definition_ref']
+            self._stream_defs[stream_name] = stream_definition_ref
+            log.debug("%r: using stream_definition_ref", self._platform_id)
+
         routing_key           = stream_config['routing_key']
         stream_id             = stream_config['stream_id']
         exchange_point        = stream_config['exchange_point']
         parameter_dictionary  = stream_config['parameter_dictionary']
-        stream_definition_ref = stream_config['stream_definition_ref']
 
         self._data_streams[stream_name] = stream_id
         self._param_dicts[stream_name] = ParameterDictionary.load(parameter_dictionary)
-        self._stream_defs[stream_name] = stream_definition_ref
         stream_route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
         publisher = self._create_publisher(stream_id, stream_route)
         self._data_publishers[stream_name] = publisher
@@ -138,16 +153,19 @@ class PlatformAgentStreamPublisher(object):
         param_dict = self._param_dicts[stream_name]
         stream_def = self._stream_defs[stream_name]
 
+        if isinstance(stream_def, str):
+            rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(),
+                                       stream_definition_id=stream_def)
+        else:
+            rdt = RecordDictionaryTool(stream_definition=stream_def)
+
         self._publish_granule_with_multiple_params(publisher, driver_event,
-                                                   param_dict, stream_def)
+                                                   param_dict, rdt)
 
     def _publish_granule_with_multiple_params(self, publisher, driver_event,
-                                              param_dict, stream_def):
+                                              param_dict, rdt):
 
         stream_name = driver_event.stream_name
-
-        rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(),
-                                   stream_definition_id=stream_def)
 
         pub_params = {}
         selected_timestamps = None
