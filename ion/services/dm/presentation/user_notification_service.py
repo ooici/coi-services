@@ -654,6 +654,8 @@ class UserNotificationService(BaseUserNotificationService):
             summary = "%s commitment created in Org: '%s'" % (event.commitment_type, event.org_name)
         elif "ResourceCommitmentReleasedEvent" in event_types:
             summary = "%s commitment released in Org: '%s'" % (event.commitment_type, event.org_name)
+        elif "ParameterQCEvent" in event_types:
+            summary = "%s" % event.description
 
 
 #        if event.description and summary:
