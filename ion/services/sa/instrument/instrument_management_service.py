@@ -1,16 +1,6 @@
 #!/usr/bin/env python
-from ion.services.sa.instrument.rollx_builder import RollXBuilder
-from ion.services.sa.instrument.status_builder import AgentStatusBuilder
-
-from ion.util.agent_launcher import AgentLauncher
-from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder, \
-    PlatformAgentConfigurationBuilder
-from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
-from ion.util.related_resources_crawler import RelatedResourcesCrawler
-from ion.util.resource_lcs_policy import AgentPolicy, ResourceLCSPolicy, ModelPolicy, DevicePolicy
 
 __author__ = 'Maurice Manning, Ian Katz, Michael Meisinger'
-
 
 import os
 import pwd
@@ -20,40 +10,44 @@ import time
 from collections import defaultdict
 
 from ooi.logging import log
+from ooi.timer import Timer, Accumulator
 
+from pyon.agent.agent import ResourceAgentState
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent, BadRequest, NotFound, ServerError, Unauthorized
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role
+from pyon.core.governance import has_valid_shared_resource_commitment, is_resource_owner
 from pyon.ion.resource import ExtendedResourceContainer
+from pyon.public import LCE, RT, PRED, OT
 from pyon.util.ion_time import IonTime
-from pyon.public import LCE
-from pyon.public import RT, PRED, OT
 from pyon.util.containers import get_ion_ts
-from pyon.agent.agent import ResourceAgentState
 from coverage_model.parameter import ParameterDictionary
 
+from ion.agents.port.port_agent_process import PortAgentProcess
+from ion.services.sa.instrument.rollx_builder import RollXBuilder
+from ion.services.sa.instrument.status_builder import AgentStatusBuilder
+from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder, \
+    PlatformAgentConfigurationBuilder
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-
 from ion.services.sa.instrument.flag import KeywordFlag
-
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
+from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+from ion.services.sa.observatory.deployment_util import describe_deployments
+from ion.util.agent_launcher import AgentLauncher
 from ion.util.module_uploader import RegisterModulePreparerEgg
 from ion.util.qa_doc_parser import QADocParser
-
-from ion.agents.port.port_agent_process import PortAgentProcess
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from ion.util.resource_lcs_policy import AgentPolicy, ResourceLCSPolicy, ModelPolicy, DevicePolicy
 
 from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedDictValue, ComputedListValue
 from interface.objects import AggregateStatusType, DeviceStatusType
-
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
-from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role
-from pyon.core.governance import has_valid_shared_resource_commitment, is_resource_owner
-from ion.services.sa.observatory.deployment_util import describe_deployments
-from ooi.timer import Timer,Accumulator
 
 # Causes MI drivers and eggs to load
 import ion.agents.instrument.test.test_instrument_agent
 
 stats = Accumulator(persist=True)
+
 
 class InstrumentManagementService(BaseInstrumentManagementService):
     """
@@ -1588,7 +1582,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.instrument_device_extension.rollup')
 
         # add UI details for deployments in same order as deployments
-        extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients, instruments=[extended_instrument.resource], instrument_status=[status])
+        extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients,
+                                                                   instruments=[extended_instrument.resource],
+                                                                   instrument_status=[status])
         if t:
             t.complete_step('ims.instrument_device_extension.deploy')
             stats.add(t)
@@ -1720,157 +1716,173 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an PlatformDeviceExtension object containing additional related information
         """
-        t = Timer() if stats.is_log_enabled() else None
+        try:
+            t = Timer() if stats.is_log_enabled() else None
 
-        RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+            RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+            outil = ObservatoryUtil(self, enhanced_rr=RR2)
 
-        if not platform_device_id:
-            raise BadRequest("The platform_device_id parameter is empty")
+            if not platform_device_id:
+                raise BadRequest("The platform_device_id parameter is empty")
 
-        extended_resource_handler = ExtendedResourceContainer(self)
-        extended_platform = extended_resource_handler.create_extended_resource_container(
-            OT.PlatformDeviceExtension,
-            platform_device_id,
-            OT.PlatformDeviceComputedAttributes,
-            ext_associations=ext_associations,
-            ext_exclude=ext_exclude,
-            user_id=user_id)
-        if t:
-            t.complete_step('ims.platform_device_extension.create')
+            extended_resource_handler = ExtendedResourceContainer(self)
+            extended_platform = extended_resource_handler.create_extended_resource_container(
+                OT.PlatformDeviceExtension,
+                platform_device_id,
+                OT.PlatformDeviceComputedAttributes,
+                ext_associations=ext_associations,
+                ext_exclude=ext_exclude,
+                user_id=user_id)
+            if t:
+                t.complete_step('ims.platform_device_extension.create')
 
-        # lookup all hasModel predicates
-        # lookup is a 2d associative array of [subject type][subject id] -> object id
-        lookup = dict([(rt, {}) for rt in [RT.PlatformDevice, RT.InstrumentDevice]])
-        associations = RR2.find_associations(predicate=PRED.hasModel, id_only=False)
-        if t:
-            t.complete_step('ims.platform_device_extension.assoc')
-        for a in associations:
-            if a.st in lookup:
+            # Build a lookup for device models via hasModel predicates.
+            # lookup is a 2d associative array of [subject type][subject id] -> object id
+            RR2.cache_predicate(PRED.hasModel)
+            if t:
+                t.complete_step('ims.platform_device_extension.assoc')
+            lookup = {rt : {} for rt in [RT.InstrumentDevice, RT.PlatformDevice]}
+            for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
                 lookup[a.st][a.s] = a.o
 
-        #set the platform device children
-        extended_platform.platforms, _ = self.clients.resource_registry.find_objects(subject=platform_device_id, predicate=PRED.hasDevice, object_type=RT.PlatformDevice, id_only=False)
+            def retrieve_model_objs(rsrc_list, object_type):
+            # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
+            # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
+            #  look up all the model ids, then create the proper output
+                model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
+                model_uniq = list(set([m for m in model_list if m is not None]))
+                model_objs = self.RR2.read_mult(model_uniq)
+                model_dict = dict(zip(model_uniq, model_objs))
+                return [model_dict.get(m) for m in model_list]
 
-        def retrieve_model_objs(rsrc_list, object_type):
-        # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
-        # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
-        #  look up all the model ids, then create the proper output
-            model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
-            model_uniq = list(set([m for m in model_list if m is not None]))
-            model_objs = self.clients.resource_registry.read_mult(model_uniq)
-            model_dict = dict(zip(model_uniq, model_objs))
-            return [model_dict.get(m) for m in model_list]
+            # Set platform parents
+            device_relations = outil.get_child_devices(platform_device_id)
 
-        extended_platform.instrument_models = retrieve_model_objs(extended_platform.instrument_devices,
-                                                                  RT.InstrumentDevice)
-        extended_platform.platform_models   = retrieve_model_objs(extended_platform.platforms,
-                                                                  RT.PlatformDevice)
-        if t:
-            t.complete_step('ims.platform_device_extension.index')
+            extended_platform.parent_platform_device = None
+            extended_platform.parent_platform_model = None
+            res_objs = RR2.find_subjects(subject_type=RT.PlatformDevice, predicate=PRED.hasDevice, object=platform_device_id, id_only=False)
+            if res_objs:
+                extended_platform.parent_platform_device = res_objs[0]
+                res_objs1 = RR2.find_objects(subject=res_objs[0]._id, predicate=PRED.hasModel, object_type=RT.PlatformModel, id_only=False)
+                if res_objs1:
+                    extended_platform.parent_platform_model = res_objs1[0]
 
-        # JIRA OOIION934: REMOVE THIS BLOCK WHEN FIXED
-        # add portals, sites related to platforms (SHOULD HAPPEN AUTOMATICALLY USING THE COMPOUND ASSOCIATION)
-        if extended_platform.deployed_site and not extended_platform.portals:
-            extended_platform.portals = RR2.find_objects(object_type=RT.InstrumentSite, predicate=PRED.hasSite, subject=extended_platform.deployed_site._id)
-            if extended_platform.portals:
-                log.warn('compound association failed, manual workaround found %d portals', len(extended_platform.portals))
-        # END JIRA BLOCK
+            # Set the platform device children
+            child_platform_ids = [did for pt,did,dt in device_relations[platform_device_id] if dt == RT.PlatformDevice]
+            child_instrument_ids = [did for pt,did,dt in device_relations[platform_device_id] if dt == RT.InstrumentDevice]
+            child_ids = list(set(child_platform_ids + child_instrument_ids))
+            child_objs = RR2.read_mult(child_ids)
+            child_by_id = dict(zip(child_ids, child_objs))
 
-#        # add device and status of portals
-#        _,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_platform.portals], id_only=True)
-#        for a in associations:
-#            if a.p==PRED.hasDevice:
-#                if a.ot!=RT.InstrumentDevice:
-#                    log.warn('unexpected association InstrumentSite %s hasDevice %s %s (was not InstrumentDevice)', a.s, a.ot, a.o)
+            extended_platform.platforms = [child_by_id[did] for did in child_platform_ids]
+            extended_platform.platform_models = retrieve_model_objs(extended_platform.platforms, RT.PlatformDevice)
 
-        # use the related resources crawler to get ALL sub-devices
-        finder = RelatedResourcesCrawler()
-        get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasDevice])
-        if t:
-            t.complete_step('ims.platform_device_extension.crawl')
-        full_crawllist = [RT.InstrumentDevice, RT.PlatformDevice]
-        search_down = get_assns({PRED.hasDevice: (True, False)}, full_crawllist)
-        if t:
-            t.complete_step('ims.platform_device_extension.down')
+            extended_platform.instrument_devices = [child_by_id[did] for did in child_instrument_ids]
+            extended_platform.instrument_models = retrieve_model_objs(extended_platform.instrument_devices, RT.InstrumentDevice)
+            if t:
+                t.complete_step('ims.platform_device_extension.index')
 
-        # the searches return a list of association objects, so compile all the ids by extracting them
-        subdevice_ids = set([])
+            # Set network connected devices
+            up_devices = RR2.find_objects(subject=platform_device_id, predicate=PRED.hasNetworkParent, id_only=False)
+            down_devices = RR2.find_subjects(predicate=PRED.hasNetworkParent, object=platform_device_id, id_only=False)
+            extended_platform.connected_devices = up_devices + down_devices
+            extended_platform.connected_device_info = []
+            for dev in extended_platform.connected_devices:
+                info_dict = dict(direction="up" if dev in up_devices else "down",
+                                 port="TBD",
+                                 status="TBD")
+                extended_platform.connected_device_info.append(info_dict)
 
-        # we want only those IDs that are not the input resource id
-        for a in search_down(platform_device_id, -1):
-            if a.o != platform_device_id:
-                subdevice_ids.add(a.o)
-        log.trace("Found %s child devices in tree", len(subdevice_ids))
-        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
-                                                                                    extended_platform.computed,
-                                                                                    list(subdevice_ids))
+            # JIRA OOIION948: REMOVE THIS BLOCK WHEN FIXED
+            # add portals, sites related to platforms (SHOULD HAPPEN AUTOMATICALLY USING THE COMPOUND ASSOCIATION)
+            if extended_platform.deployed_site and not extended_platform.portals:
+                extended_platform.portals = RR2.find_objects(subject=extended_platform.deployed_site._id, predicate=PRED.hasSite, id_only=False)
+                if extended_platform.portals:
+                    log.warn('compound association failed, manual workaround found %d portals', len(extended_platform.portals))
+            # END JIRA BLOCK
 
-        statuses, reason = self.agent_status_builder.get_cumulative_status_dict(platform_device_id)
-        def csl(device_id_list):
-            return self.agent_status_builder.compute_status_list(statuses, device_id_list)
+            # Set primary device (as children of self) at immediate child sites
+            child_site_ids = [p._id for p in extended_platform.portals]
+            portal_device_relations = outil.get_device_relations(child_site_ids)
+            extended_platform.portal_instruments = []
+            for ch_id in child_site_ids:
+                device_id = self._get_site_device(ch_id, portal_device_relations)
+                extended_platform.portal_instruments.append(child_by_id.get(device_id, None))
 
-        extended_platform.computed.instrument_status = csl([dev._id for dev in extended_platform.instrument_devices])
-        extended_platform.computed.platform_status   = csl([platform._id for platform in extended_platform.platforms])
-        log.debug('instrument_status: %s %r instruments %d\nplatform_status: %s %r platforms %d',
-            extended_platform.computed.instrument_status.reason, extended_platform.computed.instrument_status.value, len(extended_platform.instrument_devices),
-            extended_platform.computed.platform_status.reason, extended_platform.computed.platform_status.value, len(extended_platform.platforms))
-        if t:
-            t.complete_step('ims.platform_device_extension.status')
+            log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
 
-        # add device and status of portals
-        objects,associations = RR2.find_objects_mult(subjects=[p._id for p in extended_platform.portals], id_only=False)
-        extended_platform.portal_instruments = [None]*len(extended_platform.portals)
-        for i in xrange(len(extended_platform.portals)):
-            for o,a in zip(objects,associations):
-                if a.p==PRED.hasDevice:
-                    if a.ot!=RT.InstrumentDevice:
-                        log.warn('unexpected association InstrumentSite %s hasDevice %s %s (was not InstrumentDevice)', a.s, a.ot, a.o)
-                    elif a.s==extended_platform.portals[i]._id:
-                        extended_platform.portal_instruments[i] = o
+            # Building status
+            # @TODO: clean this UP!!!
+            child_device_ids = device_relations.keys()
+            self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
+                                                                                        extended_platform.computed,
+                                                                                        child_device_ids)
 
-        log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
+            statuses, reason = self.agent_status_builder.get_cumulative_status_dict(platform_device_id)
+            def csl(device_id_list):
+                return self.agent_status_builder.compute_status_list(statuses, device_id_list)
 
-        ids =[i._id if i else None for i in extended_platform.portal_instruments]
-        extended_platform.computed.portal_status = csl(ids)
-        log.debug('%d portals, %d instruments, %d status: %r', len(extended_platform.portals), len(extended_platform.portal_instruments), len(extended_platform.computed.portal_status.value), ids)
+            extended_platform.computed.instrument_status = csl([dev._id for dev in extended_platform.instrument_devices])
+            extended_platform.computed.platform_status   = csl([platform._id for platform in extended_platform.platforms])
+            log.debug('instrument_status: %s %r instruments %d\nplatform_status: %s %r platforms %d',
+                extended_platform.computed.instrument_status.reason, extended_platform.computed.instrument_status.value, len(extended_platform.instrument_devices),
+                extended_platform.computed.platform_status.reason, extended_platform.computed.platform_status.value, len(extended_platform.platforms))
+            if t:
+                t.complete_step('ims.platform_device_extension.status')
 
-        rollx_builder = RollXBuilder(self)
-        top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
-        if t:
-            t.complete_step('ims.platform_device_extension.top')
-        net_stats, ancestors = rollx_builder.get_network_hierarchy(top_platformnode_id,
-                                                                   lambda x: self.agent_status_builder.get_aggregate_status_of_device(x))
-        if t:
-            t.complete_step('ims.platform_device_extension.hierarchy')
-        extended_platform.computed.rsn_network_child_device_status = ComputedDictValue(value=net_stats,
-                                                                                       status=ComputedValueAvailability.PROVIDED)
-        if t:
-            t.complete_step('ims.platform_device_extension.nodes')
-        parent_node_device_ids = rollx_builder.get_parent_network_nodes(platform_device_id)
+            # TODO: why don't we just use the immediate device children? child_objs
+            ids =[i._id if i else None for i in extended_platform.portal_instruments]
+            extended_platform.computed.portal_status = csl(ids)
+            log.debug('%d portals, %d instruments, %d status: %r', len(extended_platform.portals), len(extended_platform.portal_instruments), len(extended_platform.computed.portal_status.value), ids)
 
-        if not parent_node_device_ids:
-            # todo, just the current network status?
-            extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                                                              reason="Could not find parent network node")
-        else:
-            parent_node_statuses = [self.agent_status_builder.get_status_of_device(x) for x in parent_node_device_ids]
-            rollup_values = {}
-            for astkey, astname in AggregateStatusType._str_map.iteritems():
-                log.debug("collecting all %s values to crush", astname)
-                single_type_list = [nodestat.get(astkey, DeviceStatusType.STATUS_UNKNOWN) for nodestat in parent_node_statuses]
-                rollup_values[astkey] = self.agent_status_builder._crush_status_list(single_type_list)
+            rollx_builder = RollXBuilder(self)
+            top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
+            if t:
+                t.complete_step('ims.platform_device_extension.top')
+            net_stats, ancestors = rollx_builder.get_network_hierarchy(top_platformnode_id,
+                                                                       lambda x: self.agent_status_builder.get_aggregate_status_of_device(x))
+            if t:
+                t.complete_step('ims.platform_device_extension.hierarchy')
+            extended_platform.computed.rsn_network_child_device_status = ComputedDictValue(value=net_stats,
+                                                                                           status=ComputedValueAvailability.PROVIDED)
+            if t:
+                t.complete_step('ims.platform_device_extension.nodes')
+            parent_node_device_ids = rollx_builder.get_parent_network_nodes(platform_device_id)
 
-            extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
-                                                                             value=rollup_values)
-        if t:
-            t.complete_step('ims.platform_device_extension.crush')
+            if not parent_node_device_ids:
+                # todo, just the current network status?
+                extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                                  reason="Could not find parent network node")
+            else:
+                parent_node_statuses = [self.agent_status_builder.get_status_of_device(x) for x in parent_node_device_ids]
+                rollup_values = {}
+                for astkey, astname in AggregateStatusType._str_map.iteritems():
+                    log.debug("collecting all %s values to crush", astname)
+                    single_type_list = [nodestat.get(astkey, DeviceStatusType.STATUS_UNKNOWN) for nodestat in parent_node_statuses]
+                    rollup_values[astkey] = self.agent_status_builder._crush_status_list(single_type_list)
 
-        # add UI details for deployments
-        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients, instruments=extended_platform.instrument_devices, instrument_status=extended_platform.computed.instrument_status.value)
-        if t:
-            t.complete_step('ims.platform_device_extension.deploy')
-            stats.add(t)
-        return extended_platform
+                extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
+                                                                                 value=rollup_values)
+            if t:
+                t.complete_step('ims.platform_device_extension.crush')
+
+            # add UI details for deployments
+            extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients, instruments=extended_platform.instrument_devices, instrument_status=extended_platform.computed.instrument_status.value)
+            if t:
+                t.complete_step('ims.platform_device_extension.deploy')
+                stats.add(t)
+            return extended_platform
+        except Exception as ex:
+            log.exception("ERROR in get_platform_device_extension")
+            raise
+
+    def _get_site_device(self, site_id, device_relations):
+        site_devices = [tup[1] for tup in device_relations.get(site_id, []) if tup[2] in (RT.InstrumentDevice, RT.PlatformDevice)]
+        if len(site_devices) > 1:
+            log.error("Inconsistent: Site %s has multiple devices: %s", site_id, site_devices)
+        if not site_devices:
+            return None
+        return site_devices[0]
 
     def get_data_product_parameters_set(self, resource_id=''):
         # return the set of data product with the processing_level_code as the key to identify
