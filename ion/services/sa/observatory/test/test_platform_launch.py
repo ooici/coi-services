@@ -162,7 +162,6 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         self._run_commands()
 
-    @skip("PlatformSite IonObject does not have an _id")
     def test_platform_device_extended_attributes(self):
 
         instr_keys = ["SBE37_SIM_01", "SBE37_SIM_02", ]
