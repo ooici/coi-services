@@ -19,6 +19,17 @@ from ion.util.direct_coverage_utils import DirectCoverageAccess
 from pyon.ion.resource import PRED
 
 
+from subprocess import call
+import re
+not_have_h5stat = call('which h5stat'.split(), stdout=open('/dev/null','w'))
+if not not_have_h5stat:
+    from subprocess import check_output
+    from distutils.version import StrictVersion
+    output = check_output('h5stat -V'.split())
+    version_str = re.match(r'.*(\d+\.\d+\.\d+).*', output).groups()[0]
+    h5stat_correct_version = StrictVersion(version_str) >= StrictVersion('1.8.9')
+
+
 @attr('INT', group='dm')
 class TestDirectCoverageAccess(DMTestCase):
 
@@ -201,6 +212,10 @@ class TestDirectCoverageAccess(DMTestCase):
                 for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
                     np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), want_vals[p])
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    @unittest.skipIf(not_have_h5stat, 'h5stat is not accessible in current PATH')
+    @unittest.skipIf(not not_have_h5stat and not h5stat_correct_version, 'HDF is the incorrect version: %s' % version_str)
     def test_run_coverage_doctor(self):
         data_product_id, dataset_id = self.make_ctd_data_product()
 
