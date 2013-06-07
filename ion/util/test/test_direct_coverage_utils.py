@@ -74,7 +74,6 @@ class TestDirectCoverageAccess(DMTestCase):
         return data_product_id, dataset_id[0]
 
     def test_dca_ingestion_pause_resume(self):
-        import time
         data_product_id, dataset_id = self.make_ctd_data_product()
 
         streamer = Streamer(data_product_id, interval=1)
@@ -87,7 +86,6 @@ class TestDirectCoverageAccess(DMTestCase):
         with DirectCoverageAccess() as dca:
             with dca.get_editable_coverage(dataset_id) as cov: # <-- This pauses ingestion
                 monitor = DatasetMonitor(dataset_id)
-                st=time.time()
                 monitor.event.wait(7) # <-- ~7 Samples should accumulate on the ingestion queue
                 self.assertFalse(monitor.event.is_set()) # Verifies that nothing was processed (i.e. ingestion is actually paused)
                 monitor.stop()
@@ -105,6 +103,31 @@ class TestDirectCoverageAccess(DMTestCase):
         with DirectCoverageAccess() as dca:
             with dca.get_read_only_coverage(dataset_id) as cov:
                 self.assertGreaterEqual(cov.num_timesteps, 9)
+
+    def test_dca_coverage_reuse(self):
+        data_product_id, dataset_id = self.make_ctd_data_product()
+
+        streamer = Streamer(data_product_id, interval=1)
+        self.addCleanup(streamer.stop)
+
+        # Let a couple samples accumulate
+        self.use_monitor(dataset_id, samples=2)
+
+        with DirectCoverageAccess() as dca:
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                self.assertFalse(cov.closed)
+
+            self.assertTrue(cov.closed)
+
+            with dca.get_editable_coverage(dataset_id) as cov:
+                self.assertFalse(cov.closed)
+
+            self.assertTrue(cov.closed)
+
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                self.assertFalse(cov.closed)
+
+            self.assertTrue(cov.closed)
 
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_upload_calibration_coefficients(self):
