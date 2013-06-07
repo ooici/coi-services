@@ -705,7 +705,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         RR2 = EnhancedResourceRegistryClient(self.RR)
         outil = ObservatoryUtil(self, enhanced_rr=RR2)
-        parent_resource_objs = self.RR.read(parent_resource_ids)
+        parent_resource_objs = self.RR.read_mult(parent_resource_ids)
         res_by_id = dict(zip(parent_resource_ids, parent_resource_objs))
 
         # Loop thru all the provided site ids and create the result structure
