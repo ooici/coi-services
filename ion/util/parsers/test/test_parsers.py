@@ -42,34 +42,34 @@ class TestParsers(IonIntegrationTestCase):
     def test_grt_parser(self):
         self.parse_document(self.container, grt_parser, qc_paths['grt'])
 
-        ret_doc = self.svm.read_value('grt_%s_%s' % ('GA01SUMO-RI003-03-CTDMOQ999', 'CONDWAT'))
+        ret_doc = self.svm.read_value('grt_%s_%s' % ('CE04OSBP-LJ01C-06-CTDBPO108', 'CONDWAT'))
         np.testing.assert_almost_equal(ret_doc['grt_min_value'], 0.)
         np.testing.assert_almost_equal(ret_doc['grt_max_value'], 66000.)
 
     def test_spike_parser(self):
         self.parse_document(self.container, spike_parser, qc_paths['spike'])
 
-        ret_doc = self.svm.read_value('spike_%s_%s' % ('GA01SUMO-RI003-03-CTDMOQ999', 'PRACSAL'))
+        ret_doc = self.svm.read_value('spike_%s_%s' % ('CE04OSBP-LJ01C-06-CTDBPO108', 'PRACSAL'))
         np.testing.assert_almost_equal(ret_doc['acc'], 0.005)
         np.testing.assert_almost_equal(ret_doc['spike_n'], 11.)
         np.testing.assert_almost_equal(ret_doc['spike_l'], 15.)
 
-        self.assertRaises(NotFound, self.svm.read_value,'spike_%s_%s' % ('GA01SUMO-RI003-03-CTDMOQ999', 'DENSITY'))
+        self.assertRaises(NotFound, self.svm.read_value,'spike_%s_%s' % ('CE04OSBP-LJ01C-06-CTDBPO108', 'CLOWN'))
 
 
     def test_stuck_value_parser(self):
         self.parse_document(self.container, stuck_value_test_parser, qc_paths['stuck'])
 
-        ret_doc = self.svm.read_value('svt_%s_%s' % ('GA01SUMO-RI003-03-CTDMOQ999', 'PRACSAL'))
-        np.testing.assert_almost_equal(ret_doc['svt_resolution'], 0.0001)
-        np.testing.assert_almost_equal(ret_doc['svt_n'], 20.)
+        ret_doc = self.svm.read_value('svt_%s_%s' % ('CE04OSBP-LJ01C-06-CTDBPO108', 'PRACSAL'))
+        np.testing.assert_almost_equal(ret_doc['svt_resolution'], 1e-9)
+        np.testing.assert_almost_equal(ret_doc['svt_n'], 1000000)
 
     def test_trend_value_parser(self):
         self.parse_document(self.container, trend_parser, qc_paths['trend'])
 
-        ret_doc = self.svm.read_value('trend_%s_%s' % ('RS01SBVM-LJ01A-05-HPIESA101', 'IESPRES'))
-        np.testing.assert_almost_equal(ret_doc['time_interval'], 90.)
+        ret_doc = self.svm.read_value('trend_%s_%s' % ('CE04OSBP-LJ01C-06-CTDBPO108', 'PRACSAL'))
+        np.testing.assert_almost_equal(ret_doc['time_interval'], 365.0)
         np.testing.assert_almost_equal(ret_doc['polynomial_order'], 1.0)
-        np.testing.assert_almost_equal(ret_doc['standard_deviation'], 5.0)
+        np.testing.assert_almost_equal(ret_doc['standard_deviation'], 0.0)
 
     
