@@ -21,6 +21,8 @@ from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from gevent import Greenlet, sleep
 from gevent.coros import RLock
 
+import pprint
+
 
 class PlatformResourceMonitor(object):
     """
@@ -61,6 +63,9 @@ class PlatformResourceMonitor(object):
         # publishing rate in seconds, set by _set_publisher_rate
         self._pub_rate = None
         self._publisher_active = False
+
+        # for debugging purposes
+        self._pp = pprint.PrettyPrinter()
 
     def _group_by_monitoring_rate(self, group_size_secs=1):
         """
@@ -336,6 +341,10 @@ class PlatformResourceMonitor(object):
 
         log.debug("%r: _dispatch_publication: notifying event: %s",
                   self._platform_id, driver_event)
+
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r: vals_dict:\n%s",
+                      self._platform_id, self._pp.pformat(driver_event.vals_dict))
 
         self._notify_driver_event(driver_event)
 

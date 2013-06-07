@@ -21,6 +21,8 @@ from ion.agents.platform.util import ntp_2_ion_ts
 import logging
 from gevent import Greenlet, sleep
 
+import pprint
+
 
 # Platform attribute values are reported for the stream name "parsed".
 # TODO confirm this.
@@ -78,6 +80,9 @@ class ResourceMonitor(object):
                          self._platform_id, attr_defn)
 
         self._active = False
+
+        # for debugging purposes
+        self._pp = pprint.PrettyPrinter()
 
         log.debug("%r: ResourceMonitor created. rate_secs=%s, attr_ids=%s",
                   platform_id, rate_secs, self._attr_ids)
@@ -181,17 +186,17 @@ class ResourceMonitor(object):
             # nothing else to do.  TODO perhaps an additional warning?
             return
 
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            # show good_retrieved_vals as retrieved (might be large)
+            log.trace("%r: _retrieve_attribute_values: _get_attribute_values "
+                      "for attrs=%s returned\n%s",
+                      self._platform_id, attrs, self._pp.pformat(good_retrieved_vals))
+        elif log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             summary = {attr_id: "(%d vals)" % len(vals)
                        for attr_id, vals in good_retrieved_vals.iteritems()}
             log.debug("%r: _retrieve_attribute_values: _get_attribute_values "
                       "for attrs=%s returned %s",
                       self._platform_id, attrs, summary)
-        elif log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            # show good_retrieved_vals as retrieved (might be large)
-            log.trace("%r: _retrieve_attribute_values: _get_attribute_values "
-                      "for attrs=%s returned %s",
-                      self._platform_id, attrs, good_retrieved_vals)
 
         # vals_dict: attributes with non-empty reported values:
         vals_dict = {}
