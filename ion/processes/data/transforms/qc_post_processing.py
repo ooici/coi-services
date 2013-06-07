@@ -44,6 +44,7 @@ class QCPostProcessing(SimpleProcess):
         self.event_subscriber = EventSubscriber(event_type=OT.TimerEvent, origin=self.interval_key, callback=self._event_callback, auto_delete=True)
         self.add_endpoint(self.event_subscriber)
         self.resource_registry = self.container.resource_registry
+        self.run_interval = self.CFG.get_safe('service.qc_processing.run_interval', 24)
     
     def _event_callback(self, *args, **kwargs):
         log.info('QC Post Processing Triggered')
@@ -56,7 +57,7 @@ class QCPostProcessing(SimpleProcess):
         if not dataset_id:
             raise BadRequest('No dataset id specified.')
         now = time.time()
-        start_time = start_time or (now - (3600*25)) # Do 25 hours to overlap
+        start_time = start_time or (now - (3600*(self.run_interval+1))) # Every N hours with 1 of overlap
         end_time   = end_time or now
         
         qc_params  = [i for i in self.qc_params if i in self.qc_suffixes] or self.qc_suffixes
@@ -64,14 +65,17 @@ class QCPostProcessing(SimpleProcess):
         self.qc_publisher = EventPublisher(event_type=OT.ParameterQCEvent)
 
         for st,et in self.chop(int(start_time),int(end_time)):
+            log.debug('Chopping %s:%s', st, et)
             granule = self.data_retriever.retrieve(dataset_id, query={'start_time':st, 'end_time':et})
             rdt = RecordDictionaryTool.load_from_granule(granule)
             qc_fields = [i for i in rdt.fields if any([i.endswith(j) for j in qc_params])]
+            log.debug('QC Fields: %s', qc_fields)
             for field in qc_fields:
                 val = rdt[field]
                 if val is None:
                     continue
                 if not np.all(val):
+                    log.debug('Found QC Alerts')
                     indexes = np.where(val==0)
                     timestamps = rdt[rdt.temporal_parameter][indexes[0]]
                     self.flag_qc_parameter(dataset_id, field, timestamps.tolist(),{})
@@ -79,6 +83,7 @@ class QCPostProcessing(SimpleProcess):
 
 
     def flag_qc_parameter(self, dataset_id, parameter, temporal_values, configuration):
+        log.info('Flagging QC for %s', parameter)
         data_product_ids, _ = self.resource_registry.find_subjects(object=dataset_id, subject_type=RT.DataProduct, predicate=PRED.hasDataset, id_only=True)
         for data_product_id in data_product_ids:
             self.qc_publisher.publish_event(origin=data_product_id, qc_parameter=parameter, temporal_values=temporal_values, configuration=configuration)
