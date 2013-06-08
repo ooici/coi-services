@@ -77,6 +77,8 @@ class StatusManager(object):
         assert pa._platform_id is not None
         assert pa._children_resource_ids is not None
 
+        self._agent = pa
+
         self._create_event_subscriber = pa._create_event_subscriber
 
         self._platform_id            = pa._platform_id
@@ -783,11 +785,13 @@ Published event: AGGREGATE_POWER -> STATUS_OK
                           self._platform_id, evt.sub_type, sub_type)
                 return
 
+            state = self._agent.get_agent_state()
+
             statuses = formatted_statuses(self.aparam_aggstatus,
                                           self.aparam_child_agg_status,
                                           self.aparam_rollup_status)
-            log.info("%r: (%s) status report triggered by diagnostic event:\n%s\n",
-                     self._platform_id, self.resource_id, statuses)
+            log.info("%r/%s: (%s) status report triggered by diagnostic event:\n%s\n",
+                     self._platform_id, state, self.resource_id, statuses)
 
         self._diag_sub = self._create_event_subscriber(event_type=event_type,
                                                        origin=origin,
