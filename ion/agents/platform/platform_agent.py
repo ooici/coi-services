@@ -261,18 +261,20 @@ class PlatformAgent(ResourceAgent):
         self._plat_config = self.CFG.get("platform_config", None)
         self._plat_config_processed = False
 
+        platform_id = self.CFG.get_safe('platform_config.platform_id', '??')
+
         #######################################################################
         # CFG.endpoint.receive.timeout: adding a warning if the value is less
         # than the one we have been using successfully for a while, at least
         # against our RSN OMS simulator, both locally and on the buildbots.
         if self._timeout < 180:
-            log.warn("%r: CFG.endpoint.receive.timeout=%s < 180", self._timeout)
+            log.warn("%r: CFG.endpoint.receive.timeout=%s < 180",
+                     platform_id, self._timeout)
         #######################################################################
 
         self._launcher = Launcher(self._timeout)
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            platform_id = self.CFG.get_safe('platform_config.platform_id', '')
             log.debug("%r: self._timeout = %s", platform_id, self._timeout)
             outname = "logs/platform_CFG_received_%s.txt" % platform_id
             try:
