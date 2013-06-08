@@ -51,20 +51,11 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self._run()
 
     def _run_shutdown_commands(self):
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
-
-    def _run_commands(self):
-        """
-        A common sequence of commands for the root platform in some of the
-        tests below.
-        """
-        self._run_startup_commands()
-
-        #####################
-        # done
-        self._run_shutdown_commands()
+        try:
+            self._go_inactive()
+            self._reset()
+        finally:  # attempt shutdown anyway
+            self._shutdown()
 
     def test_single_platform(self):
         #
@@ -73,8 +64,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         p_root = self._create_single_platform()
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
 
-        self._run_commands()
+        self._run_startup_commands()
 
     def test_hierarchy(self):
         #
@@ -83,8 +75,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         p_root = self._create_small_hierarchy()
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
 
-        self._run_commands()
+        self._run_startup_commands()
 
     def test_single_platform_with_an_instrument(self):
         #
@@ -94,8 +87,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         p_root = self._set_up_single_platform_with_some_instruments(['SBE37_SIM_01'])
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
 
-        self._run_commands()
+        self._run_startup_commands()
 
     def test_instrument_first_then_platform(self):
         #
@@ -125,6 +119,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         # start the platform:
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
 
         self._run_startup_commands()
 
@@ -132,9 +127,6 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         instr_state = ia_client.get_agent_state()
         log.debug("instrument state: %s", instr_state)
         self.assertEquals(ResourceAgentState.COMMAND, instr_state)
-
-        # done
-        self._run_shutdown_commands()
 
     def test_13_platforms_and_2_instruments(self):
         #
@@ -145,8 +137,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
 
-        self._run_commands()
+        self._run_startup_commands()
 
     @skip("Runs fine but waiting for comments to enable in general")
     @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 420}}})
@@ -159,8 +152,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
 
-        self._run_commands()
+        self._run_startup_commands()
 
     def test_platform_device_extended_attributes(self):
 
@@ -169,6 +163,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
 
         self._run_startup_commands()
 
@@ -272,5 +267,3 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         print "\n%s\n" % all_vals
         #if True: self.fail(all_vals)
-
-        self._run_shutdown_commands()
