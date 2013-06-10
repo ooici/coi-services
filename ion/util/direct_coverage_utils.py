@@ -101,21 +101,38 @@ class DirectCoverageAccess(object):
             print 'Warning: Coverages will remain open until they are closed or go out of scope - ' \
                   'be sure to close coverage instances when you are finished working with them'
 
+        # Check if we already have the coverage
         if dataset_id in self._ro_covs:
-            return self._ro_covs[dataset_id]
-        else:
-            self._ro_covs[dataset_id] = DatasetManagementService._get_coverage(dataset_id, mode='r')
+            cov = self._ro_covs[dataset_id]
+            # If it's not closed, return it
+            if not cov.closed:
+                return cov
+            # Otherwise, remove it from self._ro_covs and carry on
+            del self._ro_covs[dataset_id]
+
+        self._ro_covs[dataset_id] = DatasetManagementService._get_coverage(dataset_id, mode='r')
 
         return self._ro_covs[dataset_id]
 
     def get_editable_coverage(self, dataset_id):
         sid = self.get_stream_id(dataset_id)
+
+        # Check if we already have the coverage
         if sid in self._paused_streams:
-            return self._w_covs[sid]
+            cov = self._w_covs[sid]
+            # If it's not closed, return it
+            if not cov.closed:
+                return cov
+            # Otherwise, remove it from self._ro_covs and carry on
+            del self._w_covs[sid]
 
         self.pause_ingestion(sid)
-        self._w_covs[sid] = DatasetManagementService._get_simplex_coverage(dataset_id, mode='w')
-        return self._w_covs[sid]
+        try:
+            self._w_covs[sid] = DatasetManagementService._get_simplex_coverage(dataset_id, mode='w')
+            return self._w_covs[sid]
+        except:
+            self.resume_ingestion(sid)
+            raise
 
     @classmethod
     def get_parser(cls, data_file_path, config_path=None):

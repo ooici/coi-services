@@ -19,6 +19,17 @@ from ion.util.direct_coverage_utils import DirectCoverageAccess
 from pyon.ion.resource import PRED
 
 
+from subprocess import call
+import re
+not_have_h5stat = call('which h5stat'.split(), stdout=open('/dev/null','w'))
+if not not_have_h5stat:
+    from subprocess import check_output
+    from distutils.version import StrictVersion
+    output = check_output('h5stat -V'.split())
+    version_str = re.match(r'.*(\d+\.\d+\.\d+).*', output).groups()[0]
+    h5stat_correct_version = StrictVersion(version_str) >= StrictVersion('1.8.9')
+
+
 @attr('INT', group='dm')
 class TestDirectCoverageAccess(DMTestCase):
 
@@ -73,8 +84,8 @@ class TestDirectCoverageAccess(DMTestCase):
 
         return data_product_id, dataset_id[0]
 
+    @attr('LOCOINT')
     def test_dca_ingestion_pause_resume(self):
-        import time
         data_product_id, dataset_id = self.make_ctd_data_product()
 
         streamer = Streamer(data_product_id, interval=1)
@@ -87,7 +98,6 @@ class TestDirectCoverageAccess(DMTestCase):
         with DirectCoverageAccess() as dca:
             with dca.get_editable_coverage(dataset_id) as cov: # <-- This pauses ingestion
                 monitor = DatasetMonitor(dataset_id)
-                st=time.time()
                 monitor.event.wait(7) # <-- ~7 Samples should accumulate on the ingestion queue
                 self.assertFalse(monitor.event.is_set()) # Verifies that nothing was processed (i.e. ingestion is actually paused)
                 monitor.stop()
@@ -106,6 +116,33 @@ class TestDirectCoverageAccess(DMTestCase):
             with dca.get_read_only_coverage(dataset_id) as cov:
                 self.assertGreaterEqual(cov.num_timesteps, 9)
 
+    @attr('LOCOINT')
+    def test_dca_coverage_reuse(self):
+        data_product_id, dataset_id = self.make_ctd_data_product()
+
+        streamer = Streamer(data_product_id, interval=1)
+        self.addCleanup(streamer.stop)
+
+        # Let a couple samples accumulate
+        self.use_monitor(dataset_id, samples=2)
+
+        with DirectCoverageAccess() as dca:
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                self.assertFalse(cov.closed)
+
+            self.assertTrue(cov.closed)
+
+            with dca.get_editable_coverage(dataset_id) as cov:
+                self.assertFalse(cov.closed)
+
+            self.assertTrue(cov.closed)
+
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                self.assertFalse(cov.closed)
+
+            self.assertTrue(cov.closed)
+
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_upload_calibration_coefficients(self):
         data_product_id, dataset_id = self.make_cal_data_product()
@@ -142,6 +179,7 @@ class TestDirectCoverageAccess(DMTestCase):
                 for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
                     np.testing.assert_equal(cov.get_parameter_values(p, -1), want_vals[p])
 
+    @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_manual_data_upload(self):
         data_product_id, dataset_id = self.make_manual_upload_data_product()
@@ -178,6 +216,10 @@ class TestDirectCoverageAccess(DMTestCase):
                 for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
                     np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), want_vals[p])
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    @unittest.skipIf(not_have_h5stat, 'h5stat is not accessible in current PATH')
+    @unittest.skipIf(not not_have_h5stat and not h5stat_correct_version, 'HDF is the incorrect version: %s' % version_str)
     def test_run_coverage_doctor(self):
         data_product_id, dataset_id = self.make_ctd_data_product()
 
