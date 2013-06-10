@@ -23,7 +23,7 @@ from nose.plugins.attrib import attr
 from pyon.util.int_test import IonIntegrationTestCase
 import unittest
 from ion.services.sa.process.test.test_int_data_process_management_service import global_range_test_document
-from interface.objects import Attachment, AttachmentType, ReferenceAttachmentContext, DataProduct, InstrumentDevice
+from interface.objects import Attachment, AttachmentType, ReferenceAttachmentContext, DataProduct, InstrumentDevice, Parser
 import numpy as np
 from ion.util.stored_values import StoredValueManager
 
@@ -410,7 +410,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
 
 
     def make_grt_parser(self):
-        return self.client.create_parser(name='grt', description='', module='ion.util.parsers.global_range_test', method='grt_parser', config=None)
+        return self.client.create_parser(Parser(name='grt', description='', module='ion.util.parsers.global_range_test', method='grt_parser', config=None))
 
 
     def test_qc_attachment(self):
