@@ -60,7 +60,7 @@ from pyon.public import CFG
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
 class TestPlatformAgent(BaseIntTestPlatform):
 
-    def _create_network_and_start_root_platform(self):
+    def _create_network_and_start_root_platform(self, clean_up=None):
         """
         Call this at the beginning of each test. We need to make sure that
         the patched timeout is in effect for the actions performed here.
@@ -68,8 +68,11 @@ class TestPlatformAgent(BaseIntTestPlatform):
         @note this used to be done in setUp, but the patch.dict mechanism does
         *not* take effect in setUp!
 
-        An addCleanup function is added here to make sure the root platform
-        is stopped even if the test fails.
+        An addCleanup function is added to reset/shutdown the network and stop the
+        root platform. Should avoid leaked processes/greenlet upon failing tests
+        (except perhaps if they happen during the launch of the root platform).
+
+        @param clean_up    Not None to override default pre-cleanUp calls.
         """
         self.p_root = None
 
@@ -86,13 +89,22 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._start_platform(self.p_root)
 
-        def stop_root():
-            # check p_root to avoid generating one more exception if the
-            # creation/launch of the network fails for some reason
+        def done():
             if self.p_root:
-                self._stop_platform(self.p_root)
-                self.p_root = None
-        self.addCleanup(stop_root)
+                try:
+                    if clean_up:
+                        clean_up()
+                    else:
+                        # default "done" sequence for most tests
+                        try:
+                            self._go_inactive()
+                            self._reset()
+                        finally:  # attempt shutdown anyway
+                            self._shutdown()
+                finally:
+                    self._stop_platform(self.p_root)
+                    self.p_root = None
+        self.addCleanup(done)
 
     def _connect_instrument(self):
         #
@@ -504,14 +516,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, res_pars_all)
 
-        #####################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
-
     def test_some_state_transitions(self):
-        self._create_network_and_start_root_platform()
+        self._create_network_and_start_root_platform(self._shutdown)
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
@@ -530,8 +536,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._clear()        # -> IDLE
         self._reset()        # -> UNINITIALIZED
 
-        self._shutdown()     # -> UNINITIALIZED
-
     def test_get_set_resources(self):
         self._create_network_and_start_root_platform()
 
@@ -544,12 +548,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._get_resource()
         self._set_resource()
-
-        #####################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
 
     def test_some_commands(self):
         self._create_network_and_start_root_platform()
@@ -571,12 +569,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         for port_id in ports:
             self._get_connected_instruments(port_id)
 
-        #####################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
-
     def test_resource_monitoring(self):
         self._create_network_and_start_root_platform()
 
@@ -591,12 +583,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._wait_for_a_data_sample()
         self._stop_resource_monitoring()
 
-        #####################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
-
     def test_external_event_dispatch(self):
         self._create_network_and_start_root_platform()
 
@@ -608,12 +594,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._run()
 
         self._wait_for_external_event()
-
-        #####################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
 
     def test_connect_disconnect_instrument(self):
         self._create_network_and_start_root_platform()
@@ -630,12 +610,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._turn_off_port()
         self._disconnect_instrument()
-
-        #####################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
 
     def test_check_sync(self):
         self._create_network_and_start_root_platform()
@@ -655,12 +629,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._disconnect_instrument()
         self._check_sync()
 
-        #####################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
-
     def test_execute_resource(self):
         self._create_network_and_start_root_platform()
 
@@ -672,14 +640,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._execute_resource(RSNPlatformDriverEvent.CHECK_SYNC)
 
-        #####################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
-
     def test_resource_states(self):
-        self._create_network_and_start_root_platform()
+        self._create_network_and_start_root_platform(self._shutdown)
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
@@ -716,10 +678,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertGreaterEqual(len(self._events_received), 2)
-
-        #####################
-        # done
-        self._shutdown()
 
     def test_lost_connection_and_reconnect(self):
         #
@@ -779,12 +737,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         # verify the platform is now back in MONITORING
         self._assert_state(PlatformAgentState.MONITORING)
 
-        #####################
-        # done
         self._stop_resource_monitoring()
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
 
     def test_alerts(self):
 
@@ -901,10 +854,3 @@ class TestPlatformAgent(BaseIntTestPlatform):
         async_event_result4.get(timeout=30)
 
         self._stop_resource_monitoring()
-
-        #####################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
-
