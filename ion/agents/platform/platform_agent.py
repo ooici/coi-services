@@ -261,10 +261,20 @@ class PlatformAgent(ResourceAgent):
         self._plat_config = self.CFG.get("platform_config", None)
         self._plat_config_processed = False
 
+        platform_id = self.CFG.get_safe('platform_config.platform_id', '??')
+
+        #######################################################################
+        # CFG.endpoint.receive.timeout: adding a warning if the value is less
+        # than the one we have been using successfully for a while, at least
+        # against our RSN OMS simulator, both locally and on the buildbots.
+        if self._timeout < 180:
+            log.warn("%r: CFG.endpoint.receive.timeout=%s < 180",
+                     platform_id, self._timeout)
+        #######################################################################
+
         self._launcher = Launcher(self._timeout)
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            platform_id = self.CFG.get_safe('platform_config.platform_id', '')
             log.debug("%r: self._timeout = %s", platform_id, self._timeout)
             outname = "logs/platform_CFG_received_%s.txt" % platform_id
             try:
@@ -402,7 +412,7 @@ class PlatformAgent(ResourceAgent):
         Launches the sub-platform agents.
         Launches the associated instrument agents;
         """
-        log.info('_children_launch ...')
+        log.info("%r: _children_launch ...", self._platform_id)
 
         # launch the sub-platform agents:
         self._subplatforms_launch()
@@ -1054,16 +1064,12 @@ class PlatformAgent(ResourceAgent):
         @param async_res   As returned by call to _prepare_await_state
         @param sub         As returned by call to _prepare_await_state
         """
-        try:
-            # wait for the event:
-            async_res.get(timeout=self._timeout)
 
-        finally:
-            try:
-                sub.stop()
-            except Exception as ex:
-                log.warn("%r: error stopping event subscriber to wait for a state: %s",
-                         self._platform_id, ex)
+        # wait for the event:
+        async_res.get(timeout=self._timeout)
+
+        # no need to stop the subscriber because it is registered with the
+        # endpoint management API. See _create_event_subscriber.
 
     ##############################################################
     # supporting routines dealing with sub-platforms
@@ -1094,12 +1100,17 @@ class PlatformAgent(ResourceAgent):
         pid = None
         try:
             # try to connect:
+            log.debug("%r: [LL] trying to determine whether my child is already running: %r",
+                      self._platform_id, subplatform_id)
             pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
             # it is actually running.
 
             # get PID:
             # TODO is there a more public method to get the pid?
             pid = ResourceAgentClient._get_agent_process_id(sub_resource_id)
+
+            log.debug("%r: [LL] my child is already running: %r. pid=%s",
+                      self._platform_id, subplatform_id, pid)
 
         except NotFound:
             # not running.
@@ -1128,19 +1139,29 @@ class PlatformAgent(ResourceAgent):
                                                              PlatformAgentState.UNINITIALIZED)
 
             if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-                log.trace("%r: launching sub-platform agent %r: CFG=%s",
+                log.trace("%r: [LL] launching sub-platform agent %r: CFG=%s",
                           self._platform_id, subplatform_id, self._pp.pformat(sub_agent_config))
             else:
-                log.debug("%r: launching sub-platform agent %r", self._platform_id, subplatform_id)
+                log.debug("%r: [LL] launching sub-platform agent %r",
+                          self._platform_id, subplatform_id)
 
             pid = self._launcher.launch_platform(subplatform_id, sub_agent_config)
-            log.debug("%r: DONE launching sub-platform agent %r", self._platform_id, subplatform_id)
+            log.debug("%r: [LL] DONE launching sub-platform agent %r",
+                      self._platform_id, subplatform_id)
 
             # create resource agent client:
             pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
 
             # wait until UNINITIALIZED:
+            log.debug("%r: [LL] Got pa_client for sub-platform agent %r. Waiting "
+                      "for UNINITIALIZED state...",
+                      self._platform_id, subplatform_id)
+
             self._await_state(asyn_res, subscriber)
+
+            log.debug("%r: [LL] ok, my sub-platform agent %r is now in "
+                      "UNINITIALIZED state",
+                      self._platform_id, subplatform_id)
 
         # here, sub-platform agent process is running.
 

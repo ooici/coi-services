@@ -48,6 +48,13 @@ class Test(BaseIntTestPlatform):
         self._received_events = []
         self._last_checked_status = None
 
+    def _done(self):
+        try:
+            self._go_inactive()
+            self._reset()
+        finally:  # attempt shutdown anyway
+            self._shutdown()
+
     def _start_agg_status_event_subscriber(self, p_root):
         """
         Start the event subscriber to the given root platform. Upon reception
@@ -248,6 +255,7 @@ class Test(BaseIntTestPlatform):
         # start up the network
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._done)
         self._initialize()
         self._go_active()
         self._run()
@@ -359,12 +367,6 @@ class Test(BaseIntTestPlatform):
         self._verify_with_get_agent(AggregateStatusType.AGGREGATE_COMMS,
                                     DeviceStatusType.STATUS_OK)
 
-        #####################################################################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
-
     def test_platform_status_small_network_5(self):
         #
         # Test of status propagation in a small network of 5 platforms with
@@ -414,6 +416,7 @@ class Test(BaseIntTestPlatform):
         # start up the network
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._done)
         self._initialize()
         self._go_active()
         self._run()
@@ -465,12 +468,6 @@ class Test(BaseIntTestPlatform):
         self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
                                          DeviceStatusType.STATUS_OK)
 
-        #####################################################################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
-
     def test_platform_status_small_network_5_1(self):
         #
         # Test of status propagation in a small network of 5 platforms with
@@ -508,6 +505,7 @@ class Test(BaseIntTestPlatform):
         # start up the network
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._done)
         self._initialize()
         self._go_active()
         self._run()
@@ -559,12 +557,6 @@ class Test(BaseIntTestPlatform):
         # confirm root gets updated to STATUS_OK
         self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
                                          DeviceStatusType.STATUS_OK)
-
-        #####################################################################
-        # done
-        self._go_inactive()
-        self._reset()
-        self._shutdown()
 
     def test_platform_status_launch_instruments_first_2_3(self):
         #
