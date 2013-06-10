@@ -29,6 +29,7 @@ from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum,
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
 DATA_OPERATOR_ROLE        = 'DATA_OPERATOR'
+STATUS_UNKNOWN = {1:1, 2:1, 3:1, 4:1}
 
 
 class ObservatoryManagementService(BaseObservatoryManagementService):
@@ -866,15 +867,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 extended_site.parent_site = None
             extended_site.sites = [site_resources[ch_id] for ch_id in site_children[site_id]] if site_children.get(site_id, None) is not None else []
 
-            # Set all nested child devices
-            instrument_device_ids = [tup[1] for (parent,dlst) in device_relations.iteritems() for tup in dlst if tup[2] == RT.InstrumentDevice]
-            platform_device_ids =  [tup[1] for (parent,dlst) in device_relations.iteritems() for tup in dlst if tup[2] == RT.PlatformDevice]
-
-            #remove dups
-            if instrument_device_ids:
-                instrument_device_ids = list( set(instrument_device_ids ) )
-            if platform_device_ids:
-                platform_device_ids = list( set(platform_device_ids ) )
+            # Set all nested child devices, remove any dups
+            instrument_device_ids = list( set( [tup[1] for (parent,dlst) in device_relations.iteritems() for tup in dlst if tup[2] == RT.InstrumentDevice] ) )
+            platform_device_ids =  list( set( [tup[1] for (parent,dlst) in device_relations.iteritems() for tup in dlst if tup[2] == RT.PlatformDevice] ) )
 
             device_ids = list(set(instrument_device_ids + platform_device_ids))
             device_objs = self.RR2.read_mult(device_ids)
@@ -1001,7 +996,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #create one list with all the relavant status dicts
         all_status = []
         for device_id in all_device_ids:
-            all_status.append( all_device_statuses.get(device_id, {1:1, 2:1, 3:1, 4:1}) )
+            all_status.append( all_device_statuses.get(device_id, STATUS_UNKNOWN) )
 
         log.debug('_get_platform_site_extension all_status: %s', all_status )
         if all_status:
@@ -1014,7 +1009,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 #take the max valus as the status of this type
                 rollup_status[stype] = max(type_list)
         else:
-            rollup_status = {1:1, 2:1, 3:1, 4:1}
+            # no devices on this site
+            rollup_status = STATUS_UNKNOWN
         log.debug('_get_platform_site_extension rollup_status: %s', rollup_status )
 
         self.agent_status_builder.set_status_computed_attributes(extended_site.computed,
@@ -1326,30 +1322,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     # based on return a site rollup dict corresponding to a site in the site_id_list
     def _get_site_rollup_dict(self, RR2, master_status_table, site_id):
 
-        log.debug("_get_site_rollup_dict for site %s", site_id)
         attr1, underlings = self.outil.get_child_sites(parent_site_id=site_id, id_only=True)
-        log.debug('_get_site_rollup_dict  get_child_sites  attr1: %s', attr1)
-        log.debug('_get_site_rollup_dict  get_child_sites  underlings: %s', underlings)
-
 
         site_aggregate = {}
         all_site_ids = underlings.keys()
-        log.debug("_get_site_rollup_dict all_site_ids %s", all_site_ids)
         all_device_ids = []
         for s in all_site_ids:
             all_device_ids += RR2.find_objects(s, PRED.hasDevice, RT.PlatformDevice, True)
             all_device_ids += RR2.find_objects(s, PRED.hasDevice, RT.InstrumentDevice, True)
-
-        log.debug("_get_site_rollup_dict all_device_ids %s", all_device_ids)
 
         log.debug("Calculating cumulative rollup values for all_device_ids = %s", all_device_ids)
         for k, v in AggregateStatusType._str_map.iteritems():
             aggtype_list = [master_status_table.get(d, {}).get(k, DeviceStatusType.STATUS_UNKNOWN) for d in all_device_ids]
             log.debug("aggtype_list for %s is %s", v, zip(all_device_ids, aggtype_list))
             site_aggregate[k] = self.agent_status_builder._crush_status_list(aggtype_list)
-            log.debug("_get_site_rollup_dict site_aggregate[k] %s", site_aggregate[k])
 
-        log.debug("_get_site_rollup_dict for site %s", site_id)
         return site_aggregate
 
 
