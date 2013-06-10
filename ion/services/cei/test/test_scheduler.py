@@ -422,7 +422,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.addCleanup(sub.stop)
 
         tid = self.ssclient.create_interval_timer(start_time="now",
-                                                  end_time=-1,
+                                                  end_time="-1",
                                                   interval=1,
                                                   event_origin=event_origin)
 
