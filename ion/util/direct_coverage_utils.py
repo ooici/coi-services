@@ -136,7 +136,7 @@ class DirectCoverageAccess(object):
 
     @classmethod
     def get_parser(cls, data_file_path, config_path=None):
-        return SimpleCSVParser.get_parser(data_file_path, config_path=config_path)
+        return SimpleDelimitedParser.get_parser(data_file_path, config_path=config_path)
 
     def manual_upload(self, dataset_id, data_file_path, config_path=None):
         # First, ensure we can get a parser and parse the data file
@@ -223,7 +223,7 @@ class DirectCoverageAccess(object):
             return "Repair Failed"
 
 
-class SimpleCSVParser(object):
+class SimpleDelimitedParser(object):
 
     def __init__(self, data_url, num_columns=None, column_map=None, header_size=0, delimiter=',',
                  use_column_names=True, dtype='float32', fill_val=-999):
