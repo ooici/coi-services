@@ -62,6 +62,7 @@ import csv
 import re
 import requests
 import time
+import os
 from udunitspy.udunits2 import UdunitsError
 
 from pyon.core.bootstrap import get_service_registry
@@ -109,7 +110,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdEw0cTZCSmFscVpNcEhDdlJmaEhRSlE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEJ3c0dhMUVMdGNtcjVmVTR3Sm8wOXc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -161,6 +162,7 @@ DEFAULT_CATEGORIES = [
     'Workflow',
     'Deployment',
     'Scheduler',
+    'Reference',                        # No resource
     ]
 
 # The following lists all categories that define information used by other categories.
@@ -1423,6 +1425,35 @@ class IONLoader(ImmediateProcess):
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_Observatory(newrow)
 
+    def _load_Reference(self, row):
+        name   = row['name']
+        path   = row['path']
+        parser = row['parser']
+        if not os.path.exists(path):
+            log.error("Couldn't load reference %s at %s", name, path)
+            return
+
+        if not parser in self.resource_ids:
+            log.error("Unknown parser %s", parser)
+            return
+
+        parser_id = self.resource_ids[parser]
+
+        try:
+            self._read_reference(parser_id, path)
+        except:
+            log.exception("Failed to load reference %s at %s", name, path)
+            return
+
+    
+    def _read_reference(self, parser_id, path):
+        data_acuisition = self._get_service_client("data_acquisition_management")
+        headers = self._get_system_actor_headers()
+        with open(path) as f:
+            doc = f.read()
+            data_acuisition.parse_qc_reference(parser_id, doc, headers=headers, timeout=120)
+
+
     def _load_Subsite(self, row):
         constraints = self._get_constraints(row, type='Subsite')
         coordinate_name = row['coordinate_system']
@@ -2028,15 +2059,9 @@ Reason: %s
                 pass
 
     def _load_Parser(self, row):
-        self.row_count += 1
-        name        = row['name']
-        module      = row['parser/module']
-        method      = row['parser/method']
-        config      = row['parser/config']
-        description = row['description']
-
+        parser = self._create_object_from_row(RT.Parser, row, 'parser/')
         data_acquisition = self._get_service_client('data_acquisition_management')
-        parser_id = data_acquisition.create_parser(name=name, module=module, method=method, config=config, description=description)
+        parser_id = data_acquisition.create_parser(parser)
         self._register_id(row[COL_ID], parser_id)
 
     def _load_PlatformDevice(self, row):
