@@ -25,5 +25,9 @@ omit =
     */SBE37_SMP_simulator*
     */geo_utils*
     */preservation_management_service*
+    */utility/jsonify*
+    */util/parameter_loader*
+    */simple_dispatcher*
+    */granule/taxonomy*
 [html]
 directory = coverage_results
