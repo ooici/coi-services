@@ -330,6 +330,7 @@ class EnhancedResourceRegistryClient(object):
         object_id, object_type = self._extract_id_and_type(object)
 
         if not self.has_cached_predicate(predicate):
+            log.debug("Cache miss (predicate %s)", predicate)
             ret, _ = self.RR.find_subjects(subject_type=subject_type,
                                            predicate=predicate,
                                            object=object_id,
@@ -371,6 +372,7 @@ class EnhancedResourceRegistryClient(object):
         subject_id, subject_type = self._extract_id_and_type(subject)
 
         if not self.has_cached_predicate(predicate):
+            log.debug("Cache miss (predicate %s)", predicate)
             ret, _ = self.RR.find_objects(subject=subject_id,
                                          predicate=predicate,
                                          object_type=object_type,
@@ -506,9 +508,6 @@ class EnhancedResourceRegistryClient(object):
         """
         log.info("Caching predicates: %s", predicate)
         log.debug("This cache is %s", self)
-        if self.has_cached_predicate(predicate):
-            log.debug("Reusing prior cached predicate %s", predicate)
-            return
 
         time_caching_start = get_ion_ts()
         preds = self.RR.find_associations(predicate=predicate, id_only=False)
