@@ -251,12 +251,12 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             else:
                 graph_data[varname].extend(vardict[varname])
 
-        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(rdt, graph_data, stream_definition_id, fileName, resolution=resolution)
+        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(rdt, graph_data, stream_definition_id, fileName, resolution, time_field)
 
         return out_granule
 
     @classmethod
-    def render_graphs(cls, rdt, graph_data, stream_definition_id, fileName = None, resolution = None):
+    def render_graphs(cls, rdt, graph_data, stream_definition_id, fileName = None, resolution = None, time_field = 'time'):
         # init Matplotlib with passsed parameters
         x_res = y_res = 100 # some default in case nothing is provided
         if resolution:
