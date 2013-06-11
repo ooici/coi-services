@@ -15,9 +15,6 @@ class VisUserQueueMonitor(SimpleProcess):
             self.monitor_timeout = get_safe(self.CFG, 'user_queue_monitor_timeout', 300)
             self.monitor_queue_size = get_safe(self.CFG, 'user_queue_monitor_size', 100)
 
-            print " >>>>>>>>>>>>>>>  user_queue_monitor_timeout : ", self.monitor_timeout
-            print " >>>>>>>>>>>>>>>  user_queue_monitor_size : ", self.monitor_queue_size
-
             self.monitor_event = gevent.event.Event()
             self.monitor_event.clear()
 
