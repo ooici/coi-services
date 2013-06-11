@@ -897,13 +897,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
-    def create_parser(self, name='', description='', module='', method='', config=None):
-        parser = Parser(name=name, description=description)
-
-        parser.module = module
-        parser.method = method
-        parser.config = config
-
+    def create_parser(self, parser=None):
         parser_id, rev = self.clients.resource_registry.create(parser)
         return parser_id
 

@@ -398,6 +398,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
         self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
+        self.addCleanup(self.DP.suspend_data_product_persistence(data_product_id1))
 
 
 
@@ -426,6 +427,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
         self.DP.activate_data_product_persistence(data_product_id=data_product_id2)
+        self.addCleanup(self.DP.suspend_data_product_persistence(data_product_id2))
 
         # spin up agent
         self.IMS.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
@@ -626,6 +628,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
             self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
+            self.addCleanup(self.DP.suspend_data_product_persistence(dp_id))
 
             # assignments
             self.RR2.assign_platform_agent_instance_to_platform_device_with_has_agent_instance(platform_agent_instance_id, platform_device_id)
@@ -660,6 +663,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
             self.DAMS.assign_data_product(input_resource_id=instrument_device_id, data_product_id=dp_id)
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
+            self.addCleanup(self.DP.suspend_data_product_persistence(dp_id))
 
             # assignments
             self.RR2.assign_instrument_agent_instance_to_instrument_device_with_has_agent_instance(instrument_agent_instance_id, instrument_device_id)
@@ -949,11 +953,11 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual(len(data_product_data.associations['Dataset'].associated_resources), 0)
 
-        self.assertEqual(len(data_product_data.associations['InstrumentDevice'].resources), 3)
+        self.assertEqual(len(data_product_data.associations['InstrumentDeviceHasOutputProduct'].resources), 3)
 
-        self.assertEqual(len(data_product_data.associations['InstrumentDevice'].associated_resources), 1)
-        self.assertEqual(data_product_data.associations['InstrumentDevice'].associated_resources[0].s, instrument_device_id)
-        self.assertEqual(data_product_data.associations['InstrumentDevice'].associated_resources[0].o, data_product_id1)
+        self.assertEqual(len(data_product_data.associations['InstrumentDeviceHasOutputProduct'].associated_resources), 1)
+        self.assertEqual(data_product_data.associations['InstrumentDeviceHasOutputProduct'].associated_resources[0].s, instrument_device_id)
+        self.assertEqual(data_product_data.associations['InstrumentDeviceHasOutputProduct'].associated_resources[0].o, data_product_id1)
 
         self.assertEqual(len(data_product_data.associations['PlatformDevice'].resources), 2)
 
