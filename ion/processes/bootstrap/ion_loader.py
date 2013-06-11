@@ -1311,13 +1311,24 @@ class IONLoader(ImmediateProcess):
         subseries_objs = self.ooi_loader.get_type_assets("subseries")
         family_objs = self.ooi_loader.get_type_assets("family")
         makemodel_objs = self.ooi_loader.get_type_assets("makemodel")
+        agent_objs = self.ooi_loader.get_type_assets("instagent")
+
+        # Collect all models referenced by agents (to prevent dangling agents)
+        agent_models = set()
+        for ooi_id, agent_obj in agent_objs.iteritems():
+            if agent_obj.get('active', False):
+                ia_id = "IA_" + ooi_id
+                if self._get_resource_obj(ia_id):
+                    series_list = agent_obj.get('series_list', [])
+                    agent_models.update(series_list)
+        log.debug("InstrumentModels used by agents: %s", agent_models)
 
         for ooi_id, series_obj in series_objs.iteritems():
             class_obj = class_objs[series_obj['Class']]
             class_name = class_obj["name"]
             if "DEPRECATED" in class_name:
                 continue
-            if not self._before_cutoff(series_obj):
+            if not self._before_cutoff(series_obj) and ooi_id not in agent_models:
                 continue
 
             family_obj = family_objs[class_obj['family']]
@@ -2491,6 +2502,7 @@ Reason: %s
         im_ids = row["instrument_model_ids"]
         if im_ids:
             im_ids = get_typed_value(im_ids, targettype="simplelist")
+            log.debug("Linking InstrumentAgent %s with models %s", row[COL_ID], im_ids)
             for im_id in im_ids:
                 if self.bulk:
                     model_obj = self._get_resource_obj(im_id)
@@ -2500,6 +2512,7 @@ Reason: %s
                     svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id,
                                                                            headers=headers)
 
+        # TODO:
         # Advance LCS
         # Share in Org
 
@@ -2508,21 +2521,10 @@ Reason: %s
 
         for ooi_id, agent_obj in agent_objs.iteritems():
             if agent_obj.get('active', False):
-                if not self._match_filter(ooi_id[:2]):
-                    continue
 
-                # newrow = {}
-                # newrow[COL_ID] = "IA_" + ooi_id
-                # newrow['ia/name'] = "Instrument Agent " + ooi_id
-                # newrow['ia/description'] = "Supports models: " + ",".join(agent_obj.get('series_list', []))
-                # newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
-                # series_list = agent_obj.get('series_list', [])
-                # series_list = [sid for sid in series_list if self._get_resource_obj(sid)]
-                # newrow['instrument_model_ids'] = ",".join(series_list)
-                # newrow['stream_configurations'] = ""
-                # newrow['lcstate'] = "DEPLOYED_AVAILABLE"
-                #
-                # self._load_InstrumentAgent(newrow)
+                # TODO: Filter based on model use
+                #if not self._match_filter(ooi_id[:2]):
+                #    continue
 
                 ia_id = "IA_" + ooi_id
                 if self._get_resource_obj(ia_id):
@@ -2531,11 +2533,11 @@ Reason: %s
                     series_list = agent_obj.get('series_list', [])
                     series_list = [sid for sid in series_list if self._get_resource_obj(sid)]
                     newrow['instrument_model_ids'] = ",".join(series_list)
-                    newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
+                    #newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
+                    newrow['org_ids'] = ""
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
-                    if not self._resource_exists(newrow[COL_ID]):
-                        self._load_InstrumentAgent_ext(newrow)
+                    self._load_InstrumentAgent_ext(newrow)
 
     def _load_ExternalDataProvider(self, row):
         contacts = self._get_contacts(row, field='contact_id')
@@ -2847,7 +2849,7 @@ Reason: %s
             newrow = {}
             newrow[COL_ID] = node_id + "_DPP1"
             newrow['dp/name'] = "Parsed - platform " + node_id
-            newrow['dp/description'] = "Data Product (device, parsed) for: " + node_id
+            newrow['dp/description'] = "Platform %s data product" % node_id
             newrow['dp/ooi_product_name'] = ""
             newrow['dp/processing_level_code'] = "Parsed"
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
@@ -2896,15 +2898,15 @@ Reason: %s
                     newrow[COL_ID] = dp_id
                     newrow['dp/name'] = "Instrument %s stream '%s' data product" % (inst_id, scfg.stream_name)
                     if index == 0:
-                        newrow['dp/description'] = "Raw data for %s" % inst_id
+                        newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Raw"
                     elif index == 1:
-                        newrow['dp/description'] = "Parsed science samples for %s" % inst_id
+                        newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
                     else:
-                        newrow['dp/description'] = "Engineering data for %s" % inst_id
+                        newrow['dp/description'] = "Instrument %s data product: engineering data" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
                     newrow['contact_ids'] = ''
@@ -2935,7 +2937,7 @@ Reason: %s
                 newrow = {}
                 newrow[COL_ID] = inst_id + "_DPI0"
                 newrow['dp/name'] = "Raw - instrument " + inst_id
-                newrow['dp/description'] = "Data Product (device, raw) for: " + inst_id
+                newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
                 newrow['dp/ooi_product_name'] = ""
                 newrow['dp/processing_level_code'] = "Parsed"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
@@ -2954,7 +2956,7 @@ Reason: %s
                 newrow = {}
                 newrow[COL_ID] = inst_id + "_DPI1"
                 newrow['dp/name'] = "Parsed - instrument " + inst_id
-                newrow['dp/description'] = "Data Product (device, parsed) for: " + inst_id
+                newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                 newrow['dp/ooi_product_name'] = ""
                 newrow['dp/processing_level_code'] = "Raw"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
