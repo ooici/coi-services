@@ -1313,7 +1313,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # get rollup for each site
         master_status_rollup_list = []
         for s in site_id_list:
-            _, underlings = self.outil.get_child_sites(parent_site_id=s, id_only=True)
+            #_, underlings = self.outil.get_child_sites(parent_site_id=s, id_only=True)
             master_status_rollup_list.append(self.agent_status_builder._crush_status_dict(
                 self._get_site_rollup_dict(RR2, master_status_table, s)))
 
@@ -1323,9 +1323,30 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def _get_site_rollup_dict(self, RR2, master_status_table, site_id):
 
         attr1, underlings = self.outil.get_child_sites(parent_site_id=site_id, id_only=True)
+        log.debug('_get_site_rollup_dict  attr1:  %s', attr1)
+        log.debug('_get_site_rollup_dict  underlings:  %s', underlings)
+
+
+        def collect_all_children(site_id, child_site_struct, child_list):
+            #walk the tree of site children and put all site ids (all the way down the hierarchy) into one list
+            children = child_site_struct.get(site_id, [])
+            for child in children:
+                child_list.append(child)
+                #see if this child has children
+                more_children = child_site_struct.get(child, [])
+                if more_children:
+                    collect_all_children(child, child_site_struct, child_list)
+
+            log.debug('collect_all_children  child_list:  %s', child_list)
+            child_list = list( set(child_list ) )
+            return child_list
 
         site_aggregate = {}
-        all_site_ids = underlings.keys()
+        all_site_ids = [site_id]
+        all_site_ids = collect_all_children(site_id, underlings,  all_site_ids)
+
+        site_aggregate = {}
+        #all_site_ids = underlings.keys()
         all_device_ids = []
         for s in all_site_ids:
             all_device_ids += RR2.find_objects(s, PRED.hasDevice, RT.PlatformDevice, True)
