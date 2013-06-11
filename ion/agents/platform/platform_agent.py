@@ -1705,9 +1705,21 @@ class PlatformAgent(ResourceAgent):
 
         assert i_resource_id, "agent.resource_id must be present for child %r" % instrument_id
 
+        assert i_resource_id == instrument_id, \
+            "agent.resource_id %r must be equal to %r" % (i_resource_id, instrument_id)
+
         # first, is the agent already running?
         ia_client = None
         pid = None
+
+        #
+        # TODO: proper handling of "process ID".
+        # Two possible sources to get it:
+        # - given by process_dispatcher_client.schedule_process when we
+        #   launch the process here; otherwise pid == pid2)
+        # - given by ResourceAgentClient._get_agent_process_id
+        #
+
         try:
             # try to connect
             ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)

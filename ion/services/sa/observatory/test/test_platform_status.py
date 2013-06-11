@@ -19,6 +19,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_5
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_5_1
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_launch_instruments_first_2_3
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_terminate_and_restart_instrument_1_1
 
 from pyon.public import log
 
@@ -31,8 +32,10 @@ from pyon.event.event import EventSubscriber
 
 from interface.objects import AggregateStatusType
 from interface.objects import DeviceStatusType
+from interface.objects import ProcessStateEnum
 
 from gevent.event import AsyncResult
+from gevent import sleep
 
 from mock import patch
 from pyon.public import CFG
@@ -787,3 +790,222 @@ class Test(BaseIntTestPlatform):
         # For orchestration with instruments that have been launched before
         # the platform, see test_platform_launch.py, in particular
         # test_instrument_first_then_platform.
+
+    def _start_subscriber_process_lifecycle_event(self, resource_id, state):
+        """
+        The resource_id is mapped to corresponding process ID,
+        which is used as the origin for the subscription.
+        """
+        async_event_result, events_received = AsyncResult(), []
+
+        def consume_event(evt, *args, **kwargs):
+
+            if evt.type_ != "ProcessLifecycleEvent":
+                log.trace("ignoring event type %r. Only handle ProcessLifecycleEvent directly.",
+                          evt.type_)
+                return
+
+            log.debug("[.]Event subscriber received %r: origin=%r origin_type=%r state=%r(%s)",
+                      evt.type_,
+                      evt.origin,
+                      evt.origin_type,
+                      ProcessStateEnum._str_map[evt.state], evt.state)
+
+            if evt.state != state:
+                return
+
+            if not resource_id in evt.origin:
+                log.trace("ignoring event from origin %r. Expecting an origin "
+                          "containing %r.",
+                          evt.origin, resource_id)
+                return
+
+            events_received.append(evt)
+            async_event_result.set(evt)
+
+        # note: cannot indicate:
+        #     origin = ResourceAgentClient._get_agent_process_id(resource_id)
+        # because the process hasn't been launched yet, so we don't know the
+        # process_id at this point.
+        # Instead, subscribe without indicating origin, but check that the
+        # resource_id is contained in the received origin.
+
+        sub = EventSubscriber(event_type="ProcessLifecycleEvent",
+                              origin_type='DispatchedProcess',
+                              callback=consume_event)
+        sub.start()
+        log.info("[.]registered ProcessLifecycleEvent subscriber: resource_id=%r", resource_id)
+
+        self._event_subscribers.append(sub)
+        sub._ready_event.wait(timeout=30)
+
+        return async_event_result, events_received, sub
+
+    def test_platform_status_terminate_and_restart_instrument_1_1(self):
+        #
+        # Tests reaction of a platform upon termination and re-start of its
+        # associated instrument.
+        #
+        #   platform='LJ01D'
+        #   instrument=SBE37_SIM_01
+        #
+
+        # create the network:
+        self.p_root = p_root = self._create_platform('LJ01D')
+
+        # create and assign an instrument to LJ01D
+        i_obj = self._create_instrument("SBE37_SIM_01")
+        self._assign_instrument_to_platform(i_obj, p_root)
+        log.debug("[.] instrument: %s", i_obj)
+
+        #####################################################################
+        # prepare to verify expected ProcessLifecycleEvent is generated when
+        # the instrument process gets running for the very first time:
+        async_event_result, events_received, sub = \
+            self._start_subscriber_process_lifecycle_event(
+                i_obj.instrument_device_id,
+                ProcessStateEnum.RUNNING)
+
+        #####################################################################
+        # start up the network
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._done)
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        log.debug("[.] waiting for ProcessLifecycleEvent RUNNING")
+        async_event_result.get(timeout=30) #CFG.endpoint.receive.timeout)
+        self.assertEquals(len(events_received), 1)
+        log.debug("[.] waiting for ProcessLifecycleEvent RUNNING - Got it!")
+        sub.stop()
+
+        #####################################################################
+        # get all root statuses
+        aggstatus, child_agg_status, rollup_status = self._get_all_root_statuses()
+
+        log.debug("[.] publish_event_for_diagnostics")
+        publish_event_for_diagnostics()
+        # ion.agents.platform.status_manager:971 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (d252d6dbaac242ec892ed7e5a6c04eae) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         dd81792d72014ad9b92dc51d62ce02ba : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+
+        #####################################################################
+        # before any updates in this test verify initial statuses are all OK:
+        self._verify_all_statuses_OK(aggstatus, child_agg_status, rollup_status)
+
+        #####################################################################
+        # verify the root platform has set its aparam_child_agg_status with
+        # the assigned instrument:
+        all_origins = [i_obj.instrument_device_id]
+        child_agg_status_keys = sorted(child_agg_status.keys())
+        self.assertEquals(all_origins, child_agg_status_keys)
+
+        # Now, the core of this test follows.
+
+        #####################################################################
+        # terminate instrument
+        #####################################################################
+
+        # before the termination of the instrument:
+        # - prepare to verify the expected ProcessLifecycleEvent is generated:
+        async_event_result, events_received, sub = \
+            self._start_subscriber_process_lifecycle_event(
+                i_obj.instrument_device_id,
+                ProcessStateEnum.TERMINATED)
+
+        # now terminate the instrument:
+        log.debug("[.] terminating instrument: %s", i_obj)
+
+        if False:
+            # TODO somehow this is not causing any ProcessLifecycleEvent. why?
+            self._stop_instrument(i_obj)
+        else:
+            # so, let's simulate the ProcessLifecycleEvent TERMINATED event here
+            evt = dict(event_type='ProcessLifecycleEvent',
+                       origin_type="DispatchedProcess",
+                       origin=i_obj.instrument_device_id,
+                       state=ProcessStateEnum.TERMINATED,
+                       description="Fake ProcessLifecycleEvent for testing")
+
+            log.debug("[.]publishing ProcessLifecycleEvent for child %r: evt=%s",
+                      i_obj.instrument_device_id, evt)
+            self._event_publisher.publish_event(**evt)
+
+        log.debug("[.] waiting for ProcessLifecycleEvent TERMINATED")
+        async_event_result.get(timeout=30) #CFG.endpoint.receive.timeout)
+        self.assertEquals(len(events_received), 1)
+        log.debug("[.] waiting for ProcessLifecycleEvent TERMINATED - Got it!")
+        sub.stop()
+
+        # verify the root's child_status are all UNKNOWN
+        # Note: no event is going to be generated from the platform because
+        # its rollup_status is *not* changing.
+        # So, we have wait for a bit to let the updates propagate:
+        sleep(15)
+        log.debug("[.] publish_event_for_diagnostics after instrument termination")
+        publish_event_for_diagnostics()
+        # ion.agents.platform.status_manager:971 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (d252d6dbaac242ec892ed7e5a6c04eae) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         dd81792d72014ad9b92dc51d62ce02ba : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+
+        # and do verification that the child_agg_status are all UNKNOWN:
+        _, child_agg_status, _ = self._get_all_root_statuses()
+        self._verify_statuses(child_agg_status[i_obj.instrument_device_id],
+                              [DeviceStatusType.STATUS_UNKNOWN])
+
+        #####################################################################
+        # re-start instrument
+        #####################################################################
+
+        # prepare to verify the expected ProcessLifecycleEvent is generated:
+
+        async_event_result, events_received, sub = \
+            self._start_subscriber_process_lifecycle_event(
+                i_obj.instrument_device_id,
+                ProcessStateEnum.RUNNING)
+
+        log.debug("[.] re-starting instrument: %s", i_obj)
+
+        if False:
+            # TODO somehow this is not causing any ProcessLifecycleEvent. why?
+            self._start_instrument(i_obj)
+        else:
+            # so, let's simulate the ProcessLifecycleEvent TERMINATED event here
+            evt = dict(event_type='ProcessLifecycleEvent',
+                       origin_type="DispatchedProcess",
+                       origin=i_obj.instrument_device_id,
+                       state=ProcessStateEnum.RUNNING,
+                       description="Fake ProcessLifecycleEvent for testing")
+
+            log.debug("[.]publishing ProcessLifecycleEvent for child %r: evt=%s",
+                      i_obj.instrument_device_id, evt)
+            self._event_publisher.publish_event(**evt)
+
+        log.debug("[.] waiting for ProcessLifecycleEvent RUNNING")
+        async_event_result.get(timeout=30) #CFG.endpoint.receive.timeout)
+        self.assertEquals(len(events_received), 1)
+        log.debug("[.] waiting for ProcessLifecycleEvent RUNNING - Got it!")
+        sub.stop()
+
+        # again, have to wait for a bit to let the updates propagate:
+        sleep(15)
+        log.debug("[.] publish_event_for_diagnostics after instrument re-start")
+        publish_event_for_diagnostics()
+        # ion.agents.platform.status_manager:971 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (d252d6dbaac242ec892ed7e5a6c04eae) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         dd81792d72014ad9b92dc51d62ce02ba : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+
+        # And do verification that the child_agg_status are all OK again:
+        # NOTE: this assumes that, once running again, the instrument's
+        # aggstatus are in turn back to OK.
+        _, child_agg_status, _ = self._get_all_root_statuses()
+        self._verify_statuses(child_agg_status[i_obj.instrument_device_id],
+                              [DeviceStatusType.STATUS_OK])

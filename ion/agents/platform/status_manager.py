@@ -19,6 +19,7 @@ from ion.agents.platform.exceptions import PlatformException
 
 from interface.objects import AggregateStatusType
 from interface.objects import DeviceStatusType
+from interface.objects import ProcessStateEnum
 
 import logging
 
@@ -163,6 +164,8 @@ class StatusManager(object):
         @param i_resource_id  instrument's resource ID
         """
 
+        self._start_subscriber_process_lifecycle_event(i_resource_id)
+
         # do any updates from instrument's aggstatus:
         try:
             aggstatus = ia_client.get_agent(['aggstatus'])['aggstatus']
@@ -207,6 +210,8 @@ class StatusManager(object):
         @param pa_client        sub-platform's resource client
         @param sub_resource_id  sub-platform's resource ID
         """
+
+        self._start_subscriber_process_lifecycle_event(sub_resource_id)
 
         # do any updates from sub-platform's rollup_status and child_agg_status:
         try:
@@ -343,6 +348,162 @@ class StatusManager(object):
 
             # update aparam_rollup_status:
             self._update_rollup_status_and_publish(status_name)
+
+    #-------------------------------------------------------------------
+    # supporting methods related with ProcessLifecycleEvent events
+    #-------------------------------------------------------------------
+
+    def _start_subscriber_process_lifecycle_event(self, origin):
+        """
+        @param origin    Used for the event subscriber
+        """
+        def _got_process_lifecycle_event(evt, *args, **kwargs):
+            """
+            Dispatches reception of ProcessLifecycleEvent to remove or add child
+            agents as they are terminated or re-started externally.
+            """
+            with self._lock:
+                if not self._active:
+                    log.warn("%r: _got_process_lifecycle_event called but "
+                             "manager has been destroyed",
+                             self._platform_id)
+                    return
+
+            if evt.type_ != "ProcessLifecycleEvent":
+                log.trace("%r: ignoring event type %r. Only handle "
+                          "ProcessLifecycleEvent directly.",
+                          self._platform_id, evt.type_)
+                return
+
+            #
+            # TODO NOTE the mechanism to check whether the event comes from
+            # the expected origin. This relies on the process ID being composed
+            # in a way the includes the origin. This might not be "official
+            # behavior" so it needs to be reviewed!
+            #
+            if not origin in evt.origin:
+                log.trace("%r: ignoring event from origin %r. Expecting an origin "
+                          "containing %r.",
+                          self._platform_id, evt.origin, origin)
+                return
+
+            log.debug("%r: [TC] _got_process_lifecycle_event: origin=%r state=%r(%s)",
+                      self._platform_id, evt.origin,
+                      ProcessStateEnum._str_map[evt.state], evt.state)
+
+            with self._lock:
+                if evt.state is ProcessStateEnum.TERMINATED:
+                    self._device_terminated_event(evt.origin)
+
+                elif evt.state is ProcessStateEnum.RUNNING:
+                    self._device_running_event(evt.origin)
+
+        sub = self._create_event_subscriber(event_type="ProcessLifecycleEvent",
+                                            origin_type='DispatchedProcess',
+                                            callback=_got_process_lifecycle_event)
+
+        with self._lock:
+            self._event_subscribers[origin] = sub
+
+        log.debug("%r: [TC] registered ProcessLifecycleEvent subscriber coming "
+                  "from origin containing=%r",
+                  self._platform_id, origin)
+
+    def _device_terminated_event(self, origin):
+        """
+        Handles the ProcessLifecycleEvent TERMINATED event received for the
+        given origin:
+
+        - Per OOIION-1077: set UNKNOWN for the corresponding child_agg_status
+        - update rollup_status and do publication in case of change
+
+        @param origin    the origin of the ProcessLifecycleEvent
+        """
+
+        if origin not in self.aparam_child_agg_status:
+            log.warn("%r: _device_terminated_event: unrecognized origin=%r",
+                     self._platform_id, origin)
+            return
+
+        log.debug("%r: [TC] _device_terminated_event: origin=%r",
+                  self._platform_id, origin)
+
+        # set entries to UNKNOWN:
+        self._initialize_child_agg_status(origin)
+
+        # update rollup_status and publish in case of change:
+        for status_name in AggregateStatusType._str_map.keys():
+            self._update_rollup_status_and_publish(status_name, origin)
+
+    def _device_running_event(self, origin):
+        """
+        Handles the ProcessLifecycleEvent RUNNING event received for the
+        given origin:
+
+        - use get_agent to get "aggstatus" from the child
+        - update corresponding aparam_child_agg_status
+        - update rollup_status and publish in case of change
+
+        This would be the event associated with a child that was previously
+        associated, then terminated and then re-started externally.
+
+        @param origin    the origin of the ProcessLifecycleEvent
+        """
+
+        if origin not in self.aparam_child_agg_status:
+            log.warn("%r: _device_running_event: unrecognized origin=%r",
+                     self._platform_id, origin)
+            return
+
+        log.debug("%r: [TC] _device_running_event: origin=%r",
+                  self._platform_id, origin)
+
+        # retrieve appropriate status entries from the child and then proceed
+        # with any necessary updates.
+        try:
+            a_client = self._agent._create_resource_agent_client(origin, origin)
+
+        except Exception as e:
+            log.warn("%r: _device_running_event: could not create "
+                     "ResourceAgentClient for origin=%r in order to retrieve "
+                     "its aggstatus: %s",
+                     self._platform_id, origin, e)
+            return
+
+        #####################################################################
+        # TODO FIXME handle sub-platform case. For now, assuming it's an instrument.
+        #####################################################################
+
+        try:
+            aggstatus = a_client.get_agent(['aggstatus'])['aggstatus']
+
+        except Exception as e:
+            log.warn("%r: _device_running_event: could not get aggstatus from "
+                     "origin=%r: %s",
+                     self._platform_id, origin, e)
+            return
+
+        log.debug("%r: _device_running_event: retrieved aggstatus from "
+                  "instrument %r: %s",
+                  self._platform_id, origin, aggstatus)
+
+        try:
+            # set child's status with the retrieved statuses:
+            self._initialize_child_agg_status(origin, aggstatus)
+
+            # update rollup_status and publish in case of change:
+            for status_name in AggregateStatusType._str_map.keys():
+                self._update_rollup_status_and_publish(status_name, origin)
+
+            log.debug("%r: _device_running_event: my updated child status for"
+                      " instrument %r: %s",
+                      self._platform_id, origin,
+                      self.aparam_child_agg_status[origin])
+
+        except Exception as e:
+            log.warn("%r: _device_running_event: reported aggstatus is invalid"
+                     " from instrument %r: %s",
+                     self._platform_id, origin, e)
 
     #-------------------------------------------------------------------
     # supporting methods related with device_added, device_removed events
@@ -518,11 +679,19 @@ class StatusManager(object):
         with self._lock:
             if origin in self._event_subscribers:
                 self._terminate_event_subscriber(origin)
+            else:
+                log.debug("%r: [TC] _remove_child: not in _event_subscribers: %r",
+                          self._platform_id, origin)
 
             if not origin in self.aparam_child_agg_status:
+                log.debug("%r: [TC] _remove_child: not in aparam_child_agg_status: %r",
+                          self._platform_id, origin)
                 return
 
             del self.aparam_child_agg_status[origin]
+
+            log.debug("%r: [TC] _remove_child: removed from aparam_child_agg_status: %r",
+                      self._platform_id, origin)
 
             # update aparam_rollup_status:
             for status_name in AggregateStatusType._str_map.keys():
