@@ -213,14 +213,18 @@ class DataProductManagementService(BaseDataProductManagementService):
         stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id) # additional read necessary to fill in the pdict
 
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
+
+        temporal_domain, spatial_domain = time_series_domain()
+        temporal_domain = temporal_domain.dump()
+        spatial_domain = spatial_domain.dump()
         
         if not dataset_ids:
             # No datasets are currently linked which means we need to create a new one
             dataset_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
                                                                             stream_id=stream_id,
                                                                             parameter_dict=stream_def.parameter_dictionary,
-                                                                            temporal_domain=data_product_obj.temporal_domain,
-                                                                            spatial_domain=data_product_obj.spatial_domain)
+                                                                            temporal_domain=data_product_obj.temporal_domain or temporal_domain,
+                                                                            spatial_domain=data_product_obj.spatial_domain or spatial_domain)
 
             # link dataset with data product. This creates the association in the resource registry
             self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
