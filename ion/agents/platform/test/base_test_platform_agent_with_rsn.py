@@ -473,7 +473,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                     except:
                         pass
                     self.PSC.delete_subscription(sub.subscription_id)
-                sub.stop()
+                try:
+                    sub.stop()
+                except Exception as ex:
+                    log.warn("Exception stopping subscriber, perhaps already stopped: %s", ex)
         finally:
             self._event_subscribers = []
 
