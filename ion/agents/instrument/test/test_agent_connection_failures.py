@@ -75,6 +75,7 @@ from interface.objects import StreamAlertType, AggregateStatusType
 from ooi.timer import Timer
 
 """
+bin/nosetests -s -v --nologcapture --with-pycc ion/agents/instrument/test/test_agent_connection_failures.py:TestAgentConnectionFailures
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_connection_failures.py:TestAgentConnectionFailures
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_connection_failures.py:TestAgentConnectionFailures.test_lost_connection
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_connection_failures.py:TestAgentConnectionFailures.test_autoreconnect
@@ -402,7 +403,6 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
-                                 stream_definition_ref=stream_def_id,
                                  parameter_dictionary=pd,
                                  stream_def_dict=stream_def_dict)
         self._stream_config[stream_name] = stream_config
