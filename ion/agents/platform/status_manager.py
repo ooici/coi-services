@@ -377,7 +377,7 @@ class StatusManager(object):
 
             #
             # TODO NOTE the mechanism to check whether the event comes from
-            # the expected origin. This relies on the process ID being composed
+            # the expected origin relies on the process ID being composed
             # in a way the includes the origin. This might not be "official
             # behavior" so it needs to be reviewed!
             #
@@ -440,7 +440,8 @@ class StatusManager(object):
         Handles the ProcessLifecycleEvent RUNNING event received for the
         given origin:
 
-        - use get_agent to get "aggstatus" from the child
+        - use get_agent to get relevant status info from the child (depending
+          on whether it's an instrument or a platform).
         - update corresponding aparam_child_agg_status
         - update rollup_status and publish in case of change
 
@@ -471,38 +472,67 @@ class StatusManager(object):
             return
 
         #####################################################################
-        # TODO FIXME handle sub-platform case. For now, assuming it's an instrument.
-        #####################################################################
+        # First try get_agent with 'aggstatus' assuming it's an instrument.
+        # If it works, do the updates and return.
+        # Otherwise, should normally be a platform, so get_agent with
+        # 'child_agg_status', 'rollup_status' and do corresponding updates.
 
+        aggstatus = None   # in case this child is an instrument
         try:
+            log.debug("%r: _device_running_event: determining if child %r is "
+                      "an instrument...", self._platform_id, origin)
             aggstatus = a_client.get_agent(['aggstatus'])['aggstatus']
 
         except Exception as e:
             log.warn("%r: _device_running_event: could not get aggstatus from "
-                     "origin=%r: %s",
+                     "origin=%r (perhaps it's not an instrument): %s",
                      self._platform_id, origin, e)
-            return
 
-        log.debug("%r: _device_running_event: retrieved aggstatus from "
-                  "instrument %r: %s",
-                  self._platform_id, origin, aggstatus)
+        if aggstatus is not None:
+            # child is an instrument.
+            log.debug("%r: _device_running_event: retrieved aggstatus from "
+                      "instrument %r: %s",
+                      self._platform_id, origin, aggstatus)
 
+            try:
+                # set child's status with the retrieved statuses:
+                self._initialize_child_agg_status(origin, aggstatus)
+
+                # update rollup_status and publish in case of change:
+                for status_name in AggregateStatusType._str_map.keys():
+                    self._update_rollup_status_and_publish(status_name, origin)
+
+                log.debug("%r: _device_running_event: my updated child status for"
+                          " instrument %r: %s",
+                          self._platform_id, origin,
+                          self.aparam_child_agg_status[origin])
+
+            except Exception as e:
+                log.warn("%r: _device_running_event: reported aggstatus is invalid"
+                         " from instrument %r: %s",
+                         self._platform_id, origin, e)
+
+            return  # done with instrument case.
+
+        # it is not an instrument; try sub-platform:
         try:
-            # set child's status with the retrieved statuses:
-            self._initialize_child_agg_status(origin, aggstatus)
+            resp = a_client.get_agent(['child_agg_status', 'rollup_status'])
+            child_child_agg_status = resp['child_agg_status']
+            child_rollup_status    = resp['rollup_status']
 
-            # update rollup_status and publish in case of change:
-            for status_name in AggregateStatusType._str_map.keys():
-                self._update_rollup_status_and_publish(status_name, origin)
+            # take the child's child_agg_status'es:
+            for sub_origin, sub_statuses in child_child_agg_status.iteritems():
+                self._prepare_new_child(sub_origin, False, sub_statuses)
 
-            log.debug("%r: _device_running_event: my updated child status for"
-                      " instrument %r: %s",
-                      self._platform_id, origin,
-                      self.aparam_child_agg_status[origin])
+            # update my own child_agg_status from the child's rollup_status
+            # and also my rollup_status:
+            for status_name, status in child_rollup_status.iteritems():
+                self.aparam_child_agg_status[origin][status_name] = status
+                self._update_rollup_status(status_name)
 
         except Exception as e:
-            log.warn("%r: _device_running_event: reported aggstatus is invalid"
-                     " from instrument %r: %s",
+            log.warn("%r: could not get rollup_status or reported rollup_status is "
+                     "invalid from sub-platform %r: %s",
                      self._platform_id, origin, e)
 
     #-------------------------------------------------------------------

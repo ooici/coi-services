@@ -1716,7 +1716,7 @@ class PlatformAgent(ResourceAgent):
         # TODO: proper handling of "process ID".
         # Two possible sources to get it:
         # - given by process_dispatcher_client.schedule_process when we
-        #   launch the process here; otherwise pid == pid2)
+        #   launch the process here;
         # - given by ResourceAgentClient._get_agent_process_id
         #
 
