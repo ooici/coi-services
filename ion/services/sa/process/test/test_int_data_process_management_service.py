@@ -37,7 +37,7 @@ from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
 from coverage_model import ParameterContext, QuantityType, NumexprFunction, ParameterFunctionType
 
-from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum, AgentCommand
+from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum, AgentCommand, Parser
 from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct, DataProducer, DataProcessProducerContext, Attachment, AttachmentType, ReferenceAttachmentContext
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -1445,7 +1445,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         svm.delete_stored_value('example_document')
 
     def make_grt_parser(self):
-        return self.data_acquisition_management.create_parser(name='grt', description='', module='ion.util.parsers.global_range_test', method='grt_parser', config=None)
+        return self.data_acquisition_management.create_parser(Parser(name='grt', description='', module='ion.util.parsers.global_range_test', method='grt_parser', config=None))
     
     def attach_reference(self, data_product_id, parser_id, document):
         attachment = Attachment(name='qc ref', attachment_type=AttachmentType.REFERENCE,content=document, context=ReferenceAttachmentContext(parser_id=parser_id))

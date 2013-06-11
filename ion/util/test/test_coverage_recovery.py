@@ -4,6 +4,7 @@
 @package coverage_model.test.test_coverage
 @file coverage_model/test/test_coverage_recovery.py
 @author James Case
+@author Christopher Mueller
 @brief Test cases for CoverageDoctor's Coverage recovery methods.
 """
 from mock import patch
@@ -36,7 +37,6 @@ from interface.services.dm.idata_retriever_service import DataRetrieverServiceCl
 
 from ion.util.stored_values import StoredValueManager
 from interface.objects import LastUpdate, ComputedValueAvailability, Granule, DataProduct
-from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 
 from nose.plugins.attrib import attr
 from interface.objects import ProcessDefinition, DataProducer, DataProcessProducerContext
@@ -131,25 +131,6 @@ class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
         log.debug("the ingestion worker process id: %s", pid)
         self.pids.append(pid)
 
-        self.addCleanup(self.cleaning_up)
-
-    def cleaning_up(self):
-        for pid in self.pids:
-            log.debug("number of pids to be terminated: %s", len(self.pids))
-            try:
-                self.process_dispatcher.cancel_process(pid)
-                log.debug("Terminated the process: %s", pid)
-            except:
-                log.debug("could not terminate the process id: %s" % pid)
-        IngestionManagementIntTest.clean_subscriptions()
-
-        for xn in self.exchange_names:
-            xni = self.container.ex_manager.create_xn_queue(xn)
-            xni.delete()
-        for xp in self.exchange_points:
-            xpi = self.container.ex_manager.create_xp(xp)
-            xpi.delete()
-
     def get_datastore(self, dataset_id):
         dataset = self.dataset_management.read_dataset(dataset_id)
         datastore_name = dataset.datastore_name
@@ -220,6 +201,10 @@ class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
         cov_pth = cov.persistence_dir
         cov.close()
 
+        num_params = len(cov.list_parameters())
+        num_bricks = 8
+        total = num_params + num_bricks + 1
+
         # Analyze the valid coverage
         dr = CoverageDoctor(cov_pth, dprod, dset)
 
@@ -227,19 +212,19 @@ class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
 
         # TODO: Turn these into meaningful Asserts
         self.assertEqual(len(dr_result.get_brick_corruptions()), 0)
-        self.assertEqual(len(dr_result.get_brick_size_ratios()), 8)
+        self.assertEqual(len(dr_result.get_brick_size_ratios()), num_bricks)
         self.assertEqual(len(dr_result.get_corruptions()), 0)
         self.assertEqual(len(dr_result.get_master_corruption()), 0)
         self.assertEqual(len(dr_result.get_param_corruptions()), 0)
-        self.assertEqual(len(dr_result.get_param_size_ratios()), 64)
+        self.assertEqual(len(dr_result.get_param_size_ratios()), num_params)
         self.assertEqual(len(dr_result.get_master_size_ratio()), 1)
-        self.assertEqual(len(dr_result.get_size_ratios()), 73)
+        self.assertEqual(len(dr_result.get_size_ratios()), total)
         self.assertEqual(dr_result.master_status[1], 'NORMAL')
 
         self.assertFalse(dr_result.is_corrupt)
-        self.assertEqual(dr_result.param_file_count, 64)
-        self.assertEqual(dr_result.brick_file_count, 8)
-        self.assertEqual(dr_result.total_file_count, 73)
+        self.assertEqual(dr_result.param_file_count, num_params)
+        self.assertEqual(dr_result.brick_file_count, num_bricks)
+        self.assertEqual(dr_result.total_file_count, total)
 
         # Get original values (mock)
         orig_cov = AbstractCoverage.load(cov_pth)

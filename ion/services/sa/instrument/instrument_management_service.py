@@ -1805,9 +1805,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         child_site_ids = [p._id for p in extended_platform.portals]
         portal_device_relations = outil.get_device_relations(child_site_ids)
         extended_platform.portal_instruments = []
+        portal_instrument_ids = []
         for ch_id in child_site_ids:
             device_id = self._get_site_device(ch_id, portal_device_relations)
-            extended_platform.portal_instruments.append(child_by_id.get(device_id, None))
+            device_obj = child_by_id.get(device_id, None)
+            extended_platform.portal_instruments.append(device_obj)
+            if device_obj:
+                #these are the same set of devices that constitute the rollup status for this platform device, create the list
+                portal_instrument_ids.append(device_obj._id)
 
         log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
 
@@ -1816,7 +1821,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         child_device_ids = device_relations.keys()
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
                                                                                     extended_platform.computed,
-                                                                                    child_device_ids)
+                                                                                    portal_instrument_ids)
 
         statuses, reason = self.agent_status_builder.get_cumulative_status_dict(platform_device_id)
         def csl(device_id_list):

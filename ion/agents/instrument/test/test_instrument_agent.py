@@ -130,6 +130,7 @@ IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
 DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg'
+DRV_SHA = '28e1b59708d72e008b0aa68ea7392d3a2467f393'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -150,6 +151,12 @@ if LAUNCH_FROM_EGG:
     # Dynamically load the egg into the test path
     launcher = ZMQEggDriverProcess(DVR_CONFIG)
     egg = launcher._get_egg(DRV_URI)
+    from hashlib import sha1
+    with open(egg,'r') as f:
+        doc = f.read()
+        sha = sha1(doc).hexdigest()
+        if sha != DRV_SHA:
+            raise ImportError('Failed to load driver %s: incorrect checksum.  (%s!=%s)' % (DRV_URI, DRV_SHA, sha))
     if not egg in sys.path: sys.path.insert(0, egg)
     DVR_CONFIG['process_type'] = (DriverProcessType.EGG,)
 
