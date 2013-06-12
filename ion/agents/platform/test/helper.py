@@ -23,15 +23,67 @@ from ion.agents.platform.responses import NormalResponse, InvalidResponse
 from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 
+import os
+
 
 class HelperTestMixin:
     """
-    A mixin to facilitate common validations in tests.
-    It also provides some supporting methods related with the simulator,
+    A mixin to facilitate tests:
+      - launch/disable/enable simulator
+      - set up definitions against either simulator or actual RSN OMS endpoint.
+      - common validations
     """
 
     @classmethod
     def setUpClass(cls):
+        # Use the "OMS" environment variable to initially determine whether
+        # we are testing against the actual RSN OMS endpoint. If so,
+        # the value of this variable would be the alias "rsn".
+        # Otherwise, assume we are testing against our simulator.
+
+        if "rsn" == os.getenv('OMS', None):
+            print("HelperTestMixin: setUpClassBasedOnRealEndpoint")
+            cls._setUpClassBasedOnRealEndpoint()
+
+        else:
+            print("HelperTestMixin: _setUpClassBasedOnSimulator")
+            cls._setUpClassBasedOnSimulator()
+
+        # _oms_uri: see _dispatch_simulator and related methods:
+        cls._oms_uri = None
+        cls._inactivity_period = None
+
+    @classmethod
+    def _setUpClassBasedOnRealEndpoint(cls):
+        """
+        Various IDs from the actual endpoint (by inspecting output from
+        the oms_simple.py program).
+        """
+        cls.PLATFORM_ID           = 'LPJBox_CI_Ben_Hall'
+        cls.SUBPLATFORM_IDS       = []
+        cls.ATTR_NAMES            = ['Ambient Temperature|758',
+                                     'Output Voltage|765',
+                                     'Relative Humidity|759',
+                                     'Unit Temperature|766']
+
+        cls.WRITABLE_ATTR_NAMES   = ['']
+        cls.VALID_ATTR_VALUE      = "7"     # within the range
+        cls.INVALID_ATTR_VALUE    = "9876"  # out of range
+
+        cls.PORT_ID               = '0'
+        cls.INSTRUMENT_ID         = 'PENDING_instrument_id'
+        cls.INSTRUMENT_ATTR_NAME  = 'maxCurrentDraw'
+        cls.VALID_INSTRUMENT_ATTR_VALUE = 12345
+
+        cls.INSTRUMENT_ATTRIBUTES_AND_VALUES = {
+            'maxCurrentDraw' : 12345,
+            'initCurrent'    : 23456,
+            'dataThroughput' : 34567,
+            'instrumentType' : "FOO_INSTRUMENT_TYPE"
+        }
+
+    @classmethod
+    def _setUpClassBasedOnSimulator(cls):
         """
         Sets some various IDs from network.yml, which is used by our RSN OMS
         simulator, and other ad hoc values for testing.
@@ -44,25 +96,6 @@ class HelperTestMixin:
                 Use network with a single platform (no children)
                 corresponding to id 'LJ01D'.
         """
-
-        ######################################################################
-        # NOTE: the following values relative to 'Node1A' (which roots a
-        # significantly bigger hierarchy) were previously used as the default.
-        # It is now enabled at the moment (and probably it won't eventually)
-        # pending alignment with the new platform configuration structure.
-        #
-        # cls.PLATFORM_ID          = 'Node1A'
-        # cls.SUBPLATFORM_IDS      = ['MJ01A', 'Node1B']
-        # cls.ATTR_NAMES           = ['input_voltage', 'Node1A_attr_2']
-        # cls.WRITABLE_ATTR_NAMES  = ['Node1A_attr_2']
-        # cls.VALID_ATTR_VALUE     = "7"       # within the range
-        # cls.INVALID_ATTR_VALUE   = "9876"  # out of range
-        #
-        # cls.PORT_ID              = 'Node1A_port_1'
-        # cls.INSTRUMENT_ID        = 'Node1A_port_1_instrument_1'
-        # cls.INSTRUMENT_ATTR_NAME = 'maxCurrentDraw'
-        # cls.VALID_INSTRUMENT_ATTR_VALUE = 12345
-        ######################################################################
 
         cls.PLATFORM_ID           = 'Node1D'
         cls.SUBPLATFORM_IDS       = ['MJ01C']
@@ -83,7 +116,6 @@ class HelperTestMixin:
             'instrumentType' : "FOO_INSTRUMENT_TYPE"
         }
 
-        import os
         plat_network_size = os.getenv('PLAT_NETWORK', None)
         if "single" == plat_network_size:
             #
@@ -100,16 +132,13 @@ class HelperTestMixin:
         else:
             print("PLAT_NETWORK undefined -> using base platform: %r" % cls.PLATFORM_ID)
 
-        # _oms_uri: see _dispatch_simulator and related methods:
-        cls._oms_uri = None
-        cls._inactivity_period = None
-
     def _verify_valid_platform_id(self, platform_id, dic):
         """
         verifies the platform_id is the only entry in the dict with a
         valid value. Returns dic[platform_id].
         """
-        self.assertTrue(platform_id in dic)
+        self.assertIsInstance(dic, dict)
+        self.assertIn(platform_id, dic)
         self.assertEquals(1, len(dic))
         val = dic[platform_id]
         self.assertNotEquals(InvalidResponse.PLATFORM_ID, val)
@@ -120,7 +149,8 @@ class HelperTestMixin:
         verifies the platform_id is the only entry in the dict with a
         value equal to InvalidResponse.PLATFORM_ID.
         """
-        self.assertTrue(platform_id in dic)
+        self.assertIsInstance(dic, dict)
+        self.assertIn(platform_id, dic)
         self.assertEquals(1, len(dic))
         val = dic[platform_id]
         self.assertEquals(InvalidResponse.PLATFORM_ID, val)
@@ -130,7 +160,7 @@ class HelperTestMixin:
         verifies the attr_id is an entry in the dict with a
         valid value. Returns dic[attr_id].
         """
-        self.assertTrue(attr_id in dic, "%s in %s" %(attr_id, dic))
+        self.assertIn(attr_id, dic, "%s in %s" %(attr_id, dic))
         val = dic[attr_id]
         self.assertIsInstance(val, (tuple, list))
         self.assertNotEquals(InvalidResponse.ATTRIBUTE_ID, val)
@@ -141,7 +171,7 @@ class HelperTestMixin:
         verifies the attr_id is an entry in the dict with a
         value equal to InvalidResponse.ATTRIBUTE_ID
         """
-        self.assertTrue(attr_id in dic)
+        self.assertIn(attr_id, dic)
         val = dic[attr_id]
         self.assertEquals(InvalidResponse.ATTRIBUTE_ID, val,
                           "attr_id=%r, val=%r" % (attr_id, val))
@@ -151,7 +181,7 @@ class HelperTestMixin:
         verifies the attr_id is an entry in the dict with a
         value equal to InvalidResponse.ATTRIBUTE_VALUE_OUT_OF_RANGE
         """
-        self.assertTrue(attr_id in dic)
+        self.assertIn(attr_id, dic)
         val = dic[attr_id]
         self.assertEquals(InvalidResponse.ATTRIBUTE_VALUE_OUT_OF_RANGE, val,
                           "attr_id=%r, val=%r" % (attr_id, val))
@@ -161,17 +191,20 @@ class HelperTestMixin:
         verifies the attr_id is an entry in the dict with a
         value equal to InvalidResponse.ATTRIBUTE_NOT_WRITABLE.
         """
-        self.assertTrue(attr_id in dic)
+        self.assertIn(attr_id, dic)
         val = dic[attr_id]
         self.assertEquals(InvalidResponse.ATTRIBUTE_NOT_WRITABLE, val,
-                          "attr_id=%r, val=%r" % (attr_id, val))
+                          "Expecting val=%s for attr_id=%r. Got val=%r" % (
+                              InvalidResponse.ATTRIBUTE_NOT_WRITABLE,
+                              attr_id,
+                              val))
 
     def _verify_valid_port_id(self, port_id, dic):
         """
         verifies the port_id is an entry in the dict with a
         valid value. Returns dic[port_id].
         """
-        self.assertTrue(port_id in dic)
+        self.assertIn(port_id, dic)
         val = dic[port_id]
         self.assertNotEquals(InvalidResponse.PORT_ID, val)
         return val
@@ -181,7 +214,7 @@ class HelperTestMixin:
         verifies the port_id is an entry in the dict with a
         value equal to InvalidResponse.PORT_ID.
         """
-        self.assertTrue(port_id in dic)
+        self.assertIn(port_id, dic)
         val = dic[port_id]
         self.assertEquals(InvalidResponse.PORT_ID, val)
 
@@ -191,7 +224,7 @@ class HelperTestMixin:
         either a dict or InvalidResponse.INSTRUMENT_ALREADY_CONNECTED.
         Returns dic[instrument_id].
         """
-        self.assertTrue(instrument_id in dic)
+        self.assertIn(instrument_id, dic)
         val = dic[instrument_id]
         self.assertTrue(
             isinstance(val, dict) or
@@ -205,9 +238,9 @@ class HelperTestMixin:
         verifies the instrument_id is an entry in the dict with a
         value that is not a dict.
         """
-        self.assertTrue(instrument_id in dic)
+        self.assertIn(instrument_id, dic)
         val = dic[instrument_id]
-        self.assertFalse(isinstance(val, dict))
+        self.assertEquals(val, InvalidResponse.MISSING_INSTRUMENT_ATTRIBUTE)
 
     def _verify_instrument_disconnected(self, instrument_id, result):
         """

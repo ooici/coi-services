@@ -18,6 +18,7 @@ from ion.agents.platform.util.network import NetworkDefinition
 from ion.agents.platform.util.network_util import NetworkUtil
 from ion.agents.platform.util.network import AttrNode, PortNode
 from ion.agents.platform.util.network import InstrumentNode
+from ion.agents.platform.exceptions import PlatformDriverException
 
 
 class RsnOmsUtil(object):
@@ -72,16 +73,20 @@ class RsnOmsUtil(object):
 
         def set_attributes(pnode):
             platform_id = pnode.platform_id
-            attr_infos = rsn_oms.get_platform_attributes(platform_id)
+            attr_infos = rsn_oms.attr.get_platform_attributes(platform_id)
             if not isinstance(attr_infos, dict):
-                log.warn("%r: get_platform_attributes returned: %s",
-                         platform_id, attr_infos)
-                return
+                raise PlatformDriverException(
+                    "%r: get_platform_attributes returned: %s" % (
+                    platform_id, attr_infos))
 
             if log.isEnabledFor(logging.TRACE):
                 log.trace("%r: attr_infos: %s", platform_id, attr_infos)
 
-            assert platform_id in attr_infos
+            if not platform_id in attr_infos:
+                raise PlatformDriverException(
+                    "%r: get_platform_attributes response does not "
+                    "include entry for platform_id: %s" %(
+                    platform_id, attr_infos))
 
             ret_infos = attr_infos[platform_id]
             for attrName, attr_defn in ret_infos.iteritems():
@@ -90,34 +95,55 @@ class RsnOmsUtil(object):
 
         def set_ports(pnode):
             platform_id = pnode.platform_id
-            port_infos = rsn_oms.get_platform_ports(platform_id)
+            port_infos = rsn_oms.port.get_platform_ports(platform_id)
             if not isinstance(port_infos, dict):
-                log.warn("%r: get_platform_ports returned: %s",
-                         platform_id, port_infos)
-                return
+                raise PlatformDriverException(
+                    "%r: get_platform_ports response is not a dict: %s" % (
+                    platform_id, port_infos))
 
             if log.isEnabledFor(logging.TRACE):
                 log.trace("%r: port_infos: %s", platform_id, port_infos)
 
-            assert platform_id in port_infos
+            if not platform_id in port_infos:
+                raise PlatformDriverException(
+                    "%r: get_platform_ports response does not include "
+                    "platform_id: %s" % (platform_id, port_infos))
+
             ports = port_infos[platform_id]
+
+            if not isinstance(ports, dict):
+                raise PlatformDriverException(
+                    "%r: get_platform_ports: entry for platform_id is "
+                    "not a dict: %s" % (platform_id, ports))
+
             for port_id, dic in ports.iteritems():
                 port = PortNode(port_id, dic['network'])
-                port.set_on(dic['is_on'])
+                port.set_state(dic['state'])
                 pnode.add_port(port)
 
                 # add connected instruments:
-                instrs_res = rsn_oms.get_connected_instruments(platform_id, port_id)
+                instrs_res = rsn_oms.instr.get_connected_instruments(platform_id, port_id)
                 if not isinstance(instrs_res, dict):
                     log.warn("%r: port_id=%r: get_connected_instruments "
-                             "returned: %s" % (platform_id, port_id, instrs_res))
+                             "response is not a dict: %s" % (platform_id, port_id, instrs_res))
                     continue
 
                 if log.isEnabledFor(logging.TRACE):
                     log.trace("%r: port_id=%r: get_connected_instruments "
                               "returned: %s" % (platform_id, port_id, instrs_res))
-                assert platform_id in instrs_res
-                assert port_id in instrs_res[platform_id]
+
+                if not platform_id in instrs_res:
+                    raise PlatformDriverException(
+                        "%r: port_id=%r: get_connected_instruments response"
+                        "does not have entry for platform_id: %s" % (
+                        platform_id, ports))
+
+                if not port_id in instrs_res[platform_id]:
+                    raise PlatformDriverException(
+                        "%r: port_id=%r: get_connected_instruments response "
+                        "for platform_id does not have entry for port_id: %s" % (
+                        platform_id, port_id, instrs_res[platform_id]))
+
                 instr = instrs_res[platform_id][port_id]
                 for instrument_id, attrs in instr.iteritems():
                     port.add_instrument(InstrumentNode(instrument_id, attrs))
