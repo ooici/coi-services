@@ -267,6 +267,14 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         """
         self._ia_client = None
 
+        # Start container.
+        log.info('Staring capability container.')
+        self._start_container()
+        
+        # Bring up services in a deploy file (no need to message)
+        log.info('Staring deploy services.')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
         log.info('Creating driver integration test support:')
         log.info('driver uri: %s', DRV_URI)
         log.info('device address: %s', DEV_ADDR)
@@ -287,14 +295,6 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         self._start_pagent()
         self.addCleanup(self._support.stop_pagent)    
         
-        # Start container.
-        log.info('Staring capability container.')
-        self._start_container()
-        
-        # Bring up services in a deploy file (no need to message)
-        log.info('Staring deploy services.')
-        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-
         log.info('building stream configuration')
         # Setup stream config.
         self._build_stream_config()
