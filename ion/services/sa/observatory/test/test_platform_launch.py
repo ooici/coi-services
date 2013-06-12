@@ -249,11 +249,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
             "location_status_roll_up": ComputedIntValue,
             "platform_status": ComputedListValue,
             "instrument_status": ComputedListValue,
-            "site_status": ComputedListValue,
-            "platform_station_sites": ComputedListValue,
-            "platform_assembly_sites": ComputedListValue,
-            "platform_component_sites": ComputedListValue,
-            "instrument_sites": ComputedListValue,
+            "site_status": ComputedListValue
         }
         for attr, thetype in extended_site_datatypes.iteritems():
             self.assertIn(attr, ps_extended.computed)
