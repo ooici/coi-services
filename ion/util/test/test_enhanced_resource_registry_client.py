@@ -631,3 +631,9 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.assertEqual([d], results)
 
         self.assertEqual(0, self.rr.find_subjects.call_count)
+
+
+    def test_disabled_prefetch(self):
+        self.RR2.disable_prefetch()
+        self.assertRaises(BadRequest, self.RR2.cache_predicate, PRED.hasModel)
+        self.assertRaises(BadRequest, self.RR2.cache_resources, RT.InstrumentModel)
