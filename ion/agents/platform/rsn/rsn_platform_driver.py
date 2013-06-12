@@ -697,7 +697,7 @@ class RSNPlatformDriver(PlatformDriver):
         ports = {}
         for port_id, port in self._pnode.ports.iteritems():
             ports[port_id] = {'network': port.network,
-                              'is_on': port.is_on}
+                              'state':   port.state}
         log.debug("%r: _get_ports: %s", self._platform_id, ports)
         return ports
 

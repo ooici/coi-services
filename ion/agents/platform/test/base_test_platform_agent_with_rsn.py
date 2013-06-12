@@ -1394,7 +1394,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         for port_id, info in ports.iteritems():
             self.assertIsInstance(info, dict)
             self.assertIn('network', info)
-            self.assertIn('is_on', info)
+            self.assertIn('state', info)
         return ports
 
     def _get_connected_instruments(self, port_id):

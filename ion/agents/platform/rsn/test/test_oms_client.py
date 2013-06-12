@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.rsn.test.test_oms_simple
-@file    ion/agents/platform/rsn/test/test_oms_simple.py
+@package ion.agents.platform.rsn.test.test_oms_client
+@file    ion/agents/platform/rsn/test/test_oms_client.py
 @author  Carlos Rueda
 @brief   Test cases for CIOMSClient.
 """
@@ -21,6 +21,8 @@ from ion.agents.platform.rsn.test.oms_test_mixin import OmsTestMixin
 
 from nose.plugins.attrib import attr
 
+import os
+
 
 @attr('INT', group='sa')
 class Test(IonIntegrationTestCase, OmsTestMixin):
@@ -28,11 +30,17 @@ class Test(IonIntegrationTestCase, OmsTestMixin):
     @classmethod
     def setUpClass(cls):
         OmsTestMixin.setUpClass()
-        cls.oms = CIOMSClientFactory.create_instance()
+
+    def setUp(self):
+        oms_uri = os.getenv('OMS', "launchsimulator")
+        oms_uri = self._dispatch_simulator(oms_uri)
+        log.debug("oms_uri = %s", oms_uri)
+        self.oms = CIOMSClientFactory.create_instance(oms_uri)
         OmsTestMixin.start_http_server()
 
-    @classmethod
-    def tearDownClass(cls):
-        CIOMSClientFactory.destroy_instance(cls.oms)
-        event_notifications = OmsTestMixin.stop_http_server()
-        log.info("event_notifications = %s" % str(event_notifications))
+        def done():
+            CIOMSClientFactory.destroy_instance(self.oms)
+            event_notifications = OmsTestMixin.stop_http_server()
+            log.info("event_notifications = %s" % str(event_notifications))
+
+        self.addCleanup(done)

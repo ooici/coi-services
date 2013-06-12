@@ -139,7 +139,7 @@ class PortNode(BaseNode):
         self._port_id = port_id
         self._network = network
         self._instruments = {}
-        self._is_on = False
+        self._state = None
 
     def __repr__(self):
         return "PortNode{id=%s, network=%s}" % (
@@ -154,11 +154,11 @@ class PortNode(BaseNode):
         return self._network
 
     @property
-    def is_on(self):
-        return self._is_on
+    def state(self):
+        return self._state
 
-    def set_on(self, on):
-        self._is_on = on
+    def set_state(self, state):
+        self._state = state
 
     @property
     def instruments(self):
@@ -190,9 +190,9 @@ class PortNode(BaseNode):
             return "Port network values are different: %r != %r" % (
                 self.network, other.network)
 
-        if self.is_on != other.is_on:
-            return "Port is_on values are different: %r != %r" % (
-                self.is_on, other.is_on)
+        if self.state != other.state:
+            return "Port state values are different: %r != %r" % (
+                self.state, other.state)
 
         # compare instruments:
         instrument_ids = set(self.instruments.iterkeys())
@@ -217,8 +217,8 @@ class PortNode(BaseNode):
         # network:
         hash_obj.update("port_network=%s;" % self.network)
 
-        # is_on:
-        hash_obj.update("port_is_on=%s;" % self.is_on)
+        # state:
+        hash_obj.update("port_state=%s;" % self.state)
 
         # instruments:
         hash_obj.update("port_instruments:")
@@ -366,7 +366,6 @@ class PlatformNode(BaseNode):
         return self._attrs
 
     def get_port(self, port_id):
-        assert port_id in self._ports
         return self._ports[port_id]
 
     @property

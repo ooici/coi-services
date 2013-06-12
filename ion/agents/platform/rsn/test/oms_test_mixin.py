@@ -48,6 +48,7 @@ class OmsTestMixin(HelperTestMixin):
 
     def test_ab_get_platform_map(self):
         platform_map = self.oms.config.get_platform_map()
+        log.info("config.get_platform_map = %s" % platform_map)
         self.assertIsInstance(platform_map, list)
         roots = []
         for pair in platform_map:
@@ -61,7 +62,7 @@ class OmsTestMixin(HelperTestMixin):
 
     def test_ac_get_platform_types(self):
         retval = self.oms.config.get_platform_types()
-        log.info("get_platform_types = %s" % retval)
+        log.info("config.get_platform_types = %s" % retval)
         self.assertIsInstance(retval, dict)
         for k, v in retval.iteritems():
             self.assertIsInstance(k, str)
@@ -70,28 +71,29 @@ class OmsTestMixin(HelperTestMixin):
     def test_ad_get_platform_metadata(self):
         platform_id = self.PLATFORM_ID
         retval = self.oms.config.get_platform_metadata(platform_id)
-        log.info("get_platform_metadata(%r) = %s" % (platform_id,  retval))
+        log.info("config.get_platform_metadata(%r) = %s" % (platform_id,  retval))
         md = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(md, dict)
-        self.assertTrue('platform_types' in md)
+        if not 'platform_types' in md:
+            log.warn("RSN OMS spec: platform_types not included in metadata: %s", md)
 
     def test_ad_get_platform_metadata_invalid(self):
         platform_id = BOGUS_PLATFORM_ID
         retval = self.oms.config.get_platform_metadata(platform_id)
-        log.info("get_platform_metadata(%r) = %s" % (platform_id,retval))
+        log.info("config.get_platform_metadata(%r) = %s" % (platform_id,retval))
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_af_get_platform_attributes(self):
         platform_id = self.PLATFORM_ID
-        retval = self.oms.config.get_platform_attributes(platform_id)
-        log.info("get_platform_attributes(%r) = %s" % (platform_id, retval))
+        retval = self.oms.attr.get_platform_attributes(platform_id)
+        log.info("attr.get_platform_attributes(%r) = %s" % (platform_id, retval))
         infos = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(infos, dict)
 
     def test_ag_get_platform_attributes_invalid(self):
         platform_id = BOGUS_PLATFORM_ID
-        retval = self.oms.config.get_platform_attributes(platform_id)
-        log.info("get_platform_attributes(%r) = %s" % (platform_id, retval))
+        retval = self.oms.attr.get_platform_attributes(platform_id)
+        log.info("attr.get_platform_attributes(%r) = %s" % (platform_id, retval))
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_ah_get_platform_attribute_values(self):
@@ -100,8 +102,8 @@ class OmsTestMixin(HelperTestMixin):
         cur_time = ntplib.system_to_ntp_time(time.time())
         from_time = cur_time - 50  # a 50-sec time window
         req_attrs = [(attr_id, from_time) for attr_id in attrNames]
-        retval = self.oms.get_platform_attribute_values(platform_id, req_attrs)
-        log.info("get_platform_attribute_values = %s" % retval)
+        retval = self.oms.attr.get_platform_attribute_values(platform_id, req_attrs)
+        log.info("attr.get_platform_attribute_values = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(vals, dict)
         for attrName in attrNames:
@@ -113,8 +115,8 @@ class OmsTestMixin(HelperTestMixin):
         cur_time = ntplib.system_to_ntp_time(time.time())
         from_time = cur_time - 50  # a 50-sec time window
         req_attrs = [(attr_id, from_time) for attr_id in attrNames]
-        retval = self.oms.get_platform_attribute_values(platform_id, req_attrs)
-        log.info("get_platform_attribute_values = %s" % retval)
+        retval = self.oms.attr.get_platform_attribute_values(platform_id, req_attrs)
+        log.info("attr.get_platform_attribute_values = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_ah_get_platform_attribute_values_invalid_attributes(self):
@@ -123,8 +125,8 @@ class OmsTestMixin(HelperTestMixin):
         cur_time = ntplib.system_to_ntp_time(time.time())
         from_time = cur_time - 50  # a 50-sec time window
         req_attrs = [(attr_id, from_time) for attr_id in attrNames]
-        retval = self.oms.get_platform_attribute_values(platform_id, req_attrs)
-        log.info("get_platform_attribute_values = %s" % retval)
+        retval = self.oms.attr.get_platform_attribute_values(platform_id, req_attrs)
+        log.info("attr.get_platform_attribute_values = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(vals, dict)
         for attrName in attrNames:
@@ -142,8 +144,9 @@ class OmsTestMixin(HelperTestMixin):
             return "test_value_for_%s" % attrName
 
         attrs = [(attrName, valueFor(attrName)) for attrName in attrNames]
-        retval = self.oms.set_platform_attribute_values(platform_id, attrs)
-        log.info("set_platform_attribute_values = %s" % retval)
+        retval = self.oms.attr.set_platform_attribute_values(platform_id, attrs)
+        log.info("attr.set_platform_attribute_values(%r, %r) => %s" % (
+            platform_id, attrs, retval))
         vals = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(vals, dict)
         for attrName in attrNames:
@@ -154,7 +157,7 @@ class OmsTestMixin(HelperTestMixin):
 
     def _get_platform_ports(self, platform_id):
         retval = self.oms.port.get_platform_ports(platform_id)
-        log.info("get_platform_ports(%r) = %s" % (platform_id, retval))
+        log.info("port.get_platform_ports(%r) = %s" % (platform_id, retval))
         ports = self._verify_valid_platform_id(platform_id, retval)
         return ports
 
@@ -163,13 +166,13 @@ class OmsTestMixin(HelperTestMixin):
         ports = self._get_platform_ports(platform_id)
         for port_id, info in ports.iteritems():
             self.assertIsInstance(info, dict)
-            self.assertTrue('network' in info)
-            self.assertTrue('is_on' in info)
+            self.assertIn('network', info)
+            self.assertIn('state',   info)
 
     def test_ak_get_platform_ports_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID
         retval = self.oms.port.get_platform_ports(platform_id)
-        log.info("get_platform_ports = %s" % retval)
+        log.info("port.get_platform_ports = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_am_connect_instrument(self):
@@ -180,7 +183,7 @@ class OmsTestMixin(HelperTestMixin):
         attributes = {'maxCurrentDraw': 1, 'initCurrent': 2,
                       'dataThroughput': 3, 'instrumentType': 'FOO'}
         retval = self.oms.instr.connect_instrument(platform_id, port_id, instrument_id, attributes)
-        log.info("connect_instrument = %s" % retval)
+        log.info("instr.connect_instrument = %s" % retval)
         ports = self._verify_valid_platform_id(platform_id, retval)
         port_dic = self._verify_valid_port_id(port_id, ports)
         self.assertIsInstance(port_dic, dict)
@@ -199,7 +202,7 @@ class OmsTestMixin(HelperTestMixin):
         instrument_id = self.INSTRUMENT_ID
         attributes = {}
         retval = self.oms.instr.connect_instrument(platform_id, port_id, instrument_id, attributes)
-        log.info("connect_instrument = %s" % retval)
+        log.info("instr.connect_instrument = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
     def test_am_connect_instrument_invalid_port_id(self):
@@ -208,7 +211,7 @@ class OmsTestMixin(HelperTestMixin):
         instrument_id = self.INSTRUMENT_ID
         attributes = {}
         retval = self.oms.instr.connect_instrument(platform_id, port_id, instrument_id, attributes)
-        log.info("connect_instrument = %s" % retval)
+        log.info("instr.connect_instrument = %s" % retval)
         ports = self._verify_valid_platform_id(platform_id, retval)
         self._verify_invalid_port_id(port_id, ports)
 
@@ -218,7 +221,8 @@ class OmsTestMixin(HelperTestMixin):
         instrument_id = BOGUS_INSTRUMENT_ID
         attributes = {}
         retval = self.oms.instr.connect_instrument(platform_id, port_id, instrument_id, attributes)
-        log.info("connect_instrument = %s" % retval)
+        log.info("instr.connect_instrument(%r, %r, %r, %r) => %s" % (
+            platform_id, port_id, instrument_id, attributes, retval))
         ports = self._verify_valid_platform_id(platform_id, retval)
         port_dic = self._verify_valid_port_id(port_id, ports)
         self.assertIsInstance(port_dic, dict)
@@ -228,8 +232,8 @@ class OmsTestMixin(HelperTestMixin):
         platform_id = self.PLATFORM_ID
         ports = self._get_platform_ports(platform_id)
         for port_id in ports.iterkeys():
-            retval = self.oms.turn_on_platform_port(platform_id, port_id)
-            log.info("turn_on_platform_port(%s,%s) = %s" % (platform_id, port_id, retval))
+            retval = self.oms.port.turn_on_platform_port(platform_id, port_id)
+            log.info("port.turn_on_platform_port(%s,%s) = %s" % (platform_id, port_id, retval))
             portRes = self._verify_valid_platform_id(platform_id, retval)
             res = self._verify_valid_port_id(port_id, portRes)
             self.assertEquals(res, NormalResponse.PORT_TURNED_ON)
@@ -242,16 +246,16 @@ class OmsTestMixin(HelperTestMixin):
         # use invalid for turn_on_platform_port
         requested_platform_id = BOGUS_PLATFORM_ID
         for port_id in ports.iterkeys():
-            retval = self.oms.turn_on_platform_port(requested_platform_id, port_id)
-            log.info("turn_on_platform_port(%s,%s) = %s" % (requested_platform_id, port_id, retval))
+            retval = self.oms.port.turn_on_platform_port(requested_platform_id, port_id)
+            log.info("port.turn_on_platform_port(%s,%s) = %s" % (requested_platform_id, port_id, retval))
             self._verify_invalid_platform_id(requested_platform_id, retval)
 
     def test_ao_turn_off_platform_port(self):
         platform_id = self.PLATFORM_ID
         ports = self._get_platform_ports(platform_id)
         for port_id in ports.iterkeys():
-            retval = self.oms.turn_off_platform_port(platform_id, port_id)
-            log.info("turn_off_platform_port(%s,%s) = %s" % (platform_id, port_id, retval))
+            retval = self.oms.port.turn_off_platform_port(platform_id, port_id)
+            log.info("port.turn_off_platform_port(%s,%s) = %s" % (platform_id, port_id, retval))
             portRes = self._verify_valid_platform_id(platform_id, retval)
             res = self._verify_valid_port_id(port_id, portRes)
             self.assertEquals(res, NormalResponse.PORT_TURNED_OFF)
@@ -264,8 +268,8 @@ class OmsTestMixin(HelperTestMixin):
         # use invalid for turn_off_platform_port
         requested_platform_id = BOGUS_PLATFORM_ID
         for port_id in ports.iterkeys():
-            retval = self.oms.turn_off_platform_port(requested_platform_id, port_id)
-            log.info("turn_off_platform_port(%s,%s) = %s" % (requested_platform_id, port_id, retval))
+            retval = self.oms.port.turn_off_platform_port(requested_platform_id, port_id)
+            log.info("port.turn_off_platform_port(%s,%s) = %s" % (requested_platform_id, port_id, retval))
             self._verify_invalid_platform_id(requested_platform_id, retval)
 
     ###################################################################
@@ -338,13 +342,13 @@ class OmsTestMixin(HelperTestMixin):
 
     def _get_registered_event_listeners(self):
         listeners = self.oms.event.get_registered_event_listeners()
-        log.info("get_registered_event_listeners returned %s" % str(listeners))
+        log.info("event.get_registered_event_listeners returned %s" % str(listeners))
         self.assertIsInstance(listeners, dict)
         return listeners
 
     def _register_event_listener(self, url):
         result = self.oms.event.register_event_listener(url)
-        log.info("register_event_listener returned %s" % str(result))
+        log.info("event.register_event_listener returned %s" % str(result))
         self.assertIsInstance(result, dict)
         self.assertEquals(len(result), 1)
         self.assertTrue(url in result)
@@ -352,7 +356,7 @@ class OmsTestMixin(HelperTestMixin):
 
     def _register_one_event_listener(self):
         url = self.__get_url()
-        res = self._register_event_listener(url)[0]
+        res = self._register_event_listener(url)
 
         # check that it's registered
         listeners = self._get_registered_event_listeners()
@@ -364,32 +368,26 @@ class OmsTestMixin(HelperTestMixin):
     def test_be_register_event_listener(self):
         self._register_one_event_listener()
 
-        if self._http_server:
-            # wait for a bit to see if we get some notifications
-            log.info("waiting for possible event notifications...")
-            time.sleep(6)
-
     def test_bg_get_registered_event_listeners(self):
         self._get_registered_event_listeners()
 
     def _unregister_event_listener(self, url):
-        result = self.oms.unregister_event_listener(url)
-        log.info("unregister_event_listener returned %s" % str(result))
+        result = self.oms.event.unregister_event_listener(url)
+        log.info("event.unregister_event_listener returned %s" % str(result))
         self.assertIsInstance(result, dict)
         self.assertEquals(len(result), 1)
         self.assertTrue(url in result)
         return result[url]
 
     def test_bh_unregister_event_listener(self):
-        result = self._get_registered_event_listeners()
-        if len(result) == 0:
+        listeners = self._get_registered_event_listeners()
+        if len(listeners) == 0:
             log.info("WARNING: No event listeners to unregister")
             return
 
-        url = result.keys()[0]
-        event_pairs = result[url]
-        self.assertTrue(len(event_pairs) > 0)
-        event_type_id, time = event_pairs[0]
+        url = listeners.keys()[0]
+        reg_time = listeners[url]
+        self.assertIsInstance(reg_time, (float, int))
         self._unregister_event_listener(url)
 
         # check that it's unregistered
@@ -404,4 +402,4 @@ class OmsTestMixin(HelperTestMixin):
     def test_get_checksum(self):
         platform_id = self.PLATFORM_ID
         retval = self.oms.config.get_checksum(platform_id)
-        log.info("get_checksum = %s" % retval)
+        log.info("config.get_checksum = %s" % retval)
