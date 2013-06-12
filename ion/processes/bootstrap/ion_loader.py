@@ -1900,7 +1900,8 @@ Reason: %s
 
 
                 qc_fields = None
-                if getattr(self.ooi_loader, 'ooi_objects', None):
+                if self.ooi_loader._extracted:
+                    # Yes, OOI Assets were parsed
                     dps = self.ooi_loader.get_type_assets('data_product')
                     if context.ooi_short_name in dps:
                         dp = dps[context.ooi_short_name]
