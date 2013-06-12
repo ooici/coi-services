@@ -303,12 +303,14 @@ class IONLoader(ImmediateProcess):
             self.clearcols = config.get("clearcols", None)          # Clear given columns in rows
             self.idmap = bool(config.get("idmap", False))           # Substitute column values in rows
             self.ooiparams = bool(config.get("ooiparams", False))   # Hook up with loaded OOI params
+            self.parseooi = config.get("parseooi", False)
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
 
-            if self.loadooi:
+            if self.loadooi or self.parseooi:
                 self.ooi_loader.extract_ooi_assets()
-                self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
+                if self.loadooi:
+                    self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
             if self.loadui:
                 specs_path = 'interface/ui_specs.json' if self.exportui else None
                 self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
@@ -1898,11 +1900,7 @@ Reason: %s
 
 
                 qc_fields = None
-                if not getattr(self.ooi_loader, 'ooi_objects', None) and not self.asset_path.startswith('http'):
-                    # Only load the assets if the asset path is correct
-                    self.ooi_loader.extract_ooi_assets()
-                if not self.asset_path.startswith('http'):
-                    # Only load the assets if the asset path is correct
+                if getattr(self.ooi_loader, 'ooi_objects', None):
                     dps = self.ooi_loader.get_type_assets('data_product')
                     if context.ooi_short_name in dps:
                         dp = dps[context.ooi_short_name]
