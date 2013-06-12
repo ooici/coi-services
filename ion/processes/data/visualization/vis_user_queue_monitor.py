@@ -6,6 +6,8 @@ from logging import getLogger
 from pyon.util.log import log
 from pyon.util.containers import get_safe
 
+USER_VISUALIZATION_QUEUE = 'UserVisQueue'
+
 class VisUserQueueMonitor(SimpleProcess):
     def on_start(self):
         try:
