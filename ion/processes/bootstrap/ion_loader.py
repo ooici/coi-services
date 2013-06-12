@@ -86,7 +86,7 @@ from ion.util.parse_utils import parse_dict, parse_phones, get_typed_value
 from ion.util.xlsparser import XLSParser
 
 from coverage_model.parameter import ParameterContext
-from coverage_model import NumexprFunction, PythonFunction, QuantityType
+from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
 
 from interface import objects
 from interface.objects import StreamAlertType
@@ -303,12 +303,14 @@ class IONLoader(ImmediateProcess):
             self.clearcols = config.get("clearcols", None)          # Clear given columns in rows
             self.idmap = bool(config.get("idmap", False))           # Substitute column values in rows
             self.ooiparams = bool(config.get("ooiparams", False))   # Hook up with loaded OOI params
+            self.parseooi = config.get("parseooi", False)
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
 
-            if self.loadooi:
+            if self.loadooi or self.parseooi:
                 self.ooi_loader.extract_ooi_assets()
-                self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
+                if self.loadooi:
+                    self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
             if self.loadui:
                 specs_path = 'interface/ui_specs.json' if self.exportui else None
                 self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
@@ -1881,9 +1883,32 @@ Reason: %s
                         context.document_key = lookup_value
 
             if qc:
+                qc_map = {
+                        'Global Range Test (GLBLRNG) QC'                         : 'glblrng_qc',
+                        'Stuck Value Test (STUCKVL) QC'                          : 'stuckvl_qc',
+                        'Spike Test (SPKETST) QC'                                : 'spketst_qc',
+                        'Trend Test (TRNDTST) QC'                                : 'trndtst_qc',
+                        'Gradient Test (GRADTST) QC'                             : 'gradtst_qc',
+                        'Local Range Test (LOCLRNG) QC'                          : 'loclrng_qc',
+                        'Modulus (MODULUS) QC'                                   : 'modulus_qc',
+                        'Evaluate Polynomial (POLYVAL) QC'                       : 'polyval_qc',
+                        'Solar Elevation (SOLAREL) QC'                           : 'solarel_qc',
+                        'Conductivity Compressibility Compensation (CONDCMP) QC' : 'condcmp_qc',
+                        '1-D Interpolation (INTERP1) QC'                         : 'interp1_qc',
+                        'Combine QC Flags (CMBNFLG) QC'                          : 'cmbnflg_qc',
+                        }
+
+
+                qc_fields = None
+                if self.ooi_loader._extracted:
+                    # Yes, OOI Assets were parsed
+                    dps = self.ooi_loader.get_type_assets('data_product')
+                    if context.ooi_short_name in dps:
+                        dp = dps[context.ooi_short_name]
+                        qc_fields = [v for k,v in qc_map.iteritems() if dp[k] == 'applicable']
                 try:
-                    if isinstance(context.param_type, QuantityType):
-                        context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id)
+                    if isinstance(context.param_type, (QuantityType, ParameterFunctionType)):
+                        context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id, qc_fields)
                 except KeyError:
                     pass
 
