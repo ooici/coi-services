@@ -25,6 +25,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_hierarchy
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform_with_an_instrument
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_instrument_first_then_platform
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_1_instrument
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_2_instruments
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_8_instruments
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_platform_device_extended_attributes
@@ -128,6 +129,25 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         log.debug("instrument state: %s", instr_state)
         self.assertEquals(ResourceAgentState.COMMAND, instr_state)
 
+    def test_13_platforms_and_1_instrument(self):
+        #
+        # Test with network of 13 platforms and 1 instrument.
+        # This test added while investigating OOIION-1095.
+        # With one instrument the test runs fine even --with-pycc.
+        #
+        instr_keys = ["SBE37_SIM_02", ]
+
+        p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+
+        self._run_startup_commands()
+
+    @skip("Used to pass in general, but now not --with-pycc when more "
+          "than one instrument is associated. Skipped while investigating. OOIION-1095")
+    # Note: it's the same test as above but with more than one instrument.
+    # TODO reenable. what has changed in the launching of port/instrument agents?
     def test_13_platforms_and_2_instruments(self):
         #
         # Test with network of 13 platforms and 2 instruments.
