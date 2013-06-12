@@ -244,16 +244,29 @@ class TypesManager(object):
     def find_gradient_test(self):
         return self.find_function('dataqc_gradienttest')
 
-    def make_qc_functions(self, name, data_product, registration_function):
+    def make_qc_functions(self, name, data_product, registration_function, qc_fields=None):
         contexts = []
 
-        qc_factories = [
-                        self.make_grt_qc,
-                        self.make_spike_qc,
-                        self.make_stuckvalue_qc,
-                        self.make_trendtest_qc, # was not supported
-                        self.make_gradienttest_qc,
-                        ]
+        if qc_fields is None:
+            qc_factories = [
+                            self.make_grt_qc,
+                            self.make_spike_qc,
+                            self.make_stuckvalue_qc,
+                            self.make_trendtest_qc, # was not supported
+                            self.make_gradienttest_qc,
+                            ]
+        else:
+            qc_factories = []
+            if 'glblrng_qc' in qc_fields:
+                qc_factories.append(self.make_grt_qc)
+            if 'spketst_qc' in qc_fields:
+                qc_factories.append(self.make_spike_qc)
+            if 'stuckvl_qc' in qc_fields:
+                qc_factories.append(self.make_stuckvalue_qc)
+            if 'trndtst_qc' in qc_fields:
+                qc_factories.append(self.make_trendtest_qc)
+            if 'gradtst_qc' in qc_fields:
+                qc_factories.append(self.make_gradienttest_qc)
 
         for factory in qc_factories:
             try:
