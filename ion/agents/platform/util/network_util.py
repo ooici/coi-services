@@ -53,22 +53,27 @@ class NetworkUtil(object):
             if parent_platform_id is None:
                 parent_platform_id = ''
 
-            if not parent_platform_id in pnodes:
-                pnodes[parent_platform_id] = PlatformNode(parent_platform_id)
-
-            if not platform_id in pnodes:
-                pnodes[platform_id] = PlatformNode(platform_id)
-                pnodes[parent_platform_id].add_subplatform(pnodes[platform_id])
+            if parent_platform_id in pnodes:
+                parent = pnodes[parent_platform_id]
             else:
-                # we have a tuple with duplicate platform_id. Only accept it if
-                # the corresponding parent_platform_id is repeated with the same
-                # value. (Note that the node's parent object is already assigned)
-                if pnodes[platform_id].parent.platform_id != parent_platform_id:
-                    raise PlatformDefinitionException(
-                        "Duplicate tuple for platform_id=%r but different "
-                        "parent_platform_ids: %r and %r" % (
-                            platform_id,
-                            pnodes[platform_id].parent.platform_id, parent_platform_id))
+                parent = pnodes[parent_platform_id] = PlatformNode(parent_platform_id)
+
+            if platform_id in pnodes:
+                platform = pnodes[platform_id]
+                previous_parent = platform.parent
+            else:
+                platform = pnodes[platform_id] = PlatformNode(platform_id)
+                previous_parent = None
+
+            if previous_parent is not None and previous_parent.platform_id != parent_platform_id:
+                raise PlatformDefinitionException(
+                    "Duplicate tuple for platform_id=%r but different "
+                    "parent_platform_ids: %r and %r" % (
+                        platform_id,
+                        platform.parent.platform_id, parent_platform_id))
+
+            if platform_id not in parent._subplatforms:
+                parent.add_subplatform(platform)
 
         if not '' in pnodes:
             raise PlatformDefinitionException("Expecting dummy root in node network dict")
@@ -125,7 +130,7 @@ class NetworkUtil(object):
                     port_id = port_info['port_id']
                     network = port_info['network']
                     port = PortNode(port_id, network)
-                    port.set_on(port_info.get('is_on', False))
+                    port.set_state(port_info.get('state', None))
                     if 'instruments' in port_info:
                         for instrument in port_info['instruments']:
                             instrument_id = instrument['instrument_id']

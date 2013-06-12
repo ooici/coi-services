@@ -16,7 +16,7 @@ header_size: 9 # Defaults to 0 if not specified
 # 'dtype': The data type for the column - supported types are those supported by numpy
 # 'fill_val': The fill value to use for missing data - must match the data type
 ########################################################################################
-#use_column_names: false # Defaults to true if not specified
+#use_column_names: true # Defaults to true if not specified
 #dtype: float32 # Defaults to float32 if not specified
 #fill_val: -999 # Defaults to -999 if not specified
 

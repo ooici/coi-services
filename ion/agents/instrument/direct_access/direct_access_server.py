@@ -330,11 +330,10 @@ class DirectAccessServer(object):
         log.debug("DirectAccessServer.__init__(): starting timer greenlet")
         self.timer = gevent.spawn(self._timer_greenlet, 
                                    session_timeout=session_timeout,
-                                   inactivity_timeout=inactivity_timeout)
+                                   inactivity_timeout=inactivity_timeout,
+                                   input_callback=input_callback)
                 
-
     # public methods
-    
     def stop(self, reason=SessionCloseReasons.parent_closed):
         if self.already_stopping == True:
             log.debug("DirectAccessServer.stop(): already stopping")
@@ -368,7 +367,7 @@ class DirectAccessServer(object):
             
     # private methods
     
-    def _timer_greenlet(self, session_timeout, inactivity_timeout):
+    def _timer_greenlet(self, session_timeout, inactivity_timeout, input_callback):
         log.debug("DirectAccessServer._timer_greenlet(): started - sessionTO=%d, inactivityTO=%d"
                   %(session_timeout, inactivity_timeout))
         session_start_time = inactivity_start_time = time.time()
@@ -376,17 +375,23 @@ class DirectAccessServer(object):
             while True:
                 gevent.sleep(1)
                 timenow = time.time()
+
                 if ((timenow - session_start_time) > session_timeout):
                     log.debug("DirectAccessServer._timer_greenlet(): session exceeded session timeout of %d seconds"
                               %session_timeout)
                     self.stop(SessionCloseReasons.session_timeout)
+
+                    # Call the input callback so the IA is notified of the timeout
+                    input_callback(SessionCloseReasons.session_timeout)
                     break
-                if self.server.any_activity():
-                    inactivity_start_time = time.time()
+
                 elif ((timenow - inactivity_start_time) > inactivity_timeout):
                     log.debug("DirectAccessServer._timer_greenlet(): session exceeded inactivity timeout of %d seconds"
                               %inactivity_timeout)
                     self.stop(reason=SessionCloseReasons.inactivity_timeout)
+
+                    # Call the input callback so the IA is notified of the timeout
+                    input_callback(SessionCloseReasons.inactivity_timeout)
                     break
         except:
             pass

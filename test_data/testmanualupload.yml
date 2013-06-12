@@ -16,7 +16,7 @@ num_columns: 3 # Defaults to None
 # 'dtype': The data type for the column - supported types are those supported by numpy
 # 'fill_val': The fill value to use for missing data - must match the data type
 ########################################################################################
-#use_column_names: false # Defaults to true if not specified
+#use_column_names: true # Defaults to true if not specified
 dtype: int8 # Defaults to float32 if not specified
 fill_val: 0 # Defaults to -999 if not specified
 
@@ -28,4 +28,4 @@ fill_val: 0 # Defaults to -999 if not specified
 # 'name' is ignored if 'use_column_names' == true
 #####################################################################################
 column_map: # Defaults to None, meaning no per-column overriding is applied
-  0: {dtype: int64}
+  0: {name: time, dtype: int64, fill_val: -9}

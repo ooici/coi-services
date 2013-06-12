@@ -6,6 +6,8 @@ from logging import getLogger
 from pyon.util.log import log
 from pyon.util.containers import get_safe
 
+USER_VISUALIZATION_QUEUE = 'UserVisQueue'
+
 class VisUserQueueMonitor(SimpleProcess):
     def on_start(self):
         try:
@@ -14,9 +16,6 @@ class VisUserQueueMonitor(SimpleProcess):
             # Get config params
             self.monitor_timeout = get_safe(self.CFG, 'user_queue_monitor_timeout', 300)
             self.monitor_queue_size = get_safe(self.CFG, 'user_queue_monitor_size', 100)
-
-            print " >>>>>>>>>>>>>>>  user_queue_monitor_timeout : ", self.monitor_timeout
-            print " >>>>>>>>>>>>>>>  user_queue_monitor_size : ", self.monitor_queue_size
 
             self.monitor_event = gevent.event.Event()
             self.monitor_event.clear()

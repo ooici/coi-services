@@ -8,15 +8,18 @@
 """
 
 import os
+import mock
 import unittest
 import numpy as np
 from nose.plugins.attrib import attr
+from collections import OrderedDict
 
-from coverage_model import ParameterContext, SparseConstantType, BooleanType
+from coverage_model import AbstractCoverage, ParameterContext, SparseConstantType, BooleanType
 from ion.services.dm.test.dm_test_case import DMTestCase, Streamer
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
-from ion.util.direct_coverage_utils import DirectCoverageAccess
+from ion.util.direct_coverage_utils import DirectCoverageAccess, SimpleDelimitedParser
 from pyon.ion.resource import PRED
+from pyon.util.unit_test import PyonTestCase
 
 
 from subprocess import call
@@ -85,6 +88,7 @@ class TestDirectCoverageAccess(DMTestCase):
         return data_product_id, dataset_id[0]
 
     @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_dca_ingestion_pause_resume(self):
         data_product_id, dataset_id = self.make_ctd_data_product()
 
@@ -114,9 +118,10 @@ class TestDirectCoverageAccess(DMTestCase):
 
         with DirectCoverageAccess() as dca:
             with dca.get_read_only_coverage(dataset_id) as cov:
-                self.assertGreaterEqual(cov.num_timesteps, 9)
+                self.assertGreaterEqual(cov.num_timesteps, 8)
 
     @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_dca_coverage_reuse(self):
         data_product_id, dataset_id = self.make_ctd_data_product()
 
@@ -127,6 +132,10 @@ class TestDirectCoverageAccess(DMTestCase):
         self.use_monitor(dataset_id, samples=2)
 
         with DirectCoverageAccess() as dca:
+            import os
+            cpth = dca.get_coverage_path(dataset_id)
+            self.assertTrue(os.path.exists(cpth), msg='Path does not exist: %s' % cpth)
+
             with dca.get_read_only_coverage(dataset_id) as cov:
                 self.assertFalse(cov.closed)
 
@@ -141,6 +150,36 @@ class TestDirectCoverageAccess(DMTestCase):
                 self.assertFalse(cov.closed)
 
             self.assertTrue(cov.closed)
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_dca_not_managed_warnings(self):
+        data_product_id, dataset_id = self.make_ctd_data_product()
+
+        dca = DirectCoverageAccess()
+
+        with mock.patch('ion.util.direct_coverage_utils.warn_user') as warn_user_mock:
+            dca.pause_ingestion(dataset_id)
+            self.assertEqual(warn_user_mock.call_args_list[0],
+                             mock.call('Warning: Pausing ingestion when not using a context manager is potentially unsafe - '
+                                       'be sure to resume ingestion for all streams by calling self.clean_up(streams=True)'))
+
+        with mock.patch('ion.util.direct_coverage_utils.warn_user') as warn_user_mock:
+            cov = dca.get_read_only_coverage(dataset_id)
+            self.assertEqual(warn_user_mock.call_args_list[0],
+                             mock.call('Warning: Coverages will remain open until they are closed or go out of scope - '
+                                       'be sure to close coverage instances when you are finished working with them or call self.clean_up(ro_covs=True)'))
+
+        with mock.patch('ion.util.direct_coverage_utils.warn_user') as warn_user_mock:
+            cov = dca.get_editable_coverage(dataset_id)
+            self.assertEqual(warn_user_mock.call_args_list[0],
+                             mock.call('Warning: Pausing ingestion when not using a context manager is potentially unsafe - '
+                                       'be sure to resume ingestion for all streams by calling self.clean_up(streams=True)'))
+            self.assertEqual(warn_user_mock.call_args_list[1],
+                             mock.call('Warning: Coverages will remain open until they are closed or go out of scope - '
+                                       'be sure to close coverage instances when you are finished working with them or call self.clean_up(w_covs=True)'))
+
+        dca.clean_up()
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
@@ -223,8 +262,9 @@ class TestDirectCoverageAccess(DMTestCase):
     def test_run_coverage_doctor(self):
         data_product_id, dataset_id = self.make_ctd_data_product()
 
+        # Run coverage doctor on an empty coverage
         with DirectCoverageAccess() as dca:
-            # Run coverage doctor on an empty coverage - it's not corrupt yet , so it shouldn't need repair
+            # it's not corrupt yet , so it shouldn't need repair
             self.assertEqual(dca.run_coverage_doctor(dataset_id, data_product_id=data_product_id), 'Repair Not Necessary')
 
             # Get the path to the master file so we can mess it up!
@@ -239,17 +279,18 @@ class TestDirectCoverageAccess(DMTestCase):
             self.assertEqual(dca.run_coverage_doctor(dataset_id, data_product_id=data_product_id), 'Repair Successful')
 
         # Stream some data to the coverage
-        streamer = Streamer(data_product_id, interval=0.5, simple_time=True)
+        streamer = Streamer(data_product_id, interval=0.5)
         self.addCleanup(streamer.stop)
 
         # Let at least 10 samples accumulate
         self.use_monitor(dataset_id, samples=10)
 
+        # Run coverage doctor on a coverage with data
         with DirectCoverageAccess() as dca:
-            # Run coverage doctor on the coverage - it's not corrupt yet , so it shouldn't need repair
+            # it's not corrupt yet , so it shouldn't need repair
             self.assertEqual(dca.run_coverage_doctor(dataset_id, data_product_id=data_product_id), 'Repair Not Necessary')
             with dca.get_read_only_coverage(dataset_id) as cov:
-                ont = cov.num_timesteps
+                self.assertIsInstance(cov, AbstractCoverage)
 
             # Mess up the master file
             with open(mpth, 'wb') as f:
@@ -261,7 +302,123 @@ class TestDirectCoverageAccess(DMTestCase):
         # Let at least 1 sample arrive
         self.use_monitor(dataset_id, samples=1)
 
-        with dca.get_read_only_coverage(dataset_id) as cov:
-            self.assertGreaterEqual(cov.num_timesteps, ont)
+        with DirectCoverageAccess() as dca:
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                self.assertIsInstance(cov, AbstractCoverage)
 
+@attr('UNIT', group='dm')
+class TestSimpleDelimitedParser(PyonTestCase):
 
+    def test_parse_with_config(self):
+        parser = SimpleDelimitedParser.get_parser('test_data/testmanualupload.csv', 'test_data/testmanualupload.yml')
+        props = parser.properties
+        want_props = {
+            'data_url': 'test_data/testmanualupload.csv',
+            'header_size': 0,
+            'delimiter': ',',
+            'num_columns': 3,
+            'use_column_names': True,
+            'dtype': 'int8',
+            'fill_val': 0,
+            'column_map': OrderedDict([(0, OrderedDict([('name', 'time'), ('dtype', 'int64'), ('fill_val', -9)]))])
+        }
+        for p in props.keys():
+            self.assertEqual(props[p], want_props[p], '%s: %s != %s' % (p, props[p], want_props[p]))
+
+        dat = parser.parse()
+
+        self.assertEqual(dat.dtype.names, ('time', 'temp_hitl_qc', 'cond_hitl_qc'))
+
+        want_vals = {
+            'time': np.arange(10, dtype='int64'),
+            'temp_hitl_qc': np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0], dtype=bool),
+            'cond_hitl_qc': np.array([1, 0, 1, 0, 0, 0, 1, 1, 0, 0], dtype=bool)
+        }
+
+        for x in dat.dtype.names:
+            np.testing.assert_array_equal(dat[x], want_vals[x])
+
+    def test_parse_no_config(self):
+        parser = SimpleDelimitedParser.get_parser('test_data/testmanualupload.csv')
+        props = parser.properties
+        want_props = {
+            'data_url': 'test_data/testmanualupload.csv',
+            'header_size': 0,
+            'delimiter': ',',
+            'num_columns': None,
+            'use_column_names': True,
+            'dtype': 'float32',
+            'fill_val': -999,
+            'column_map': None
+        }
+        for p in props.keys():
+            self.assertEqual(props[p], want_props[p])
+
+        dat = parser.parse()
+
+        self.assertEqual(dat.dtype.names, ('time', 'temp_hitl_qc', 'cond_hitl_qc'))
+
+        want_vals = {
+            'time': np.arange(10, dtype='int64'),
+            'temp_hitl_qc': np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0], dtype=bool),
+            'cond_hitl_qc': np.array([1, 0, 1, 0, 0, 0, 1, 1, 0, 0], dtype=bool)
+        }
+
+        for x in dat.dtype.names:
+            np.testing.assert_array_equal(dat[x], want_vals[x])
+
+    def test_parse_no_names(self):
+        parser = SimpleDelimitedParser.get_parser('test_data/testmanualupload.csv', 'test_data/testmanualupload.yml')
+        parser.use_column_names = False
+        parser.header_size = 1
+        props = parser.properties
+        want_props = {
+            'data_url': 'test_data/testmanualupload.csv',
+            'header_size': 1,
+            'delimiter': ',',
+            'num_columns': 3,
+            'use_column_names': False,
+            'dtype': 'int8',
+            'fill_val': 0,
+            'column_map': OrderedDict([(0, OrderedDict([('name', 'time'), ('dtype', 'int64'), ('fill_val', -9)]))])
+        }
+        for p in props.keys():
+            self.assertEqual(props[p], want_props[p])
+
+        dat = parser.parse()
+
+        self.assertEqual(dat.dtype.names, ('time', 'f1', 'f2'))
+
+        want_vals = {
+            'time': np.arange(10, dtype='int64'),
+            'f1': np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0], dtype=bool),
+            'f2': np.array([1, 0, 1, 0, 0, 0, 1, 1, 0, 0], dtype=bool)
+        }
+
+        for x in dat.dtype.names:
+            np.testing.assert_array_equal(dat[x], want_vals[x])
+
+    def test_write_default_config(self):
+        import tempfile
+        tdir = tempfile.mkdtemp()
+        outpth = os.path.join(tdir, 'defconfig.yml')
+
+        SimpleDelimitedParser.write_default_parser_config(outpth)
+
+        parser = SimpleDelimitedParser.get_parser('test_data/testmanualupload.csv', outpth)
+        props = parser.properties
+        want_props = {
+            'data_url': 'test_data/testmanualupload.csv',
+            'header_size': 0,
+            'delimiter': ',',
+            'num_columns': None,
+            'use_column_names': True,
+            'dtype': 'float32',
+            'fill_val': -999,
+            'column_map': None
+        }
+        for p in props.keys():
+            self.assertEqual(props[p], want_props[p])
+
+        import shutil
+        shutil.rmtree(outpth, ignore_errors=True)

@@ -117,10 +117,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         fields = []
         fields = rdt.fields
 
-
-        # if time was null or missing, do not process
-        if 'time' not in rdt: return None
-        if rdt['time'] is None:
+        # Ascertain temporal field. Use 'time' as backup
+        time_field = rdt.temporal_parameter or 'time'
+        #if 'time' not in rdt: return None
+        if rdt[time_field] is None:
             return None
 
         time_fill_value = 0.0 # should be derived from the granule's param dict.
@@ -129,7 +129,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         import re
         for field in fields:
 
-            if field == rdt.temporal_parameter:
+            if field == time_field:
                 continue
 
             # If a config block was passed, consider only the params listed in it
@@ -165,16 +165,16 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             varTuple = []
 
             # Put time first if its not zero. Retrieval returns 0 secs for malformed entries
-            if rdt['time'][i] == time_fill_value:
+            if rdt[time_field][i] == time_fill_value:
                 continue
             # convert timestamp from instrument to UNIX time stamp since thats what Google DT expects
-            varTuple.append(ntplib.ntp_to_system_time(rdt['time'][i]))
+            varTuple.append(ntplib.ntp_to_system_time(rdt[time_field][i]))
 
             for dd in data_description:
                 field = dd[0]
                 field_type = dd[1]
                 # ignore time since its been already added
-                if field == None or field == 'time':
+                if field == None or field == time_field:
                     continue
 
                 if re.match(r'.*\[\d+\]', field):
@@ -211,7 +211,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                     "data_content" : data_table_content}
 
         out_rdt["google_dt_components"] = np.array([out_dict])
-        out_rdt["viz_timestamp"] = TimeUtils.ts_to_units(rdt.context(rdt.temporal_parameter).uom, time.time())
+        out_rdt["viz_timestamp"] = TimeUtils.ts_to_units(rdt.context(time_field).uom, time.time())
 
         log.debug('Google DT transform: Sending a granule')
         out_granule = out_rdt.to_granule()

@@ -953,11 +953,11 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual(len(data_product_data.associations['Dataset'].associated_resources), 0)
 
-        self.assertEqual(len(data_product_data.associations['InstrumentDevice'].resources), 3)
+        self.assertEqual(len(data_product_data.associations['InstrumentDeviceHasOutputProduct'].resources), 3)
 
-        self.assertEqual(len(data_product_data.associations['InstrumentDevice'].associated_resources), 1)
-        self.assertEqual(data_product_data.associations['InstrumentDevice'].associated_resources[0].s, instrument_device_id)
-        self.assertEqual(data_product_data.associations['InstrumentDevice'].associated_resources[0].o, data_product_id1)
+        self.assertEqual(len(data_product_data.associations['InstrumentDeviceHasOutputProduct'].associated_resources), 1)
+        self.assertEqual(data_product_data.associations['InstrumentDeviceHasOutputProduct'].associated_resources[0].s, instrument_device_id)
+        self.assertEqual(data_product_data.associations['InstrumentDeviceHasOutputProduct'].associated_resources[0].o, data_product_id1)
 
         self.assertEqual(len(data_product_data.associations['PlatformDevice'].resources), 2)
 

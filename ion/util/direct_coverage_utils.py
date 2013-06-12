@@ -6,10 +6,6 @@
 @author Christopher Mueller
 @brief Utilities for operating with coverages via a direct connection
 """
-from interface.objects import ProcessDefinition, ProcessStateEnum, DataProduct
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
-
-from pyon.public import log
 
 import os
 import yaml
@@ -26,6 +22,11 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from coverage_model.recovery import CoverageDoctor
+
+
+def warn_user(msg):
+    import sys
+    sys.stderr.write(msg + '\n')
 
 
 class DirectCoverageAccess(object):
@@ -45,17 +46,26 @@ class DirectCoverageAccess(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        # Close any open read-only coverages
-        for dsid, c in self._ro_covs.iteritems():
-            c.close()
+        self.clean_up()
 
-        # Close any open write coverages
-        for sid, c in self._w_covs.iteritems():
-            c.close()
+    def clean_up(self, ro_covs=False, w_covs=False, streams=False):
+        if not ro_covs and not w_covs and not streams:
+            ro_covs = w_covs = streams = True
 
-        # Resume any paused ingestion workers
-        for s in self._paused_streams:
-            self.resume_ingestion(s)
+        if ro_covs:
+            # Close any open read-only coverages
+            for dsid, c in self._ro_covs.iteritems():
+                c.close()
+
+        if w_covs:
+            # Close any open write coverages
+            for sid, c in self._w_covs.iteritems():
+                c.close()
+
+        if streams:
+            # Resume any paused ingestion workers
+            for s in self._paused_streams:
+                self.resume_ingestion(s)
 
     def get_ingestion_config(self):
         '''
@@ -72,10 +82,12 @@ class DirectCoverageAccess(object):
         if not os.path.exists(pth):
             raise ValueError('Coverage with id \'{0}\' does not exist!'.format(dataset_id))
 
+        return pth
+
     def pause_ingestion(self, stream_id):
         if not self._context_managed:
-            print 'Warning: Pausing ingestion when not using a context manager is potentially unsafe - ' \
-                  'be sure to resume ingestion for all stream ids in self._paused_streams'
+            warn_user('Warning: Pausing ingestion when not using a context manager is potentially unsafe - '
+                           'be sure to resume ingestion for all streams by calling self.clean_up(streams=True)')
 
         if stream_id not in self._paused_streams:
             self.ingestion_management.pause_data_stream(stream_id, self.get_ingestion_config())
@@ -98,8 +110,8 @@ class DirectCoverageAccess(object):
 
     def get_read_only_coverage(self, dataset_id):
         if not self._context_managed:
-            print 'Warning: Coverages will remain open until they are closed or go out of scope - ' \
-                  'be sure to close coverage instances when you are finished working with them'
+            warn_user('Warning: Coverages will remain open until they are closed or go out of scope - '
+                           'be sure to close coverage instances when you are finished working with them or call self.clean_up(ro_covs=True)')
 
         # Check if we already have the coverage
         if dataset_id in self._ro_covs:
@@ -127,6 +139,9 @@ class DirectCoverageAccess(object):
             del self._w_covs[sid]
 
         self.pause_ingestion(sid)
+        if not self._context_managed:
+            warn_user('Warning: Coverages will remain open until they are closed or go out of scope - '
+                           'be sure to close coverage instances when you are finished working with them or call self.clean_up(w_covs=True)')
         try:
             self._w_covs[sid] = DatasetManagementService._get_simplex_coverage(dataset_id, mode='w')
             return self._w_covs[sid]
@@ -136,7 +151,7 @@ class DirectCoverageAccess(object):
 
     @classmethod
     def get_parser(cls, data_file_path, config_path=None):
-        return SimpleCSVParser.get_parser(data_file_path, config_path=config_path)
+        return SimpleDelimitedParser.get_parser(data_file_path, config_path=config_path)
 
     def manual_upload(self, dataset_id, data_file_path, config_path=None):
         # First, ensure we can get a parser and parse the data file
@@ -163,7 +178,7 @@ class DirectCoverageAccess(object):
                     if n in cparams:
                         cov.set_parameter_values(n, dat[n], sl)
                     else:
-                        log.warn('Skipping column \'%s\': matching parameter not found in coverage!', n)
+                        warn_user('Skipping column \'%s\': matching parameter not found in coverage!' % n)
 
     def upload_calibration_coefficients(self, dataset_id, data_file_path, config_path=None):
         # First, ensure we can get a parser and parse the data file
@@ -178,7 +193,7 @@ class DirectCoverageAccess(object):
                     if n in cparams:
                         cov.set_parameter_values(n, dat[n])
                     else:
-                        log.warn('Skipping column \'%s\': matching parameter not found in coverage!', n)
+                        warn_user('Skipping column \'%s\': matching parameter not found in coverage!' % n)
 
     def get_coverage_doctor(self, dataset_id, data_product_id=None):
         # Get the associated objects required for rebuilding
@@ -201,8 +216,12 @@ class DirectCoverageAccess(object):
                 cpth = cov.persistence_dir
         except IOError, ex:
             fs = 'Unable to open reference coverage: \''
-            if fs in ex.message:
+            io = 'unable to create file (File accessability: Unable to open file)'
+            if fs in ex.message:  # The view coverage couldn't load it's underlying reference coverage
                 cpth = ex.message[len(fs):-1]
+            elif io in ex.message:  # The simplex coverage was inaccessible
+                cpth = self.get_coverage_path(dataset_id)
+                self.pause_ingestion(self.get_stream_id(dataset_id))
             else:
                 raise
 
@@ -223,7 +242,7 @@ class DirectCoverageAccess(object):
             return "Repair Failed"
 
 
-class SimpleCSVParser(object):
+class SimpleDelimitedParser(object):
 
     def __init__(self, data_url, num_columns=None, column_map=None, header_size=0, delimiter=',',
                  use_column_names=True, dtype='float32', fill_val=-999):
@@ -243,11 +262,11 @@ class SimpleCSVParser(object):
     @property
     def properties(self):
         props = ['data_url', 'header_size', 'delimiter', 'num_columns', 'use_column_names', 'dtype', 'fill_val', 'column_map']
-        out = []
+        out = {}
         for p in props:
-            out.append('{0}: {1}'.format(p, getattr(self, p)))
+            out[p] = getattr(self, p)
 
-        return '\n'.join(out)
+        return out
 
     def parse(self):
         """
@@ -327,7 +346,10 @@ class SimpleCSVParser(object):
 
     @classmethod
     def write_default_parser_config(cls, out_path):
-        config_contents = '''#######################################################################################################
+        with open(out_path, 'w') as f:
+            f.write(cls._default_config_contents)
+
+    _default_config_contents = '''#######################################################################################################
 # File properties
 # 'header_size': the number of lines to skip before beginning to parse data
 # 'delimiter': the character used to delimit data columns
@@ -358,7 +380,4 @@ class SimpleCSVParser(object):
 #####################################################################################
 #column_map: # Defaults to None, meaning no per-column overriding is applied
   #0: {name: a, dtype: float32, fill_val: -999}'''
-
-        with open(out_path, 'w') as f:
-            f.write(config_contents)
 

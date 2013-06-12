@@ -64,7 +64,7 @@ class CIOMSSimulator(CIOMSClient):
         self._platform_types = self._ndef.platform_types
         self._pnodes = self._ndef.pnodes
 
-        # registered event listeners: {url: [(event_type, reg_time), ...], ...},
+        # registered event listeners: {url: reg_time, ...},
         # where reg_time is the NTP time of (latest) registration.
         # NOTE: for simplicity, we don't keep info about unregistered listeners
         self._reg_event_listeners = {}
@@ -218,7 +218,7 @@ class CIOMSSimulator(CIOMSClient):
         ports = {}
         for port_id, port in self._pnodes[platform_id].ports.iteritems():
             ports[port_id] = {'network': port.network,
-                              'is_on':   port.is_on}
+                              'state'  : port.state}
 
         return {platform_id: ports}
 
@@ -236,7 +236,7 @@ class CIOMSSimulator(CIOMSClient):
         result = None
         if instrument_id in port.instruments:
             result = InvalidResponse.INSTRUMENT_ALREADY_CONNECTED
-        elif port.is_on:
+        elif port.state == "ON":
             # TODO: confirm that port must be OFF so instrument can be connected
             result = InvalidResponse.PORT_IS_ON
 
@@ -281,7 +281,7 @@ class CIOMSSimulator(CIOMSClient):
 
         if instrument_id not in port.instruments:
             result = InvalidResponse.INSTRUMENT_NOT_CONNECTED
-        elif port.is_on:
+        elif port.state == "ON":
             # TODO: confirm that port must be OFF so instrument can be disconnected
             result = InvalidResponse.PORT_IS_ON
         else:
@@ -317,11 +317,11 @@ class CIOMSSimulator(CIOMSClient):
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
         port = self._pnodes[platform_id].get_port(port_id)
-        if port.is_on:
+        if port.state == "ON":
             result = NormalResponse.PORT_ALREADY_ON
             log.warn("port %s in platform %s already turned on." % (port_id, platform_id))
         else:
-            port.set_on(True)
+            port.set_state("ON")
             result = NormalResponse.PORT_TURNED_ON
             log.info("port %s in platform %s turned on." % (port_id, platform_id))
 
@@ -337,11 +337,11 @@ class CIOMSSimulator(CIOMSClient):
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
         port = self._pnodes[platform_id].get_port(port_id)
-        if not port.is_on:
+        if port.state == "OFF":
             result = NormalResponse.PORT_ALREADY_OFF
             log.warn("port %s in platform %s already turned off." % (port_id, platform_id))
         else:
-            port.set_on(False)
+            port.set_state("OFF")
             result = NormalResponse.PORT_TURNED_OFF
             log.info("port %s in platform %s turned off." % (port_id, platform_id))
 
@@ -360,113 +360,50 @@ class CIOMSSimulator(CIOMSClient):
         # NOTE: event_types was previously a parameter to this operation. To
         # minimize changes in the code, I introduced an 'ALL' event type to
         # be used here explicitly.
-        event_types = ['ALL']
+        event_type = 'ALL'
 
-        log.debug("register_event_listener called: url=%r, event_types=%s",
-                  url, str(event_types))
+        log.debug("register_event_listener called: url=%r", url)
 
         if not self._validate_event_listener_url(url):
             return {url: InvalidResponse.EVENT_LISTENER_URL}
 
         if not url in self._reg_event_listeners:
             # create entry for this new url
-            existing_pairs = self._reg_event_listeners[url] = []
+            reg_time = self._event_notifier.add_listener(url, event_type)
+            self._reg_event_listeners[url] = reg_time
+            log.info("%r registered url=%r", url)
         else:
-            existing_pairs = self._reg_event_listeners[url]
-
-        if len(existing_pairs):
-            existing_types, reg_times = zip(*existing_pairs)
-        else:
-            existing_types = reg_times = []
-
-        if len(event_types) == 0:
-            event_types = list(EventInfo.EVENT_TYPES.keys())
-
-        result_list = []
-        for event_type in event_types:
-            if not event_type in EventInfo.EVENT_TYPES:
-                result_list.append((event_type, InvalidResponse.EVENT_TYPE))
-                continue
-
-            if event_type in existing_types:
-                # already registered:
-                reg_time = reg_times[existing_types.index(event_type)]
-                result_list.append((event_type, reg_time))
-            else:
-                #
-                # new registration
-                #
-                reg_time = self._event_notifier.add_listener(url, event_type)
-                existing_pairs.append((event_type, reg_time))
-                result_list.append((event_type, reg_time))
-
-                log.info("%r registered for event_type=%r", url, event_type)
+            # already registered:
+            reg_time = self._reg_event_listeners[url]
 
         self._start_event_generator_if_listeners()
 
-        return {url: result_list}
+        return {url: reg_time}
 
     def unregister_event_listener(self, url):
         self._enter()
 
         # NOTE: event_types was previously a parameter to this operation. To
-        # minimizes changes in the code, I introduced an 'ALL' event type to
+        # minimize changes in the code, I introduced an 'ALL' event type to
         # be used here explicitly.
-        event_types = ['ALL']
+        event_type = 'ALL'
 
-        log.debug("unregister_event_listener called: url=%r, event_types=%s",
-                  url, str(event_types))
+        log.debug("unregister_event_listener called: url=%r", url)
 
         if not url in self._reg_event_listeners:
             return {url: InvalidResponse.EVENT_LISTENER_URL}
 
-        existing_pairs = self._reg_event_listeners[url]
+        #
+        # registered, so remove it
+        #
+        unreg_time = self._event_notifier.remove_listener(url, event_type)
+        del self._reg_event_listeners[url]
 
-        assert len(existing_pairs), "we don't keep any url with empty list"
-
-        existing_types, reg_times = zip(*existing_pairs)
-
-        if len(event_types) == 0:
-            event_types = list(EventInfo.EVENT_TYPES.keys())
-
-        result_list = []
-        for event_type in event_types:
-            if not event_type in EventInfo.EVENT_TYPES:
-                result_list.append((event_type, InvalidResponse.EVENT_TYPE))
-                continue
-
-            if event_type in existing_types:
-                #
-                # registered, so remove it
-                #
-                unreg_time = self._event_notifier.remove_listener(url, event_type)
-                idx = existing_types.index(event_type)
-                del existing_pairs[idx]
-                result_list.append((event_type, unreg_time))
-
-                # update for next iteration (index for next proper removal):
-                if len(existing_pairs):
-                    existing_types, reg_times = zip(*existing_pairs)
-                else:
-                    existing_types = reg_times = []
-
-                log.info("%r unregistered for event_type=%r", url, event_type)
-
-            else:
-                # not registered, report 0
-                unreg_time = 0
-                result_list.append((event_type, unreg_time))
-
-        if len(existing_pairs):
-            # reflect the updates:
-            self._reg_event_listeners[url] = existing_pairs
-        else:
-            # we don't keep any url with empty list
-            del self._reg_event_listeners[url]
+        log.info("%r unregistered url=%r", url)
 
         self._stop_event_generator_if_no_listeners()
 
-        return {url: result_list}
+        return {url: unreg_time}
 
     def get_registered_event_listeners(self):
         self._enter()

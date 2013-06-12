@@ -214,15 +214,18 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             if 'resolution' in config:
                 resolution = config['resolution']
 
+        # Ascertain time field
+        time_field = rdt.temporal_parameter or 'time'
+
         vardict = {}
-        vardict['time'] = get_safe(rdt, 'time')
-        if vardict['time'] == None:
+        vardict[time_field] = get_safe(rdt, time_field)
+        if vardict[time_field] == None:
             print "Matplotlib transform: Did not receive a time field to work with"
             log.error("Matplotlib transform: Did not receive a time field to work with")
             return None
 
         for field in fields:
-            if field == 'time':
+            if field == time_field:
                 continue
 
             # only consider fields which are supposed to be numbers.
@@ -233,7 +236,7 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
 
             print
 
-        arrLen = len(vardict['time'])
+        arrLen = len(vardict[time_field])
         # init the graph_data structure for storing values
         graph_data = {}
         for varname in vardict.keys():
@@ -248,12 +251,12 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             else:
                 graph_data[varname].extend(vardict[varname])
 
-        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(rdt, graph_data, stream_definition_id, fileName, resolution=resolution)
+        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(rdt, graph_data, stream_definition_id, fileName, resolution, time_field)
 
         return out_granule
 
     @classmethod
-    def render_graphs(cls, rdt, graph_data, stream_definition_id, fileName = None, resolution = None):
+    def render_graphs(cls, rdt, graph_data, stream_definition_id, fileName = None, resolution = None, time_field = 'time'):
         # init Matplotlib with passsed parameters
         x_res = y_res = 100 # some default in case nothing is provided
         if resolution:
@@ -270,13 +273,13 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
 
         # If there's no data, wait
         # For the simple case of testing, lets plot all time variant variables one at a time
-        xAxisVar = 'time'
+        xAxisVar = time_field
 
         # Prepare the set of y axis variables that will be plotted. This needs to be smarter and passed as
         # config variable to the transform
         yAxisVars = []
         for varName, varData in graph_data.iteritems():
-            if varName == 'time' or varName == 'height' or varName == 'longitude' or varName == 'latitude':
+            if varName == time_field or varName == 'height' or varName == 'longitude' or varName == 'latitude':
                 continue
             yAxisVars.append(varName)
 
