@@ -23,6 +23,7 @@ import logging
 
 from coverage_model.parameter_functions import ParameterFunctionException
 from coverage_model.parameter import ParameterFunctionValidator
+import re
 
 dot = logging.getLogger('dot')
 
@@ -136,11 +137,11 @@ class PubsubManagementService(BasePubsubManagementService):
         validate_true(exchange_point, 'An exchange point must be specified')
 
         exchange_point_id = None
-        try:
+        if re.match(r'[0-9a-f]{32}', exchange_point): # It's a uuid
             xp_obj = self.clients.exchange_management.read_exchange_point(exchange_point)
             exchange_point_id = exchange_point
             exchange_point = xp_obj.name
-        except NotFound:
+        else:
             self.container.ex_manager.create_xp(exchange_point)
             xp_objs, _ = self.clients.resource_registry.find_resources(restype=RT.ExchangePoint,name=exchange_point,id_only=True)
             if not xp_objs:
