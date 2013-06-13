@@ -23,9 +23,10 @@
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=deleteooi
 
     Options:
+      cfg= Path to a preload config file that allows scripted preload runs with defined params
+      op= the basic operation to execute (e.g. load, loadui, parseui, deleteooi)
       bulk= if True, uses RR bulk insert operations to load, not service calls
       debug= if True, allows a few shortcuts to perform faster loads
-      cfg= Path to a preload config file that allows scripted preload runs with defined params
       path= override location (dir, GoogleDoc or XLSX file) for preload rows (default is TESTED_DOC; "master" is recognized)
       attachments= override location to get file attachments (default is path)
       ui_path= override location to get UI preload files (default is path + '/ui_assets')
@@ -33,6 +34,9 @@
       categories= list of categories to import
       excludecategories= list of categories to NOT import
       clearcols= list of column names to clear (set to empty string) before preloading
+      loadooi= if True (default is False) loads resources based on OOI assets and ooiuntil argument
+      loadui= if True (default is False) loads the UI spec
+      parseooi= if True (default is False) reads and parses OOI asset information
       idmap= if True, the IDMap category is used to substitute preload ids (used in certain OOI preload runs)
       assetmappings= override location for OOI mapping spreadsheet (default is GoogleDoc)
       ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
@@ -40,7 +44,7 @@
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       ooiparams= if True (default is False) create links to OOI parameter definitions
       exportui= if True, writes interface/ui_specs.json with UI object
-      revert= if True (and debug==True) remove all resources and associations created if preload fails
+      revert= if True (and debug==True) remove all new resources and associations created if preload fails
 
     TODO:
       support attachments using HTTP URL
@@ -1995,105 +1999,6 @@ Reason: %s
         sdef.addl["stream_use"] = row.get("stream_use", "")
         self.container.resource_registry.update(sdef)
 
-    def _get_science_data_products(self):
-        """Returns several dicts with OOI data product information (to cut off date)"""
-        dp_list = []
-        dp_type_set = set()
-        dp_combo_set = set()
-
-        inst_objs = self.ooi_loader.get_type_assets("instrument")
-        node_objs = self.ooi_loader.get_type_assets("node")
-        for inst_id, inst_obj in inst_objs.iteritems():
-            ooi_rd = OOIReferenceDesignator(inst_id)
-            node_obj = node_objs[ooi_rd.node_rd]
-
-            if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
-                continue
-            if not self._match_filter(inst_id[:2]):
-                continue
-
-            data_product_list = inst_obj.get('data_product_list', [])
-            if data_product_list:
-                dp_list.extend([(inst_id, dp_id) for dp_id in data_product_list])
-                dp_type_set.update(data_product_list)
-                dp_combo_set.update(["%s_%s" % (ooi_rd.series_rd, dp_id) for dp_id in data_product_list])
-
-        return dp_list, dp_type_set, dp_combo_set
-
-    def _get_paramdict_param_map(self):
-        """Returns a mapping of ParameterDictionary name to ParameterContext ID"""
-        assocs = self.container.resource_registry.find_associations(predicate=PRED.hasParameterContext, id_only=False)
-        assocs_filtered = [a for a in assocs if a.st == "ParameterDictionary" and a.ot == "ParameterContext"]
-        mapping = {}
-        for assoc in assocs_filtered:
-            pdict = self._get_resource_obj(assoc.s)
-            pdef = self._get_resource_obj(assoc.o, True)
-            if pdef is None:
-                #log.debug("Ignoring ParameterContext %s - no preload ID (QC param)", assoc.o)
-                continue
-            pdef_aliases = [aid[4:] for aid in pdef.alt_ids if aid.startswith("PRE:")]
-            if len(pdef_aliases) != 1:
-                log.warn("No preload IDs found for ParameterContext: %s", pdef.alt_ids)
-                continue
-            pdef_alias = pdef_aliases[0]
-            if pdict.name not in mapping:
-                mapping[pdict.name] = []
-            mapping[pdict.name].append(pdef_alias)
-        return mapping
-
-    def _load_ParameterDictionary_OOI(self):
-        """Loads both ParameterDictionary and StreamDefinition for derived OOI science data products"""
-        if not self.ooiparams:
-            return
-
-        series_objs = self.ooi_loader.get_type_assets("series")
-        instagent_objs = self.ooi_loader.get_type_assets("instagent")
-
-        dp_list, dp_set, science_pd_set = self._get_science_data_products()
-
-        pdict_map = self._get_paramdict_param_map()
-
-        pdef_by_name = {}
-        for obj in self.resource_objs.values():
-            if obj.type_ == "ParameterDictionary":
-                pdef_by_name[obj.name] = obj
-
-        for dp_combo in science_pd_set:
-            series_rd, dp_class, dp_level = dp_combo.split("_")
-            series_obj = series_objs[series_rd]
-            ia_code = series_obj["ia_code"]
-            iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
-            ia_enabled = series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
-            if ia_enabled and iagent_res_obj:
-                parsed_scfg = iagent_res_obj.stream_configurations[1]
-                parsed_pdict_name = parsed_scfg.parameter_dictionary_name
-
-                # Get Parsed ParamDictionary
-                parsed_pdict_obj = pdef_by_name[parsed_pdict_name]
-
-                param_list = ["PD7"]
-                params = pdict_map[parsed_pdict_name]
-                for param in params:
-                    param_obj = self._get_resource_obj(param)
-                    dp_identifier = param_obj.ooi_short_name
-                    if dp_identifier.startswith(dp_class) and not dp_identifier.endswith("QC"):
-                        param_list.append(param)
-
-                # Create a new preload row for a derived DataProduct paramdict
-                science_pdict_name = "science_" + dp_combo
-                newrow = {}
-                newrow[COL_ID] = "PDICT_" + dp_combo
-                newrow['name'] = science_pdict_name
-                newrow['parameter_ids'] = ",".join(param_list)
-                newrow['temporal_parameter'] = "PD7"
-                newrow['parameters'] = "unused"
-                newrow['SKIP'] = ""
-                if not self._resource_exists(newrow[COL_ID]):
-                    self._load_ParameterDictionary(newrow)
-
-            else:
-                pass
-
     def _load_Parser(self, row):
         parser = self._create_object_from_row(RT.Parser, row, 'parser/')
         data_acquisition = self._get_service_client('data_acquisition_management')
@@ -2807,19 +2712,31 @@ Reason: %s
         self._resource_assign_org(row, res_id)
         self._resource_advance_lcs(row, res_id)
 
-    def _create_dp_stream_def(self, rd, series_rd=None, dp_class=None, dp_level=None, pdict_id=None, sname=None):
-        """Create a StreamDefinition for a given data product"""
-        if pdict_id:
-            sdef_id = "StreamDef_%s_%s" % (rd, sname)
-            sdef_name = "%s %s" % (rd, sname)
-        else:
-            dp_combo = "%s_%s_%s" % (series_rd, dp_class, dp_level)
-            pdict_id = "PDICT_" + dp_combo
-            sdef_id = "StreamDef_%s_%s_%s" % (rd, dp_class, dp_level)
-            sdef_name = "%s %s %s" % (rd, dp_class, dp_level)
+    def _get_paramdict_param_map(self):
+        """Returns a mapping of ParameterDictionary name to list of ParameterContext ID"""
+        assocs = self.container.resource_registry.find_associations(predicate=PRED.hasParameterContext, id_only=False)
+        assocs_filtered = [a for a in assocs if a.st == "ParameterDictionary" and a.ot == "ParameterContext"]
+        mapping = {}
+        for assoc in assocs_filtered:
+            pdict = self._get_resource_obj(assoc.s)
+            pdef = self._get_resource_obj(assoc.o, True)
+            if pdef is None:
+                #log.debug("Ignoring ParameterContext %s - no preload ID (QC param)", assoc.o)
+                continue
+            pdef_aliases = [aid[4:] for aid in pdef.alt_ids if aid.startswith("PRE:")]
+            if len(pdef_aliases) != 1:
+                log.warn("No preload IDs found for ParameterContext: %s", pdef.alt_ids)
+                continue
+            pdef_alias = pdef_aliases[0]
+            if pdict.name not in mapping:
+                mapping[pdict.name] = []
+            mapping[pdict.name].append(pdef_alias)
+        return mapping
 
-        if not self._resource_exists(pdict_id):
-            return
+    def _create_dp_stream_def(self, rd, pdict_id, sdname=None, fields=""):
+        """Create a StreamDefinition for a given data product"""
+        sdef_id = "StreamDef_%s_%s" % (rd, sdname)
+        sdef_name = "%s %s" % (rd, sdname)
 
         newrow = {}
         newrow[COL_ID] = sdef_id
@@ -2827,7 +2744,7 @@ Reason: %s
         newrow['sdef/name'] = sdef_name
         newrow['sdef/description'] = "Generated stream definition"
         newrow['parameter_dictionary'] = pdict_id
-        newrow['available_fields'] = ""
+        newrow['available_fields'] = fields
         newrow['reference_designator'] = rd
         if not self._resource_exists(sdef_id):
             self._load_StreamDefinition(newrow)
@@ -2850,7 +2767,7 @@ Reason: %s
             newrow['source_resource_id'] = source_id
             self._load_DataProductLink(newrow, do_bulk=do_bulk)
 
-        # Create a mapping of ParamDict name to preload ID
+        # Create a mapping of ParamDict name to preload ID. Create a mapping of data product DPS id to parameter
         pdict_by_name = {}
         for obj in self.resource_objs.values():
             if obj.type_ == "ParameterDictionary":
@@ -2860,6 +2777,8 @@ Reason: %s
                     continue
                 pdict_alias = pdict_aliases[0]
                 pdict_by_name[obj.name] = pdict_alias
+
+        pdict_map = self._get_paramdict_param_map()
 
         # I. Platform data products (parsed)
         for node_id, node_obj in node_objs.iteritems():
@@ -2913,6 +2832,7 @@ Reason: %s
                 # At this point, the constraint was already added with the InstrumentSite
                 const_id1 = inst_id + "_const1"
 
+            parsed_pdict_id = ""
             if iagent_res_obj:
                 # There exists an agent with stream configurations. Create one DataProduct per stream
                 iastream_configs = iagent_res_obj.stream_configurations
@@ -2930,6 +2850,7 @@ Reason: %s
                         newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
+                        parsed_pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                     else:
                         newrow['dp/description'] = "Instrument %s data product: engineering data" % inst_id
                         newrow['dp/ooi_product_name'] = ""
@@ -2940,8 +2861,8 @@ Reason: %s
                     newrow['persist_data'] = 'False'       # TODO: This may need be True
 
                     pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
-                    strdef_id = self._create_dp_stream_def(inst_id, pdict_id=pdict_id, sname=scfg.stream_name)
-                    if ia_enabled and strdef_id:
+                    strdef_id = self._create_dp_stream_def(inst_id, pdict_id, scfg.stream_name)
+                    if ia_enabled:
                         newrow['stream_def_id'] = strdef_id
                         newrow['parent'] = ''
                         newrow['lcstate'] = "DEPLOYED_AVAILABLE"
@@ -3034,8 +2955,19 @@ Reason: %s
                 newrow['parent'] = inst_id + "_DPI1"
                 newrow['persist_data'] = 'False'
 
-                strdef_id = self._create_dp_stream_def(inst_id, ooi_rd.series_rd, dp_obj['code'], dp_obj['level'])
-                if self._resource_exists(strdef_id):
+                parsed_pdict_obj = self._get_resource_obj(parsed_pdict_id, True)
+                if parsed_pdict_obj:
+                    # Find all parameters based on the parsed param dict that belong this this DP (prefix)
+                    param_list = ["PD7"]
+                    params = pdict_map[parsed_pdict_obj.name]
+                    for param in params:
+                        param_obj = self._get_resource_obj(param)
+                        if param_obj.ooi_short_name.startswith(dp_obj['code']):   # TODO: What about the level ambiguity?
+                            param_list.append(param)
+
+                    av_fields = ",".join(self._get_resource_obj(pid).name for pid in param_list)
+                    strdef_id = self._create_dp_stream_def(inst_id, parsed_pdict_id, dp_id, av_fields)
+
                     newrow['stream_def_id'] = strdef_id
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
