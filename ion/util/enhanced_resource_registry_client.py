@@ -13,6 +13,7 @@ from pyon.core.exception import BadRequest, Inconsistent, NotFound
 from pyon.core.registry import getextends
 from pyon.ion.resource import LCE, RT, PRED
 from pyon.util.config import Config
+import pickle
 
 # THIS SHOULD BE FALSE IN COMMITTED CODE
 TEST_LOCALLY=False
@@ -89,9 +90,9 @@ class EnhancedResourceRegistryClient(object):
         #raise BadRequest(str(mults))
         #
 
-        # TODO: s/_cached_/_fetched_/g
-        self._cached_predicates = {}
-        self._cached_resources  = {}
+        self._disable_prefetch = False
+        self._fetched_predicates = {}
+        self._fetched_resources  = {}
 
         self.console_mode = False
 
@@ -163,17 +164,17 @@ class EnhancedResourceRegistryClient(object):
         @param resource_id the id to be deleted
         @param specific_type the name of an Ion type (e.g. RT.Resource)
         """
-        if specific_type in self._cached_resources and resource_id in self._cached_resources[specific_type].by_id:
-            log.info("Returning cached %s object", specific_type)
-            return self._cached_resources[specific_type].by_id[resource_id]
+        if specific_type in self._fetched_resources and resource_id in self._fetched_resources[specific_type].by_id:
+            log.info("Returning prefetched %s object", specific_type)
+            return self._fetched_resources[specific_type].by_id[resource_id]
 
         resource_obj = self.RR.read(resource_id)
 
         self._check_type(resource_obj, specific_type, "to be read")
 
-        if specific_type in self._cached_resources:
-            log.info("Adding cached %s object", specific_type)
-            self._add_resource_to_cache(specific_type, resource_obj)
+        if specific_type in self._fetched_resources:
+            log.info("Adding prefetched %s object", specific_type)
+            self._add_resource_to_prefetch(specific_type, resource_obj)
 
         return resource_obj
 
@@ -186,7 +187,7 @@ class EnhancedResourceRegistryClient(object):
             return [] # HACK because RR.read_mult([]) raises error instead of returning []
 
         # normal case, check return types
-        if not specific_type in self._cached_resources:
+        if not specific_type in self._fetched_resources:
             ret = self.RR.read_mult(resource_ids)
             if None is not specific_type:
                 if not all([type(r).__name__ == specific_type for r in ret]):
@@ -194,20 +195,20 @@ class EnhancedResourceRegistryClient(object):
                                      specific_type)
             return ret
 
-        log.info("Returning cached %s resources", specific_type)
-        cache = self._cached_resources[specific_type]
+        log.info("Returning prefetched %s resources", specific_type)
+        prefetch = self._fetched_resources[specific_type]
 
         # fill in any holes that we can
-        misses = [x for x in resource_ids if x not in cache.by_id]
+        misses = [x for x in resource_ids if x not in prefetch.by_id]
         if misses:
-            log.info("Attempting to fill in %s cache misses", len(misses))
+            log.info("Attempting to fill in %s prefetch misses", len(misses))
             misses_objs = self.RR.read_mult(misses)
             for mo in misses_objs:
                 if None is not mo:
-                    self._add_resource_to_cache(specific_type, mo)
+                    self._add_resource_to_prefetch(specific_type, mo)
 
 
-        return [cache.by_id.get(r, None) for r in resource_ids]
+        return [prefetch.by_id.get(r, None) for r in resource_ids]
 
 
     def update(self, resource_obj=None, specific_type=None):
@@ -307,17 +308,17 @@ class EnhancedResourceRegistryClient(object):
 
     def find_resources_by_name(self, resource_type, name, id_only=False):
         assert name
-        if resource_type not in self._cached_resources:
-            log.warn("Using find_resources_by_name on resource type %s, which was not cached", resource_type)
+        if resource_type not in self._fetched_resources:
+            log.warn("Using find_resources_by_name on resource type %s, which was not prefetched", resource_type)
             ret, _ = self.RR.find_resources(restype=resource_type, name=name, id_only=id_only)
             return ret
 
-        if not name in self._cached_resources[resource_type].by_name:
-            log.info("The %s resource with name '%s' was not in the cache", resource_type, name)
+        if not name in self._fetched_resources[resource_type].by_name:
+            log.info("The %s resource with name '%s' was not in the prefetch", resource_type, name)
             return []
 
-        log.info("Returning object(s) from cache")
-        objs = self._cached_resources[resource_type].by_name[name]
+        log.info("Returning object(s) from prefetch")
+        objs = self._fetched_resources[resource_type].by_name[name]
         if id_only:
             return [obj._id for obj in objs]
         else:
@@ -329,14 +330,15 @@ class EnhancedResourceRegistryClient(object):
         assert predicate != ''
         object_id, object_type = self._extract_id_and_type(object)
 
-        if not self.has_cached_predicate(predicate):
+        if not self.has_prefetched_predicate(predicate):
+            log.debug("Prefetch miss (predicate %s)", predicate)
             ret, _ = self.RR.find_subjects(subject_type=subject_type,
                                            predicate=predicate,
                                            object=object_id,
                                            id_only=id_only)
             return ret
 
-        log.info("Using %s cached results for 'find (%s) subjects'", len(self._cached_predicates[predicate]), predicate)
+        log.info("Using %s prefetched results for 'find (%s) subjects'", len(self._fetched_predicates[predicate]), predicate)
 
         def filter_fn(assoc):
             if object != assoc.o:
@@ -348,9 +350,9 @@ class EnhancedResourceRegistryClient(object):
             return True
 
         log.debug("Checking object_id=%s, subject_type=%s", object_id, subject_type)
-        preds = self._cached_predicates[predicate]
+        preds = self._fetched_predicates[predicate]
         time_search_start = get_ion_ts()
-        subject_ids = [a.s for a in self.filter_cached_associations(predicate, filter_fn)]
+        subject_ids = [a.s for a in self.filter_prefetched_associations(predicate, filter_fn)]
         time_search_stop = get_ion_ts()
         total_time = int(time_search_stop) - int(time_search_start)
         log.debug("Processed %s %s predicates for %s subjects in %s seconds",
@@ -370,14 +372,15 @@ class EnhancedResourceRegistryClient(object):
     def find_objects(self, subject, predicate, object_type='', id_only=False):
         subject_id, subject_type = self._extract_id_and_type(subject)
 
-        if not self.has_cached_predicate(predicate):
+        if not self.has_prefetched_predicate(predicate):
+            log.debug("prefetch miss (predicate %s)", predicate)
             ret, _ = self.RR.find_objects(subject=subject_id,
                                          predicate=predicate,
                                          object_type=object_type,
                                          id_only=id_only)
             return ret
 
-        log.info("Using %s cached results for 'find (%s) objects'", len(self._cached_predicates[predicate]), predicate)
+        log.info("Using %s prefetched results for 'find (%s) objects'", len(self._fetched_predicates[predicate]), predicate)
 
         def filter_fn(assoc):
             if subject_id != assoc.s:
@@ -389,9 +392,9 @@ class EnhancedResourceRegistryClient(object):
             return True
 
         log.debug("Checking subject_id=%s, object_type=%s", subject_id, object_type)
-        preds = self._cached_predicates[predicate]
+        preds = self._fetched_predicates[predicate]
         time_search_start = get_ion_ts()
-        object_ids = [a.o for a in self.filter_cached_associations(predicate, filter_fn)]
+        object_ids = [a.o for a in self.filter_prefetched_associations(predicate, filter_fn)]
         time_search_stop = get_ion_ts()
         total_time = int(time_search_stop) - int(time_search_start)
         log.debug("Processed %s %s predicates for %s objects in %s seconds",
@@ -496,57 +499,72 @@ class EnhancedResourceRegistryClient(object):
 
         return ret
 
+    def disable_prefetch(self):
+        """
+        Safety feature: prevent prefetching on persisted objects
+        """
+        self._disable_prefetch = True
 
-    def cache_predicate(self, predicate):
+    def prefetch_predicate(self, predicate):
         """
         Save all associations of a given predicate type to memory, for in-memory find_subjects/objects ops
 
-        This is a PREFETCH operation, and EnhancedResourceRegistryClient objects that use the cache functionality
+        This is a PREFETCH operation, and EnhancedResourceRegistryClient objects that use this functionality
         should NOT be persisted across service calls.
         """
-        log.info("Caching predicates: %s", predicate)
-        log.debug("This cache is %s", self)
-        if self.has_cached_predicate(predicate):
-            log.debug("Reusing prior cached predicate %s", predicate)
-            return
+        if self._disable_prefetch:
+            raise BadRequest("Trying to prefetch in an EnhancedResourceRegistryClient instance where prefetch is disabled")
 
-        time_caching_start = get_ion_ts()
+        if self.has_prefetched_predicate(predicate):
+            log.warn("Duplicate prefetch of predicate %s in %s", predicate, self)
+        else:
+            log.info("Prefetching predicates: %s", predicate)
+            log.debug("This prefetch is in %s", self)
+
+        time_prefetching_start = get_ion_ts()
         preds = self.RR.find_associations(predicate=predicate, id_only=False)
-        time_caching_stop = get_ion_ts()
+        time_prefetching_stop = get_ion_ts()
 
-        total_time = int(time_caching_stop) - int(time_caching_start)
+        total_time = int(time_prefetching_stop) - int(time_prefetching_start)
 
-        log.info("Cached %s %s predicates in %s seconds", len(preds), predicate, total_time / 1000.0)
-        self._cached_predicates[predicate] = preds
+        log.info("prefetched %s %s predicates in %s seconds", len(preds), predicate, total_time / 1000.0)
+        self._fetched_predicates[predicate] = preds
 
+    def filter_prefetched_associations(self, predicate, is_match_fn):
+        if not self.has_prefetched_predicate(predicate):
+            raise BadRequest("Attempted to filter prefetched associations of unfetched predicate '%s'" % predicate)
 
-    def filter_cached_associations(self, predicate, is_match_fn):
-        if not self.has_cached_predicate(predicate):
-            raise BadRequest("Attempted to filter cached associations of uncached predicate '%s'" % predicate)
-
-        return [a for a in self._cached_predicates[predicate] if is_match_fn(a)]
-
-    def get_cached_associations(self, predicate):
-        return self.filter_cached_associations(predicate, lambda x: True)
-
-    def _add_resource_to_cache(self, resource_type, resource_obj):
-        self._cached_resources[resource_type].by_id[resource_obj._id] = resource_obj
-
-        if not resource_obj.name in self._cached_resources[resource_type].by_name:
-            self._cached_resources[resource_type].by_name[resource_obj.name] = []
-        self._cached_resources[resource_type].by_name[resource_obj.name].append(resource_obj)
+        return filter(is_match_fn, self._fetched_predicates[predicate])
 
 
-    def cache_resources(self, resource_type, specific_ids=None):
+    def get_prefetched_associations(self, predicate):
+        return self.filter_prefetched_associations(predicate, lambda x: True)
+
+    def _add_resource_to_prefetch(self, resource_type, resource_obj):
+        self._fetched_resources[resource_type].by_id[resource_obj._id] = resource_obj
+
+        if not resource_obj.name in self._fetched_resources[resource_type].by_name:
+            self._fetched_resources[resource_type].by_name[resource_obj.name] = []
+        self._fetched_resources[resource_type].by_name[resource_obj.name].append(resource_obj)
+
+
+    def prefetch_resources(self, resource_type, specific_ids=None):
         """
         Save all resources of a given type to memory, for in-memory lookup ops
 
-        This is a PREFETCH operation, and EnhancedResourceRegistryClient objects that use the cache functionality
+        This is a PREFETCH operation, and EnhancedResourceRegistryClient objects that use this functionality
         should NOT be persisted across service calls.
         """
-        log.info("Caching resources: %s", resource_type)
-        log.debug("This cache is %s", self)
-        time_caching_start = get_ion_ts()
+        if self._disable_prefetch:
+            raise BadRequest("Trying to prefetch in an EnhancedResourceRegistryClient instance where prefetch is disabled")
+
+        if self.has_prefetched_resource(resource_type):
+            log.warn("Duplicate prefetch of resource %s in %s", resource_type, self)
+        else:
+            log.info("prefetching resources: %s", resource_type)
+            log.debug("This prefetch is in %s", self)
+
+        time_prefetching_start = get_ion_ts()
 
         resource_objs = []
         if None is specific_ids:
@@ -559,38 +577,38 @@ class EnhancedResourceRegistryClient(object):
         lookups = DotDict()
         lookups.by_id =   {}
         lookups.by_name = {}
-        self._cached_resources[resource_type] = lookups
+        self._fetched_resources[resource_type] = lookups
 
         for r in resource_objs:
-            self._add_resource_to_cache(resource_type, r)
+            self._add_resource_to_prefetch(resource_type, r)
 
-        time_caching_stop = get_ion_ts()
+        time_prefetching_stop = get_ion_ts()
 
-        total_time = int(time_caching_stop) - int(time_caching_start)
+        total_time = int(time_prefetching_stop) - int(time_prefetching_start)
 
-        log.info("Cached %s %s resources in %s seconds", len(resource_objs), resource_type, total_time / 1000.0)
-
-
-    def has_cached_predicate(self, predicate):
-        return predicate in self._cached_predicates
+        log.info("prefetched %s %s resources in %s seconds", len(resource_objs), resource_type, total_time / 1000.0)
 
 
-    def has_cached_resource(self, resource_type):
-        return resource_type in self._cached_resources
+    def has_prefetched_predicate(self, predicate):
+        return predicate in self._fetched_predicates
 
 
-    def clear_cached_predicate(self, predicate=None):
+    def has_prefetched_resource(self, resource_type):
+        return resource_type in self._fetched_resources
+
+
+    def clear_prefetched_predicate(self, predicate=None):
         if None is predicate:
-            self._cached_predicates = {}
-        elif predicate in self._cached_predicates:
-            del self._cached_predicates[predicate]
+            self._fetched_predicates = {}
+        elif predicate in self._fetched_predicates:
+            del self._fetched_predicates[predicate]
 
 
-    def clear_cached_resource(self, resource_type=None):
+    def clear_prefetched_resource(self, resource_type=None):
         if None is resource_type:
-            self._cached_resources = {}
-        elif resource_type in self._cached_resources:
-            del self._cached_resources[resource_type]
+            self._fetched_resources = {}
+        elif resource_type in self._fetched_resources:
+            del self._fetched_resources[resource_type]
 
 
     def _uncamel(self, name):
@@ -632,7 +650,6 @@ class EnhancedResourceRegistryClient(object):
         """
 
         if TEST_LOCALLY:
-            import pickle
             try:
                 self.predicates_for_subj_obj = pickle.load( open( "/tmp/save.p", "rb" ) )
                 return
@@ -1303,3 +1320,25 @@ class EnhancedResourceRegistryClient(object):
             log.warn("Console mode is a debugging assistant and should never be enabled on production systems!")
 
         self.console_mode = enabled
+
+
+# fix deprecated names
+def _deprecate(old_fn_name, new_fn_name):
+    def freeze_wrapped_fn():
+        new_fn = getattr(EnhancedResourceRegistryClient, new_fn_name)
+        def wrapped_fn(*args, **kwargs):
+            log.info("Function %s is deprecated, use this instead: %s", old_fn_name, new_fn_name)
+            ret = new_fn(*args, **kwargs)
+            log.info("Returning %s", ret)
+            return ret
+        return wrapped_fn
+    setattr(EnhancedResourceRegistryClient, old_fn_name, freeze_wrapped_fn())
+
+_deprecate("cache_predicate", "prefetch_predicate")
+_deprecate("cache_resources", "prefetch_resources")
+_deprecate("has_cached_predicate", "has_prefetched_predicate")
+_deprecate("has_cached_resource", "has_prefetched_resource")
+_deprecate("clear_cached_predicate", "clear_prefetched_predicate")
+_deprecate("clear_cached_resource", "clear_prefetched_resource")
+_deprecate("filter_cached_associations", "filter_prefetched_associations")
+_deprecate("get_cached_associations", "get_prefetched_associations")
