@@ -241,6 +241,19 @@ class DirectCoverageAccess(object):
         else:
             return "Repair Failed"
 
+    def fill_temporal_gap(self, dataset_id, gap_coverage_path=None, gap_coverage_id=None):
+        if gap_coverage_path is None and gap_coverage_id is None:
+            raise ValueError('Must specify either \'gap_coverage_path\' or \'gap_coverage_id\'')
+
+        if gap_coverage_path is None:
+            gap_coverage_path = self.get_coverage_path(gap_coverage_id)
+
+        from coverage_model import AbstractCoverage
+        gap_cov = AbstractCoverage.load(gap_coverage_path)
+
+        self.pause_ingestion(self.get_stream_id(dataset_id))
+        DatasetManagementService._splice_coverage(dataset_id, gap_cov)
+
 
 class SimpleDelimitedParser(object):
 
