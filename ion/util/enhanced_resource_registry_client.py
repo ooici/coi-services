@@ -534,7 +534,8 @@ class EnhancedResourceRegistryClient(object):
         if not self.has_prefetched_predicate(predicate):
             raise BadRequest("Attempted to filter prefetched associations of unfetched predicate '%s'" % predicate)
 
-        return [a for a in self._fetched_predicates[predicate] if is_match_fn(a)]
+        return filter(is_match_fn, self._fetched_predicates[predicate])
+
 
     def get_prefetched_associations(self, predicate):
         return self.filter_prefetched_associations(predicate, lambda x: True)
