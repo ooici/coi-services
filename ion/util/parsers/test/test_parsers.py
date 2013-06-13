@@ -12,6 +12,7 @@ from ion.util.parsers.global_range_test import grt_parser
 from ion.util.parsers.spike_test import spike_parser
 from ion.util.parsers.stuck_value_test import stuck_value_test_parser
 from ion.util.parsers.trend_test import trend_parser
+from ion.util.parsers.local_range_test import lrt_parser
 from nose.plugins.attrib import attr
 import numpy as np
 
@@ -20,6 +21,7 @@ qc_paths = {
     'spike' : 'res/preload/r2_ioc/attachments/Data_QC_Lookup_Table_spike_test_updated.csv',
     'stuck' : 'res/preload/r2_ioc/attachments/Data_QC_Lookup_Table_Stuck_Value_Test.csv',
     'trend' : 'res/preload/r2_ioc/attachments/Data_QC_Lookup_Table_Trend_Test.csv',
+    'lrt' : 'res/preload/r2_ioc/attachments/Data_QC_Lookup_Table_Local_Range_Test.lrt',
     }
 
 @attr('INT',group='dm')
@@ -73,3 +75,11 @@ class TestParsers(IonIntegrationTestCase):
         np.testing.assert_almost_equal(ret_doc['standard_deviation'], 0.0)
 
     
+    def test_lrt_parser(self):
+        self.parse_document(self.container, lrt_parser, qc_paths['lrt'])
+
+        ret_doc = self.svm.read_value('lrt_%s_%s' %('GP02HYPM-SP001-04-CTDPF0999', 'PRACSAL'))
+
+        np.testing.assert_array_equal(ret_doc['datlim'][0], np.array([32.289, 32.927]))
+
+
