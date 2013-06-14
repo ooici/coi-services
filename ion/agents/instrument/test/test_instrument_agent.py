@@ -264,7 +264,7 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
 
     return ia_client
 
-
+@unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class InstrumentAgentTest():
     """
     Test cases for instrument agent class. Functions in this class provide
