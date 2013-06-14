@@ -445,6 +445,7 @@ class BulkIngestBase(object):
 
         data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id)
         self.data_product_management.activate_data_product_persistence(data_product_id)
+        self.addCleanup(self.data_product_management.suspend_data_product_persistence, data_product_id)
         return data_product_id
 
     def register_external_dataset(self, external_dataset_id=''):
