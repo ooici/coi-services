@@ -482,6 +482,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             return ret
 
         self.base_agent_instance_config(assign_fn, find_fn)
+        log.info("END test_agent_instance_config_hasDevice")
 
     def test_agent_instance_config_hasNetworkParent(self):
         def assign_fn(child_device_id, parent_device_id):
@@ -492,6 +493,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             return ret
 
         self.base_agent_instance_config(assign_fn, find_fn)
+        log.info("END test_agent_instance_config_hasNetworkParent")
 
     def base_agent_instance_config(self, 
                                    assign_child_platform_to_parent_platform_fn, 
@@ -752,7 +754,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #self.fail(parent_config)
         #plauncher.prepare(will_launch=False)
-
+        log.info("END base_agent_instance_config")
 
     @attr('PREP')
     def test_prepare_resource_support(self):
