@@ -19,6 +19,7 @@ from gevent.pywsgi import WSGIServer
 import socket
 import sys
 import yaml
+import os
 
 
 class OmsEventListener(object):
@@ -50,6 +51,11 @@ class OmsEventListener(object):
 
         # _notifications: if not None, [event_instance, ...]
         self._notifications = None
+
+        # __no_notifications: flag only intended for developing purposes
+        self.__no_notifications = os.getenv("NO_OMS_NOTIFICATIONS") is not None
+        if self.__no_notifications:  # pragma: no cover
+            log.warn("NO_OMS_NOTIFICATIONS env variable defined: no notifications will be done")
 
     @property
     def url(self):
@@ -147,6 +153,9 @@ class OmsEventListener(object):
             self._notifications.append(event_instance)
         else:
             self._notifications = [event_instance]
+
+        if self.__no_notifications:  # pragma: no cover
+            return
 
         log.debug('notifying event_instance=%s', event_instance)
 

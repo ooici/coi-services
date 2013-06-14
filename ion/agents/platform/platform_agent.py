@@ -49,12 +49,16 @@ from ion.agents.platform.platform_resource_monitor import PlatformResourceMonito
 from ion.agents.platform.status_manager import StatusManager
 from ion.agents.platform.platform_agent_stream_publisher import PlatformAgentStreamPublisher
 
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
+from ion.agents.instrument.instrument_agent import InstrumentAgentEvent
+
 import logging
 import time
 from gevent import Greenlet
 from gevent import sleep
 from gevent import spawn
 from gevent.event import AsyncResult
+from gevent.coros import RLock
 
 import pprint
 
@@ -146,6 +150,9 @@ class PlatformAgentAlertManager(AgentAlertManager):
         self._agent._status_manager.set_aggstatus(aggregate_type, new_status)
 
 
+_INVALIDATED_CHILD = "INVALIDATED"
+
+
 class PlatformAgent(ResourceAgent):
     """
     Platform resource agent.
@@ -190,12 +197,14 @@ class PlatformAgent(ResourceAgent):
         self._platform_resource_monitor = None
 
         # {subplatform_id: DotDict(ResourceAgentClient, PID), ...}
+        # (or subplatform_id : _INVALIDATED_CHILD)
         self._pa_clients = {}  # Never None
 
         # see on_init
         self._launcher = None
 
         # {instrument_id: DotDict(ResourceAgentClient, PID), ...}
+        # (or instrument_id : _INVALIDATED_CHILD)
         self._ia_clients = {}  # Never None
 
         # self.CFG.endpoint.receive.timeout -- see on_init
@@ -246,6 +255,18 @@ class PlatformAgent(ResourceAgent):
         #####################################
         # Agent stream publisher.
         self._asp = None
+
+        ##################################################################
+        # children validation upon reception of regular status events
+
+        # resource_id's of children being currently validated
+        # (each one is dispatched in a greenlet)
+        self._children_being_validated = set()
+        self._children_being_validated_lock = RLock()
+
+        #
+        # TODO overall synchronization is also needed in other places!
+        #
 
         #####################################
         log.info("PlatformAgent constructor complete.")
@@ -973,6 +994,142 @@ class PlatformAgent(ResourceAgent):
 
         return a_client
 
+    def _child_terminated(self, child_resource_id):
+        """
+        Called by StatusManager upon the reception of a process lifecycle
+        TERMINATED event to invalidate the child associated to the given
+        resource_id.
+
+        @param child_resource_id
+        """
+        if child_resource_id in self._ia_clients:
+            self._ia_clients[child_resource_id] = _INVALIDATED_CHILD
+            log.debug("%r: OOIION-1077 _child_terminated: instrument: %r",
+                      self._platform_id, child_resource_id)
+            return
+
+        if child_resource_id in self._pa_clients:
+            self._pa_clients[child_resource_id] = _INVALIDATED_CHILD
+            log.debug("%r: OOIION-1077 _child_terminated: sub-platform: %r",
+                      self._platform_id, child_resource_id)
+            return
+
+        log.trace("%r: OOIION-1077 _child_terminated: %r is not a direct child",
+                  self._platform_id, child_resource_id)
+
+    def _get_invalidated_children(self):
+        """
+        For diagnostic purposes.
+        @return list of reource_ids of children that have been
+        notified by the status manager as terminated and that
+        have not been revalidated.
+        """
+        res      = [i_id for i_id in self._ia_clients
+                    if self._ia_clients[i_id] == _INVALIDATED_CHILD]
+        res.extend([p_id for p_id in self._pa_clients
+                    if self._pa_clients[p_id] == _INVALIDATED_CHILD])
+        return res
+
+    def _child_running(self, child_resource_id):
+        """
+        Called by StatusManager upon the reception of any regular status
+        event from a child as an indication that the child is running.
+        Here we "revalidate" the child in case it was invalidated.
+        This is done in a separate greenlet to return quikcly to the event
+        handler in the status manager. The greenlet does a number of attempts
+        with some wait in between to allow the creation of the new
+        ResourceAgentClient (and the retrieval of associated PID) to be successful.
+        (In initial tests it was noticed that the child may have generated status
+        events but the immediate creation of the ResourceAgentClient here was failing).
+
+        @param child_resource_id
+        """
+
+        with self._children_being_validated_lock:
+            if child_resource_id in self._children_being_validated:
+                return
+
+            if child_resource_id in self._ia_clients and \
+               self._ia_clients[child_resource_id] == _INVALIDATED_CHILD:
+
+                self._children_being_validated.add(child_resource_id)
+                log.info("%r: OOIION-1077 starting _validate_child_greenlet for "
+                         "instrument: %r", self._platform_id, child_resource_id)
+                Greenlet.spawn(self._validate_child_greenlet, child_resource_id, True)
+                return
+
+            if child_resource_id in self._pa_clients and \
+               self._pa_clients[child_resource_id] == _INVALIDATED_CHILD:
+
+                self._children_being_validated.add(child_resource_id)
+                log.info("%r: OOIION-1077 starting _validate_child_greenlet for "
+                         "platform: %r", self._platform_id, child_resource_id)
+                Greenlet.spawn(self._validate_child_greenlet, child_resource_id, False)
+                return
+
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            if not child_resource_id in self._ia_clients and \
+               not child_resource_id in self._ia_clients:
+                log.trace("%r: OOIION-1077 _child_running: %r is not a direct child",
+                          self._platform_id, child_resource_id)
+
+    def _validate_child_greenlet(self, child_resource_id, is_instrument):
+        #
+        # TODO synchronize access to self._ia_clients or self._pa_clients in
+        # general.
+        #
+        max_attempts = 12
+        attempt_period = 5   # so 12 x 5 = 60 secs max attempt time
+
+        attempt = 0
+        last_exc = None
+        trace = None
+
+        if is_instrument:
+            dic = self._ia_clients
+            key = "ia_client"
+        else:
+            dic = self._pa_clients
+            key = "pa_client"
+
+        while attempt <= max_attempts:
+            attempt += 1
+            log.info("%r: OOIION-1077 _validate_child_greenlet=%r attempt=%d",
+                     self._platform_id, child_resource_id, attempt)
+            sleep(attempt_period)
+
+            # get new elements:
+            try:
+                a_client = self._create_resource_agent_client(child_resource_id,
+                                                              child_resource_id)
+                pid = ResourceAgentClient._get_agent_process_id(child_resource_id)
+
+                dic[child_resource_id] = DotDict({
+                    key:           a_client,
+                    'pid':         pid,
+                    'resource_id': child_resource_id})
+
+                log.info("%r: OOIION-1077 _child_running: revalidated child "
+                         "with resource_id=%r, new pid=%r",
+                         self._platform_id, child_resource_id, pid)
+
+                last_exc = None
+                break  # success
+
+            except Exception as ex:
+                import traceback
+                last_exc = ex
+                trace = traceback.format_exc()
+
+        with self._children_being_validated_lock:
+            # remove from list regardless of successful revalidation or not:
+            self._children_being_validated.remove(child_resource_id)
+
+        if last_exc:
+            log.warn("%r: OOIION-1077 _validate_child_greenlet: could not "
+                     "revalidate child=%r after %d attempts: exception=%s\n%s",
+                     self._platform_id, child_resource_id, max_attempts, last_exc, trace)
+
     def _execute_agent(self, poi, a_client, cmd, sub_id):
         """
         Calls execute_agent with the given cmd on the given client.
@@ -1664,13 +1821,13 @@ class PlatformAgent(ResourceAgent):
         dd = self._ia_clients[instrument_id]
 
         sub_state = dd.ia_client.get_agent_state()
-        if PlatformAgentState.INACTIVE == sub_state:
+        if InstrumentAgentState.INACTIVE == sub_state:
             # already initialized.
-            log.trace("%r: _initialize_subplatform: already initialized: %r",
+            log.trace("%r: _initialize_instrument: already initialized: %r",
                       self._platform_id, instrument_id)
             return
 
-        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
+        cmd = AgentCommand(command=InstrumentAgentEvent.INITIALIZE)
         try:
             retval = self._execute_instrument_agent(dd.ia_client, cmd, instrument_id)
             log.debug("%r: _initialize_instrument %r  retval = %s",
@@ -1705,9 +1862,21 @@ class PlatformAgent(ResourceAgent):
 
         assert i_resource_id, "agent.resource_id must be present for child %r" % instrument_id
 
+        assert i_resource_id == instrument_id, \
+            "agent.resource_id %r must be equal to %r" % (i_resource_id, instrument_id)
+
         # first, is the agent already running?
         ia_client = None
         pid = None
+
+        #
+        # TODO: proper handling of "process ID".
+        # Two possible sources to get it:
+        # - given by process_dispatcher_client.schedule_process when we
+        #   launch the process here;
+        # - given by ResourceAgentClient._get_agent_process_id
+        #
+
         try:
             # try to connect
             ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
@@ -1745,6 +1914,12 @@ class PlatformAgent(ResourceAgent):
                 log.debug("%r: launching instrument agent %r", self._platform_id, instrument_id)
 
             pid = self._launcher.launch_instrument(instrument_id, i_CFG)
+
+            log.debug("OOIION-1077 launched instrument:\n"
+                      " instrument_id = %r\n"
+                      " pid           = %r\n"
+                      " i_resource_id = %r",
+                      instrument_id, pid, i_resource_id)
 
             ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
 
@@ -1798,6 +1973,8 @@ class PlatformAgent(ResourceAgent):
         """
         Supporting routine for various commands sent to instruments.
 
+        Note that invalidated children are ignored.
+
         @param create_command invoked as create_command(instrument_id) for each
                               instrument to create the command to be executed.
 
@@ -1815,8 +1992,19 @@ class PlatformAgent(ResourceAgent):
         if not len(instrument_ids):
             return children_with_errors
 
+        # act only on the children that are not invalidated:
+        valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
+                             if v != _INVALIDATED_CHILD)
+
+        if not len(valid_clients):
+            log.warn("%r: OOIION-1077 all instrument children (%s) are "
+                     "invalidated or could not be re-validated. Not executing"
+                     " command. command=%r, create_command=%r",
+                     self._platform_id, instrument_ids, command, create_command)
+            return children_with_errors   # that is, none.
+
         def execute_cmd(instrument_id, cmd):
-            ia_client = self._ia_clients[instrument_id].ia_client
+            ia_client = valid_clients[instrument_id].ia_client
 
             try:
                 self._execute_instrument_agent(ia_client, cmd,
@@ -1857,9 +2045,9 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: executing command on my instruments: %s",
                       self._platform_id, str(instrument_ids))
 
-        for instrument_id in self._ia_clients:
+        for instrument_id in valid_clients:
             if expected_state:
-                ia_client = self._ia_clients[instrument_id].ia_client
+                ia_client = valid_clients[instrument_id].ia_client
                 sub_state = ia_client.get_agent_state()
                 if expected_state == sub_state:
                     #
@@ -1875,7 +2063,7 @@ class PlatformAgent(ResourceAgent):
             if err_msg is not None:
                 # some error happened; publish event:
                 children_with_errors[instrument_id] = err_msg
-                dd = self._ia_clients[instrument_id]
+                dd = valid_clients[instrument_id]
                 self._status_manager.publish_device_failed_command_event(dd.resource_id,
                                                                          cmd,
                                                                          err_msg)
@@ -1940,8 +2128,19 @@ class PlatformAgent(ResourceAgent):
         """
         Executes RESET on the instrument and then terminates it.
         ("shutting down" an instrument is just resetting it if not already in
-         UNINITIALIZED state)
+        UNINITIALIZED state).
+
+        Note that invalidated children are ignored.
+
+        @return None if all OK; otherwise an error message.
         """
+
+        if self._ia_clients[instrument_id] == _INVALIDATED_CHILD:
+            log.warn("%r: OOIION-1077 instrument has been invalidated or "
+                     "could not be re-validated: %r",
+                     self._platform_id, instrument_id)
+            # consider this no error to continue shutdown sequence:
+            return None
 
         dd = self._ia_clients[instrument_id]
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
