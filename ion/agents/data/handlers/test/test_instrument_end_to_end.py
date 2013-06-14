@@ -8,7 +8,6 @@ from coverage_model.parameter_types import QuantityType, ArrayType
 from pyon.public import RT, log, PRED, OT
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from pyon.util.context import LocalContextMixin
 import numpy as np
 from nose.plugins.attrib import attr
 from gevent.event import Event
@@ -17,6 +16,10 @@ from pyon.ion.stream import StandaloneStreamSubscriber
 from ion.services.sa.acquisition.test.test_bulk_data_ingestion import FakeProcess
 from ion.core.includes.mi import DriverEvent
 from interface.services.sa.idata_acquisition_management_service import  DataAcquisitionManagementServiceClient
+import time
+from pyon.core.exception import NotFound
+
+MAX_AGENT_START_TIME=300
 
 @attr('INT', group='eoi')
 class TestPreloadThenLoadDataset(IonIntegrationTestCase):
@@ -104,7 +107,15 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         # should i wait for process (above) to start
         # before launching client (below)?
         #
-        self.client = ResourceAgentClient(self.device._id, process=FakeProcess())
+        self.client = None
+        end = time.time() + MAX_AGENT_START_TIME
+        while time.time()<end:
+            try:
+                self.client = ResourceAgentClient(self.device._id, process=FakeProcess())
+            except NotFound:
+                time.sleep(10)
+        if not self.client:
+            self.fail(msg='external dataset agent process did not start in %d seconds'%MAX_AGENT_START_TIME)
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE))
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE))
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN))
