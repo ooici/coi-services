@@ -150,6 +150,7 @@ class UILoader(object):
                         self.abort = True
 
             except Exception as ex:
+                log.exception("error")
                 log.warn("UI category %s error: %s" % (category, str(ex)))
                 self.abort = True
 
@@ -406,7 +407,7 @@ class UILoader(object):
         refid, obj = self._build_ui_resource(row, "UIResourceAttribute",
                 {'uirefid':'__pk_ResourceAttribute_ID',
                  'name':'Name',
-                 'information_level':'Information Level',
+                 #'information_level':'Information Level',
                  'object_type_id':'_fk_ObjectType_ID',
                  'resource_type_id':'_fk_ResourceType_ID',
                  'base_attribute_id':'Base Attribute',
@@ -420,7 +421,7 @@ class UILoader(object):
                  'ci_id':'CI ID',
                  'name':'Name',
                  'object_type_id':'Object Type',
-                 'information_level':'Information Level',
+                 #'information_level':'Information Level',
                  'object_field_type_id':'Object Field Type',
                  'base_field_id':'Base Field',
                  'description':'Description'})
