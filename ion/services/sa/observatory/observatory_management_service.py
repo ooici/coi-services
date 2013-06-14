@@ -977,6 +977,17 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED,
                                                                value=site_status)
 
+        # create the list of station status from the overall status list
+        subset_status = []
+        for site in extended_site.platform_station_sites:
+            if not extended_site.sites.count(site):
+                log.error(" Platform Site does not exist in the full list of sites. id: %s", site._id)
+                break
+            idx =   extended_site.sites.index( site )
+            subset_status.append( site_status[idx] )
+        extended_site.computed.station_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED,
+                                                               value=subset_status)
+
         log.debug("generating instrument status rollup") # (is easy)
         inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k._id, {}))
                        for k in extended_site.instrument_devices]
@@ -1323,9 +1334,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def _get_site_rollup_dict(self, RR2, master_status_table, site_id):
 
         attr1, underlings = self.outil.get_child_sites(parent_site_id=site_id, id_only=True)
-        log.debug('_get_site_rollup_dict  attr1:  %s', attr1)
-        log.debug('_get_site_rollup_dict  underlings:  %s', underlings)
-
 
         def collect_all_children(site_id, child_site_struct, child_list):
             #walk the tree of site children and put all site ids (all the way down the hierarchy) into one list

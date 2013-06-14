@@ -71,6 +71,9 @@ installation
     > mkvirtualenv --distribute --no-site-packages --python=python2.7 coi
     Note: Do not use the pyon virtualenv if you are a pyon developer
 
+* Install numpy to the virtualenv
+    > pip install numpy==1.7.1
+
 
 PACKAGE DOWNLOAD
 ================
