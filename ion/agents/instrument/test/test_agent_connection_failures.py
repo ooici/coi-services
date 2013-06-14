@@ -333,7 +333,7 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         if self._ia_client is None:
             return
 
-        state = self._ia_client.get_agent_state(timeout=121)
+        state = self._ia_client.get_agent_state(timeout=120.1)
         if state != ResourceAgentState.UNINITIALIZED:
             cmd = AgentCommand(command=ResourceAgentEvent.RESET)
             retval = self._ia_client.execute_agent(cmd,timeout=300)
@@ -461,8 +461,8 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         sub = StandaloneStreamSubscriber(exchange_name, recv_data)
         sub.start()
         self._data_subscribers.append(sub)
-        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id],timeout=122)
-        pubsub_client.activate_subscription(sub_id,timeout=123)
+        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id],timeout=120.2)
+        pubsub_client.activate_subscription(sub_id,timeout=120.3)
         sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
         
         stream_name = 'raw'
@@ -474,8 +474,8 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         sub = StandaloneStreamSubscriber(exchange_name, recv_raw_data)
         sub.start()
         self._data_subscribers.append(sub)
-        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id],timeout=124)
-        pubsub_client.activate_subscription(sub_id,timeout=125)
+        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id],timeout=120.4)
+        pubsub_client.activate_subscription(sub_id,timeout=120.5)
         sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
 
     def _purge_queue(self, queue):
@@ -487,10 +487,10 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
             pubsub_client = PubsubManagementServiceClient()
             if hasattr(subscriber,'subscription_id'):
                 try:
-                    pubsub_client.deactivate_subscription(subscriber.subscription_id,timeout=126)
+                    pubsub_client.deactivate_subscription(subscriber.subscription_id,timeout=120.6)
                 except:
                     pass
-                pubsub_client.delete_subscription(subscriber.subscription_id,timeout=127)
+                pubsub_client.delete_subscription(subscriber.subscription_id,timeout=120.7)
             subscriber.stop()
 
     ###############################################################################
