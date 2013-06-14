@@ -160,6 +160,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
+@unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestAgentCommsAlerts(IonIntegrationTestCase):
     """
     """
