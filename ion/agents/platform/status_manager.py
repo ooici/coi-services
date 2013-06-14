@@ -21,13 +21,14 @@ from interface.objects import AggregateStatusType
 from interface.objects import DeviceStatusType
 from interface.objects import ProcessStateEnum
 
+from pyon.agent.agent import ResourceAgentClient
+
 import logging
 
 from gevent.coros import RLock
 
 
-# The consolidation operation is adapted from observatory_util.py to
-# work on DeviceStatusType (instead of StatusType).
+# The consolidation operation is taken from observatory_util.py.
 def _consolidate_status(statuses, warn_if_unknown=False):
     """Intelligently merge statuses with current value"""
 
@@ -92,6 +93,10 @@ class StatusManager(object):
 
         # All EventSubscribers created: {origin: EventSubscriber, ...}
         self._event_subscribers = {}
+
+        # {pid: origin ...} the origin (resource_id) of each PID used in
+        # ProcessLifecycleEvent subscribers
+        self._rids = {}
 
         # set to False by a call to destroy
         self._active = True
@@ -355,13 +360,12 @@ class StatusManager(object):
 
     def _start_subscriber_process_lifecycle_event(self, origin):
         """
-        @param origin    Used for the event subscriber
+        @param origin    Child's resource_id. The associated PID retrieved via
+                         ResourceAgentClient._get_agent_process_id is used for
+                         the event subscriber itself, but we still index
+                         _event_subscribers with the given origin.
         """
         def _got_process_lifecycle_event(evt, *args, **kwargs):
-            """
-            Dispatches reception of ProcessLifecycleEvent to remove or add child
-            agents as they are terminated or re-started externally.
-            """
             with self._lock:
                 if not self._active:
                     log.warn("%r: _got_process_lifecycle_event called but "
@@ -369,64 +373,91 @@ class StatusManager(object):
                              self._platform_id)
                     return
 
-            if evt.type_ != "ProcessLifecycleEvent":
-                log.trace("%r: ignoring event type %r. Only handle "
-                          "ProcessLifecycleEvent directly.",
-                          self._platform_id, evt.type_)
-                return
+                if evt.type_ != "ProcessLifecycleEvent":
+                    log.trace("%r: ignoring event type %r. Only handle "
+                              "ProcessLifecycleEvent directly.",
+                              self._platform_id, evt.type_)
+                    return
 
-            #
-            # TODO NOTE the mechanism to check whether the event comes from
-            # the expected origin relies on the process ID being composed
-            # in a way the includes the origin. This might not be "official
-            # behavior" so it needs to be reviewed!
-            #
-            if not origin in evt.origin:
-                log.trace("%r: ignoring event from origin %r. Expecting an origin "
-                          "containing %r.",
-                          self._platform_id, evt.origin, origin)
-                return
+                # evt.origin is a PID
+                pid = evt.origin
 
-            log.debug("%r: [TC] _got_process_lifecycle_event: origin=%r state=%r(%s)",
-                      self._platform_id, evt.origin,
-                      ProcessStateEnum._str_map[evt.state], evt.state)
+                if not pid in self._rids:
+                    log.warn("%r: OOIION-1077 ignoring event from pid=%r. "
+                             "Expecting one of %s",
+                             self._platform_id, pid, self._rids.keys())
+                    return
 
-            with self._lock:
+                origin = self._rids[pid]
+
+                # # Before the _rids mapping, a preliminary mechanism to check
+                # # whether the event came from the expected origin relied on
+                # # the process ID having origin as a substring:
+                #
+                # if not origin in pid:
+                #     log.warn("%r: OOIION-1077 ignoring event from origin %r. "
+                #              "Expecting an origin containing %r",
+                #              self._platform_id, pid, origin)
+                #     return
+                # # BUT this was definitely weak. Although the PID for an
+                # # initial agent process seems to satisfy this assumption,
+                # # this is not anymore the case upon a re-start of that agent.
+
+                log.debug("%r: OOIION-1077  _got_process_lifecycle_event: "
+                          "pid=%r origin=%r state=%r(%s)",
+                          self._platform_id, pid, origin,
+                          ProcessStateEnum._str_map[evt.state], evt.state)
+
                 if evt.state is ProcessStateEnum.TERMINATED:
-                    self._device_terminated_event(evt.origin)
+                    self._device_terminated_event(origin, pid)
 
-                elif evt.state is ProcessStateEnum.RUNNING:
-                    self._device_running_event(evt.origin)
+        # use associated process ID for the subscription:
+        pid = ResourceAgentClient._get_agent_process_id(origin)
 
         sub = self._create_event_subscriber(event_type="ProcessLifecycleEvent",
                                             origin_type='DispatchedProcess',
+                                            origin=pid,
                                             callback=_got_process_lifecycle_event)
 
         with self._lock:
+            # but note that we use the given origin as index in _event_subscribers:
             self._event_subscribers[origin] = sub
 
-        log.debug("%r: [TC] registered ProcessLifecycleEvent subscriber coming "
-                  "from origin containing=%r",
-                  self._platform_id, origin)
+            # and capture the pid -> origin mapping:
+            self._rids[pid] = origin
 
-    def _device_terminated_event(self, origin):
+        log.debug("%r: OOIION-1077 registered ProcessLifecycleEvent subscriber "
+                  "with pid=%r (origin=%r)",
+                  self._platform_id, pid, origin)
+
+    def _device_terminated_event(self, origin, pid):
         """
         Handles the ProcessLifecycleEvent TERMINATED event received for the
         given origin:
 
-        - Per OOIION-1077: set UNKNOWN for the corresponding child_agg_status
+        - notifies platform to invalidate the associated child
+        - removes process lifecycle subscriber associated with the given origin
+        - set UNKNOWN for the corresponding child_agg_status
         - update rollup_status and do publication in case of change
 
-        @param origin    the origin of the ProcessLifecycleEvent
+        @param origin    the origin (resource_id) associated with the PID used
+                         for the subscriber to ProcessLifecycleEvents
+
+        @param pid       the corresp PID
         """
 
+        # notify platform:
+        self._agent._child_terminated(origin)
+
         if origin not in self.aparam_child_agg_status:
-            log.warn("%r: _device_terminated_event: unrecognized origin=%r",
+            log.warn("%r: OOIION-1077 _device_terminated_event: unrecognized origin=%r",
                      self._platform_id, origin)
             return
 
-        log.debug("%r: [TC] _device_terminated_event: origin=%r",
+        log.debug("%r: OOIION-1077 _device_terminated_event: origin=%r",
                   self._platform_id, origin)
+
+        self._stop_subscriber_process_lifecycle_event(origin, pid)
 
         # set entries to UNKNOWN:
         self._initialize_child_agg_status(origin)
@@ -435,105 +466,22 @@ class StatusManager(object):
         for status_name in AggregateStatusType._str_map.keys():
             self._update_rollup_status_and_publish(status_name, origin)
 
-    def _device_running_event(self, origin):
+    def _stop_subscriber_process_lifecycle_event(self, origin, pid):
         """
-        Handles the ProcessLifecycleEvent RUNNING event received for the
-        given origin:
-
-        - use get_agent to get relevant status info from the child (depending
-          on whether it's an instrument or a platform).
-        - update corresponding aparam_child_agg_status
-        - update rollup_status and publish in case of change
-
-        This would be the event associated with a child that was previously
-        associated, then terminated and then re-started externally.
-
-        @param origin    the origin of the ProcessLifecycleEvent
+        Removes the ProcessLifecycleEvent subscriber associated with the
+        given origin upon reception of TERMINATED event.
+        Also removes the pid -> origin mapping.
         """
-
-        if origin not in self.aparam_child_agg_status:
-            log.warn("%r: _device_running_event: unrecognized origin=%r",
-                     self._platform_id, origin)
-            return
-
-        log.debug("%r: [TC] _device_running_event: origin=%r",
+        log.debug("%r: OOIION-1077 _stop_subscriber_process_lifecycle_event: origin=%r",
                   self._platform_id, origin)
 
-        # retrieve appropriate status entries from the child and then proceed
-        # with any necessary updates.
-        try:
-            a_client = self._agent._create_resource_agent_client(origin, origin)
+        with self._lock:
 
-        except Exception as e:
-            log.warn("%r: _device_running_event: could not create "
-                     "ResourceAgentClient for origin=%r in order to retrieve "
-                     "its aggstatus: %s",
-                     self._platform_id, origin, e)
-            return
+            if origin in self._event_subscribers:
+                self._terminate_event_subscriber(origin)
 
-        #####################################################################
-        # First try get_agent with 'aggstatus' assuming it's an instrument.
-        # If it works, do the updates and return.
-        # Otherwise, should normally be a platform, so get_agent with
-        # 'child_agg_status', 'rollup_status' and do corresponding updates.
-
-        aggstatus = None   # in case this child is an instrument
-        try:
-            log.debug("%r: _device_running_event: determining if child %r is "
-                      "an instrument...", self._platform_id, origin)
-            aggstatus = a_client.get_agent(['aggstatus'])['aggstatus']
-
-        except Exception as e:
-            log.warn("%r: _device_running_event: could not get aggstatus from "
-                     "origin=%r (perhaps it's not an instrument): %s",
-                     self._platform_id, origin, e)
-
-        if aggstatus is not None:
-            # child is an instrument.
-            log.debug("%r: _device_running_event: retrieved aggstatus from "
-                      "instrument %r: %s",
-                      self._platform_id, origin, aggstatus)
-
-            try:
-                # set child's status with the retrieved statuses:
-                self._initialize_child_agg_status(origin, aggstatus)
-
-                # update rollup_status and publish in case of change:
-                for status_name in AggregateStatusType._str_map.keys():
-                    self._update_rollup_status_and_publish(status_name, origin)
-
-                log.debug("%r: _device_running_event: my updated child status for"
-                          " instrument %r: %s",
-                          self._platform_id, origin,
-                          self.aparam_child_agg_status[origin])
-
-            except Exception as e:
-                log.warn("%r: _device_running_event: reported aggstatus is invalid"
-                         " from instrument %r: %s",
-                         self._platform_id, origin, e)
-
-            return  # done with instrument case.
-
-        # it is not an instrument; try sub-platform:
-        try:
-            resp = a_client.get_agent(['child_agg_status', 'rollup_status'])
-            child_child_agg_status = resp['child_agg_status']
-            child_rollup_status    = resp['rollup_status']
-
-            # take the child's child_agg_status'es:
-            for sub_origin, sub_statuses in child_child_agg_status.iteritems():
-                self._prepare_new_child(sub_origin, False, sub_statuses)
-
-            # update my own child_agg_status from the child's rollup_status
-            # and also my rollup_status:
-            for status_name, status in child_rollup_status.iteritems():
-                self.aparam_child_agg_status[origin][status_name] = status
-                self._update_rollup_status(status_name)
-
-        except Exception as e:
-            log.warn("%r: could not get rollup_status or reported rollup_status is "
-                     "invalid from sub-platform %r: %s",
-                     self._platform_id, origin, e)
+            if pid in self._rids:
+                del self._rids[pid]
 
     #-------------------------------------------------------------------
     # supporting methods related with device_added, device_removed events
@@ -776,12 +724,14 @@ class StatusManager(object):
     def _got_device_aggregate_status_event(self, evt, *args, **kwargs):
         """
         Reacts to a DeviceAggregateStatusEvent from a platform's child.
-        It updates the local image of the child status for the corresponding
-        status name, then updates the rollup status for that status name.
-        If this rollup status changes, then a subsequent DeviceAggregateStatusEvent
-        is published.
-        The consolidation operation is adapted from observatory_util.py to
-        work on DeviceStatusType (instead of StatusType).
+
+        - notifies platform that child is running in case of any needed revalidation
+        - updates the local image of the child status for the corresponding status name
+        - updates the rollup status for that status name
+        - if this rollup status changes, then a subsequent DeviceAggregateStatusEvent
+          is published.
+
+        The consolidation operation is taken from observatory_util.py.
 
         @param evt    DeviceAggregateStatusEvent from child.
         """
@@ -813,6 +763,9 @@ class StatusManager(object):
         status_name = evt.status_name
         child_origin = evt.origin
         child_status = evt.status
+
+        # tell platform this child is running in case of any needed revalidation:
+        self._agent._child_running(child_origin)
 
         with self._lock:
             old_status = self.aparam_child_agg_status[child_origin][status_name]
@@ -989,8 +942,14 @@ Published event: AGGREGATE_POWER -> STATUS_OK
             statuses = formatted_statuses(self.aparam_aggstatus,
                                           self.aparam_child_agg_status,
                                           self.aparam_rollup_status)
-            log.info("%r/%s: (%s) status report triggered by diagnostic event:\n%s\n",
-                     self._platform_id, state, self.resource_id, statuses)
+
+            invalidated_children = self._agent._get_invalidated_children()
+
+            log.info("%r/%s: (%s) status report triggered by diagnostic event:\n"
+                     "%s\n"
+                     "%40s : %s\n",
+                     self._platform_id, state, self.resource_id, statuses,
+                     "invalidated_children", invalidated_children)
 
         self._diag_sub = self._create_event_subscriber(event_type=event_type,
                                                        origin=origin,

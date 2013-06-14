@@ -1252,7 +1252,41 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # start / stop instrument
     #################################################################
 
-    def _start_instrument(self, i_obj):
+    def IMS_start_instrument_agent_instance(self, instrument_agent_instance_id):
+        """
+        Like IMS.start_instrument_agent_instance but with no launching of the
+        port agent and with *many* hacks to make it work! :(
+        """
+
+        instrument_agent_instance_obj = self.IMS.read_instrument_agent_instance(instrument_agent_instance_id)
+
+        from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceDependentClients
+        process = FakeProcess()
+        process.container = self.container
+        clients = InstrumentManagementServiceDependentClients(process=process)
+        from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder
+        config_builder = InstrumentAgentConfigurationBuilder(clients)
+        from ion.util.agent_launcher import AgentLauncher
+        launcher = AgentLauncher(clients.process_dispatcher)
+        try:
+            config_builder.set_agent_instance_object(instrument_agent_instance_obj)
+            config = config_builder.prepare()
+        except:
+            log.error('failed to launch', exc_info=True)
+            raise ServerError('failed to launch')
+
+        process_id = launcher.launch(config, config_builder._get_process_definition()._id)
+        if not process_id:
+            raise ServerError("Launched instrument agent instance but no process_id")
+        config_builder.record_launch_parameters(config, process_id)
+
+        launcher.await_launch(timeout=90)
+        log.debug("IMS_start_instrument_agent_instance, "
+                  "launched! process_id=%r", process_id)
+
+        return process_id
+
+    def _start_instrument(self, i_obj, use_ims=True):
         """
         Starts the given instrument waiting for it to transition to the
         UNINITIALIZED state.
@@ -1286,17 +1320,22 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         ##############################################################
         # now start the instrument:
-        agent_instance_id = i_obj.instrument_agent_instance_id
-        log.debug("about to call start_instrument_agent_instance with id=%s", agent_instance_id)
-        i_obj.pid = self.IMS.start_instrument_agent_instance(instrument_agent_instance_id=agent_instance_id)
-        log.debug("start_instrument_agent_instance returned pid=%s", i_obj.pid)
 
-        #wait for start
+        agent_instance_id = i_obj.instrument_agent_instance_id
+        if use_ims:
+            log.debug("calling IMS.start_instrument_agent_instance with id=%s", agent_instance_id)
+            i_obj.pid = self.IMS.start_instrument_agent_instance(instrument_agent_instance_id=agent_instance_id)
+
+        else:
+            log.debug("calling IMS_start_instrument_agent_instance with id=%s", agent_instance_id)
+            i_obj.pid = self.IMS_start_instrument_agent_instance(instrument_agent_instance_id=agent_instance_id)
+
+        log.debug("[,]start_instrument_agent_instance returned pid=%s", i_obj.pid)
+
         agent_instance_obj = self.IMS.read_instrument_agent_instance(agent_instance_id)
-        gate = ProcessStateGate(self.PDC.read_process,
-                                agent_instance_obj.agent_process_id,
-                                ProcessStateEnum.RUNNING)
-        self.assertTrue(gate.await(90), "The instrument agent instance did not spawn in 90 seconds")
+
+        log.debug("[,]agent_instance_obj.agent_process_id=%s",
+                  agent_instance_obj.agent_process_id)
 
         # Start a resource agent client to talk with the agent.
         ia_client = ResourceAgentClient(i_obj.instrument_device_id,
@@ -1307,24 +1346,35 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         ##############################################################
         # wait for the UNINITIALIZED event:
         from pyon.public import CFG
-        async_res.get(timeout=CFG.endpoint.receive.timeout)
+        evt = async_res.get(timeout=CFG.endpoint.receive.timeout)
+        log.debug("[,]Got UNINITIALIZED event from %r", evt.origin)
 
         return ia_client
 
-    def _stop_instrument(self, i_obj):
-        try:
-            self.IMS.stop_instrument_agent_instance(i_obj.instrument_agent_instance_id)
-        except:
-            if log.isEnabledFor(logging.TRACE):
+    def _stop_instrument(self, i_obj, use_ims=False):
+        """
+        @param use_ims   True to use IMS.stop_instrument_agent_instance;
+                         this is not working.
+                         False (the default) to get the pid using
+                         ResourceAgentClient._get_agent_process_id
+                         and call PDC's cancel_process
+        """
+        if use_ims:
+            try:
+                self.IMS.stop_instrument_agent_instance(i_obj.instrument_agent_instance_id)
+            except:
                 log.exception(
                     "instrument_id=%r: Exception in IMS.stop_instrument_agent_instance with "
                     "instrument_agent_instance_id = %r",
                     i_obj.instrument_id, i_obj.instrument_agent_instance_id)
-            else:
-                log.warn(
-                    "instrument_id=%r: Exception in IMS.stop_instrument_agent_instance with "
-                    "instrument_agent_instance_id = %r. Perhaps already dead.",
-                    i_obj.instrument_id, i_obj.instrument_agent_instance_id)
+
+        else:
+            try:
+                pid = ResourceAgentClient._get_agent_process_id(i_obj.instrument_device_id)
+                log.debug("cancel_process: canceling pid=%r", pid)
+                self.PDC.cancel_process(pid)
+            except:
+                log.exception("error canceling process, probably not running?")      #
 
     #################################################################
     # misc convenience methods

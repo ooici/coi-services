@@ -27,6 +27,10 @@ from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTe
 from ion.agents.platform.status_manager import formatted_statuses
 from ion.agents.platform.status_manager import publish_event_for_diagnostics
 
+from ion.agents.instrument.instrument_agent import InstrumentAgentEvent
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
+from interface.objects import AgentCommand
+
 from pyon.event.event import EventPublisher
 from pyon.event.event import EventSubscriber
 
@@ -856,7 +860,7 @@ class Test(BaseIntTestPlatform):
         # create and assign an instrument to LJ01D
         i_obj = self._create_instrument("SBE37_SIM_01")
         self._assign_instrument_to_platform(i_obj, p_root)
-        log.debug("[.] instrument: %s", i_obj)
+        log.debug("OOIION-1077 instrument assigned: %s", i_obj)
 
         #####################################################################
         # prepare to verify expected ProcessLifecycleEvent is generated when
@@ -875,23 +879,26 @@ class Test(BaseIntTestPlatform):
         self._go_active()
         self._run()
 
-        log.debug("[.] waiting for ProcessLifecycleEvent RUNNING")
+        log.debug("OOIION-1077 waiting for ProcessLifecycleEvent RUNNING")
         async_event_result.get(timeout=30) #CFG.endpoint.receive.timeout)
         self.assertEquals(len(events_received), 1)
-        log.debug("[.] waiting for ProcessLifecycleEvent RUNNING - Got it!")
+        log.debug("OOIION-1077 waiting for ProcessLifecycleEvent RUNNING - Got it!")
         sub.stop()
 
         #####################################################################
         # get all root statuses
         aggstatus, child_agg_status, rollup_status = self._get_all_root_statuses()
 
-        log.debug("[.] publish_event_for_diagnostics")
+        log.debug("OOIION-1077 publish_event_for_diagnostics")
         publish_event_for_diagnostics()
-        # ion.agents.platform.status_manager:971 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (d252d6dbaac242ec892ed7e5a6c04eae) status report triggered by diagnostic event:
+        # log shows:
+        # ion.agents.platform.status_manager:952 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (09029e6423d345fa972f0d03c74b1424) status report triggered by diagnostic event:
         #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
-        #         dd81792d72014ad9b92dc51d62ce02ba : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         7147082cd48c405ea8536327d2f97d3f : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #
+        #                     invalidated_children : []
 
         #####################################################################
         # before any updates in this test verify initial statuses are all OK:
@@ -918,41 +925,34 @@ class Test(BaseIntTestPlatform):
                 ProcessStateEnum.TERMINATED)
 
         # now terminate the instrument:
-        log.debug("[.] terminating instrument: %s", i_obj)
+        log.debug("OOIION-1077 terminating instrument: %s", i_obj)
 
-        if False:
-            # TODO somehow this is not causing any ProcessLifecycleEvent. why?
-            self._stop_instrument(i_obj)
-        else:
-            # so, let's simulate the ProcessLifecycleEvent TERMINATED event here
-            evt = dict(event_type='ProcessLifecycleEvent',
-                       origin_type="DispatchedProcess",
-                       origin=i_obj.instrument_device_id,
-                       state=ProcessStateEnum.TERMINATED,
-                       description="Fake ProcessLifecycleEvent for testing")
+        self._stop_instrument(i_obj, use_ims=False)
 
-            log.debug("[.]publishing ProcessLifecycleEvent for child %r: evt=%s",
-                      i_obj.instrument_device_id, evt)
-            self._event_publisher.publish_event(**evt)
-
-        log.debug("[.] waiting for ProcessLifecycleEvent TERMINATED")
-        async_event_result.get(timeout=30) #CFG.endpoint.receive.timeout)
+        log.debug("OOIION-1077 waiting for ProcessLifecycleEvent TERMINATED")
+        async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertEquals(len(events_received), 1)
-        log.debug("[.] waiting for ProcessLifecycleEvent TERMINATED - Got it!")
+        log.debug("OOIION-1077 waiting for ProcessLifecycleEvent TERMINATED - Got it!")
         sub.stop()
+
+        # log shows:
+        # ion.agents.platform.status_manager:409 'LJ01D': OOIION-1077  _got_process_lifecycle_event: pid='InstrumentAgent_7147082cd48c405ea8536327d2f97d3f8715261278b94871bdf88b153d6e8df6' origin='7147082cd48c405ea8536327d2f97d3f' state='TERMINATED'(6)
 
         # verify the root's child_status are all UNKNOWN
         # Note: no event is going to be generated from the platform because
         # its rollup_status is *not* changing.
-        # So, we have wait for a bit to let the updates propagate:
+        # So, we have to wait for a bit to let the updates propagate:
         sleep(15)
-        log.debug("[.] publish_event_for_diagnostics after instrument termination")
+        log.debug("OOIION-1077 publish_event_for_diagnostics after instrument termination")
         publish_event_for_diagnostics()
-        # ion.agents.platform.status_manager:971 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (d252d6dbaac242ec892ed7e5a6c04eae) status report triggered by diagnostic event:
+        # log shows:
+        # ion.agents.platform.status_manager:952 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (09029e6423d345fa972f0d03c74b1424) status report triggered by diagnostic event:
         #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
-        #         dd81792d72014ad9b92dc51d62ce02ba : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        #         7147082cd48c405ea8536327d2f97d3f : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
         #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #
+        #                     invalidated_children : ['7147082cd48c405ea8536327d2f97d3f']
 
         # and do verification that the child_agg_status are all UNKNOWN:
         _, child_agg_status, _ = self._get_all_root_statuses()
@@ -963,45 +963,36 @@ class Test(BaseIntTestPlatform):
         # re-start instrument
         #####################################################################
 
-        # prepare to verify the expected ProcessLifecycleEvent is generated:
+        # NOTE: platform agents don't rely on ProcessLifecycleEvent
+        # RUNNING events to restore information about re-started children;
+        # rather they just react to regular status updates to eventually
+        # re-validate them.
 
-        async_event_result, events_received, sub = \
-            self._start_subscriber_process_lifecycle_event(
-                i_obj.instrument_device_id,
-                ProcessStateEnum.RUNNING)
+        log.debug("OOIION-1077 re-starting instrument: %s", i_obj)
 
-        log.debug("[.] re-starting instrument: %s", i_obj)
+        ia_client = self._start_instrument(i_obj, use_ims=False)
 
-        if False:
-            # TODO somehow this is not causing any ProcessLifecycleEvent. why?
-            self._start_instrument(i_obj)
-        else:
-            # so, let's simulate the ProcessLifecycleEvent TERMINATED event here
-            evt = dict(event_type='ProcessLifecycleEvent',
-                       origin_type="DispatchedProcess",
-                       origin=i_obj.instrument_device_id,
-                       state=ProcessStateEnum.RUNNING,
-                       description="Fake ProcessLifecycleEvent for testing")
-
-            log.debug("[.]publishing ProcessLifecycleEvent for child %r: evt=%s",
-                      i_obj.instrument_device_id, evt)
-            self._event_publisher.publish_event(**evt)
-
-        log.debug("[.] waiting for ProcessLifecycleEvent RUNNING")
-        async_event_result.get(timeout=30) #CFG.endpoint.receive.timeout)
-        self.assertEquals(len(events_received), 1)
-        log.debug("[.] waiting for ProcessLifecycleEvent RUNNING - Got it!")
-        sub.stop()
+        from pyon.agent.agent import ResourceAgentClient
+        pid = ResourceAgentClient._get_agent_process_id(i_obj.instrument_device_id)
+        log.debug("OOIION-1077 instrument re-started: rid=%r", i_obj.instrument_device_id)
+        log.debug("OOIION-1077 instrument re-started: pid=%r", pid)
 
         # again, have to wait for a bit to let the updates propagate:
         sleep(15)
-        log.debug("[.] publish_event_for_diagnostics after instrument re-start")
+
+        # log shows:
+        # ion.agents.platform.platform_agent:1114 'LJ01D': OOIION-1077 _child_running: revalidated child with resource_id='7147082cd48c405ea8536327d2f97d3f', new pid='processa78a63ea70c649809cc3441d6bfddf3d'
+
+        log.debug("OOIION-1077 publish_event_for_diagnostics after instrument re-start")
         publish_event_for_diagnostics()
-        # ion.agents.platform.status_manager:971 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (d252d6dbaac242ec892ed7e5a6c04eae) status report triggered by diagnostic event:
+        # log shows:
+        # ion.agents.platform.status_manager:952 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (09029e6423d345fa972f0d03c74b1424) status report triggered by diagnostic event:
         #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
-        #         dd81792d72014ad9b92dc51d62ce02ba : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         7147082cd48c405ea8536327d2f97d3f : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #
+        #                     invalidated_children : []
 
         # And do verification that the child_agg_status are all OK again:
         # NOTE: this assumes that, once running again, the instrument's
@@ -1009,3 +1000,29 @@ class Test(BaseIntTestPlatform):
         _, child_agg_status, _ = self._get_all_root_statuses()
         self._verify_statuses(child_agg_status[i_obj.instrument_device_id],
                               [DeviceStatusType.STATUS_OK])
+
+        #####################################################################
+        # move the instrument to the COMMAND state where it was when terminated
+        # so the shutdown sequence in the root platform completes fine.
+        # This also verifies that we are able to continue interacting with
+        # the instrument after the re-start.
+        #####################################################################
+
+        cmd = AgentCommand(command=InstrumentAgentEvent.INITIALIZE)
+        retval = ia_client.execute_agent(cmd, timeout=CFG.endpoint.receive.timeout)
+        log.debug("OOIION-1077 INITIALIZE to instrument returned: %s", retval)
+
+        cmd = AgentCommand(command=InstrumentAgentEvent.GO_ACTIVE)
+        retval = ia_client.execute_agent(cmd, timeout=CFG.endpoint.receive.timeout)
+        log.debug("OOIION-1077 GO_ACTIVE to instrument returned: %s", retval)
+
+        cmd = AgentCommand(command=InstrumentAgentEvent.RUN)
+        retval = ia_client.execute_agent(cmd, timeout=CFG.endpoint.receive.timeout)
+        log.debug("OOIION-1077 RUN to instrument returned: %s", retval)
+
+        # verify instrument is in COMMAND:
+        instr_state = ia_client.get_agent_state()
+        log.debug("instrument state: %s", instr_state)
+        self.assertEquals(InstrumentAgentState.COMMAND, instr_state)
+
+        # (we can also move the last _verify_statuses call above to this point.)
