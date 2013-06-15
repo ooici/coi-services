@@ -75,9 +75,9 @@ class RSNPlatformDriver(PlatformDriver):
         # CIOMSClient instance created by connect() and destroyed by disconnect():
         self._rsn_oms = None
 
-        # external event listener: we can instantiate this here as the the
+        # external event listener: we can instantiate this here as the
         # actual http server is started via corresponding method.
-        self._event_listener = OmsEventListener(self._notify_driver_event)
+        self._event_listener = OmsEventListener(self._platform_id, self._notify_driver_event)
 
     def _filter_capabilities(self, events):
         """

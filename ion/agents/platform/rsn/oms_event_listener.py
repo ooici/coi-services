@@ -35,7 +35,7 @@ class OmsEventListener(object):
     # CI events directly.
     #
 
-    def __init__(self, notify_driver_event):
+    def __init__(self, platform_id, notify_driver_event):
         """
         Creates a listener.
 
@@ -43,7 +43,7 @@ class OmsEventListener(object):
                                     provided.
         """
 
-        assert notify_driver_event, "notify_driver_event callback must be provided"
+        self._platform_id = platform_id
         self._notify_driver_event = notify_driver_event
 
         self._http_server = None
@@ -52,10 +52,12 @@ class OmsEventListener(object):
         # _notifications: if not None, [event_instance, ...]
         self._notifications = None
 
-        # __no_notifications: flag only intended for developing purposes
-        self.__no_notifications = os.getenv("NO_OMS_NOTIFICATIONS") is not None
-        if self.__no_notifications:  # pragma: no cover
-            log.warn("NO_OMS_NOTIFICATIONS env variable defined: no notifications will be done")
+        # _no_notifications: flag only intended for developing purposes
+        self._no_notifications = os.getenv("NO_OMS_NOTIFICATIONS") is not None
+        if self._no_notifications:  # pragma: no cover
+            log.warn("%r: NO_OMS_NOTIFICATIONS env variable defined: "
+                     "no notifications will be done", self._platform_id)
+            self._url = "http://_disabled.by.env.var"
 
     @property
     def url(self):
@@ -98,19 +100,23 @@ class OmsEventListener(object):
         if self._notifications:
             self._notifications = []
 
-        log.info("starting http server for receiving event notifications at"
-                 " %s:%s ...", host, port)
+        if self._no_notifications:
+            return
+
+        log.info("%r: starting http server for receiving event notifications at"
+                 " %s:%s ...", self._platform_id, host, port)
         try:
-            self._http_server = WSGIServer((host, port), self.__application,
+            self._http_server = WSGIServer((host, port), self._application,
                                            log=sys.stdout)
             self._http_server.start()
         except:
-            log.exception("Could not start http server for receiving event notifications")
+            log.exception("%r: Could not start http server for receiving event"
+                          " notifications", self._platform_id)
             raise
 
         host_name, host_port = self._http_server.address
 
-        log.info("http server started at %s:%s" % (host_name, host_port))
+        log.info("%r: http server started at %s:%s", self._platform_id, host_name, host_port)
 
         exposed_host_name = host_name
 
@@ -128,15 +134,14 @@ class OmsEventListener(object):
         ######################################################################
 
         self._url = "http://%s:%s" % (exposed_host_name, host_port)
-        log.info("http server exposed URL = %r", self._url)
+        log.info("%r: http server exposed URL = %r", self._platform_id, self._url)
 
-    def __application(self, environ, start_response):
+    def _application(self, environ, start_response):
 
         input = environ['wsgi.input']
         body = "\n".join(input.readlines())
-#        log.trace('notification received payload=%s', body)
+        # log.trace('%r: notification received payload=%s', self._platform_id, body)
         event_instance = yaml.load(body)
-        log.trace('notification received event_instance=%s', event_instance)
 
         self._event_received(event_instance)
 
@@ -147,17 +152,14 @@ class OmsEventListener(object):
         return status
 
     def _event_received(self, event_instance):
-        log.trace('received event_instance=%s', event_instance)
+        log.trace('%r: received event_instance=%s', self._platform_id, event_instance)
 
         if self._notifications:
             self._notifications.append(event_instance)
         else:
             self._notifications = [event_instance]
 
-        if self.__no_notifications:  # pragma: no cover
-            return
-
-        log.debug('notifying event_instance=%s', event_instance)
+        log.debug('%r: notifying event_instance=%s', self._platform_id, event_instance)
 
         driver_event = ExternalEventDriverEvent(event_instance)
         self._notify_driver_event(driver_event)
@@ -168,7 +170,8 @@ class OmsEventListener(object):
         @retval the dict of received notifications or None if they are not kept.
         """
         if self._http_server:
-            log.info("HTTP SERVER: stopping http server: url=%r", self._url)
+            log.info("%r: HTTP SERVER: stopping http server: url=%r",
+                     self._platform_id, self._url)
             self._http_server.stop()
 
         self._http_server = None
