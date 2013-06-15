@@ -208,7 +208,7 @@ class PlatformAgent(ResourceAgent):
         self._ia_clients = {}  # Never None
 
         # self.CFG.endpoint.receive.timeout -- see on_init
-        self._timeout = 160
+        self._timeout = None
 
         # to sync in _initialize
         self._async_children_launched = None
@@ -278,20 +278,31 @@ class PlatformAgent(ResourceAgent):
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
 
-        self._timeout = self.CFG.get_safe("endpoint.receive.timeout", self._timeout)
-        self._plat_config = self.CFG.get("platform_config", None)
-        self._plat_config_processed = False
-
         platform_id = self.CFG.get_safe('platform_config.platform_id', '??')
 
         #######################################################################
-        # CFG.endpoint.receive.timeout: adding a warning if the value is less
-        # than the one we have been using successfully for a while, at least
-        # against our RSN OMS simulator, both locally and on the buildbots.
-        if self._timeout < 180:
-            log.warn("%r: CFG.endpoint.receive.timeout=%s < 180",
-                     platform_id, self._timeout)
+        # CFG.endpoint.receive.timeout: if the value is less than the one we
+        # have been using successfully for a while, log a warning and use the
+        # larger value.
+        #
+        # TODO actually just use whatever timeout is given from configuration.
+        # The adjustment here should be considered temporary while there's an
+        # appropriate mechanism to guarantee patched values are seen.
+        #
+        cfg_timeout = self.CFG.get_safe("endpoint.receive.timeout", 0)
+        log.info("=== %r: CFG.endpoint.receive.timeout = %s", platform_id, cfg_timeout)
+        if cfg_timeout < 180:
+            log.warn("!!! %r: CFG.endpoint.receive.timeout=%s < 180. "
+                     "You may want to review your pyon{.local}.yml, @patch.dict, "
+                     "etc. or adjust the code in this method as appropriate. "
+                     "For now, will use 180 based on previous testing.",
+                     platform_id, cfg_timeout)
+            cfg_timeout = 180
+        self._timeout = cfg_timeout
         #######################################################################
+
+        self._plat_config = self.CFG.get("platform_config", None)
+        self._plat_config_processed = False
 
         self._launcher = Launcher(self._timeout)
 
@@ -1184,6 +1195,19 @@ class PlatformAgent(ResourceAgent):
         self.add_endpoint(sub)
         return sub
 
+    def _destroy_event_subscriber(self, sub):
+        """
+        Destroys an EventSubscriber created with _create_event_subscriber.
+
+        @param sub   subscriber
+        """
+        #self.remove_endpoint(sub) -- why this is making tests fail?
+        # TODO determine whether self.remove_endpoint is the appropriate call
+        # here and if so, how it should be used. For now, calling sub.close()
+        # (this only change made the difference between successful tests and
+        # failing tests that actually never exited -- I had to kill them).
+        sub.close()
+
     def _prepare_await_state(self, origin, state):
         """
         Does preparations to wait until the given origin publishes a
@@ -1223,10 +1247,10 @@ class PlatformAgent(ResourceAgent):
         """
 
         # wait for the event:
+        log.debug("%r: _await_state: _timeout=%s", self._platform_id, self._timeout)
         async_res.get(timeout=self._timeout)
 
-        # no need to stop the subscriber because it is registered with the
-        # endpoint management API. See _create_event_subscriber.
+        self._destroy_event_subscriber(sub)
 
     ##############################################################
     # supporting routines dealing with sub-platforms
@@ -1868,15 +1892,6 @@ class PlatformAgent(ResourceAgent):
         # first, is the agent already running?
         ia_client = None
         pid = None
-
-        #
-        # TODO: proper handling of "process ID".
-        # Two possible sources to get it:
-        # - given by process_dispatcher_client.schedule_process when we
-        #   launch the process here;
-        # - given by ResourceAgentClient._get_agent_process_id
-        #
-
         try:
             # try to connect
             ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
@@ -2419,12 +2434,12 @@ class PlatformAgent(ResourceAgent):
         self._run_this_platform()
 
         if recursion:
-            # first sub-platforms:
+            # first instruments:
             self._instruments_run()
 
-            # we proceed with instruments even if some sub-platforms failed.
+            # we proceed with sub-platforms even if some instruments failed.
 
-            # then my own instruments:
+            # then sub-platforms:
             self._subplatforms_run()
 
         result = None

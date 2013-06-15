@@ -62,6 +62,8 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #
         # Tests the launch and shutdown of a single platform (no instruments).
         #
+        self._set_receive_timeout()
+
         p_root = self._create_single_platform()
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
@@ -73,6 +75,8 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #
         # Tests the launch and shutdown of a small platform topology (no instruments).
         #
+        self._set_receive_timeout()
+
         p_root = self._create_small_hierarchy()
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
@@ -84,6 +88,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #
         # basic test of launching a single platform with an instrument
         #
+        self._set_receive_timeout()
 
         p_root = self._set_up_single_platform_with_some_instruments(['SBE37_SIM_01'])
         self._start_platform(p_root)
@@ -100,6 +105,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         # continue operating normally.
         # See PlatformAgent._launch_instrument_agent
         #
+        self._set_receive_timeout()
 
         # create instrument but do not start associated port agent ...
         instr_key = 'SBE37_SIM_01'
@@ -135,6 +141,8 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         # This test added while investigating OOIION-1095.
         # With one instrument the test runs fine even --with-pycc.
         #
+        self._set_receive_timeout()
+
         instr_keys = ["SBE37_SIM_02", ]
 
         p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
@@ -144,14 +152,12 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         self._run_startup_commands()
 
-    @skip("Used to pass in general, but now not --with-pycc when more "
-          "than one instrument is associated. Skipped while investigating. OOIION-1095")
-    # Note: it's the same test as above but with more than one instrument.
-    # TODO reenable. what has changed in the launching of port/instrument agents?
     def test_13_platforms_and_2_instruments(self):
         #
         # Test with network of 13 platforms and 2 instruments.
         #
+        self._set_receive_timeout()
+
         instr_keys = ["SBE37_SIM_01", "SBE37_SIM_02", ]
 
         p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
@@ -168,6 +174,8 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         # Test with network of 13 platforms and 8 instruments (the current
         # number of enabled instrument simulator instances).
         #
+        self._set_receive_timeout()
+
         instr_keys = sorted(instruments_dict.keys())
         p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
         self._start_platform(p_root)
@@ -177,6 +185,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self._run_startup_commands()
 
     def test_platform_device_extended_attributes(self):
+        self._set_receive_timeout()
 
         instr_keys = ["SBE37_SIM_01", "SBE37_SIM_02", ]
         p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
