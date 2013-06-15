@@ -81,8 +81,6 @@ class StatusManager(object):
 
         self._agent = pa
 
-        self._create_event_subscriber = pa._create_event_subscriber
-
         self._platform_id            = pa._platform_id
         self.resource_id             = pa.resource_id
         self._children_resource_ids  = pa._children_resource_ids
@@ -125,6 +123,12 @@ class StatusManager(object):
         Stops all event subscribers and clears self._event_subscribers,
         self.aparam_rollup_status, self.aparam_child_agg_status.
         """
+        def stop_es(origin, es):
+            try:
+                self._agent._destroy_event_subscriber(es)
+            except Exception as ex:
+                log.warn("%r: error destroying event subscriber: origin=%r: %s",
+                         self._platform_id, origin, ex)
 
         with self._lock:
             self._active = False
@@ -138,18 +142,11 @@ class StatusManager(object):
                 self.aparam_rollup_status[status_name] = DeviceStatusType.STATUS_UNKNOWN
 
             for origin, es in ess.iteritems():
-                self._stop_event_subscriber(origin, es)
+                stop_es(origin, es)
 
-        if self._diag_sub:  # pragma: no cover
-            self._stop_event_subscriber(None, self._diag_sub)
-            self._diag_sub = None
-
-    def _stop_event_subscriber(self, origin, es):
-        try:
-            es.stop()
-        except Exception as ex:
-            log.warn("%r: error stopping event subscriber: origin=%r: %s",
-                     self._platform_id, origin, ex)
+            if self._diag_sub:  # pragma: no cover
+                stop_es(None, self._diag_sub)
+                self._diag_sub = None
 
     def instrument_launched(self, ia_client, i_resource_id):
         """
@@ -414,10 +411,16 @@ class StatusManager(object):
         # use associated process ID for the subscription:
         pid = ResourceAgentClient._get_agent_process_id(origin)
 
-        sub = self._create_event_subscriber(event_type="ProcessLifecycleEvent",
-                                            origin_type='DispatchedProcess',
-                                            origin=pid,
-                                            callback=_got_process_lifecycle_event)
+        if pid is None:
+            log.warn("%r: OOIION-1077 ResourceAgentClient._get_agent_process_id"
+                     " returned None for origin=%r. Subscriber not created.",
+                     self._platform_id, origin)
+            return
+
+        sub = self._agent._create_event_subscriber(event_type="ProcessLifecycleEvent",
+                                                   origin_type='DispatchedProcess',
+                                                   origin=pid,
+                                                   callback=_got_process_lifecycle_event)
 
         with self._lock:
             # but note that we use the given origin as index in _event_subscribers:
@@ -492,9 +495,9 @@ class StatusManager(object):
         @param origin    the resource_id associated with child
         """
         event_type = "DeviceStatusEvent"
-        sub = self._create_event_subscriber(event_type=event_type,
-                                            origin=origin,
-                                            callback=self._got_device_status_event)
+        sub = self._agent._create_event_subscriber(event_type=event_type,
+                                                  origin=origin,
+                                                  callback=self._got_device_status_event)
 
         with self._lock:
             self._event_subscribers[origin] = sub
@@ -629,8 +632,8 @@ class StatusManager(object):
                      self._platform_id, evt)
             return
 
-        # finally re-publish event so ancestors also get notified:
-        # only adjustment is that now I'm the origin:
+        # finally forward event so ancestors also get notified:
+        # only adjustment is that now my platform's resource_id is the origin:
         evt = dict(event_type  = evt.type_,
                    sub_type    = evt.sub_type,
                    origin_type = evt.origin_type,
@@ -638,7 +641,7 @@ class StatusManager(object):
                    description = evt.description,
                    values      = evt.values)
         try:
-            log.debug('%r: _device_removed_event: re-publishing: %s',
+            log.debug('%r: _device_removed_event: forwarding to ancestors: %s',
                       self._platform_id, evt)
 
             self._event_publisher.publish_event(**evt)
@@ -682,10 +685,10 @@ class StatusManager(object):
         """
         es = self._event_subscribers[origin]
         try:
-            es.stop()
+            self._agent._destroy_event_subscriber(es)
 
         except Exception as ex:
-            log.warn("%r: error stopping event subscriber: origin=%r: %s",
+            log.warn("%r: error destroying event subscriber: origin=%r: %s",
                      self._platform_id, origin, ex)
 
         finally:
@@ -711,9 +714,9 @@ class StatusManager(object):
         @param origin    the resource_id associated with child
         """
         event_type = "DeviceAggregateStatusEvent"
-        sub = self._create_event_subscriber(event_type=event_type,
-                                            origin=origin,
-                                            callback=self._got_device_aggregate_status_event)
+        sub = self._agent._create_event_subscriber(event_type=event_type,
+                                                  origin=origin,
+                                                  callback=self._got_device_aggregate_status_event)
 
         with self._lock:
             self._event_subscribers[origin] = sub
@@ -951,10 +954,10 @@ Published event: AGGREGATE_POWER -> STATUS_OK
                      self._platform_id, state, self.resource_id, statuses,
                      "invalidated_children", invalidated_children)
 
-        self._diag_sub = self._create_event_subscriber(event_type=event_type,
-                                                       origin=origin,
-                                                       sub_type=sub_type,
-                                                       callback=got_event)
+        self._diag_sub = self._agent._create_event_subscriber(event_type=event_type,
+                                                              origin=origin,
+                                                              sub_type=sub_type,
+                                                              callback=got_event)
         log.info("%r: registered diagnostics event subscriber", self._platform_id)
 
 

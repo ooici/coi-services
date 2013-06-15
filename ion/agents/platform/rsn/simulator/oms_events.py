@@ -97,6 +97,10 @@ class EventNotifier(object):
         """
         Notifies event to given listener.
         """
+        if url == "http://NO_OMS_NOTIFICATIONS":
+            # developer convenience -see ion.agents.platform.rsn.oms_event_listener
+            return
+
         log.debug("Notifying event_instance=%s to listener=%s", str(event_instance), url)
 
         # include url in event instance:
