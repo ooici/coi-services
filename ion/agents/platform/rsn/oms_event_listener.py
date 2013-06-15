@@ -53,11 +53,12 @@ class OmsEventListener(object):
         self._notifications = None
 
         # _no_notifications: flag only intended for developing purposes
+        # see ion.agents.platform.rsn.simulator.oms_events
         self._no_notifications = os.getenv("NO_OMS_NOTIFICATIONS") is not None
         if self._no_notifications:  # pragma: no cover
             log.warn("%r: NO_OMS_NOTIFICATIONS env variable defined: "
                      "no notifications will be done", self._platform_id)
-            self._url = "http://_disabled.by.env.var"
+            self._url = "http://NO_OMS_NOTIFICATIONS"
 
     @property
     def url(self):
