@@ -371,7 +371,7 @@ class CIOMSSimulator(CIOMSClient):
             # create entry for this new url
             reg_time = self._event_notifier.add_listener(url, event_type)
             self._reg_event_listeners[url] = reg_time
-            log.info("%r registered url=%r", url)
+            log.info("registered url=%r", url)
         else:
             # already registered:
             reg_time = self._reg_event_listeners[url]
@@ -399,7 +399,7 @@ class CIOMSSimulator(CIOMSClient):
         unreg_time = self._event_notifier.remove_listener(url, event_type)
         del self._reg_event_listeners[url]
 
-        log.info("%r unregistered url=%r", url)
+        log.info("unregistered url=%r", url)
 
         self._stop_event_generator_if_no_listeners()
 
