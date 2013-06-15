@@ -245,6 +245,8 @@ class Test(BaseIntTestPlatform):
         #
         # The updates are triggered from direct event publications done on
         # behalf of the leaf platforms.
+        #
+        self._set_receive_timeout()
 
         # create the network:
         p_objs = {}
@@ -407,6 +409,8 @@ class Test(BaseIntTestPlatform):
         # In the tests below, we can verify the expected root status with
         # either the received event or via explicit request via get_agent.
         #
+        #
+        self._set_receive_timeout()
 
         # create the network:
         p_objs = {}
@@ -491,6 +495,8 @@ class Test(BaseIntTestPlatform):
         # here also assign an instrument to a platform and trigger all
         # updates from that instrument.
         #
+        #
+        self._set_receive_timeout()
 
         # create the network:
         p_objs = {}
@@ -587,6 +593,8 @@ class Test(BaseIntTestPlatform):
         # The test also includes some explicitly triggered updates via
         # publication on behalf of the instruments.
         #
+        #
+        self._set_receive_timeout()
 
         # create the network:
         p_objs = {}
@@ -853,6 +861,7 @@ class Test(BaseIntTestPlatform):
         #   platform='LJ01D'
         #   instrument=SBE37_SIM_01
         #
+        self._set_receive_timeout()
 
         # create the network:
         self.p_root = p_root = self._create_platform('LJ01D')

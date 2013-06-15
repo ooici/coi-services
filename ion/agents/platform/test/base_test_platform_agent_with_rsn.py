@@ -324,7 +324,24 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         # instruments that have been set up: instr_key: i_obj
         self._setup_instruments = {}
 
+        # see _set_receive_timeout
+        self._receive_timeout = 177
+
         self._pp = pprint.PrettyPrinter()
+
+    def _set_receive_timeout(self):
+        """
+        Method introduced to help deal with weird behaviors related with the
+        patching of CFG.endpoint.receive.timeout. Each concrete test
+        should call call this method at the beginning of the test itself (not
+        in setUp where the patch mechanism as an annotation to the test class
+        does not yet take effect).
+        This method captures the current value of CFG.endpoint.receive.timeout
+        to be used in some operations provided by the class.
+        """
+        from pyon.public import CFG
+        self._receive_timeout = CFG.endpoint.receive.timeout
+        log.info("self._receive_timeout = %s", self._receive_timeout)
 
     #################################################################
     # data subscribers handling
@@ -1230,8 +1247,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         ##############################################################
         # wait for the UNINITIALIZED event:
-        from pyon.public import CFG
-        async_res.get(timeout=CFG.endpoint.receive.timeout)
+        async_res.get(timeout=self._receive_timeout)
 
     def _stop_platform(self, p_obj):
         try:
@@ -1297,6 +1313,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         - waits for the start of the process
         - waits for the transition to the UNINITIALIZED state
 
+        @param i_obj     instrument
+        @param use_ims   True (the default) to use IMS.start_instrument_agent_instance
+                         (which also starts port agent;
+                         False to use a simplified version of that IMS method
+                        but with *no* launching any port agent.
         @return ResourceAgentClient object
         """
         ##############################################################
@@ -1345,17 +1366,18 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         ##############################################################
         # wait for the UNINITIALIZED event:
-        from pyon.public import CFG
-        evt = async_res.get(timeout=CFG.endpoint.receive.timeout)
+        evt = async_res.get(timeout=self._receive_timeout)
         log.debug("[,]Got UNINITIALIZED event from %r", evt.origin)
 
         return ia_client
 
-    def _stop_instrument(self, i_obj, use_ims=False):
+    def _stop_instrument(self, i_obj, use_ims=True):
         """
-        @param use_ims   True to use IMS.stop_instrument_agent_instance;
-                         this is not working.
-                         False (the default) to get the pid using
+        Stops the given instrument
+
+        @param i_obj     instrument
+        @param use_ims   True (the default) to use IMS.stop_instrument_agent_instance;
+                         False to get the pid using
                          ResourceAgentClient._get_agent_process_id
                          and call PDC's cancel_process
         """
@@ -1371,10 +1393,15 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         else:
             try:
                 pid = ResourceAgentClient._get_agent_process_id(i_obj.instrument_device_id)
-                log.debug("cancel_process: canceling pid=%r", pid)
-                self.PDC.cancel_process(pid)
-            except:
-                log.exception("error canceling process, probably not running?")      #
+                if pid is not None:
+                    log.debug("cancel_process: canceling pid=%r", pid)
+                    self.PDC.cancel_process(pid)
+                else:
+                    log.debug("_get_agent_process_id returned None; process already dead?")
+            except Exception as ex:
+                log.warn("error getting agent process id of %r, or while "
+                         "canceling process, probably already dead?: %s",
+                         i_obj.instrument_device_id, ex)
 
     #################################################################
     # misc convenience methods
@@ -1392,10 +1419,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertEquals(self._get_state(), state)
 
     def _execute_agent(self, cmd):
-        log.info("_execute_agent: cmd=%r kwargs=%r ...", cmd.command, cmd.kwargs)
+        log.info("_execute_agent: cmd=%r kwargs=%r; timeout=%s ...",
+                 cmd.command, cmd.kwargs, self._receive_timeout)
         time_start = time.time()
-        #retval = self._pa_client.execute_agent(cmd, timeout=timeout)
-        retval = self._pa_client.execute_agent(cmd)
+        retval = self._pa_client.execute_agent(cmd, timeout=self._receive_timeout)
         elapsed_time = time.time() - time_start
         log.info("_execute_agent: timing cmd=%r elapsed_time=%s, retval = %s",
                  cmd.command, elapsed_time, str(retval))
