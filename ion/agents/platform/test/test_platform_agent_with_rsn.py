@@ -74,6 +74,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         @param clean_up    Not None to override default pre-cleanUp calls.
         """
+        self._set_receive_timeout()
+
         self.p_root = None
 
         # NOTE The tests expect to use values set up by HelperTestMixin for
@@ -676,7 +678,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         with self.assertRaises(Conflict):
             self._pa_client.get_resource_state()
 
-        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        self._async_event_result.get(timeout=self._receive_timeout)
         self.assertGreaterEqual(len(self._events_received), 2)
 
     def test_lost_connection_and_reconnect(self):
@@ -718,7 +720,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._simulator_disable()
 
         # verify a ResourceAgentConnectionLostErrorEvent was published:
-        async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        async_event_result.get(timeout=self._receive_timeout)
         self.assertEquals(len(events_received), 1)
 
         # verify the platform is now in LOST_CONNECTION:
@@ -768,7 +770,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             log.info("registered DeviceStatusAlertEvent subscriber: %s", kwargs)
 
             self._event_subscribers.append(sub)
-            sub._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
+            sub._ready_event.wait(timeout=self._receive_timeout)
 
             return async_event_result
 
