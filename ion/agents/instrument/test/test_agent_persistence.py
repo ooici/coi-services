@@ -144,6 +144,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 360}}})
+@unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestAgentPersistence(IonIntegrationTestCase):
     """
     """
@@ -568,6 +569,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    @unittest.skip('Awaiting sbe37 driver fix.')
     def test_agent_rparam_persistence(self):
         """
         test_agent_rparam_persistence
@@ -645,7 +647,10 @@ class TestAgentPersistence(IonIntegrationTestCase):
             SBE37Parameter.NAVG : orig_params[SBE37Parameter.NAVG] + 1,
             SBE37Parameter.TA0 : orig_params[SBE37Parameter.TA0] * 2
         }
-
+        
+        #print '########### orig params'
+        #print str(orig_params)
+        
         self._ia_client.set_resource(new_params)
         retval = self._ia_client.get_resource(params)
         
@@ -658,9 +663,15 @@ class TestAgentPersistence(IonIntegrationTestCase):
         self.assertAlmostEqual(retval[SBE37Parameter.TA0],
                                new_params[SBE37Parameter.TA0], delta=delta)
 
+        #print '########### new params'
+        #print str(retval)
+
         # Now stop and restart the agent.
         self._stop_agent()
-        gevent.sleep(15)
+        self._support.stop_pagent()
+        gevent.sleep(10)
+        self._start_pagent()
+        gevent.sleep(10)
         self._start_agent('restart')
 
         timeout = gevent.Timeout(600)
@@ -679,8 +690,8 @@ class TestAgentPersistence(IonIntegrationTestCase):
         # Verify the parameters have been restored as needed.
         retval = self._ia_client.get_resource(params)
 
-        self._ia_client.set_resource(new_params)
-        retval = self._ia_client.get_resource(params)
+        #print '########### restored params'
+        #print str(retval)
         
         self.assertEqual(retval[SBE37Parameter.OUTPUTSV],
                          new_params[SBE37Parameter.OUTPUTSV])
@@ -690,6 +701,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     new_params[SBE37Parameter.TA0])*.01
         self.assertAlmostEqual(retval[SBE37Parameter.TA0],
                                new_params[SBE37Parameter.TA0], delta=delta)
+
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.

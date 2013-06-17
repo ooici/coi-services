@@ -1236,13 +1236,16 @@ class InstrumentAgent(ResourceAgent):
             driver_client = self._dvr_proc.get_client()
             driver_client.start_messaging(self.evt_recv)
             retval = driver_client.cmd_dvr('process_echo', 'Test.')
+            startup_config = dvr_config.get('startup_config',None)
+            if startup_config:
+                retval = driver_client.cmd_dvr('set_init_params', startup_config)
             self._dvr_client = driver_client
 
         except Exception, e:
             self._dvr_proc.stop()
             self._dvr_proc = None
             self._dvr_client = None
-            log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
+            log.error('Instrument agent %s error starting driver client. %s', self._proc_name, e)
             raise ResourceError('Error starting driver client.')
 
         log.info('Instrument agent %s started its driver.', self._proc_name)
