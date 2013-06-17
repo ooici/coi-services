@@ -152,10 +152,9 @@ class DataRetrieverService(BaseDataRetrieverService):
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else:
                 rdt = ReplayProcess._coverage_to_granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
-        except Exception as e:
+        except:
             cls._eject_cache(dataset_id)
-            import traceback
-            traceback.print_exc(e)
+            log.exception('Problems reading from the coverage')
             raise BadRequest('Problems reading from the coverage')
         return rdt.to_granule()
 
