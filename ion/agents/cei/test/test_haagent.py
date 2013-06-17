@@ -158,8 +158,8 @@ class BaseHighAvailabilityAgentTest(IonIntegrationTestCase):
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
 
-        self.assertEqual(len(self.get_running_procs()), 0)
         self.await_ha_state('STEADY')
+        self.assertEqual(len(self.get_running_procs()), 0)
 
         self.waiter.stop()
         try:
