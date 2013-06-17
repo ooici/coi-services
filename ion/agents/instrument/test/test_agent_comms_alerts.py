@@ -438,12 +438,11 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
 
         timeout = gevent.Timeout(120)
         timeout.start()
-
         try:
-            
             while True:
                 state = self._ia_client.get_agent_state()
                 if state == ResourceAgentState.COMMAND:
+                    timeout.cancel()
                     break
                 else:
                     gevent.sleep(2)
