@@ -40,9 +40,12 @@ from pyon.agent.agent import ResourceAgentState
 from unittest import skip
 from mock import patch
 from pyon.public import log, CFG
+import unittest
+import os
 
 
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
+@unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestPlatformLaunch(BaseIntTestPlatform):
 
     def _run_startup_commands(self):
