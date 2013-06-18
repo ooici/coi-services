@@ -1,17 +1,15 @@
 #!/usr/bin/env python
-import string
-import unittest
+
 import datetime
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
-from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.context import LocalContextMixin
 from pyon.public import RT, PRED, OT, log, LCE
 from pyon.public import IonObject
-from pyon.event.event import EventPublisher
-from pyon.agent.agent import ResourceAgentState
-from ion.services.dm.utility.granule_utils import time_series_domain
+
+from nose.plugins.attrib import attr
+from pyon.util.ion_time import IonTime
+
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
@@ -20,19 +18,12 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from pyon.core.governance import get_actor_header
-from nose.plugins.attrib import attr
-from interface.objects import ComputedValueAvailability
-from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader
-from pyon.util.ion_time import IonTime
-from pyon.container.cc import Container
-from pyon.datastore.datastore import DataStore
-from ion.services.sa.test.helpers import any_old
 
 
-class FakeProcess(LocalContextMixin):
-    name = ''
-
+STAGE_LOAD_ORGS = 1
+STAGE_LOAD_PARAMS = 3
+STAGE_LOAD_AGENTS = 5
+STAGE_LOAD_ASSETS = 7
 
 @attr('INT', group='sa')
 class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
@@ -41,42 +32,112 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         self._start_container()
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        self.RR = ResourceRegistryServiceClient(node=self.container.node)
+
+        self.RR = ResourceRegistryServiceClient()
         self.RR2 = EnhancedResourceRegistryClient(self.RR)
-        self.OMS = ObservatoryManagementServiceClient(node=self.container.node)
-        self.org_management_service = OrgManagementServiceClient(node=self.container.node)
-        self.IMS =  InstrumentManagementServiceClient(node=self.container.node)
-        self.dpclient = DataProductManagementServiceClient(node=self.container.node)
-        self.pubsubcli =  PubsubManagementServiceClient(node=self.container.node)
-        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
+        self.OMS = ObservatoryManagementServiceClient()
+        self.org_management_service = OrgManagementServiceClient()
+        self.IMS =  InstrumentManagementServiceClient()
+        self.dpclient = DataProductManagementServiceClient()
+        self.pubsubcli =  PubsubManagementServiceClient()
+        self.damsclient = DataAcquisitionManagementServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
 
-    def assert_can_load(self, scenarios, loadui=False, loadooi=False, path=TESTED_DOC, ui_path='default'):
-        """ perform preload for given scenarios and raise exception if there is a problem with the data """
-        config = dict(op="load",
-                      scenario=scenarios,
-                      attachments="res/preload/r2_ioc/attachments",
-                      loadui=loadui,
-                      loadooi=loadooi,
-                      path=path, ui_path=ui_path,
-                      assets='res/preload/r2_ioc/ooi_assets',
-                      bulk=loadooi,
-                      debug=True,
-                      ooiexclude='DataProduct,DataProductLink',
-                      )
-        self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
+        self._load_stage = 0
 
+
+    def preload_ooi(self, stage=10):
+
+        if self._load_stage >= stage:
+            return
+
+        if self._load_stage < STAGE_LOAD_ORGS:
+            # load_OOIR2_scenario
+            self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
+                op="load",
+                scenario="OOIR2",
+                path="master",
+                ))
+            self._load_stage = STAGE_LOAD_ORGS
+
+
+        if self._load_stage < STAGE_LOAD_PARAMS:
+            # load_parameter_scenarios
+            self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
+                op="load",
+                scenario="BETA",
+                path="master",
+                categories="ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition",
+                clearcols="owner_id,org_ids",
+                assets="res/preload/r2_ioc/ooi_assets",
+                parseooi="True",
+                ))
+            self._load_stage = STAGE_LOAD_PARAMS
+
+        if self._load_stage < STAGE_LOAD_AGENTS:
+            # load_OOIR2_agents
+            self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
+                op="load",
+                scenario="OOIR2_I",
+                path="master",
+                ))
+            self._load_stage = STAGE_LOAD_AGENTS
+
+        if self._load_stage < STAGE_LOAD_ASSETS:
+            # load_ooi_assets
+            self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
+                op="load",
+                loadooi="True",
+                path="master",
+                assets="res/preload/r2_ioc/ooi_assets",
+                bulk="True",
+                debug="True",
+                ooiuntil="9/1/2013",
+                ooiparams="True",
+                #excludecategories: DataProduct,DataProductLink,Deployment,Workflow,WorkflowDefinition
+                ))
+            self._load_stage = STAGE_LOAD_ASSETS
+
+        #self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
+        #    cfg="res/preload/r2_ioc/config/dev_ooi_load.yml",
+        #    ))
         # 'DataProduct,DataProductLink,WorkflowDefinition,ExternalDataProvider,ExternalDatasetModel,ExternalDataset,ExternalDatasetAgent,ExternalDatasetAgentInstance',
 
-    def load_summer_deploy_assets(self):
-        """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/' """
-        ui_path = 'https://userexperience.oceanobservatories.org/database-exports/Candidates'
-        self.assert_can_load(scenarios="X", loadui=True, loadooi=True, ui_path=ui_path)
 
-    @unittest.skip('under construction.')
+
+    def _check_marine_facility(self, preload_id):
+        res_list, _  = self.RR.find_resources_ext(alt_id_ns="PRE", alt_id=preload_id, id_only=True)
+        self.assertEquals(len(res_list), 1)
+        mf_id = res_list[0]
+
+        res_list, _ = self.RR.find_objects(subject=mf_id, predicate=PRED.hasMembership, id_only=True)
+        self.assertGreaterEqual(len(res_list), 3)
+
+        res_list, _ = self.RR.find_objects(subject=mf_id, predicate=PRED.hasRole, id_only=True)
+        self.assertGreaterEqual(len(res_list), 5)
+
+
+        return mf_id
+
+    #@unittest.skip('under construction.')
     def test_observatory(self):
         # Perform OOI preload for summer deployments (production mode, no debug, no bulk)
-        self.load_summer_deploy_assets()
+        self.preload_ooi(stage=STAGE_LOAD_ORGS)
+
+        org_cgsn_id = self._check_marine_facility("MF_CGSN")
+
+        org_rsn_id = self._check_marine_facility("MF_RSN")
+
+        org_ea_id = self._check_marine_facility("MF_EA")
+
+
+        self.preload_ooi(stage=STAGE_LOAD_PARAMS)
+
+
+        self.preload_ooi(stage=STAGE_LOAD_AGENTS)
+
+
+        self.preload_ooi(stage=STAGE_LOAD_ASSETS)
 
         #test an asset
         res_list, _  = self.RR.find_resources_ext(alt_id_ns="OOI", alt_id="CE04OSBP-LJ01C-06-CTDBPO108")
