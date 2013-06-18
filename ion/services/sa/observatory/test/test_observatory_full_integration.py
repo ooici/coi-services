@@ -132,12 +132,48 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         return passing
     
     def rsn_node_checks(self):
+        passing = True
         # Check existing RSN node CE04OSHY-LV01C Deployment (PLANNED lcstate)
         CE04OSHY_LV01C_deployment = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSHY-LV01C_DEP')
 
         #self.dump_deployment(CE04OSHY_LV01C_deployment._id)
         log.debug('test_observatory  retrieve RSN node CE04OSHY-LV01C Deployment:  %s', CE04OSHY_LV01C_deployment)
-        return self.assertEquals(CE04OSHY_LV01C_deployment.lcstate, 'PLANNED')
+        passing &= self.assertEquals(CE04OSHY_LV01C_deployment.lcstate, 'PLANNED')
+        # MATURITY = ['DRAFT', 'PLANNED', 'DEVELOPED', 'INTEGRATED', 'DEPLOYED', 'RETIRED']
+        CE04OSHY_LV01C_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSHY-LV01C_PD')
+        #ret = self.RR.execute_lifecycle_transition(resource_id=CE04OSHY_LV01C_device._id, transition_event=LCE.PLANNED)
+        
+        # Set CE04OSHY-LV01C device to DEVELOPED state
+        self.transition_lcs_then_verify(resource_id=CE04OSHY_LV01C_device._id, new_lcs_state=LCE.DEVELOP, verify='DEVELOPED')
+
+        # Set CE04OSHY-LV01C device to INTEGRATED state
+        self.transition_lcs_then_verify(resource_id=CE04OSHY_LV01C_device._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
+
+        # Set CE04OSHY-LV01C device to DEPLOYED state
+        self.transition_lcs_then_verify(resource_id=CE04OSHY_LV01C_device._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+
+        # Set CE04OSHY-LV01C Deployment to DEPLOYED state
+        self.transition_lcs_then_verify(resource_id=CE04OSHY_LV01C_deployment._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+        
+        # Activate Deployment for CE04OSHY-LV01C
+        self.OMS.activate_deployment(CE04OSHY_LV01C_deployment._id)
+        log.debug('---------    activate_deployment CE04OSHY_LV01C_deployment -------------- ')
+        self.dump_deployment(CE04OSHY_LV01C_deployment._id)
+        passing &= self.validate_deployment_activated(CE04OSHY_LV01C_deployment._id)
+        
+        # (optional) Start CE04OSHY-LV01C platform agent with simulator
+
+        # Set DataProduct for CE04OSHY-LV01C platform to DEPLOYED state
+        output_data_product_ids, assns =self.RR.find_objects(subject=CE04OSHY_LV01C_device._id, predicate=PRED.hasOutputProduct, id_only=True)
+        if output_data_product_ids:
+            #self.assertEquals(len(child_devs), 3)
+            for output_data_product_id in output_data_product_ids:
+                log.debug('DataProduct for CE04OSHY-LV01C platform:  %s', output_data_product_id)
+                self.transition_lcs_then_verify(resource_id=output_data_product_id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+
+        # Check events for CE04OSHY-LV01C platform
+
+        return passing
     
     @unittest.skip('under construction.')
     def test_observatory(self):
@@ -167,41 +203,6 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Check existing RSN node CE04OSHY-LV01C Deployment (PLANNED lcstate)
         passing &= self.rsn_node_checks()
-
-        # Set CE04OSHY-LV01C device to DEVELOPED state
-        # MATURITY = ['DRAFT', 'PLANNED', 'DEVELOPED', 'INTEGRATED', 'DEPLOYED', 'RETIRED']
-        CE04OSHY_LV01C_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSHY-LV01C_PD')
-        #ret = self.RR.execute_lifecycle_transition(resource_id=CE04OSHY_LV01C_device._id, transition_event=LCE.PLANNED)
-        self.transition_lcs_then_verify(resource_id=CE04OSHY_LV01C_device._id, new_lcs_state=LCE.DEVELOP, verify='DEVELOPED')
-
-
-        # Set CE04OSHY-LV01C device to INTEGRATED state
-        self.transition_lcs_then_verify(resource_id=CE04OSHY_LV01C_device._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
-
-        # Set CE04OSHY-LV01C device to DEPLOYED state
-        self.transition_lcs_then_verify(resource_id=CE04OSHY_LV01C_device._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
-
-        # Set CE04OSHY-LV01C Deployment to DEPLOYED state
-        self.transition_lcs_then_verify(resource_id=CE04OSHY_LV01C_deployment._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
-
-        # Activate Deployment for CE04OSHY-LV01C
-        self.OMS.activate_deployment(CE04OSHY_LV01C_deployment._id)
-        log.debug('---------    activate_deployment CE04OSHY_LV01C_deployment -------------- ')
-        self.dump_deployment(CE04OSHY_LV01C_deployment._id)
-        self.validate_deployment_activated(CE04OSHY_LV01C_deployment._id)
-
-        # (optional) Start CE04OSHY-LV01C platform agent with simulator
-
-        # Set DataProduct for CE04OSHY-LV01C platform to DEPLOYED state
-        output_data_product_ids, assns =self.RR.find_objects(subject=CE04OSHY_LV01C_device._id, predicate=PRED.hasOutputProduct, id_only=True)
-        if output_data_product_ids:
-            #self.assertEquals(len(child_devs), 3)
-            for output_data_product_id in output_data_product_ids:
-                log.debug('DataProduct for CE04OSHY-LV01C platform:  %s', output_data_product_id)
-                self.transition_lcs_then_verify(resource_id=output_data_product_id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
-
-
-        # Check events for CE04OSHY-LV01C platform
 
 
         # Check existing CE04OSBP-LJ01C Deployment (PLANNED lcstate)
@@ -392,7 +393,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Check provenance
 
-        pass
+        self.assertTrue(passing)
 
     def retrieve_ooi_asset(self, namespace='', alt_id=''):
         dp_list, _  = self.RR.find_resources_ext(alt_id_ns=namespace, alt_id=alt_id)
@@ -418,12 +419,12 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
     def validate_deployment_activated(self, deployment_id=''):
         site_id, device_id = self.get_deployment_ids(deployment_id)
         assocs = self.RR.find_associations(subject=site_id, predicate=PRED.hasDevice, object=device_id)
-        self.assertEquals(len(assocs), 1)
+        return self.assertEquals(len(assocs), 1)
 
     def validate_deployment_deactivated(self, deployment_id=''):
         site_id, device_id = self.get_deployment_ids(deployment_id)
         assocs = self.RR.find_associations(subject=site_id, predicate=PRED.hasDevice, object=device_id)
-        self.assertEquals(len(assocs), 0)
+        return self.assertEquals(len(assocs), 0)
 
     def dump_deployment(self, deployment_id='', name=""):
         #site_id, device_id = self.get_deployment_ids(deployment_id)
