@@ -384,6 +384,44 @@ class TestDirectCoverageAccess(DMTestCase):
         np.testing.assert_array_equal(aftercovtimes, ntimes[bctl+gctl+1:bctl+gctl+actl+1])
         np.testing.assert_array_equal(agtimes, ntimes[:len(agtimes)])
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_repair_temporal_geometry(self):
+        data_product_id, dataset_id = self.make_ctd_data_product()
+
+        streamer = Streamer(data_product_id, interval=0.5, simple_time=True)
+        self.addCleanup(streamer.stop)
+
+        # Let at least 10 samples accumulate
+        self.use_monitor(dataset_id, samples=10)
+
+        # Stop the streamer, reset i, restart the streamer - this simulates duplicate data
+        streamer.stop()
+        streamer.i = 0
+        streamer.start()
+
+        # Let at least 20 more samples accumulate
+        self.use_monitor(dataset_id, samples=20)
+
+        #Stop the streamer
+        streamer.stop()
+
+        # Open the coverage and mess with the times
+        with DirectCoverageAccess() as dca:
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                self.assertEqual(cov.num_timesteps, 30)
+                t = cov.get_time_values()
+                self.assertEqual(len(t), 30)
+                self.assertFalse(np.array_equal(np.sort(t), t))
+
+            dca.repair_temporal_geometry(dataset_id)
+
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                self.assertGreaterEqual(cov.num_timesteps, 19)
+                t = cov.get_time_values()
+                self.assertGreaterEqual(len(t), 19)
+                np.testing.assert_array_equal(np.sort(t), t)
+
 
 @attr('UNIT', group='dm')
 class TestSimpleDelimitedParser(PyonTestCase):
