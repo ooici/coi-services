@@ -20,21 +20,12 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
-from pyon.core.governance import get_actor_header
-from nose.plugins.attrib import attr
-from interface.objects import ComputedValueAvailability
-from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader
-from pyon.util.ion_time import IonTime
-from pyon.container.cc import Container
-from pyon.datastore.datastore import DataStore
-from ion.services.sa.test.helpers import any_old
-from pyon.util.log import log
-
 
 STAGE_LOAD_ORGS = 1
 STAGE_LOAD_PARAMS = 3
 STAGE_LOAD_AGENTS = 5
 STAGE_LOAD_ASSETS = 7
+
 
 @attr('INT', group='sa')
 class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
@@ -143,7 +134,10 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         passing = True
         role_obj = self._find_resource_in_list(role_list, "governance_name", role_name)
         if role_obj:
-            res_list = self.RR.find_objects(subject=role_obj._id, predicate=PRED.hasRole, id_only=True)
+            res_list = self.RR.find_subjects(predicate=PRED.hasRole, object=role_obj._id, id_only=True)
+            passing &= self.assertTrue(len(res_list) >= 1)
+
+        return passing
 
     def _check_marine_facility(self, preload_id):
         passing = True
@@ -156,11 +150,10 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         res_list, _ = self.RR.find_objects(subject=mf_id, predicate=PRED.hasMembership, id_only=True)
         passing &= self.assertTrue(len(res_list) >= 3)
 
-        res_list, _ = self.RR.find_objects(subject=mf_id, predicate=PRED.hasRole, id_only=True)
+        res_list, _ = self.RR.find_objects(subject=mf_id, predicate=PRED.hasRole, id_only=False)
         passing &= self.assertTrue(len(res_list) >= 5)
 
         passing &= self._check_role_assignments(res_list, "ORG_MANAGER")
-
 
         return passing
 
@@ -395,10 +388,11 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         #self.OMS.deactivate_deployment(x_deploy_id)
         return passing
 
-    @unittest.skip('Work in progress')
+    #@unittest.skip('Work in progress')
     def test_observatory(self):
         # Perform OOI preload for summer deployments (production mode, no debug, no bulk)
         self._load_stage = 0
+        self._resources = {}
         passing = True
 
         self.preload_ooi(stage=STAGE_LOAD_ORGS)
