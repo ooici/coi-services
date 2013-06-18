@@ -175,6 +175,87 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         return passing
     
+    def check_rsn_ctdbp(self):
+        '''
+        Check existing RSN instrument CE04OSBP-LJ01C-06-CTDBPO108 Deployment (PLANNED lcstate)
+        '''
+
+        passing = True
+        CE04OSBP_LJ01C_06_CTDBPO108_deploy = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSBP-LJ01C-06-CTDBPO108_DEP')
+        self.dump_deployment(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
+        passing &= self.assertEquals(CE04OSBP_LJ01C_06_CTDBPO108_deploy.lcstate, 'PLANNED')
+
+        # Set CE04OSBP-LJ01C-06-CTDBPO108 device to DEVELOPED state
+        CE04OSBP_LJ01C_06_CTDBPO108_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSBP-LJ01C-06-CTDBPO108_ID')
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.DEVELOP, verify='DEVELOPED')
+
+        # Set CE04OSBP-LJ01C-06-CTDBPO108 device to INTEGRATED state
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
+
+        # Set CE04OSBP-LJ01C-06-CTDBPO108 device to DEPLOYED state
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+
+        # Set CE04OSBP-LJ01C-06-CTDBPO108 Deployment to DEPLOYED state
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_deploy._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+
+        # Activate Deployment for CE04OSBP-LJ01C-06-CTDBPO108 instrument
+        log.debug('---------    activate_deployment CE04OSBP-LJ01C-06-CTDBPO108 deployment -------------- ')
+        self.OMS.activate_deployment(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
+        self.validate_deployment_activated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
+
+        # (optional) Add/register CE04OSBP-LJ01C-06-CTDBPO108 instrument agent to parent agent
+
+        # (optional) Start CE04OSBP-LJ01C-06-CTDBPO108 instrument agent with simulator
+
+        # Set all DataProducts for CE04OSBP-LJ01C-06-CTDBPO108 to DEPLOYED state
+
+
+        # (optional) Create a substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a comparable device
+        CE04OSBP_LJ01C_06_CTDBPO108_isite = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSBP-LJ01C-06-CTDBPO108')
+
+        ## create device here: retrieve CTD Mooring on Mooring Riser 001 - similiar?
+        GP03FLMB_RI001_10_CTDMOG999_ID_idevice = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP03FLMB-RI001-10-CTDMOG999_ID')
+
+        deploy_id_2 = self.create_basic_deployment(name='CE04OSBP-LJ01C-06-CTDBPO108_DEP2', description='substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a comparable device')
+        self.IMS.deploy_instrument_device(instrument_device_id=GP03FLMB_RI001_10_CTDMOG999_ID_idevice._id, deployment_id=deploy_id_2)
+        self.OMS.deploy_instrument_site(instrument_site_id=CE04OSBP_LJ01C_06_CTDBPO108_isite._id, deployment_id=deploy_id_2)
+        self.dump_deployment(deploy_id_2)
+
+        # (optional) Activate this second deployment - check first deployment is deactivated
+        self.OMS.deactivate_deployment(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
+        passing &= self.validate_deployment_deactivated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
+
+
+        log.debug('Activate deployment deploy_id_2')
+        self.get_deployment_ids(deploy_id_2)
+        self.dump_deployment(deploy_id_2, "deploy_id_2")
+        self.OMS.activate_deployment(deploy_id_2)
+        passing &= self.validate_deployment_deactivated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
+
+        # (optional) Set first CE04OSBP-LJ01C-06-CTDBPO108 Deployment to INTEGRATED state
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_deploy._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
+
+        # Set first CE04OSBP-LJ01C-06-CTDBPO108 device to INTEGRATED state
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
+
+
+        # (optional) Create a third Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a same device from first deployment
+        deploy_id_3 = self.create_basic_deployment(name='CE04OSBP-LJ01C-06-CTDBPO108_DEP3', description='substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with same device as first')
+        self.IMS.deploy_instrument_device(instrument_device_id=GP03FLMB_RI001_10_CTDMOG999_ID_idevice._id, deployment_id=deploy_id_3)
+        self.OMS.deploy_instrument_site(instrument_site_id=CE04OSBP_LJ01C_06_CTDBPO108_isite._id, deployment_id=deploy_id_3)
+        self.dump_deployment(deploy_id_3)
+
+
+        # Set first CE04OSBP-LJ01C-06-CTDBPO108 device to DEPLOYED state
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+
+        # (optional) Activate this third deployment - check second deployment is deactivated
+        log.debug('Activate deployment deploy_id_3')
+        self.dump_deployment(deploy_id_3)
+        self.OMS.activate_deployment(deploy_id_3)
+        #todo: check second deployment is deactivated
+        return passing
+    
     @unittest.skip('under construction.')
     def test_observatory(self):
         # Perform OOI preload for summer deployments (production mode, no debug, no bulk)
@@ -228,79 +309,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         log.debug('--------- ------------------------------------------------------------------------------------------------------------ -------------- ')
         # Check existing RSN instrument CE04OSBP-LJ01C-06-CTDBPO108 Deployment (PLANNED lcstate)
-        CE04OSBP_LJ01C_06_CTDBPO108_deploy = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSBP-LJ01C-06-CTDBPO108_DEP')
-        self.dump_deployment(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
-        self.assertEquals(CE04OSBP_LJ01C_06_CTDBPO108_deploy.lcstate, 'PLANNED')
-
-        # Set CE04OSBP-LJ01C-06-CTDBPO108 device to DEVELOPED state
-        CE04OSBP_LJ01C_06_CTDBPO108_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSBP-LJ01C-06-CTDBPO108_ID')
-        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.DEVELOP, verify='DEVELOPED')
-
-        # Set CE04OSBP-LJ01C-06-CTDBPO108 device to INTEGRATED state
-        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
-
-        # Set CE04OSBP-LJ01C-06-CTDBPO108 device to DEPLOYED state
-        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
-
-        # Set CE04OSBP-LJ01C-06-CTDBPO108 Deployment to DEPLOYED state
-        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_deploy._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
-
-        # Activate Deployment for CE04OSBP-LJ01C-06-CTDBPO108 instrument
-        log.debug('---------    activate_deployment CE04OSBP-LJ01C-06-CTDBPO108 deployment -------------- ')
-        self.OMS.activate_deployment(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
-        self.validate_deployment_activated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
-
-        # (optional) Add/register CE04OSBP-LJ01C-06-CTDBPO108 instrument agent to parent agent
-
-        # (optional) Start CE04OSBP-LJ01C-06-CTDBPO108 instrument agent with simulator
-
-        # Set all DataProducts for CE04OSBP-LJ01C-06-CTDBPO108 to DEPLOYED state
-
-
-        # (optional) Create a substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a comparable device
-        CE04OSBP_LJ01C_06_CTDBPO108_isite = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSBP-LJ01C-06-CTDBPO108')
-
-        ## create device here: retrieve CTD Mooring on Mooring Riser 001 - similiar?
-        GP03FLMB_RI001_10_CTDMOG999_ID_idevice = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP03FLMB-RI001-10-CTDMOG999_ID')
-
-        deploy_id_2 = self.create_basic_deployment(name='CE04OSBP-LJ01C-06-CTDBPO108_DEP2', description='substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a comparable device')
-        self.IMS.deploy_instrument_device(instrument_device_id=GP03FLMB_RI001_10_CTDMOG999_ID_idevice._id, deployment_id=deploy_id_2)
-        self.OMS.deploy_instrument_site(instrument_site_id=CE04OSBP_LJ01C_06_CTDBPO108_isite._id, deployment_id=deploy_id_2)
-        self.dump_deployment(deploy_id_2)
-
-        # (optional) Activate this second deployment - check first deployment is deactivated
-        self.OMS.deactivate_deployment(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
-        self.validate_deployment_deactivated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
-
-
-        log.debug('Activate deployment deploy_id_2')
-        self.get_deployment_ids(deploy_id_2)
-        self.dump_deployment(deploy_id_2, "deploy_id_2")
-        self.OMS.activate_deployment(deploy_id_2)
-        self.validate_deployment_deactivated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
-
-        # (optional) Set first CE04OSBP-LJ01C-06-CTDBPO108 Deployment to INTEGRATED state
-        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_deploy._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
-
-        # Set first CE04OSBP-LJ01C-06-CTDBPO108 device to INTEGRATED state
-        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
-
-
-        # (optional) Create a third Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a same device from first deployment
-        deploy_id_3 = self.create_basic_deployment(name='CE04OSBP-LJ01C-06-CTDBPO108_DEP3', description='substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with same device as first')
-        self.IMS.deploy_instrument_device(instrument_device_id=GP03FLMB_RI001_10_CTDMOG999_ID_idevice._id, deployment_id=deploy_id_3)
-        self.OMS.deploy_instrument_site(instrument_site_id=CE04OSBP_LJ01C_06_CTDBPO108_isite._id, deployment_id=deploy_id_3)
-        self.dump_deployment(deploy_id_3)
-
-
-        # Set first CE04OSBP-LJ01C-06-CTDBPO108 device to DEPLOYED state
-        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
-
-        # (optional) Activate this third deployment - check second deployment is deactivated
-        log.debug('Activate deployment deploy_id_3')
-        self.dump_deployment(deploy_id_3)
-        self.OMS.activate_deployment(deploy_id_3)
-        #todo: check second deployment is deactivated
+        passing &= self.check_rsn_ctdbp()
 
         # Check that glider GP05MOAS-GL001 assembly is defined by OOI preload (3 instruments)
         GP05MOAS_GL001_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001_PD')
