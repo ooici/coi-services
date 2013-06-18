@@ -9,8 +9,10 @@
 
 import os
 import mock
+import time
 import unittest
 import numpy as np
+from gevent.event import Event
 from nose.plugins.attrib import attr
 from collections import OrderedDict
 
@@ -306,6 +308,120 @@ class TestDirectCoverageAccess(DMTestCase):
         with DirectCoverageAccess() as dca:
             with dca.get_read_only_coverage(dataset_id) as cov:
                 self.assertIsInstance(cov, AbstractCoverage)
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_fill_temporal_gap(self):
+        from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+
+        data_product_id, dataset_id = self.make_ctd_data_product()
+        pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
+
+        streamer = Streamer(data_product_id, interval=0.5)
+        self.addCleanup(streamer.stop)
+
+        self.use_monitor(dataset_id, samples=10)
+
+        streamer.stop()
+
+        gap_times = []
+        waiter = Event()
+        while not waiter.wait(1):
+            gap_times.append(time.time() + 2208988800)
+            if len(gap_times) == 10:
+                waiter.set()
+
+        # Simulate a gap by appending a new SimplexCoverage with times after the above gap
+        with DirectCoverageAccess() as dca:
+            dca.pause_ingestion(dataset_id)
+
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                beforecovtimes = cov.get_time_values()
+
+            with DatasetManagementService._create_simplex_coverage(dataset_id, pdict, None, None) as scov:
+                scov.insert_timesteps(3)
+                now = time.time() + 2208988800
+                ts = [now, now + 1, now + 2]
+                scov.set_time_values(ts)
+                aftercovtimes = scov.get_time_values()
+
+            DatasetManagementService._splice_coverage(dataset_id, scov)
+
+        # Start streaming data again
+        streamer.start()
+
+        # Create the gap-fill coverage
+        with DatasetManagementService._create_simplex_coverage(dataset_id, pdict, None, None) as scov:
+            scov.insert_timesteps(len(gap_times))
+            scov.set_time_values(gap_times)
+            gap_cov_path = scov.persistence_dir
+            gapcovtimes = scov.get_time_values()
+
+        # Fill the gap and capture times to do some assertions
+        with DirectCoverageAccess() as dca:
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                otimes = cov.get_time_values()
+
+            dca.fill_temporal_gap(dataset_id, gap_coverage_path=gap_cov_path)
+
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                agtimes = cov.get_time_values()
+
+        self.use_monitor(dataset_id, samples=5)
+
+        with DirectCoverageAccess() as dca:
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                ntimes = cov.get_time_values()
+
+        self.assertLess(len(otimes), len(agtimes))
+        self.assertLess(len(agtimes), len(ntimes))
+
+        bctl = len(beforecovtimes)
+        gctl = len(gapcovtimes)
+        actl = len(aftercovtimes)
+        np.testing.assert_array_equal(beforecovtimes, ntimes[:bctl])
+        np.testing.assert_array_equal(gapcovtimes, ntimes[bctl+1:bctl+gctl+1])
+        np.testing.assert_array_equal(aftercovtimes, ntimes[bctl+gctl+1:bctl+gctl+actl+1])
+        np.testing.assert_array_equal(agtimes, ntimes[:len(agtimes)])
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_repair_temporal_geometry(self):
+        data_product_id, dataset_id = self.make_ctd_data_product()
+
+        streamer = Streamer(data_product_id, interval=0.5, simple_time=True)
+        self.addCleanup(streamer.stop)
+
+        # Let at least 10 samples accumulate
+        self.use_monitor(dataset_id, samples=10)
+
+        # Stop the streamer, reset i, restart the streamer - this simulates duplicate data
+        streamer.stop()
+        streamer.i = 0
+        streamer.start()
+
+        # Let at least 20 more samples accumulate
+        self.use_monitor(dataset_id, samples=20)
+
+        #Stop the streamer
+        streamer.stop()
+
+        # Open the coverage and mess with the times
+        with DirectCoverageAccess() as dca:
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                self.assertEqual(cov.num_timesteps, 30)
+                t = cov.get_time_values()
+                self.assertEqual(len(t), 30)
+                self.assertFalse(np.array_equal(np.sort(t), t))
+
+            dca.repair_temporal_geometry(dataset_id)
+
+            with dca.get_read_only_coverage(dataset_id) as cov:
+                self.assertGreaterEqual(cov.num_timesteps, 19)
+                t = cov.get_time_values()
+                self.assertGreaterEqual(len(t), 19)
+                np.testing.assert_array_equal(np.sort(t), t)
+
 
 @attr('UNIT', group='dm')
 class TestSimpleDelimitedParser(PyonTestCase):

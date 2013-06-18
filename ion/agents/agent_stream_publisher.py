@@ -116,7 +116,7 @@ class AgentStreamPublisher(object):
                 self._publish_stream_buffer(stream_name)
 
         except KeyError:
-            log.error('Instrument agent %s received sample with bad stream name %s.',
+            log.warning('Instrument agent %s received sample with bad stream name %s.',
                       self._agent._proc_name, stream_name)
     
     def aparam_set_streams(self, params):

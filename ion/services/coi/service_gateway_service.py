@@ -79,7 +79,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         self.server_port = self.CFG.get_safe('container.service_gateway.web_server.port', DEFAULT_WEB_SERVER_PORT)
         self.web_server_enabled = self.CFG.get_safe('container.service_gateway.web_server.enabled', True)
         self.web_logging = self.CFG.get_safe('container.service_gateway.web_server.log')
-        self.log_errors = self.CFG.get_safe('container.service_gateway.log_errors', False)
+        self.log_errors = self.CFG.get_safe('container.service_gateway.log_errors', True)
 
         #Optional list of trusted originators can be specified in config.
         self.trusted_originators = self.CFG.get_safe('container.service_gateway.trusted_originators')

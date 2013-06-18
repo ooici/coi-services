@@ -55,9 +55,12 @@ from gevent import sleep
 from gevent.event import AsyncResult
 from mock import patch
 from pyon.public import CFG
+import unittest
+import os
 
 
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
+@unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestPlatformAgent(BaseIntTestPlatform):
 
     def _create_network_and_start_root_platform(self, clean_up=None):

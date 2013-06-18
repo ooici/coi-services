@@ -43,16 +43,17 @@ from gevent import sleep
 
 from mock import patch
 from pyon.public import CFG
+import unittest
+import os
 
 
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
+@unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class Test(BaseIntTestPlatform):
 
     def setUp(self):
         super(Test, self).setUp()
         self._event_publisher = EventPublisher()
-        self._expected_events = 1
-        self._received_events = []
         self._last_checked_status = None
 
     def _done(self):
@@ -62,20 +63,20 @@ class Test(BaseIntTestPlatform):
         finally:  # attempt shutdown anyway
             self._shutdown()
 
-    def _start_agg_status_event_subscriber(self, p_root):
+    def _expect_from_root(self, p_root):
         """
-        Start the event subscriber to the given root platform. Upon reception
-        of event, the callback only sets the async result if the number of
-        expected event has been reached.
+        Start an event subscriber to the given root platform.
+        To be called before any action that triggers publications from the root
+        platform. It sets self._wait_root_event to a function to be called to
+        wait for the event.
         """
+        async_result = AsyncResult()
 
+        # subscribe:
         event_type = "DeviceAggregateStatusEvent"
 
         def consume_event(evt, *args, **kwargs):
-            self._received_events.append(evt)
-            assert len(self._received_events) <= self._expected_events
-            if len(self._received_events) == self._expected_events:
-                self._async_result.set(evt)
+            async_result.set(evt)
 
         sub = EventSubscriber(event_type=event_type,
                               origin=p_root.platform_device_id,
@@ -87,14 +88,12 @@ class Test(BaseIntTestPlatform):
 
         log.debug("registered for DeviceAggregateStatusEvent")
 
-    def _expect_from_root(self, number_of_events):
-        """
-        Sets the number of expected events for the subscriber. To be called
-        before any action that triggers publications from the root platform.
-        """
-        self._expected_events = number_of_events
-        self._received_events = []
-        self._async_result = AsyncResult()
+        # set new wait function:
+        def wait():
+            root_evt = async_result.get(timeout=CFG.endpoint.receive.timeout)
+            return root_evt
+
+        self._wait_root_event = wait
 
     def _publish_for_child(self, child_obj, status_name, status):
         """
@@ -123,13 +122,6 @@ class Test(BaseIntTestPlatform):
 
         log.debug("publishing for child %r: evt=%s", origin, evt)
         self._event_publisher.publish_event(**evt)
-
-    def _wait_root_event(self):
-        """
-        waits for the expected number of events.
-        """
-        root_evt = self._async_result.get(timeout=CFG.endpoint.receive.timeout)
-        return root_evt
 
     def _wait_root_event_and_verify(self, status_name, status):
         """
@@ -302,12 +294,8 @@ class Test(BaseIntTestPlatform):
         #    in their two children.
 
         # -------------------------------------------------------------------
-        # start the only event subscriber for this test:
-        self._start_agg_status_event_subscriber(p_root)
-
-        # -------------------------------------------------------------------
         # LJ01B publishes a STATUS_WARNING for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(p_LJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_WARNING)
@@ -318,7 +306,7 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # MJ01B publishes a STATUS_CRITICAL for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(p_MJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_CRITICAL)
@@ -329,7 +317,7 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # MJ01B publishes a STATUS_OK for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(p_MJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_OK)
@@ -340,7 +328,7 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # LJ01B publishes a STATUS_OK for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(p_LJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_OK)
@@ -351,7 +339,6 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # LJ01B publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
-        self._expect_from_root(0)
         self._publish_for_child(p_LJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_UNKNOWN)
@@ -365,7 +352,6 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # MJ01B publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
-        self._expect_from_root(0)
         self._publish_for_child(p_MJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_UNKNOWN)
@@ -453,12 +439,8 @@ class Test(BaseIntTestPlatform):
         # trigger status updates
 
         # -------------------------------------------------------------------
-        # start the only event subscriber for this test:
-        self._start_agg_status_event_subscriber(p_root)
-
-        # -------------------------------------------------------------------
         # SF01A publishes a STATUS_CRITICAL for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(p_SF01A,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_CRITICAL)
@@ -470,7 +452,7 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # SF01A publishes a STATUS_OK for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(p_SF01A,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_OK)
@@ -545,12 +527,8 @@ class Test(BaseIntTestPlatform):
         # trigger status updates from the instrument
 
         # -------------------------------------------------------------------
-        # start the only event subscriber for this test:
-        self._start_agg_status_event_subscriber(p_root)
-
-        # -------------------------------------------------------------------
         # instrument publishes a STATUS_CRITICAL for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(i_obj,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_CRITICAL)
@@ -562,7 +540,7 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # instrument publishes a STATUS_OK for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(i_obj,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_OK)
@@ -682,11 +660,9 @@ class Test(BaseIntTestPlatform):
         # Note that the sub-platform also should get properly updated but
         # this test doesn't do these verifications.
 
-        self._start_agg_status_event_subscriber(p_root)
-
         # -------------------------------------------------------------------
         # instrs[0] publishes a STATUS_CRITICAL for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(instrs[0],
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_CRITICAL)
@@ -715,7 +691,7 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # instrs[0] publishes a STATUS_WARNING for AGGREGATE_DATA
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(instrs[0],
                                 AggregateStatusType.AGGREGATE_DATA,
                                 DeviceStatusType.STATUS_WARNING)
@@ -743,7 +719,7 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # instrs[1] publishes a STATUS_WARNING for AGGREGATE_POWER
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(instrs[1],
                                 AggregateStatusType.AGGREGATE_POWER,
                                 DeviceStatusType.STATUS_WARNING)
@@ -771,7 +747,7 @@ class Test(BaseIntTestPlatform):
 
         # -------------------------------------------------------------------
         # instrs[2] publishes a AGGREGATE_LOCATION for STATUS_CRITICAL
-        self._expect_from_root(1)
+        self._expect_from_root(p_root)
         self._publish_for_child(instrs[2],
                                 AggregateStatusType.AGGREGATE_LOCATION,
                                 DeviceStatusType.STATUS_CRITICAL)
