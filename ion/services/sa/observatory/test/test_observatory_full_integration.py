@@ -256,6 +256,52 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         #todo: check second deployment is deactivated
         return passing
     
+    def check_glider(self):
+        '''
+        # Check that glider GP05MOAS-GL001 assembly is defined by OOI preload (3 instruments)
+        '''
+        passing = True
+        GP05MOAS_GL001_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001_PD')
+        child_devs, assns =self.RR.find_objects(subject=GP05MOAS_GL001_device._id, predicate=PRED.hasDevice, id_only=True)
+        passing &= self.assertEquals(len(child_devs), 3)
+
+        # Set GP05MOAS-GL001 Deployment to DEPLOYED
+        GP05MOAS_GL001_deploy = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001_DEP')
+        self.transition_lcs_then_verify(resource_id=GP05MOAS_GL001_deploy._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+
+        # Activate Deployment for GP05MOAS-GL001
+        #self.OMS.activate_deployment(GP05MOAS_GL001_deploy._id)
+
+        # Deactivate Deployment for GP05MOAS-GL001
+        #self.OMS.deactivate_deployment(GP05MOAS_GL001_deploy._id)
+
+
+        # Create a new Deployment resource X without any assignment
+        x_deploy_id = self.create_basic_deployment(name='X_Deployment', description='new Deployment resource X without any assignment')
+
+        # Assign Deployment X to site GP05MOAS-GL001
+        GP05MOAS_GL001_psite = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001')
+        self.OMS.deploy_platform_site(GP05MOAS_GL001_psite._id, x_deploy_id)
+
+        # Assign Deployment X to first device for GP05MOAS-GL001
+        GP05MOAS_GL001_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001_PD')
+        self.IMS.deploy_platform_device(GP05MOAS_GL001_device._id, x_deploy_id)
+
+        # Set GP05MOAS-GL001 Deployment to PLANNED state
+        #self.transition_lcs_then_verify(resource_id=x_deploy_id, new_lcs_state=LCE.PLAN, verify='PLANNED')
+        # ??? already in planned
+
+        # Set second GP05MOAS-GL001 Deployment to DEPLOYED
+        self.transition_lcs_then_verify(resource_id=x_deploy_id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+        self.dump_deployment(x_deploy_id)
+
+        # Activate second Deployment for GP05MOAS-GL001
+        #self.OMS.activate_deployment(x_deploy_id)
+
+        # Deactivate second Deployment for GP05MOAS-GL001
+        #self.OMS.deactivate_deployment(x_deploy_id)
+        return passing
+    
     @unittest.skip('under construction.')
     def test_observatory(self):
         # Perform OOI preload for summer deployments (production mode, no debug, no bulk)
@@ -312,45 +358,8 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         passing &= self.check_rsn_ctdbp()
 
         # Check that glider GP05MOAS-GL001 assembly is defined by OOI preload (3 instruments)
-        GP05MOAS_GL001_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001_PD')
-        child_devs, assns =self.RR.find_objects(subject=GP05MOAS_GL001_device._id, predicate=PRED.hasDevice, id_only=True)
-        self.assertEquals(len(child_devs), 3)
+        passing &= self.check_glider()
 
-        # Set GP05MOAS-GL001 Deployment to DEPLOYED
-        GP05MOAS_GL001_deploy = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001_DEP')
-        self.transition_lcs_then_verify(resource_id=GP05MOAS_GL001_deploy._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
-
-        # Activate Deployment for GP05MOAS-GL001
-        #self.OMS.activate_deployment(GP05MOAS_GL001_deploy._id)
-
-        # Deactivate Deployment for GP05MOAS-GL001
-        #self.OMS.deactivate_deployment(GP05MOAS_GL001_deploy._id)
-
-
-        # Create a new Deployment resource X without any assignment
-        x_deploy_id = self.create_basic_deployment(name='X_Deployment', description='new Deployment resource X without any assignment')
-
-        # Assign Deployment X to site GP05MOAS-GL001
-        GP05MOAS_GL001_psite = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001')
-        self.OMS.deploy_platform_site(GP05MOAS_GL001_psite._id, x_deploy_id)
-
-        # Assign Deployment X to first device for GP05MOAS-GL001
-        GP05MOAS_GL001_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001_PD')
-        self.IMS.deploy_platform_device(GP05MOAS_GL001_device._id, x_deploy_id)
-
-        # Set GP05MOAS-GL001 Deployment to PLANNED state
-        #self.transition_lcs_then_verify(resource_id=x_deploy_id, new_lcs_state=LCE.PLAN, verify='PLANNED')
-        # ??? already in planned
-
-        # Set second GP05MOAS-GL001 Deployment to DEPLOYED
-        self.transition_lcs_then_verify(resource_id=x_deploy_id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
-        self.dump_deployment(x_deploy_id)
-
-        # Activate second Deployment for GP05MOAS-GL001
-        #self.OMS.activate_deployment(x_deploy_id)
-
-        # Deactivate second Deployment for GP05MOAS-GL001
-        #self.OMS.deactivate_deployment(x_deploy_id)
 
 
         # Set several CE01ISSM-RI002-* instrument devices to DEVELOPED state
