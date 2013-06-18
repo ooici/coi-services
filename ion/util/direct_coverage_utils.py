@@ -254,6 +254,10 @@ class DirectCoverageAccess(object):
         self.pause_ingestion(self.get_stream_id(dataset_id))
         DatasetManagementService._splice_coverage(dataset_id, gap_cov)
 
+    def repair_temporal_geometry(self, dataset_id):
+        with self.get_editable_coverage(dataset_id) as cov:
+            cov.repair_temporal_geometry()
+
 
 class SimpleDelimitedParser(object):
 
