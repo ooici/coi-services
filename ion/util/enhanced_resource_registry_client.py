@@ -89,6 +89,8 @@ class EnhancedResourceRegistryClient(object):
         #raise BadRequest(str(mults))
         #
 
+        self._cached_dynamics = {}
+
         # TODO: s/_cached_/_fetched_/g
         self._cached_predicates = {}
         self._cached_resources  = {}
@@ -102,6 +104,10 @@ class EnhancedResourceRegistryClient(object):
         """
         anything we can't puzzle out gets passed along to the real RR client
         """
+
+        # don't waste time looking up function names twice
+        if item in self._cached_dynamics:
+            return self._cached_dynamics[item]
 
         dynamic_fns = [
             self._make_dynamic_assign_function,   # understand assign_x_x_to_y_y_with_some_predicate(o, s) functions
@@ -125,6 +131,7 @@ class EnhancedResourceRegistryClient(object):
                 log.trace("dynamic function match fail")
             else:
                 log.trace("dynamic function match for %s", item)
+                self._cached_dynamics[item] = fn
                 return fn
 
         log.trace("Getting %s attribute from self.RR", item)
@@ -134,6 +141,7 @@ class EnhancedResourceRegistryClient(object):
         ret = getattr(self.RR, item)
         log.trace("Got attribute from self.RR: %s", type(ret).__name__)
 
+        self._cached_dynamics[item] = ret
         return ret
 
 
