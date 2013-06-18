@@ -134,7 +134,7 @@ class RecordDictionaryTool(object):
                 spans.append(span)
                 lastval = val
                 continue
-            if lastval == val:
+            if lastval is val:
                 continue
             spans[-1].upper_bound = i
             span = Span(i,None,-i,val)
