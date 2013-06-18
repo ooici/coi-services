@@ -83,8 +83,12 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         return False
 
     def observatory_assertions(self):
+        passing = True
         observatory_list, _ = self.RR.find_resources_ext(restype=RT.Observatory)
-        return self.assertEquals(42, len(observatory_list))
+        passing &= self.assertEquals(42, len(observatory_list))
+        for obs in observatory_list:
+            passing &= self.assertEquals(obs.lcstate, 'DRAFT')
+        return passing
 
     def platform_site_assertions(self):
         platform_site_list, _ = self.RR.find_resources(RT.PlatformSite, None, None, False)
@@ -93,33 +97,29 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         return self.assertEquals(38, len(platform_site_list))
 
     def platform_device_assertions(self):
+        passing = True
         platform_device_list, _ = self.RR.find_resources(RT.PlatformDevice, None, None, False)
-        for pd in platform_device_list:
-            log.debug('platform device: %s', pd.name)
-        return self.assertEquals(38, len(platform_site_list))
+        passing &= self.assertEquals(38, len(platform_device_list))
+        for pdev in platform_device_list:
+            log.debug('platform device: %s', pdev.name)
+            passing &= self.assertEquals(pdev.lcstate, 'PLANNED')
+        return passing
     
     def platform_agent_assertions(self):
+        passing = True
         platform_agent_list, _ = self.RR.find_resources(RT.PlatformAgent, None, None, False)
-        for pa in platform_agent_list:
-            log.debug('platform agent: %s', pa.name)
-        return self.assertEquals(2, len(platform_agent_list))
+        passing &= self.assertEquals(2, len(platform_agent_list))
+        for pagent in platform_agent_list:
+            log.debug('platform agent: %s', pagent.name)
+            passing &= self.assertEquals(pagent.lcstate, 'DEPLOYED')
+        return passing
     
     def deployment_assertions(self):
-        deployment_list, _ = self.RR.find_resources(RT.Deployment, None, None, False)
-        for d in deployment_list:
-            log.debug('deployment: %s', d.name)
-        return self.assertEquals(62, len(deployment_list))
-    
-    def lcstate_assertions(self):
         passing = True
-        for obs in observatory_list:
-            passing &= self.assertEquals(obs.lcstate, 'DRAFT')
-        for pdev in platform_device_list:
-            passing &= self.assertEquals(pdev.lcstate, 'PLANNED')
-        for pagent in platform_agent_list:
-            passing &= self.assertEquals(pagent.lcstate, 'DEPLOYED')
-        # See if Deployment for primary nodes is already active and in DEPLOYED lcstate, in particular CE04OSHY-PN01C
+        deployment_list, _ = self.RR.find_resources(RT.Deployment, None, None, False)
+        passing &= self.assertEquals(62, len(deployment_list))
         for deploy in deployment_list:
+            log.debug('deployment: %s', deploy.name)
             passing &= self.assertEquals(deploy.lcstate, 'PLANNED')
         return passing
     
@@ -128,7 +128,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         dp_list, _  = self.RR.find_resources_ext(alt_id_ns="PRE", alt_id="CE04OSHY-PN01C_DEP")
         passing &= self.assertEquals(len(dp_list), 1)
         passing &= self.assertEquals(dp_list[0].availability, 'AVAILABLE')
-        log.debug('test_observatory  retrieve CE04OSHY-PN01C_DEP deployment:  %s', res_list[0])
+        log.debug('test_observatory  retrieve CE04OSHY-PN01C_DEP deployment:  %s', dp_list[0])
         return passing
     
     def rsn_node_checks(self):
@@ -302,7 +302,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         #self.OMS.deactivate_deployment(x_deploy_id)
         return passing
     
-    @unittest.skip('under construction.')
+    @unittest.skip('Work in progress')
     def test_observatory(self):
         # Perform OOI preload for summer deployments (production mode, no debug, no bulk)
         self.load_summer_deploy_assets()
@@ -322,9 +322,6 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         passing &= self.platform_agent_assertions()
 
         passing &= self.deployment_assertions()
-
-        # Check lcstates for select OOI resources: Some PLANNED, some INTEGRATED, some DEPLOYED
-        passing &= self.lcstate_assertions()
 
         passing &= self.rsn_deployment_assertions()
 
