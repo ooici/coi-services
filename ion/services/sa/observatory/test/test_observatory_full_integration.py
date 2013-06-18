@@ -28,6 +28,7 @@ from pyon.util.ion_time import IonTime
 from pyon.container.cc import Container
 from pyon.datastore.datastore import DataStore
 from ion.services.sa.test.helpers import any_old
+from pyon.util.log import log
 
 
 class FakeProcess(LocalContextMixin):
@@ -73,62 +74,99 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         ui_path = 'https://userexperience.oceanobservatories.org/database-exports/Candidates'
         self.assert_can_load(scenarios="X", loadui=True, loadooi=True, ui_path=ui_path)
 
+    def assertEquals(self, *args, **kwargs):
+        try:
+            IonIntegrationTestCase.assertEquals(self, *args, **kwargs)
+            return True
+        except AssertionError:
+            log.exception('Assertion Failed')
+        return False
+
+    def observatory_assertions(self):
+        observatory_list, _ = self.RR.find_resources_ext(restype=RT.Observatory)
+        return self.assertEquals(42, len(observatory_list))
+
+    def platform_site_assertions(self):
+        platform_site_list, _ = self.RR.find_resources(RT.PlatformSite, None, None, False)
+        for ps in platform_site_list:
+            log.debug('platform site: %s', ps.name)
+        return self.assertEquals(38, len(platform_site_list))
+
+    def platform_device_assertions(self):
+        platform_device_list, _ = self.RR.find_resources(RT.PlatformDevice, None, None, False)
+        for pd in platform_device_list:
+            log.debug('platform device: %s', pd.name)
+        return self.assertEquals(38, len(platform_site_list))
+    
+    def platform_agent_assertions(self):
+        platform_agent_list, _ = self.RR.find_resources(RT.PlatformAgent, None, None, False)
+        for pa in platform_agent_list:
+            log.debug('platform agent: %s', pa.name)
+        return self.assertEquals(2, len(platform_agent_list))
+    
+    def deployment_assertions(self):
+        deployment_list, _ = self.RR.find_resources(RT.Deployment, None, None, False)
+        for d in deployment_list:
+            log.debug('deployment: %s', d.name)
+        return self.assertEquals(62, len(deployment_list))
+    
+    def lcstate_assertions(self):
+        passing = True
+        for obs in observatory_list:
+            passing &= self.assertEquals(obs.lcstate, 'DRAFT')
+        for pdev in platform_device_list:
+            passing &= self.assertEquals(pdev.lcstate, 'PLANNED')
+        for pagent in platform_agent_list:
+            passing &= self.assertEquals(pagent.lcstate, 'DEPLOYED')
+        # See if Deployment for primary nodes is already active and in DEPLOYED lcstate, in particular CE04OSHY-PN01C
+        for deploy in deployment_list:
+            passing &= self.assertEquals(deploy.lcstate, 'PLANNED')
+        return passing
+    
+    def rsn_deployment_assertions(self):
+        passing = True
+        dp_list, _  = self.RR.find_resources_ext(alt_id_ns="PRE", alt_id="CE04OSHY-PN01C_DEP")
+        passing &= self.assertEquals(len(dp_list), 1)
+        passing &= self.assertEquals(dp_list[0].availability, 'AVAILABLE')
+        log.debug('test_observatory  retrieve CE04OSHY-PN01C_DEP deployment:  %s', res_list[0])
+        return passing
+    
+    def rsn_node_checks(self):
+        # Check existing RSN node CE04OSHY-LV01C Deployment (PLANNED lcstate)
+        CE04OSHY_LV01C_deployment = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSHY-LV01C_DEP')
+
+        #self.dump_deployment(CE04OSHY_LV01C_deployment._id)
+        log.debug('test_observatory  retrieve RSN node CE04OSHY-LV01C Deployment:  %s', CE04OSHY_LV01C_deployment)
+        return self.assertEquals(CE04OSHY_LV01C_deployment.lcstate, 'PLANNED')
+    
     @unittest.skip('under construction.')
     def test_observatory(self):
         # Perform OOI preload for summer deployments (production mode, no debug, no bulk)
         self.load_summer_deploy_assets()
+        passing = True
 
         #test an asset
         res_list, _  = self.RR.find_resources_ext(alt_id_ns="OOI", alt_id="CE04OSBP-LJ01C-06-CTDBPO108")
         log.debug('test_observatory  retrieve test:  %s', res_list)
 
         # Check OOI preloaded resources to see if they match needs for this test and for correctness
-        observatory_list, _ = self.RR.find_resources_ext(restype=RT.Observatory)
-        self.assertEquals(42, len(observatory_list))
+        passing &= self.observatory_assertions()
 
-        platform_site_list, _ = self.RR.find_resources(RT.PlatformSite, None, None, False)
-        for ps in platform_site_list:
-            log.debug('platform site: %s', ps.name)
-        self.assertEquals(38, len(platform_site_list))
+        passing &= self.platform_site_assertions()
 
-        platform_device_list, _ = self.RR.find_resources(RT.PlatformDevice, None, None, False)
-        for pd in platform_device_list:
-            log.debug('platform device: %s', pd.name)
-        self.assertEquals(38, len(platform_site_list))
+        passing &= self.platform_device_assertions()
 
-        platform_agent_list, _ = self.RR.find_resources(RT.PlatformAgent, None, None, False)
-        self.assertEquals(2, len(platform_agent_list))
-        for pa in platform_agent_list:
-            log.debug('platform agent: %s', pa.name)
+        passing &= self.platform_agent_assertions()
 
-        deployment_list, _ = self.RR.find_resources(RT.Deployment, None, None, False)
-        self.assertEquals(62, len(deployment_list))
-        for d in deployment_list:
-            log.debug('deployment: %s', d.name)
+        passing &= self.deployment_assertions()
 
         # Check lcstates for select OOI resources: Some PLANNED, some INTEGRATED, some DEPLOYED
-        for obs in observatory_list:
-            self.assertEquals(obs.lcstate, 'DRAFT')
-        for pdev in platform_device_list:
-            self.assertEquals(pdev.lcstate, 'PLANNED')
-        for pagent in platform_agent_list:
-            self.assertEquals(pagent.lcstate, 'DEPLOYED')
+        passing &= self.lcstate_assertions()
 
-        # See if Deployment for primary nodes is already active and in DEPLOYED lcstate, in particular CE04OSHY-PN01C
-        for deploy in deployment_list:
-            self.assertEquals(deploy.lcstate, 'PLANNED')
-
-        dp_list, _  = self.RR.find_resources_ext(alt_id_ns="PRE", alt_id="CE04OSHY-PN01C_DEP")
-        self.assertEquals(len(dp_list), 1)
-        self.assertEquals(dp_list[0].availability, 'AVAILABLE')
-        log.debug('test_observatory  retrieve CE04OSHY-PN01C_DEP deployment:  %s', res_list[0])
+        passing &= self.rsn_deployment_assertions()
 
         # Check existing RSN node CE04OSHY-LV01C Deployment (PLANNED lcstate)
-        CE04OSHY_LV01C_deployment = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSHY-LV01C_DEP')
-
-        #self.dump_deployment(CE04OSHY_LV01C_deployment._id)
-        self.assertEquals(CE04OSHY_LV01C_deployment.lcstate, 'PLANNED')
-        log.debug('test_observatory  retrieve RSN node CE04OSHY-LV01C Deployment:  %s', CE04OSHY_LV01C_deployment)
+        passing &= self.rsn_node_checks()
 
         # Set CE04OSHY-LV01C device to DEVELOPED state
         # MATURITY = ['DRAFT', 'PLANNED', 'DEVELOPED', 'INTEGRATED', 'DEPLOYED', 'RETIRED']
