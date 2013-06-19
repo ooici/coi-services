@@ -49,13 +49,14 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         self._load_stage = 0
         self._resources = {}
 
-    def preload_ooi(self, stage=10):
+    def preload_ooi(self, stage=STAGE_LOAD_ASSETS):
         # Preloads OOI up to a given stage
 
         if self._load_stage >= stage:
             return
 
         if self._load_stage < STAGE_LOAD_ORGS:
+            log.info("--------------------------------------------------------------------------------------------------------")
             log.info("Preloading stage: %s (OOIR2 Orgs, users, roles)", STAGE_LOAD_ORGS)
             # load_OOIR2_scenario
             self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
@@ -66,6 +67,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             self._load_stage = STAGE_LOAD_ORGS
 
         if self._load_stage < STAGE_LOAD_PARAMS:
+            log.info("--------------------------------------------------------------------------------------------------------")
             log.info("Preloading stage: %s (BASE params, streamdefs)", STAGE_LOAD_PARAMS)
             # load_parameter_scenarios
             self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
@@ -80,6 +82,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             self._load_stage = STAGE_LOAD_PARAMS
 
         if self._load_stage < STAGE_LOAD_AGENTS:
+            log.info("--------------------------------------------------------------------------------------------------------")
             log.info("Preloading stage: %s (OOIR2_I agents, model links)", STAGE_LOAD_AGENTS)
             # load_OOIR2_agents
             self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
@@ -90,6 +93,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             self._load_stage = STAGE_LOAD_AGENTS
 
         if self._load_stage < STAGE_LOAD_ASSETS:
+            log.info("--------------------------------------------------------------------------------------------------------")
             log.info("Preloading stage: %s (OOI assets linked to params, agents)", STAGE_LOAD_ASSETS)
             # load_ooi_assets
             self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
@@ -108,7 +112,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         # 'DataProduct,DataProductLink,WorkflowDefinition,ExternalDataProvider,ExternalDatasetModel,ExternalDataset,ExternalDatasetAgent,ExternalDatasetAgentInstance',
 
 
-    @unittest.skip('Work in progress')
+    #@unittest.skip('Work in progress')
     def test_observatory(self):
         self._load_stage = 0
         self._resources = {}
