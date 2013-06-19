@@ -694,6 +694,13 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
+        press_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        press_ctxt.uom = 'dbar'
+        press_ctxt.ooi_short_name = 'PRESWAT'
+        press_ctxt_id = self.dataset_management.create_parameter_context(name='pressure', parameter_context=press_ctxt.dump(), ooi_short_name='PRESWAT')
+        self.addCleanup(self.dataset_management.delete_parameter_context, press_ctxt_id)
+        contexts['pressure'] = press_ctxt, press_ctxt_id
+
         return contexts
 
 
