@@ -158,6 +158,21 @@ class TypesManager(object):
         pc.visible = False
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         return ctxt_id, placeholder
+    
+    def get_array_lookup_value(self,value):
+        placeholder = value.replace('LV_','')
+        document_key = ''
+        if '||' in placeholder:
+            document_key, placeholder = placeholder.split('||')
+        document_val = placeholder
+        placeholder = '%s_%s' % (placeholder, uuid4().hex)
+        pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ArrayType(inner_encoding='float64', inner_fill_value=-9999.)))
+        pc.lookup_value = document_val
+        pc.document_key = document_key
+        pc.uom = '1'
+        pc.visible = False
+        ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
+        return ctxt_id, placeholder
 
     def get_cc_value(self, value):
         placeholder = value.lower()
@@ -391,8 +406,8 @@ class TypesManager(object):
 
         pfunc_id, pfunc = self.find_localrange_test()
 
-        datlim_id, datlim = self.get_lookup_value('LV_lrt_$designator_%s||datlim' % data_product)
-        datlimz_id, datlimz = self.get_lookup_value('LV_lrt_$designator_%s||datlimz' % data_product)
+        datlim_id, datlim = self.get_array_lookup_value('LV_lrt_$designator_%s||datlim' % data_product)
+        datlimz_id, datlimz = self.get_array_lookup_value('LV_lrt_$designator_%s||datlimz' % data_product)
 
         pmap = {"dat":name, "time_v":"time", "pressure":"pressure", "datlim*":datlim, "datlimz*":datlimz}
         pfunc.param_map = pmap

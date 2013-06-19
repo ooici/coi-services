@@ -134,11 +134,12 @@ class RecordDictionaryTool(object):
                 spans.append(span)
                 lastval = val
                 continue
-            if lastval is val:
+            if np.atleast_1d(lastval == val).all():
                 continue
             spans[-1].upper_bound = i
             span = Span(i,None,-i,val)
             spans.append(span)
+            lastval = val
         return spans
 
 
@@ -156,7 +157,7 @@ class RecordDictionaryTool(object):
                     log.debug('Reference Document for %s not found', document_key)
                     continue
                 if context.lookup_value in doc:
-                    self[lv] = doc[context.lookup_value]
+                    self[lv] = [doc[context.lookup_value]] * self._shp[0] if self._shp else doc[context.lookup_value]
 
     @classmethod
     def load_from_granule(cls, g):
@@ -269,7 +270,7 @@ class RecordDictionaryTool(object):
             return
         context = self._pdict.get_context(name)
 
-        if self._shp is None and (isinstance(context.param_type, ConstantType) or isinstance(context.param_type, ConstantRangeType)):
+        if self._shp is None and isinstance(context.param_type, (SparseConstantType, ConstantType, ConstantRangeType)):
             self._shp = (1,)
             self._dirty_shape = True
         

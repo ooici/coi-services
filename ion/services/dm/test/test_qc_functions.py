@@ -87,6 +87,7 @@ class TestQCFunctions(DMTestCase):
         self.rdt['tempwat_stuckvl_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         self.rdt['tempwat_gradtst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         self.rdt['tempwat_trndtst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
+        self.rdt['tempwat_loclrng_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         np.testing.assert_array_equal(self.rdt['cmbnflg_qc'], [0, 1, 1, 1, 1, 1, 1, 0])
     
     def test_gradient_test(self):
@@ -107,16 +108,14 @@ class TestQCFunctions(DMTestCase):
         def lim2(p,m):
             return p+m+20
 
-        pressure_grid, month_grid = np.mgrid[0:150:10, 0:11]
+        pressure_grid, month_grid = np.meshgrid(np.arange(0,150,10), np.arange(11))
         points = np.column_stack([pressure_grid.flatten(), month_grid.flatten()])
         datlim_0 = lim1(points[:,0], points[:,1])
         datlim_1 = lim2(points[:,0], points[:,1])
         datlim = np.column_stack([datlim_0, datlim_1])
         datlimz = points
-        datlim = np.array([datlim] * 10)
-        datlimz = np.array([datlimz] * 10)
 
-        self.svm.stored_value_cas('lrt_QCTEST_TEMPWAT', {'datlim':datlim.tolist(), 'datlimz':datlim.tolist()})
+        self.svm.stored_value_cas('lrt_QCTEST_TEMPWAT', {'datlim':datlim.tolist(), 'datlimz':datlimz.tolist()})
         self.rdt['time'] = t
         self.rdt['temp'] = dat
         self.rdt['pressure'] = pressure
