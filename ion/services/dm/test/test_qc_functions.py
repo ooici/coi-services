@@ -26,6 +26,7 @@ from pyon.public import OT
 from gevent.event import Event
 
 from ion.services.dm.test.dm_test_case import DMTestCase
+from ion_functions.qc.qc_functions import ntp_to_month
 
 import numpy as np
 
@@ -86,6 +87,7 @@ class TestQCFunctions(DMTestCase):
         self.rdt['tempwat_stuckvl_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         self.rdt['tempwat_gradtst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         self.rdt['tempwat_trndtst_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
+        self.rdt['tempwat_loclrng_qc'] = [0, 1, 1, 1, 1, 1, 1, 0]
         np.testing.assert_array_equal(self.rdt['cmbnflg_qc'], [0, 1, 1, 1, 1, 1, 1, 0])
     
     def test_gradient_test(self):
@@ -96,6 +98,31 @@ class TestQCFunctions(DMTestCase):
 
         np.testing.assert_array_equal(self.rdt['tempwat_gradtst_qc'], [1, 1, 0, 0, 1])
 
+    def test_localrange_test(self):
+        t = np.array([3580144703.7555027, 3580144704.7555027, 3580144705.7555027, 3580144706.7555027, 3580144707.7555027, 3580144708.7555027, 3580144709.7555027, 3580144710.7555027, 3580144711.7555027, 3580144712.7555027])
+        pressure = np.random.rand(10) * 2 + 33.0
+        t_v = ntp_to_month(t)
+        dat = t_v + pressure + np.arange(16,26)
+        def lim1(p,m):
+            return p+m+10
+        def lim2(p,m):
+            return p+m+20
+
+        pressure_grid, month_grid = np.meshgrid(np.arange(0,150,10), np.arange(11))
+        points = np.column_stack([pressure_grid.flatten(), month_grid.flatten()])
+        datlim_0 = lim1(points[:,0], points[:,1])
+        datlim_1 = lim2(points[:,0], points[:,1])
+        datlim = np.column_stack([datlim_0, datlim_1])
+        datlimz = points
+
+        self.svm.stored_value_cas('lrt_QCTEST_TEMPWAT', {'datlim':datlim.tolist(), 'datlimz':datlimz.tolist()})
+        self.rdt['time'] = t
+        self.rdt['temp'] = dat
+        self.rdt['pressure'] = pressure
+        
+        self.rdt.fetch_lookup_values()
+
+        np.testing.assert_array_equal(self.rdt['tempwat_loclrng_qc'], [1 ,1 ,1 ,1 ,1 ,0 ,0 ,0 ,0 ,0])
 
     
 
