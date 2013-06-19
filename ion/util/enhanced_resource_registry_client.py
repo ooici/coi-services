@@ -89,6 +89,8 @@ class EnhancedResourceRegistryClient(object):
         #raise BadRequest(str(mults))
         #
 
+        self._cached_dynamics = {}
+
         # TODO: s/_cached_/_fetched_/g
         self._cached_predicates = {}
         self._cached_resources  = {}
@@ -102,6 +104,10 @@ class EnhancedResourceRegistryClient(object):
         """
         anything we can't puzzle out gets passed along to the real RR client
         """
+
+        # don't waste time looking up function names twice
+        if item in self._cached_dynamics:
+            return self._cached_dynamics[item]
 
         dynamic_fns = [
             self._make_dynamic_assign_function,   # understand assign_x_x_to_y_y_with_some_predicate(o, s) functions
@@ -125,6 +131,7 @@ class EnhancedResourceRegistryClient(object):
                 log.trace("dynamic function match fail")
             else:
                 log.trace("dynamic function match for %s", item)
+                self._cached_dynamics[item] = fn
                 return fn
 
         log.trace("Getting %s attribute from self.RR", item)
@@ -134,6 +141,7 @@ class EnhancedResourceRegistryClient(object):
         ret = getattr(self.RR, item)
         log.trace("Got attribute from self.RR: %s", type(ret).__name__)
 
+        self._cached_dynamics[item] = ret
         return ret
 
 
@@ -412,23 +420,46 @@ class EnhancedResourceRegistryClient(object):
         assert predicate != ''
         object_id, object_type = self._extract_id_and_type(object)
 
+        idstring = ""
+        if id_only: idstring = " ID"
+        findop_name = "Find %s subject%s by %s object using predicate %s" % (subject_type,
+                                                                             idstring,
+                                                                             object_type,
+                                                                             predicate)
+
+        return self._find_subject_(findop_name, subject_type, predicate, object_id, object_type, id_only)
+
+    def _find_subject_(self, findop_name, subject_type, predicate, object_id, object_type, id_only):
         objs  = self.find_subjects(subject_type=subject_type,
                                    predicate=predicate,
                                    object=object_id,
                                    id_only=id_only)
 
+
         if 1 == len(objs):
             return objs[0]
         elif 1 < len(objs):
-            raise Inconsistent("Expected 1 %s as subject of %s '%s', got %d" %
-                              (subject_type, object_type, str(object_id), len(objs)))
+            raise Inconsistent("Expected 1 %s as subject of %s '%s', got %d in '%s'" %
+                              (subject_type, object_type, str(object_id), len(objs), findop_name))
         else:
-            raise NotFound("Expected 1 %s as subject of %s '%s'" %
-                           (subject_type, object_type, str(object_id)))
+            raise NotFound("Expected 1 %s as subject of %s '%s' in '%s'" %
+                           (subject_type, object_type, str(object_id), findop_name))
 
 
     def find_object(self, subject, predicate, object_type='', id_only=False):
         subject_id, subject_type = self._extract_id_and_type(subject)
+
+        idstring = ""
+        if id_only: idstring = " ID"
+        findop_name = "Find %s subject%s by %s object using predicate %s" % (subject_type,
+                                                                             idstring,
+                                                                             object_type,
+                                                                             predicate)
+
+        return self._find_object_(findop_name, subject_id, subject_type, predicate, object_type, id_only)
+
+
+    def _find_object_(self, findop_name, subject_id, subject_type, predicate, object_type, id_only):
 
         objs = self.find_objects(subject=subject_id,
                                  predicate=predicate,
@@ -438,11 +469,11 @@ class EnhancedResourceRegistryClient(object):
         if 1 == len(objs):
             return objs[0]
         elif 1 < len(objs):
-            raise Inconsistent("Expected 1 %s as object of %s '%s', got %d" %
-                              (object_type, subject_type, str(subject_id), len(objs)))
+            raise Inconsistent("Expected 1 %s as object of %s '%s', got %d in '%s'" %
+                              (object_type, subject_type, str(subject_id), len(objs), findop_name))
         else:
-            raise NotFound("Expected 1 %s as object of %s '%s'" %
-                            (object_type, subject_type, str(subject_id)))
+            raise NotFound("Expected 1 %s as object of %s '%s' in '%s'" %
+                            (object_type, subject_type, str(subject_id), findop_name))
 
 
     def delete_object_associations(self, subject_id='', association_type=''):
@@ -1024,7 +1055,7 @@ class EnhancedResourceRegistryClient(object):
             def ret_fn(subj_id):
                 log.info("Dynamically finding object %s -> %s -> %s", isubj, ipred, iobj)
                 log.debug("%s -> %s -> %s", subj_id, ipred, iobj)
-                ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
+                ret = self._find_object_(item, subj_id, isubj, ipred, iobj, False)
                 return ret
 
             return ret_fn
@@ -1057,7 +1088,7 @@ class EnhancedResourceRegistryClient(object):
             def ret_fn(obj_id):
                 log.info("Dynamically finding subject %s <- %s <- %s", iobj, ipred, isubj)
                 log.debug("%s <- %s <- %s", isubj, ipred, obj_id)
-                ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
+                ret = self._find_subject_(item, isubj, ipred, obj_id, iobj, False)
                 return ret
 
             return ret_fn
@@ -1161,7 +1192,7 @@ class EnhancedResourceRegistryClient(object):
             def ret_fn(subj_id):
                 log.info("Dynamically finding object_id %s -> %s -> %s", isubj, ipred, iobj)
                 log.debug("%s -> %s -> %s", subj_id, ipred, iobj)
-                ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
+                ret = self._find_object_(item, subj_id, isubj, ipred, iobj, True)
                 return ret
 
             return ret_fn
@@ -1194,7 +1225,7 @@ class EnhancedResourceRegistryClient(object):
             def ret_fn(obj_id):
                 log.info("Dynamically finding subject_id %s <- %s <- %s", iobj, ipred, isubj)
                 log.debug("%s <- %s <- %s", isubj, ipred, obj_id)
-                ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
+                ret = self._find_subject_(item, isubj, ipred, obj_id, iobj, True)
                 return ret
 
             return ret_fn
