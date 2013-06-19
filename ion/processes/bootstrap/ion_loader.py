@@ -119,6 +119,8 @@ TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEJ3c0dhM
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
+DEFAULT_ASSETS_PATH = "res/preload/r2_ioc/ooi_assets"
+
 # URL of the mapping spreadsheet for OOI assets
 OOI_MAPPING_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVUeDdoUTU0b0NFQ1dCVDhuUjY0THc&output=xls"
 
@@ -238,8 +240,12 @@ class IONLoader(ImmediateProcess):
                     log.debug("Explanation: "+ docstr)
                 step_config_override = step_cfg.get("config", {})
                 log.debug("Step config override: %s", step_config_override)
+                # Build config for step based on container CFG
                 step_config = copy.deepcopy(self.CFG)
+                # The override with contents from the preload YML file
                 dict_merge(step_config, step_config_override, inplace=True)
+                # Then override with command line arguments
+                dict_merge(step_config, self.container.spawn_args, inplace=True)
                 self._do_preload(step_config)
                 log.info("-------------------------- Completed step '%s' --------------------------", step_cfg['name'])
         else:
@@ -258,11 +264,12 @@ class IONLoader(ImmediateProcess):
         if self.path=='master':
             self.path = MASTER_DOC
         self.attachment_path = config.get("attachments", self.path + '/attachments')
-        self.asset_path = config.get("assets", self.path + "/ooi_assets")
-        default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
-
+        self.asset_path = config.get("assets", None)
+        if not self.asset_path:
+            self.asset_path = DEFAULT_ASSETS_PATH if self.path.startswith('http') else self.path + "/ooi_assets"
         self.assetmapping_path = config.get("assetmappings", OOI_MAPPING_DOC)
 
+        default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
         self.ui_path = config.get("ui_path", default_ui_path)
         if self.ui_path=='default':
             self.ui_path = TESTED_UI_ASSETS
