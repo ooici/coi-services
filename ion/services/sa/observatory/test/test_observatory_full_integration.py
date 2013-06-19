@@ -302,14 +302,14 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Check existing RSN node CE04OSHY-LV01C Deployment (PLANNED lcstate)
         CE04OSHY_LV01C_deployment = self.retrieve_ooi_asset('CE04OSHY-LV01C_DEP')
+        passing &= self.assertEquals(CE04OSHY_LV01C_deployment.lcstate, LCS.DEPLOYED)
+        passing &= self.assertEquals(CE04OSHY_LV01C_deployment.availability, AS.AVAILABLE)
 
         #self.dump_deployment(CE04OSHY_LV01C_deployment._id)
         log.debug('test_observatory  retrieve RSN node CE04OSHY-LV01C Deployment:  %s', CE04OSHY_LV01C_deployment)
-        #passing &= self.assertEquals(CE04OSHY_LV01C_deployment.lcstate, 'PLANNED')
 
         CE04OSHY_LV01C_device = self.retrieve_ooi_asset('CE04OSHY-LV01C_PD')
-        #ret = self.RR.execute_lifecycle_transition(resource_id=CE04OSHY_LV01C_device._id, transition_event=LCE.PLANNED)
-        
+
         # Set CE04OSHY-LV01C device to DEVELOPED state
         passing &= self.transition_lcs_then_verify(resource_id=CE04OSHY_LV01C_device._id, new_lcs_state=LCE.DEVELOP, verify=LCS.DEVELOPED)
 
