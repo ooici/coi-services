@@ -701,6 +701,11 @@ class OOILoader(object):
             # Parse override date if available or set to SAF date
             node_obj['deploy_date'] = self._parse_date(node_obj.get('deployment_start', None), node_obj['SAF_deploy_date'])
 
+        # Check all series are in spreadsheet
+        for series_id, series_obj in series_objs.iteritems():
+            if series_obj.get("tier1", None) is None:
+                log.warn("Series %s appears not in mapping spreadsheet - inconsistency?!", series_id)
+
         # Post-process "instrument" objects:
         # - Set connection info based on platform platform agent
         # - Convert available instrument First Deploy Date into datetime objects
@@ -725,10 +730,6 @@ class OOILoader(object):
             inst_obj['da_rt'] = data_agent_rt
             inst_obj['da_pr'] = data_agent_recovery
 
-        # Check all series are in spreadsheet
-        for series_id, series_obj in series_objs.iteritems():
-            if series_obj.get("tier1", None) is None:
-                log.warn("Series %s appears not in mapping spreadsheet - inconsistency?!", series_id)
 
 
     def get_marine_io(self, ooi_rd_str):
