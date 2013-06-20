@@ -1201,7 +1201,7 @@ LCS
 
         </Rule> '''
 
-        policy_id = policy_client.create_service_access_policy('visualization_service', 'Vis_Service_Permitted_Non_Anonymous',
+        policy_id = policy_client.create_service_access_policy('visualization', 'Vis_Service_Permitted_Non_Anonymous',
             'Permit these operations in the Visualization Service if the user is not anonymous',
             policy_text, headers=sa_user_header)
 
