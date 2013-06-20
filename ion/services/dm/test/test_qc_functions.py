@@ -176,6 +176,7 @@ class TestCoverageQC(TestQCFunctions):
         self.check_stuck_value()
         self.check_gradient()
         self.check_trend()
+        self.check_localrange()
 
     def check_global_range(self):
         TestQCFunctions.check_global_range(self)
@@ -261,6 +262,29 @@ class TestCoverageQC(TestQCFunctions):
 
         rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(self.dataset_id))
         np.testing.assert_array_almost_equal(rdt['tempwat_trndtst_qc'], [1] * 10)
+
+    def check_localrange(self):
+        log.info('check_localrange')
+        TestQCFunctions.check_localrange(self)
+        self.init_check()
+
+        flagged = Event()
+        def cb(event, *args, **kwargs):
+            times = event.temporal_values
+            if not event.qc_parameter == 'tempwat_loclrng_qc':
+                return
+            np.testing.assert_array_equal( times, np.array([ 3580144708.7555027, 3580144709.7555027, 3580144710.7555027, 3580144711.7555027, 3580144712.7555027]))
+            flagged.set()
+
+        event_subscriber = EventSubscriber(event_type = OT.ParameterQCEvent, origin=self.dp_id, callback=cb, auto_delete=True)
+        event_subscriber.start()
+        self.addCleanup(event_subscriber.stop)
+
+        self.ph.publish_rdt_to_data_product(self.dp_id, self.rdt)
+        self.dataset_monitor.event.wait(10)
+        rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(self.dataset_id))
+        np.testing.assert_array_almost_equal(rdt['tempwat_loclrng_qc'], [1 ,1 ,1 ,1 ,1 ,0 ,0 ,0 ,0 ,0])
+        self.assertTrue(flagged.wait(10))
 
 
 @attr('INT', group='dm')
