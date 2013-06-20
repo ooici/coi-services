@@ -673,7 +673,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         publisher.publish(granule)
-        self.assertTrue(dataset_monitor.event.wait(10))
+        self.assertTrue(dataset_monitor.event.wait(20))
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
