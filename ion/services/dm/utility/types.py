@@ -144,35 +144,30 @@ class TypesManager(object):
         pfunc = AbstractFunction.load(func_dump)
         return pfunc
 
-    def get_lookup_value(self,value):
+    def _placeholder(self, value, pc_callback):
         placeholder = value.replace('LV_','')
         document_key = ''
         if '||' in placeholder:
             document_key, placeholder = placeholder.split('||')
         document_val = placeholder
         placeholder = '%s_%s' % (placeholder, uuid4().hex)
-        pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
+        pc = pc_callback(placeholder)
         pc.lookup_value = document_val
         pc.document_key = document_key
         pc.uom = '1'
         pc.visible = False
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         return ctxt_id, placeholder
+
+
+    def get_lookup_value(self,value):
+        return self._placeholder(value, lambda placeholder : ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.)))
     
     def get_array_lookup_value(self,value):
-        placeholder = value.replace('LV_','')
-        document_key = ''
-        if '||' in placeholder:
-            document_key, placeholder = placeholder.split('||')
-        document_val = placeholder
-        placeholder = '%s_%s' % (placeholder, uuid4().hex)
-        pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ArrayType(inner_encoding='float64', inner_fill_value=-9999.)))
-        pc.lookup_value = document_val
-        pc.document_key = document_key
-        pc.uom = '1'
-        pc.visible = False
-        ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
-        return ctxt_id, placeholder
+        return self._placeholder(value, lambda placeholder : ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ArrayType(inner_encoding='float64', inner_fill_value=-9999.))))
+
+    def get_string_array_lookup_value(self, value):
+        return self._placeholder(value, lambda placeholder : ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ArrayType())))
 
     def get_cc_value(self, value):
         placeholder = value.lower()
@@ -408,10 +403,11 @@ class TypesManager(object):
 
         datlim_id, datlim = self.get_array_lookup_value('LV_lrt_$designator_%s||datlim' % data_product)
         datlimz_id, datlimz = self.get_array_lookup_value('LV_lrt_$designator_%s||datlimz' % data_product)
+        dims_id, dims = self.get_string_array_lookup_value('LV_lrt_$designator_%s||dims' % data_product)
 
-        pmap = {"dat":name, "time_v":"time", "pressure":"pressure", "datlim*":datlim, "datlimz*":datlimz}
+        pmap = {"dat":name, "dims*":dims, "datlim*":datlim, "datlimz*":datlimz}
         pfunc.param_map = pmap
-        pfunc.lookup_values = [datlim_id, datlimz_id]
+        pfunc.lookup_values = [datlim_id, datlimz_id, dims_id]
         dp_name = self.dp_name(data_product)
 
         pc = ParameterContext(name='%s_loclrng_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
