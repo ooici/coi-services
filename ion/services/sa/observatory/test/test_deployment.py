@@ -475,14 +475,16 @@ class TestDeployment(IonIntegrationTestCase):
                 self.assertEqual(i in expected_instruments,
                                  d in self.RR2.find_instrument_device_ids_of_instrument_site_using_has_device(instrument_site_id[i]))
 
-
-
-        extended_deployment = self.omsclient.get_deployment_extension(deployment_id)
-        log.debug('base_3x3_matchups extended_deployment:  %s', extended_deployment)
-        self.assertTrue(len(extended_deployment.platform_sites) == len(extended_deployment.platform_devices))
-        self.assertTrue(len(extended_deployment.instrument_sites) == len(extended_deployment.instrument_devices))
-        self.assertTrue(len(extended_deployment.instrument_devices) == len(extended_deployment.instrument_models))
-        self.assertTrue(len(extended_deployment.platform_devices) == len(extended_deployment.platform_models))
+        # site and device are no longer collected using four lists (expecting two to be empty, the other two to match)
+        # so these assertions no longer have the same meaning
+        #extended_deployment = self.omsclient.get_deployment_extension(deployment_id)
+        #log.debug('base_3x3_matchups extended_deployment:  %s', extended_deployment)
+        #self.assertTrue(len(extended_deployment.platform_sites) == len(extended_deployment.platform_devices),
+        #    msg='%d sites but %d devices' % (len(extended_deployment.platform_sites), len(extended_deployment.platform_devices)))
+        #self.assertTrue(len(extended_deployment.instrument_sites) == len(extended_deployment.instrument_devices),
+        #    msg='%d sites but %d devices' % (len(extended_deployment.instrument_sites), len(extended_deployment.instrument_devices)))
+        #self.assertTrue(len(extended_deployment.instrument_devices) == len(extended_deployment.instrument_models))
+        #self.assertTrue(len(extended_deployment.platform_devices) == len(extended_deployment.platform_models))
 
 
 
