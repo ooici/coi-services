@@ -134,7 +134,7 @@ class TestQCPostProcessing(DMTestCase):
 
         try:
             for i in xrange(2):
-                async_queue.get(timeout=10)
+                async_queue.get(timeout=30)
         except Empty:
             raise AssertionError('QC was not flagged in time: %d'% i)
 
