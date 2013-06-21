@@ -1078,15 +1078,46 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
             user_id=user_id)
-        # have device, site objects
 
-        if not extended_deployment.device or not extended_deployment.site:
-            return extended_deployment
+        # JIRA OOIION-1110: using associations to find device and site fails
+        # so temporarily workaround by finding jira1110_{instrument/platform}_{site/device}
+        # and copying into device and site
+        # WHEN JIRA IS FIXED, REMOVE THIS BLOCK OF CODE AND THE JIRA_* ATTRIBUTES
+        #
+#        if hasattr(extended_deployment.jira1110_instrument_device, '_id'):
+#            if hasattr(extended_deployment.jira1110_platform_device, '_id'):
+#                raise Inconsistent('deployment %s associated with both instrument device %s and platform device %s' %
+#                        (deployment_id, extended_deployment.jira1110_instrument_device._id, extended_deployment.jira1110_platform_device._id))
+#            if hasattr(extended_deployment.jira1110_platform_site, '_id'):
+#                raise Inconsistent('deployment %s associated with instrument device %s but platform site %s' %
+#                    (deployment_id, extended_deployment.jira1110_instrument_device._id, extended_deployment.jira1110_platform_site._id))
+#            if not hasattr(extended_deployment.jira1110_instrument_site, '_id'):
+#                raise Inconsistent('deployment %s associated with instrument device %s but no instrument site' %
+#                    (deployment_id, extended_deployment.jira1110_instrument_device._id))
+#            extended_deployment.device = extended_deployment.jira1110_instrument_device
+#            extended_deployment.site = extended_deployment.jira1110_instrument_site
+#        else:
+#            if not hasattr(extended_deployment.jira1110_platform_device, '_id'):
+#                raise Inconsistent('deployment %s has no instrument device or platform device' % deployment_id)
+#            if hasattr(extended_deployment.jira1110_instrument_site, '_id'):
+#                raise Inconsistent('deployment %s associated with platform device %s but instrument site %s' %
+#                    (deployment_id, extended_deployment.jira1110_platform_device._id, extended_deployment.jira1110_instrument_site._id))
+#            if not hasattr(extended_deployment.jira1110_platform_site, '_id'):
+#                raise Inconsistent('deployment %s associated with platform device %s but no platform site' %
+#                    (deployment_id, extended_deployment.jira1110_platform_device._id))
+#            extended_deployment.device = extended_deployment.jira1110_platform_device
+#            extended_deployment.site = extended_deployment.jira1110_platform_site
+        # end of block REMOVE ABOVE THIS LINE WHEN JIRA IS FIXED
 
+        if not extended_deployment.device or not extended_deployment.site \
+            or not hasattr(extended_deployment.device, '_id') \
+            or not hasattr(extended_deployment.site, '_id'):
+            raise Inconsistent('deployment %s should be associated with a device and a site' % deployment_id)
+
+        log.info('have device: %r\nand site: %r', extended_deployment.device.__dict__, extended_deployment.site.__dict__)
         RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
         finder = RelatedResourcesCrawler()
         get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasDevice])
-        full_crawllist = [RT.InstrumentDevice, RT.PlatformDevice]
         # search from PlatformDevice to subplatform or InstrumentDevice
         search_down = get_assns({PRED.hasDevice: (True, False)}, [RT.InstrumentDevice, RT.PlatformDevice])
 
@@ -1110,12 +1141,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         subsite_ids = set()
         device_by_site = { extended_deployment.site._id: extended_deployment.device._id }
         for did in platform_device_ids:
-            related_sites = RR2.find_platform_site_ids_by_platform_device(did)
+            related_sites = RR2.find_platform_site_ids_by_platform_device_using_has_device(did)
             for sid in related_sites:
                 subsite_ids.add(sid)
                 device_by_site[sid] = did
         for did in instrument_device_ids:
-            related_sites = RR2.find_instrument_site_ids_by_instrument_device(did)
+            related_sites = RR2.find_instrument_site_ids_by_instrument_device_using_has_device(did)
             for sid in related_sites:
                 subsite_ids.add(sid)
                 device_by_site[sid] = did
@@ -1126,15 +1157,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         objs = self.RR.read_mult(ids)
         for obj in objs:
             if obj.type_==RT.InstrumentDevice:
-                extended_deployment.instruments.add(obj)
+                extended_deployment.instrument_devices.append(obj)
             elif obj.type_==RT.PlatformDevice:
-                extended_deployment.platforms.add(obj)
+                extended_deployment.platform_devices.append(obj)
             else: # InstrumentSite or PlatformSite
-                extended_deployment.computed.portals.value.add(obj)
+                extended_deployment.computed.portals.value.append(obj)
 
         # get associated models for all devices
         devices = list(platform_device_ids|instrument_device_ids)
-        assocs = self.RR.find_associations(assoc_type=PRED.hasModel, anyside=list(devices), id_only=False)
+        assocs = self.RR.find_associations(anyside=list(devices), id_only=False)
+        ## WORKAROUND find_associations doesn't support anyside + predicate,
+        # so must use anyside to find a list of values and filter for predicate later
+        workaround = []
+        for a in assocs:
+            if a.p==PRED.hasModel:
+                workaround.append(a)
+        assocs = workaround
+        ## end workaround
+
         model_id_by_device = { a.s: a.o for a in assocs }
         model_ids = set( [ a.o for a in assocs ])
         models = self.RR.read_mult( list(model_ids) )
@@ -1142,8 +1182,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         extended_deployment.instrument_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.instrument_devices ]
         extended_deployment.platform_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.platform_devices ]
-        extended_deployment.computed.portal_devices = ComputedListValue(status=ComputedValueAvailability.PROVIDED)
-        extended_deployment.computed.portal_devices.value = [ device_by_id[device_by_site[p._id]] for p in extended_deployment.computed.portals.value ]
+        extended_deployment.portal_instruments = [ device_by_id[device_by_site[p._id]]
+                                                   if p._id in device_by_site and device_by_site[p._id] in device_by_id
+                                                   else None
+                                                   for p in extended_deployment.computed.portals.value ]
 
         # TODO -- all status values
         #
