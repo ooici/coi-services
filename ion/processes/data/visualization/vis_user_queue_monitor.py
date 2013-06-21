@@ -5,6 +5,8 @@ from pyon.ion.process import SimpleProcess
 from logging import getLogger
 from pyon.util.log import log
 from pyon.util.containers import get_safe
+from pyon.core.exception import Inconsistent, BadRequest, NotFound
+from interface.services.ans.ivisualization_service import VisualizationServiceClient
 
 USER_VISUALIZATION_QUEUE = 'UserVisQueue'
 
@@ -13,6 +15,7 @@ class VisUserQueueMonitor(SimpleProcess):
         try:
             SimpleProcess.on_start(self)
 
+            self.viz_service = VisualizationServiceClient()
             # Get config params
             self.monitor_timeout = get_safe(self.CFG, 'user_queue_monitor_timeout', 300)
             self.monitor_queue_size = get_safe(self.CFG, 'user_queue_monitor_size', 100)
@@ -34,7 +37,6 @@ class VisUserQueueMonitor(SimpleProcess):
     def user_vis_queue_monitor(self, **kwargs):
 
         log.debug("Starting Monitor Loop worker: %s timeout=%s" , self.id,  self.monitor_timeout)
-        print "Starting Monitor Loop worker: %s timeout=%s" , self.id,  self.monitor_timeout
 
         while not self.monitor_event.wait(timeout=self.monitor_timeout):
 
@@ -50,6 +52,7 @@ class VisUserQueueMonitor(SimpleProcess):
                 pass
 
             log.debug( "In Monitor Loop worker: %s", self.id)
+
             for queue in queues:
 
                 log.debug('queue name: %s, messages: %d', queue['name'], queue['messages'])
@@ -62,10 +65,10 @@ class VisUserQueueMonitor(SimpleProcess):
                         log.warn("Real-time visualization queue %s had too many messages %d, so terminating this queue and associated resources.", queue['name'], queue['messages'] )
 
                         #Clear out the queue
-                        msgs = self.get_realtime_visualization_data(query_token=vis_token)
-
+                        #msgs = self.viz_service.get_realtime_visualization_data(query_token=vis_token)
                         #Now terminate it
-                        self.terminate_realtime_visualization_data(query_token=vis_token)
+                        self.viz_service.terminate_realtime_visualization_data(query_token=vis_token)
+
                     except NotFound, e:
                         log.warn("The token %s could not not be found by the terminate_realtime_visualization_data operation; another worked may have cleaned it up already", vis_token)
                     except Exception, e1:

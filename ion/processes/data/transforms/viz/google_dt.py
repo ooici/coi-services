@@ -126,6 +126,11 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         time_fill_value = 0.0 # should be derived from the granule's param dict.
         data_description.append(('time','number','time'))
 
+
+        ###### DEBUG ##########
+        #for field in fields:
+        #    print "  '", field, "' : ", rdt[field]
+
         import re
         for field in fields:
 
@@ -140,6 +145,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             # only consider fields which are allowed.
             if rdt[field] == None:
+                log.error ("Data for %s in record dictionary is None. This should be replaced with fill_values.", field)
                 continue
 
             # Check if visibility is false (system generated params)
