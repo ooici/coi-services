@@ -1182,7 +1182,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         extended_deployment.instrument_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.instrument_devices ]
         extended_deployment.platform_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.platform_devices ]
-        extended_deployment.portal_instruments = [ device_by_id[device_by_site[p._id]] for p in extended_deployment.computed.portals.value ]
+        extended_deployment.portal_instruments = [ device_by_id[device_by_site[p._id]]
+                                                   if p._id in device_by_site and device_by_site[p._id] in device_by_id
+                                                   else None
+                                                   for p in extended_deployment.computed.portals.value ]
 
         # TODO -- all status values
         #
