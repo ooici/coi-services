@@ -628,6 +628,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         assert "Unable to download" in response.result
 
         parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
+        round += 1
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
 
         self.wait_for_state(u_pid, [500, 'RUNNING'])
@@ -665,6 +666,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         # Test no whitelist
         self._enable_code_download()
 
+        round += 1
         response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
 
         print response
@@ -674,6 +676,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         # Test not matching
         self._enable_code_download(whitelist=['blork'])
 
+        round += 1
         response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
 
         assert response.status == 401
@@ -682,6 +685,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         # Test exact matching
         self._enable_code_download(whitelist=['localhost'])
 
+        round += 1
         response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
 
         self.wait_for_state(u_pid, [500, 'RUNNING'])
@@ -693,6 +697,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         # Test wildcard
         self._enable_code_download(whitelist=['*'])
 
+        round += 1
         response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
 
         self.wait_for_state(u_pid, [500, 'RUNNING'])
