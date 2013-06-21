@@ -112,7 +112,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         # 'DataProduct,DataProductLink,WorkflowDefinition,ExternalDataProvider,ExternalDatasetModel,ExternalDataset,ExternalDatasetAgent,ExternalDatasetAgentInstance',
 
 
-    #@unittest.skip('Work in progress')
+    @unittest.skip('Work in progress')
     def test_observatory(self):
         self._load_stage = 0
         self._resources = {}
