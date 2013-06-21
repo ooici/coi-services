@@ -838,6 +838,7 @@ class IONLoader(ImmediateProcess):
                 res_id = self._create_bulk_resource(res_obj, res_id_alias)
                 headers = self._get_op_headers(row)
                 self._resource_assign_owner(headers, res_obj)
+                self._resource_advance_lcs(row, res_id)
             else:
                 svc_client = self._get_service_client(svcname)
                 headers = self._get_op_headers(row, force_user=True)
@@ -857,6 +858,11 @@ class IONLoader(ImmediateProcess):
             res_obj.ts_created = ts
         if hasattr(res_obj, "ts_updated") and not res_obj.ts_updated:
             res_obj.ts_updated = ts
+        # if hasattr(res_obj, "lcstate"):
+        #     lcsm = get_restype_lcsm(res_obj.type_)
+        #     res_obj.lcstate = lcsm.initial_state if lcsm else LCS.DEPLOYED
+        #     res_obj.availability = lcsm.initial_availability if lcsm else AS.AVAILABLE
+
         res_id = res_obj._id
         self.bulk_objects[res_id] = res_obj
         if res_alias:
