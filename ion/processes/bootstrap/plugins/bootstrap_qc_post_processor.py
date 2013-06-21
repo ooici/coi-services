@@ -42,9 +42,9 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
         self.process_dispatcher.schedule_process(process_definition_id, process_id=process_id, configuration=config)
 
 
-        timer_id = self.scheduler_service.create_interval_timer(start_time=time.time(),
-                end_time=-1, #Run FOREVER
-                interval=3600*self.run_interval,
+        timer_id = self.scheduler_service.create_interval_timer(start_time=str(time.time()),
+                end_time='-1', #Run FOREVER
+                interval=3600*24,
                 event_origin=interval_key)
 
     def process_exists(self, process, name):

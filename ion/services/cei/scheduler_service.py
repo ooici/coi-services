@@ -257,7 +257,7 @@ class SchedulerService(BaseSchedulerService):
         '''
         # Remove all active timers
         # When this method is called, there should not be any active timers but if it is called from test, this helps
-        # to remove current active timer and restore them from Resource Regstiry
+        # to remove current active timer and restore them from Resource Registry
         self._stop_pending_timers()
 
         # Restore the timer from Resource Registry
@@ -308,14 +308,17 @@ class SchedulerService(BaseSchedulerService):
             raise BadRequest
 
     def create_interval_timer(self, start_time="", interval=0, end_time="", event_origin="", event_subtype=""):
-        if (end_time != -1 and (time.time() >= end_time)):
+        start_time = time.time() if start_time == "now" else start_time
+        if not start_time or not end_time:
+            raise BadRequest("create_interval_timer: start_time and end_time must be set")
+        start_time = float(start_time)
+        end_time = float(end_time)
+        if end_time != -1 and (time.time() >= end_time):
             log.error('end_time != -1 or start_time < end_time')
             raise BadRequest('end_time != -1 or start_time < end_time')
         if not event_origin:
             log.error("SchedulerService.create_interval_timer: event_origin is not set")
             raise BadRequest("SchedulerService.create_interval_timer: event_origin is not set")
-        if start_time == "now":
-            start_time = time.time()
         log.debug("SchedulerService:create_interval_timer start_time: %s interval: %s end_time: %s event_origin: %s" %(start_time, interval, end_time, event_origin))
         interval_timer = IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "end_time": end_time,
                                                      "event_origin": event_origin, "event_subtype": event_subtype})
