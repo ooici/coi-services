@@ -119,6 +119,8 @@ TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEJ3c0dhM
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
+DEFAULT_ASSETS_PATH = "res/preload/r2_ioc/ooi_assets"
+
 # URL of the mapping spreadsheet for OOI assets
 OOI_MAPPING_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVUeDdoUTU0b0NFQ1dCVDhuUjY0THc&output=xls"
 
@@ -238,8 +240,12 @@ class IONLoader(ImmediateProcess):
                     log.debug("Explanation: "+ docstr)
                 step_config_override = step_cfg.get("config", {})
                 log.debug("Step config override: %s", step_config_override)
+                # Build config for step based on container CFG
                 step_config = copy.deepcopy(self.CFG)
+                # The override with contents from the preload YML file
                 dict_merge(step_config, step_config_override, inplace=True)
+                # Then override with command line arguments
+                dict_merge(step_config, self.container.spawn_args, inplace=True)
                 self._do_preload(step_config)
                 log.info("-------------------------- Completed step '%s' --------------------------", step_cfg['name'])
         else:
@@ -258,11 +264,12 @@ class IONLoader(ImmediateProcess):
         if self.path=='master':
             self.path = MASTER_DOC
         self.attachment_path = config.get("attachments", self.path + '/attachments')
-        self.asset_path = config.get("assets", self.path + "/ooi_assets")
-        default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
-
+        self.asset_path = config.get("assets", None)
+        if not self.asset_path:
+            self.asset_path = DEFAULT_ASSETS_PATH if self.path.startswith('http') else self.path + "/ooi_assets"
         self.assetmapping_path = config.get("assetmappings", OOI_MAPPING_DOC)
 
+        default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
         self.ui_path = config.get("ui_path", default_ui_path)
         if self.ui_path=='default':
             self.ui_path = TESTED_UI_ASSETS
@@ -831,6 +838,7 @@ class IONLoader(ImmediateProcess):
                 res_id = self._create_bulk_resource(res_obj, res_id_alias)
                 headers = self._get_op_headers(row)
                 self._resource_assign_owner(headers, res_obj)
+                self._resource_advance_lcs(row, res_id)
             else:
                 svc_client = self._get_service_client(svcname)
                 headers = self._get_op_headers(row, force_user=True)
@@ -850,6 +858,11 @@ class IONLoader(ImmediateProcess):
             res_obj.ts_created = ts
         if hasattr(res_obj, "ts_updated") and not res_obj.ts_updated:
             res_obj.ts_updated = ts
+        # if hasattr(res_obj, "lcstate"):
+        #     lcsm = get_restype_lcsm(res_obj.type_)
+        #     res_obj.lcstate = lcsm.initial_state if lcsm else LCS.DEPLOYED
+        #     res_obj.availability = lcsm.initial_availability if lcsm else AS.AVAILABLE
+
         res_id = res_obj._id
         self.bulk_objects[res_id] = res_obj
         if res_alias:
@@ -1885,31 +1898,36 @@ Reason: %s
                     else:
                         context.lookup_value = name
                         context.document_key = lookup_value
+            
+            qc_map = {
+                    'Global Range Test (GLBLRNG) QC'                         : 'glblrng_qc',
+                    'Stuck Value Test (STUCKVL) QC'                          : 'stuckvl_qc',
+                    'Spike Test (SPKETST) QC'                                : 'spketst_qc',
+                    'Trend Test (TRNDTST) QC'                                : 'trndtst_qc',
+                    'Gradient Test (GRADTST) QC'                             : 'gradtst_qc',
+                    'Local Range Test (LOCLRNG) QC'                          : 'loclrng_qc',
+                    'Modulus (MODULUS) QC'                                   : 'modulus_qc',
+                    'Evaluate Polynomial (POLYVAL) QC'                       : 'polyval_qc',
+                    'Solar Elevation (SOLAREL) QC'                           : 'solarel_qc',
+                    'Conductivity Compressibility Compensation (CONDCMP) QC' : 'condcmp_qc',
+                    '1-D Interpolation (INTERP1) QC'                         : 'interp1_qc',
+                    'Combine QC Flags (CMBNFLG) QC'                          : 'cmbnflg_qc',
+                    }
+            
+            qc_fields = None
+            if self.ooi_loader._extracted:
+                # Yes, OOI Assets were parsed
+                dps = self.ooi_loader.get_type_assets('data_product')
+                if context.ooi_short_name in dps:
+                    dp = dps[context.ooi_short_name]
+                    qc_fields = [v for k,v in qc_map.iteritems() if dp[k] == 'applicable']
+                    if qc_fields and not qc: # If the column wasn't filled out but SAF says it should be there, just use the OOI Short Name
+                        log.warning("Enabling QC for %s (%s) based on SAF requirement but QC-identifier wasn't specified.", name, row[COL_ID])
+                        qc = sname
+                    
+
 
             if qc:
-                qc_map = {
-                        'Global Range Test (GLBLRNG) QC'                         : 'glblrng_qc',
-                        'Stuck Value Test (STUCKVL) QC'                          : 'stuckvl_qc',
-                        'Spike Test (SPKETST) QC'                                : 'spketst_qc',
-                        'Trend Test (TRNDTST) QC'                                : 'trndtst_qc',
-                        'Gradient Test (GRADTST) QC'                             : 'gradtst_qc',
-                        'Local Range Test (LOCLRNG) QC'                          : 'loclrng_qc',
-                        'Modulus (MODULUS) QC'                                   : 'modulus_qc',
-                        'Evaluate Polynomial (POLYVAL) QC'                       : 'polyval_qc',
-                        'Solar Elevation (SOLAREL) QC'                           : 'solarel_qc',
-                        'Conductivity Compressibility Compensation (CONDCMP) QC' : 'condcmp_qc',
-                        '1-D Interpolation (INTERP1) QC'                         : 'interp1_qc',
-                        'Combine QC Flags (CMBNFLG) QC'                          : 'cmbnflg_qc',
-                        }
-
-
-                qc_fields = None
-                if self.ooi_loader._extracted:
-                    # Yes, OOI Assets were parsed
-                    dps = self.ooi_loader.get_type_assets('data_product')
-                    if context.ooi_short_name in dps:
-                        dp = dps[context.ooi_short_name]
-                        qc_fields = [v for k,v in qc_map.iteritems() if dp[k] == 'applicable']
                 try:
                     if isinstance(context.param_type, (QuantityType, ParameterFunctionType)):
                         context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id, qc_fields)

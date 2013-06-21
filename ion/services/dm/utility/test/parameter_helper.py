@@ -694,6 +694,24 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
+        press_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        press_ctxt.uom = 'dbar'
+        press_ctxt.ooi_short_name = 'PRESWAT'
+        press_ctxt.qc_contexts = types_manager.make_qc_functions('pressure', 'PRESWAT', lambda *args, **kwargs : None)
+        press_ctxt_id = self.dataset_management.create_parameter_context(name='pressure', parameter_context=press_ctxt.dump(), ooi_short_name='PRESWAT')
+        self.addCleanup(self.dataset_management.delete_parameter_context, press_ctxt_id)
+        contexts['pressure'] = press_ctxt, press_ctxt_id
+        
+        lat_ctxt = ParameterContext('lat', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value), fill_value=fill_value)
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt_id = self.dataset_management.create_parameter_context(name='lat', parameter_context=lat_ctxt.dump())
+        contexts['lat'] = lat_ctxt, lat_ctxt_id
+
+        lon_ctxt = ParameterContext('lon', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value), fill_value=fill_value)
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt_id = self.dataset_management.create_parameter_context(name='lon', parameter_context=lon_ctxt.dump())
+        contexts['lon'] = lon_ctxt, lon_ctxt_id
+
         return contexts
 
 
@@ -703,6 +721,9 @@ class ParameterHelper(object):
         context_ids = [i[1] for i in contexts.itervalues()]
         context_ids.extend(contexts['temp'][0].qc_contexts)
         for qc_context in contexts['temp'][0].qc_contexts:
+            context_ids.extend(types_manager.get_lookup_value_ids(DatasetManagementService.get_parameter_context(qc_context)))
+        context_ids.extend(contexts['pressure'][0].qc_contexts)
+        for qc_context in contexts['pressure'][0].qc_contexts:
             context_ids.extend(types_manager.get_lookup_value_ids(DatasetManagementService.get_parameter_context(qc_context)))
         context_names = [self.dataset_management.read_parameter_context(i).name for i in context_ids]
         qc_names = [i for i in context_names if i.endswith('_qc')]

@@ -81,5 +81,6 @@ class TestParsers(IonIntegrationTestCase):
         ret_doc = self.svm.read_value('lrt_%s_%s' %('GP02HYPM-SP001-04-CTDPF0999', 'PRACSAL'))
 
         np.testing.assert_array_equal(ret_doc['datlim'][0], np.array([32.289, 32.927]))
+        self.assertEquals(ret_doc['dims'], ['pressure', 'month'])
 
 

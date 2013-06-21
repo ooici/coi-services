@@ -9,7 +9,7 @@ from zipfile import ZipFile
 import numpy as np
 import os
 from StringIO import StringIO
-from csv import DictReader
+from csv import DictReader, reader
 from pyon.util.log import log
 
 def lrt_parser(document):
@@ -24,13 +24,13 @@ def lrt_parser(document):
         for f in files:
             if os.path.basename(f) != 'master.csv':
                 with zp.open(f) as t:
+                    headers = reader(t).next()
                     data = np.genfromtxt(t, delimiter=',')
-                data = data[1:,:]
 
-                datlim = data[:, 2:]
-                datlimz = data[:,:2]
+                datlimz = data[:, :-2]
+                datlim = data[:,-2:]
 
-                tables[os.path.basename(f)] = {'datlim':datlim, 'datlimz':datlimz}
+                tables[os.path.basename(f)] = {'datlim':datlim, 'datlimz':datlimz, 'dims':headers[:-2]}
         
             else:
                 master = f
@@ -52,6 +52,7 @@ def lrt_parser(document):
                     continue
                 doc['datlim'] = tables[lookup_key]['datlim'].tolist()
                 doc['datlimz'] = tables[lookup_key]['datlimz'].tolist()
+                doc['dims'] = tables[lookup_key]['dims']
                 yield key,doc
     return
 

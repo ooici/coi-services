@@ -701,6 +701,11 @@ class OOILoader(object):
             # Parse override date if available or set to SAF date
             node_obj['deploy_date'] = self._parse_date(node_obj.get('deployment_start', None), node_obj['SAF_deploy_date'])
 
+        # Check all series are in spreadsheet
+        for series_id, series_obj in series_objs.iteritems():
+            if series_obj.get("tier1", None) is None:
+                log.warn("Series %s appears not in mapping spreadsheet - inconsistency?!", series_id)
+
         # Post-process "instrument" objects:
         # - Set connection info based on platform platform agent
         # - Convert available instrument First Deploy Date into datetime objects
@@ -725,10 +730,6 @@ class OOILoader(object):
             inst_obj['da_rt'] = data_agent_rt
             inst_obj['da_pr'] = data_agent_recovery
 
-        # Check all series are in spreadsheet
-        for series_id, series_obj in series_objs.iteritems():
-            if series_obj.get("tier1", None) is None:
-                log.warn("Series %s appears not in mapping spreadsheet - inconsistency?!", series_id)
 
 
     def get_marine_io(self, ooi_rd_str):
@@ -884,6 +885,8 @@ class OOILoader(object):
         report_lines.append((0, "OOI ASSET REPORT - DEPLOYMENT UNTIL %s" % end_date.strftime('%Y-%m-%d') if end_date else "PROGRAM END"))
         report_lines.append((0, "Platforms by deployment date:"))
         deploy_instruments = {}
+        deploy_dataproducts = {}       # Such as DENSITY_L2
+        deploy_dataproducttypes = {}   # Such as DENSITY
 
         for ooi_obj in deploy_platform_list:
             def follow_node_inst(node_id, level):
@@ -924,6 +927,15 @@ class OOILoader(object):
                         self._asset_counts["insti"] += 1
                         inst_lines.append((2, "%s               +-%s: %s" % (
                             "  " * level, inst_id, ", ".join(qualifiers))))
+
+                    for dp in inst_obj.get("data_product_list", []):
+                        if dp not in deploy_dataproducts:
+                            deploy_dataproducts[dp] = []
+                        deploy_dataproducts[dp].append(inst_id)
+                        dpt,_ = dp.split("_")
+                        if dpt not in deploy_dataproducttypes:
+                            deploy_dataproducttypes[dpt] = set()
+                        deploy_dataproducttypes[dpt].add(inst_rd.series_rd)
                 return sorted(inst_lines), inst_series
 
             def follow_child_nodes(level, child_nodes=None):
@@ -958,20 +970,19 @@ class OOILoader(object):
         report_lines.append((1, "    Instruments (deployed): %s" % len(deploy_instruments)))
         report_lines.append((1, "    Instruments (postponed): %s" % self._asset_counts["insti"]))
         ser_list = self._get_unique(deploy_instruments, "series")
-        report_lines.append((0, "  Instrument models (unique): %s (%s)" % (len(ser_list), ",".join(ser_list))))
+        report_lines.append((0, "  Instrument models (unique): (%s) %s" % (len(ser_list), ",".join(ser_list))))
         ser_list = self._get_unique(deploy_instruments, "series", "iart", True)
-        report_lines.append((0, "  Instrument models (RT inst agent): %s (%s)" % (len(ser_list), ",".join(ser_list))))
+        report_lines.append((0, "  Instrument models (RT inst agent): (%s) %s" % (len(ser_list), ",".join(ser_list))))
         ser_list = self._get_unique(deploy_instruments, "series", "dart", True)
-        report_lines.append((0, "  Instrument models (RT data agent): %s (%s)" % (len(ser_list), ",".join(ser_list))))
-
+        report_lines.append((0, "  Instrument models (RT data agent): (%s) %s" % (len(ser_list), ",".join(ser_list))))
 
         agent_list = self._get_unique(deploy_instruments, "iatype", "iart", True)
-        report_lines.append((0, "  Instrument agent types: %s (%s)" % (len(agent_list), ",".join(agent_list))))
-        agent_list = self._get_unique(deploy_instruments, "iatype", "ia_ready", True)
-        report_lines.append((0, "    Ready types: %s (%s)" % (len(agent_list), ",".join(agent_list))))
+        report_lines.append((0, "  Instrument agent types: (%s) %s" % (len(agent_list), ",".join(agent_list))))
+        ready_agent_list = self._get_unique(deploy_instruments, "iatype", "ia_ready", True)
+        report_lines.append((0, "    Ready types: (%s) %s" % (len(ready_agent_list), ",".join(ready_agent_list))))
 
         agent_list = self._get_unique(deploy_instruments, "iatype", "dart", True)
-        report_lines.append((0, "  RT data agent types: %s (%s)" % (len(agent_list), ",".join(agent_list))))
+        report_lines.append((0, "  RT data agent types: (%s) %s" % (len(agent_list), ",".join(agent_list))))
 
         serpa_list = self._get_unique(deploy_instruments, "series_patype")
         report_lines.append((0, "  Instrument model x Platform type combinations: %s" % (len(serpa_list))))
@@ -979,11 +990,19 @@ class OOILoader(object):
         patypes = self._get_unique(deploy_instruments, "patype")
         for patype in patypes:
             series = self._get_unique(deploy_instruments, "series", "patype", patype)
-            report_lines.append((1, "    %s: %s (%s)" % (patype, len(series), ",".join(series))))
+            report_lines.append((1, "    %s: (%s) %s" % (patype, len(series), ",".join(series))))
+        report_lines.append((0, "  Data product types: (%s) %s" % (len(deploy_dataproducttypes), ",".join(sorted(deploy_dataproducttypes.keys())))))
+        report_lines.append((0, "  Data product variants: (%s) %s" % (len(deploy_dataproducts), ",".join(sorted(deploy_dataproducts.keys())))))
+        for dpt in sorted(deploy_dataproducttypes.keys()):
+            dpt_series = deploy_dataproducttypes[dpt]
+            report_lines.append((1, "    %s: (%s) %s" % (dpt, len(dpt_series), ",".join(sorted(dpt_series)))))
+
+
 
         self.asset_report = report_lines
         self.deploy_platforms = deploy_platforms
         self.deploy_instruments = deploy_instruments
+        self.deploy_dataproducts = deploy_dataproducts
 
     def _get_unique(self, dict_obj, key, fkey=None, fval=None, sort=True, count=False):
         vals = set()

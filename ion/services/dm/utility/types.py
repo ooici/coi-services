@@ -144,20 +144,30 @@ class TypesManager(object):
         pfunc = AbstractFunction.load(func_dump)
         return pfunc
 
-    def get_lookup_value(self,value):
+    def _placeholder(self, value, pc_callback):
         placeholder = value.replace('LV_','')
         document_key = ''
         if '||' in placeholder:
             document_key, placeholder = placeholder.split('||')
         document_val = placeholder
         placeholder = '%s_%s' % (placeholder, uuid4().hex)
-        pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
+        pc = pc_callback(placeholder)
         pc.lookup_value = document_val
         pc.document_key = document_key
         pc.uom = '1'
         pc.visible = False
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         return ctxt_id, placeholder
+
+
+    def get_lookup_value(self,value):
+        return self._placeholder(value, lambda placeholder : ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.)))
+    
+    def get_array_lookup_value(self,value):
+        return self._placeholder(value, lambda placeholder : ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ArrayType(inner_encoding='float64', inner_fill_value=-9999.))))
+
+    def get_string_array_lookup_value(self, value):
+        return self._placeholder(value, lambda placeholder : ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ArrayType())))
 
     def get_cc_value(self, value):
         placeholder = value.lower()
@@ -244,6 +254,9 @@ class TypesManager(object):
     def find_gradient_test(self):
         return self.find_function('dataqc_gradienttest')
 
+    def find_localrange_test(self):
+        return self.find_function('dataqc_localrangetest')
+
     def make_qc_functions(self, name, data_product, registration_function, qc_fields=None):
         contexts = []
 
@@ -254,6 +267,7 @@ class TypesManager(object):
                             self.make_stuckvalue_qc,
                             self.make_trendtest_qc, # was not supported
                             self.make_gradienttest_qc,
+                            self.make_localrange_qc,
                             ]
         else:
             qc_factories = []
@@ -267,6 +281,8 @@ class TypesManager(object):
                 qc_factories.append(self.make_trendtest_qc)
             if 'gradtst_qc' in qc_fields:
                 qc_factories.append(self.make_gradienttest_qc)
+            if 'loclrng_qc' in qc_fields:
+                qc_factories.append(self.make_localrange_qc)
 
         for factory in qc_factories:
             try:
@@ -380,6 +396,27 @@ class TypesManager(object):
         pc.description = 'The OOI Gradient Test is an automated quality control algorithm used on various OOI data products. This automated algorithm generates flags for data points according to whether changes between successive points are within a pre-determined range.'
         ctxt_id = self.dataset_management.create_parameter_context(name='%s_gradtst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', display_name=pc.display_name, description=pc.description)
         return ctxt_id, pc
+    
+    def make_localrange_qc(self, name, data_product):
+
+        pfunc_id, pfunc = self.find_localrange_test()
+
+        datlim_id, datlim = self.get_array_lookup_value('LV_lrt_$designator_%s||datlim' % data_product)
+        datlimz_id, datlimz = self.get_array_lookup_value('LV_lrt_$designator_%s||datlimz' % data_product)
+        dims_id, dims = self.get_string_array_lookup_value('LV_lrt_$designator_%s||dims' % data_product)
+
+        pmap = {"dat":name, "dims*":dims, "datlim*":datlim, "datlimz*":datlimz}
+        pfunc.param_map = pmap
+        pfunc.lookup_values = [datlim_id, datlimz_id, dims_id]
+        dp_name = self.dp_name(data_product)
+
+        pc = ParameterContext(name='%s_loclrng_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
+        pc.uom = '1'
+        pc.ooi_short_name = '%s_LOCLRNG_QC' % dp_name
+        pc.display_name = '%s Local Range Test Quality Control Flag' % dp_name
+        pc.description = 'The OOI Local Range Test is the computation to test whether a given data point falls within pre-defined ranges.'
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_loclrng_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', display_name=pc.display_name, description=pc.description)
+        return ctxt_id, pc
 
     def make_propagate_qc(self,inputs):
 
@@ -400,6 +437,7 @@ class TypesManager(object):
         pc.description = 'The purpose of this computation is to produce a single merged QC flag from a set of potentially many flags.'
         ctxt_id = self.dataset_management.create_parameter_context(name='cmbnflg_qc', parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', display_name=pc.display_name, description=pc.description)
         return ctxt_id, pc
+
 
     def get_function_type(self, parameter_type, encoding, pfid, pmap):
         if pfid is None or pmap is None:

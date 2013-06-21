@@ -10,8 +10,11 @@ from nose.plugins.attrib import attr
 from pyon.ion.conversation_log import ConvRepository
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.net.endpoint import Publisher
+import unittest
+import os
 
-
+@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test in CEI_LAUNCH_TEST mode as it uses a special yaml \
+        with conversation persister')
 @attr('INT',group='conversation_log')
 class TestConversations(IonIntegrationTestCase):
 

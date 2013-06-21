@@ -211,7 +211,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
     def evaluate_qc(self, rdt, dataset_id):
         if self.qc_enabled:
             for field in rdt.fields:
-                if not field.endswith('glblrng_qc'):
+                if not (field.endswith('glblrng_qc') or field.endswith('loclrng_qc')):
                     continue
                 try:
                     values = rdt[field]

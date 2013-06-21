@@ -278,10 +278,13 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def is_persisted(self, data_product_id=''):
         # Is the data product currently persisted into a data set?
-        if data_product_id:
-            stream_id = self._get_stream_id(data_product_id)
-            if stream_id:
+        try:
+            if data_product_id:
+                stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(data_product_id)
                 return self.clients.ingestion_management.is_persisted(stream_id)
+        except NotFound:
+            pass
+
         return False
 
 
@@ -308,10 +311,17 @@ class DataProductManagementService(BaseDataProductManagementService):
         # get the Stream associated with this data product; if no stream then create one, if multiple streams then Throw
         #streams = self.data_product.find_stemming_stream(data_product_id)
         #--------------------------------------------------------------------------------
-        stream_id = self._get_stream_id(data_product_id)
-        validate_is_not_none(stream_id, 'Data Product %s must have one stream associated' % str(data_product_id))
+        try:
+            stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(data_product_id)
+            validate_is_not_none(stream_id, 'Data Product %s must have one stream associated' % str(data_product_id))
 
-        ret = self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
+            self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
+
+        except NotFound:
+            if data_product_obj.lcstate == LCS.RETIRED:
+                log.error("Attempted to suspend_data_product_persistence on a retired data product")
+            else:
+                raise
 
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
@@ -571,15 +581,6 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise NotFound('No Dataset is associated with DataProduct %s' % data_product_id)
         return dataset_id
 
-    def _get_stream_id(self, data_product_id=''):
-        # find datasets for the data product
-        stream_id = ''
-        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
-        if stream_ids:
-            stream_id =  stream_ids[0]
-        else:
-            raise NotFound('No Stream is associated with DataProduct %s' % data_product_id)
-        return stream_id
 
     ############################
     #
