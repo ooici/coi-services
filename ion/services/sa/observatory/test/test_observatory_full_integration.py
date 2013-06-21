@@ -225,7 +225,18 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         sdef_list, _ = self.RR.find_resources_ext(restype=RT.StreamDefinition)
         passing &= self.assertTrue(len(sdef_list) >= 10)
 
-        # TODO: More tests?
+        # Verify that a PDict has the appropriate QC parameters defined
+        pdicts, _ = self.RR.find_resources_ext(restype=RT.ParameterDictionary, alt_id_ns='PRE', alt_id='DICT110')
+        passing &= self.assertTrue(len(pdicts)==1)
+        if not pdicts:
+            return passing
+        pdict = pdicts[0]
+
+        # According to the latest SAF, density should NOT have trend
+
+        parameters, _ = self.RR.find_objects(pdict, PRED.hasParameterContext)
+        names = [i.name for i in parameters if i.name.startswith('density')]
+        passing &= self.assertTrue('density_trndtst_qc' not in names)
 
         return passing
 
@@ -282,7 +293,6 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             log.debug('deployment: %s', deploy.name)
             passing &= self.assertEquals(deploy.lcstate, LCS.DEPLOYED)
         return passing
-
 
     def rsn_node_checks(self):
         """
@@ -453,6 +463,9 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
     def check_rsn_instrument_data_product(self):
         passing = True
+        # for RS03AXBS-MJ03A-06-PRESTA301 (PREST-A) there are two listed data products
+        # SFLPRES-0 SFLPRES-1
+        # Check for the two data products and make sure they have the proper parameters
         return passing
 
     def check_glider(self):
