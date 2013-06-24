@@ -37,16 +37,17 @@ STAGE_LOAD_PARAMS = 2
 STAGE_LOAD_AGENTS = 3
 STAGE_LOAD_ASSETS = 4
 
+sep_bar = '----------------------------------------------------------------------'
+
 def assertion_wrapper(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        stack = extract_stack()
+        stack = extract_stack(limit=4)
         try:
             func(*args,**kwargs)
             return True
         except AssertionError as e:
-            log.error(e.message)
-            log.error('\n%s', ''.join(format_list(stack)))
+            log.error('\n%s\n%s\n%s',sep_bar,''.join(format_list(stack[:-1])), e.message)
         return False
     return wrapper
 
@@ -484,6 +485,131 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         return passing
 
+
+
+
+    def check_data_product_reference(self, reference_designator, output=[]):
+        passing = True
+
+        data_product_ids, _ = self.RR.find_resources_ext(alt_id_ns='PRE', alt_id='%s_DPI1' % reference_designator, id_only=True) # Assuming DPI1 is parsed
+        passing &= self.assertEquals(len(data_product_ids), 1)
+
+        if not data_product_ids:
+            return passing
+
+        # Let's go ahead and activate it
+        data_product_id = data_product_ids[0]
+        self.dpclient.activate_data_product_persistence(data_product_id)
+        self.addCleanup(self.dpclient.suspend_data_product_persistence, data_product_id)
+
+        dataset_ids, _ = self.RR.find_objects(data_product_id, PRED.hasDataset, id_only=True)
+        passing &= self.assertEquals(len(dataset_ids), 1)
+        if not dataset_ids:
+            return passing
+        dataset_id = dataset_ids[0]
+
+        stream_def_ids, _ = self.RR.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
+        passing &= self.assertEquals(len(dataset_ids), 1)
+        if not stream_def_ids:
+            return passing
+        stream_def_id = stream_def_ids[0]
+        output.append((data_product_id, stream_def_id, dataset_id))
+        return passing
+
+    def check_tempsf_instrument_data_product(self, reference_designator):
+        passing = True
+        info_list = []
+        passing &= self.check_data_product_reference(reference_designator, info_list)
+        if not passing: return passing
+        data_product_id, stream_def_id, dataset_id = info_list.pop()
+
+        now = time.time()
+        ntp_now = now + 2208988800
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [ntp_now]
+        rdt['temperature'] = [[ 25.3884 ,26.9384 ,24.3394 ,23.3401 ,22.9832 ,29.4434 ,26.9873 ,15.2883 ,16.3374 ,14.5883 ,15.7253 ,18.4383 ,15.3488 ,17.2993 ,10.2111 ,11.5993 ,10.9345 ,9.4444 ,9.9876 ,10.9834 ,11.0098 ,5.3456 ,4.2994 ,4.3009]]
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+        passing &= self.assertTrue(dataset_monitor.event.wait(20))
+        if not passing: return passing
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        passing &= self.assert_array_almost_equal(rdt['time'], [ntp_now])
+        passing &= self.assert_array_almost_equal(rdt['temperature'], [[ 25.3884 ,26.9384 ,24.3394 ,23.3401 ,22.9832 ,29.4434 ,26.9873 ,15.2883 ,16.3374 ,14.5883 ,15.7253 ,18.4383 ,15.3488 ,17.2993 ,10.2111 ,11.5993 ,10.9345 ,9.4444 ,9.9876 ,10.9834 ,11.0098 ,5.3456 ,4.2994 ,4.3009]])
+        return passing
+    
+    def check_vel3d_instrument_data_products(self, reference_designator):
+        passing = True
+        info_list = []
+        passing &= self.check_data_product_reference(reference_designator, info_list)
+        if not passing:
+            return passing
+        data_product_id, stream_def_id, dataset_id = info_list.pop()
+
+        now = time.time()
+        ntp_now = now + 2208988800
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [ntp_now]
+        #@TODO Test real data here once I get some sample data
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+        passing &= self.assertTrue(dataset_monitor.event.wait(20))
+        if not passing: return passing
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        passing &= self.assert_array_almost_equal(rdt['time'], [ntp_now])
+        return passing
+
+    
+    def check_presta_instrument_data_products(self, reference_designator):
+        # Check the parsed data product make sure it's got everything it needs and can be published persisted etc.
+
+        # Absolute Pressure (SFLPRES_L0) is what comes off the instrumnet, SFLPRES_L1 is a pfunc
+        # Let's go ahead and publish some fake data!!!
+        # According to https://alfresco.oceanobservatories.org/alfresco/d/d/workspace/SpacesStore/63e16865-9d9e-4b11-b0b3-d5658faa5080/1341-00230_Data_Product_Spec_SFLPRES_OOI.pdf
+        # Appendix A. Example 1.
+        # p_psia_tide = 14.8670
+        # the tide should be 10.2504
+        passing = True
+        
+
+        info_list = []
+        passing &= self.check_data_product_reference(reference_designator, info_list)
+        if not passing:
+            return passing
+        data_product_id, stream_def_id, dataset_id = info_list.pop()
+
+        now = time.time()
+        ntp_now = now + 2208988800.
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [ntp_now]
+        rdt['absolute_pressure'] = [14.8670]
+        passing &= self.assert_array_almost_equal(rdt['seafloor_pressure'], [10.2504], 4)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.event.wait(20)) # Bumped to 20 to keep buildbot happy
+        if not passing: return passing
+
+        granule = self.data_retriever.retrieve(dataset_id)
+
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        passing &= self.assert_array_almost_equal(rdt['time'], [ntp_now])
+        passing &= self.assert_array_almost_equal(rdt['seafloor_pressure'], [10.2504], 4)
+        passing &= self.assert_array_almost_equal(rdt['absolute_pressure'], [14.8670], 4)
+
+        return passing
+
     def check_rsn_instrument_data_product(self):
         passing = True
         # for RS03AXBS-MJ03A-06-PRESTA301 (PREST-A) there are a few listed data products
@@ -523,59 +649,13 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             if p.name=='time': # Ignore the domain parameter
                 continue
             passing &= self.assertTrue(p.ooi_short_name.startswith('SFLPRES'))
-
-        # Check the parsed data product make sure it's got everything it needs and can be published persisted etc.
-
-        data_product_ids, _ = self.RR.find_resources_ext(alt_id_ns='PRE', alt_id='RS03AXBS-MJ03A-06-PRESTA301_DPI1', id_only=True) # Assuming DPI1 is parsed
-        passing &= self.assertEquals(len(data_product_ids), 1)
-
-        if not data_product_ids:
-            return passing
-
-        # Let's go ahead and activate it
-        data_product_id = data_product_ids[0]
-        self.dpclient.activate_data_product_persistence(data_product_id)
-
-        dataset_ids, _ = self.RR.find_objects(data_product_id, PRED.hasDataset, id_only=True)
-        passing &= self.assertEquals(len(dataset_ids), 1)
-        if not dataset_ids:
-            return passing
-        dataset_id = dataset_ids[0]
-
-        stream_def_ids, _ = self.RR.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
-        passing &= self.assertEquals(len(dataset_ids), 1)
-        if not stream_def_ids:
-            return passing
-        stream_def_id = stream_def_ids[0]
-
-        # Absolute Pressure (SFLPRES_L0) is what comes off the instrumnet, SFLPRES_L1 is a pfunc
-        # Let's go ahead and publish some fake data!!!
-        # According to https://alfresco.oceanobservatories.org/alfresco/d/d/workspace/SpacesStore/63e16865-9d9e-4b11-b0b3-d5658faa5080/1341-00230_Data_Product_Spec_SFLPRES_OOI.pdf
-        # Appending A. Example 1.
-        # p_psia_tide = 14.8670
-        # the tide should be 10.2504
-
-        now = time.time()
-        ntp_now = now + 2208988800.
-
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = [ntp_now]
-        rdt['absolute_pressure'] = [14.8670]
-        passing &= self.assert_array_almost_equal(rdt['seafloor_pressure'], [10.2504], 4)
-        dataset_monitor = DatasetMonitor(dataset_id)
-        self.addCleanup(dataset_monitor.stop)
-
-        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dataset_monitor.event.wait(20)) # Bumped to 20 to keep buildbot happy
-
-        granule = self.data_retriever.retrieve(dataset_id)
-
-        rdt = RecordDictionaryTool.load_from_granule(granule)
-        passing &= self.assert_array_almost_equal(rdt['time'], [ntp_now])
-        passing &= self.assert_array_almost_equal(rdt['seafloor_pressure'], [10.2504], 4)
-        passing &= self.assert_array_almost_equal(rdt['absolute_pressure'], [14.8670], 4)
-
+        passing &= self.check_presta_instrument_data_products('RS03AXBS-MJ03A-06-PRESTA301')
+        passing &= self.check_presta_instrument_data_products('RS01SLBS-MJ01A-06-PRESTA101')
+        passing &= self.check_vel3d_instrument_data_products('RS03AXBS-MJ03A-12-VEL3DB301')
+        passing &= self.check_vel3d_instrument_data_products('RS03INT2-MJ03D-12-VEL3DB304')
+        passing &= self.check_tempsf_instrument_data_product('RS03ASHS-MJ03B-07-TMPSFA301')
         return passing
+
 
     def check_glider(self):
         '''
