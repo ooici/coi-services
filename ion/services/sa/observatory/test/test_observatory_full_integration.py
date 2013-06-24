@@ -20,6 +20,16 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
+from traceback import extract_stack, format_list
+
+import time
+import numpy as np
+import functools
 
 
 STAGE_LOAD_ORGS = 1
@@ -27,6 +37,18 @@ STAGE_LOAD_PARAMS = 2
 STAGE_LOAD_AGENTS = 3
 STAGE_LOAD_ASSETS = 4
 
+def assertion_wrapper(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        stack = extract_stack()
+        try:
+            func(*args,**kwargs)
+            return True
+        except AssertionError as e:
+            log.error(e.message)
+            log.error('\n%s', ''.join(format_list(stack)))
+        return False
+    return wrapper
 
 @attr('INT', group='sa')
 class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
@@ -45,6 +67,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         self.pubsubcli =  PubsubManagementServiceClient()
         self.damsclient = DataAcquisitionManagementServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
+        self.data_retriever = DataRetrieverServiceClient()
 
         self._load_stage = 0
         self._resources = {}
@@ -463,9 +486,95 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
     def check_rsn_instrument_data_product(self):
         passing = True
-        # for RS03AXBS-MJ03A-06-PRESTA301 (PREST-A) there are two listed data products
+        # for RS03AXBS-MJ03A-06-PRESTA301 (PREST-A) there are a few listed data products
+        # Parsed, Engineering
         # SFLPRES-0 SFLPRES-1
         # Check for the two data products and make sure they have the proper parameters
+        # SFLPRES-0 should 
+        data_products, _ = self.RR.find_resources_ext(alt_id_ns='PRE', alt_id='RS03AXBS-MJ03A-06-PRESTA301_SFLPRES_L0_DPID', id_only=True)
+        passing &=self.assertTrue(len(data_products)==1)
+        if not data_products:
+            return passing
+
+        data_product_id = data_products[0]
+        
+        stream_defs, _ = self.RR.find_objects(data_product_id,PRED.hasStreamDefinition,id_only=False)
+        passing &= self.assertTrue(len(stream_defs)==1)
+        if not stream_defs:
+            return passing
+
+        # Assert that the stream definition has the correct reference designator
+        stream_def = stream_defs[0]
+        passing &= self.assertEquals(stream_def.stream_configuration['reference_designator'], 'RS03AXBS-MJ03A-06-PRESTA301')
+
+        # Get the pdict and make sure that the parameters corresponding to the available fields 
+        # begin with the appropriate data product identifier
+
+        pdict_ids, _ = self.RR.find_objects(stream_def, PRED.hasParameterDictionary, id_only=True)
+        passing &= self.assertEquals(len(pdict_ids), 1)
+        if not pdict_ids:
+            return passing
+
+        pdict_id = pdict_ids[0]
+        
+        pdict = DatasetManagementService.get_parameter_dictionary(pdict_id)
+        available_params = [pdict.get_context(i) for i in pdict.keys() if i in stream_def.available_fields]
+        for p in available_params:
+            if p.name=='time': # Ignore the domain parameter
+                continue
+            passing &= self.assertTrue(p.ooi_short_name.startswith('SFLPRES'))
+
+        # Check the parsed data product make sure it's got everything it needs and can be published persisted etc.
+
+        data_product_ids, _ = self.RR.find_resources_ext(alt_id_ns='PRE', alt_id='RS03AXBS-MJ03A-06-PRESTA301_DPI1', id_only=True) # Assuming DPI1 is parsed
+        passing &= self.assertEquals(len(data_product_ids), 1)
+
+        if not data_product_ids:
+            return passing
+
+        # Let's go ahead and activate it
+        data_product_id = data_product_ids[0]
+        self.dpclient.activate_data_product_persistence(data_product_id)
+
+        dataset_ids, _ = self.RR.find_objects(data_product_id, PRED.hasDataset, id_only=True)
+        passing &= self.assertEquals(len(dataset_ids), 1)
+        if not dataset_ids:
+            return passing
+        dataset_id = dataset_ids[0]
+
+        stream_def_ids, _ = self.RR.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
+        passing &= self.assertEquals(len(dataset_ids), 1)
+        if not stream_def_ids:
+            return passing
+        stream_def_id = stream_def_ids[0]
+
+        # Absolute Pressure (SFLPRES_L0) is what comes off the instrumnet, SFLPRES_L1 is a pfunc
+        # Let's go ahead and publish some fake data!!!
+        # According to https://alfresco.oceanobservatories.org/alfresco/d/d/workspace/SpacesStore/63e16865-9d9e-4b11-b0b3-d5658faa5080/1341-00230_Data_Product_Spec_SFLPRES_OOI.pdf
+        # Appending A. Example 1.
+        # p_psia_tide = 14.8670
+        # the tide should be 10.2504
+
+        now = time.time()
+        ntp_now = now + 2208988800.
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [ntp_now]
+        rdt['absolute_pressure'] = [14.8670]
+        passing &= self.assert_array_almost_equal(rdt['seafloor_pressure'], [10.2504], 4)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.event.wait(20)) # Bumped to 20 to keep buildbot happy
+
+        granule = self.data_retriever.retrieve(dataset_id)
+
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        passing &= self.assert_array_almost_equal(rdt['time'], [ntp_now])
+        passing &= self.assert_array_almost_equal(rdt['seafloor_pressure'], [10.2504], 4)
+        passing &= self.assert_array_almost_equal(rdt['absolute_pressure'], [14.8670], 4)
+
         return passing
 
     def check_glider(self):
@@ -645,18 +754,17 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         s = inspect.stack()
         return "%s:%s" % (s[2][1], s[2][2])
 
-    def assertEquals(self, *args, **kwargs):
-        try:
-            IonIntegrationTestCase.assertEquals(self, *args, **kwargs)
-            return True
-        except AssertionError:
-            log.exception('Assertion Failed in %s', self._get_caller())
-        return False
+    @assertion_wrapper
+    def assert_array_almost_equal(self, *args, **kwargs):
+        np.testing.assert_array_almost_equal(*args, **kwargs)
 
+    @assertion_wrapper
+    def assertEquals(self, *args, **kwargs):
+        IonIntegrationTestCase.assertEquals(self, *args, **kwargs)
+
+    @assertion_wrapper
     def assertTrue(self, *args, **kwargs):
-        try:
-            IonIntegrationTestCase.assertTrue(self, *args, **kwargs)
-            return True
-        except AssertionError:
-            log.exception('Assertion Failed in %s', self._get_caller())
-        return False
+        IonIntegrationTestCase.assertTrue(self, *args, **kwargs)
+
+
+
