@@ -29,5 +29,18 @@ omit =
     */util/parameter_loader*
     */simple_dispatcher*
     */granule/taxonomy*
+    */bootstrap_exchange*
+    */import_dataset*
+    */last_update_cache*
+    */raw_stream_publisher*
+    */simple_granule_logger*
+    */event_triggered_transform*
+    */logical_transform*
+    */vis_stream_launcher*
+    */container_profiler*
+    */agent_management_service*
+    */resource_tree*
+    */util/path*
+
 [html]
 directory = coverage_results
