@@ -363,7 +363,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         caught_events = []
         while (got_bad_temp == False or got_late_data == False) and \
             runtime < 120:            
-            a = self.catch_alert.get(timeout=45)
+            a = self.catch_alert.get(timeout=90)
             caught_events.append(a)
             if a.name == 'temperature_warning_interval' and \
                 a.description == 'Temperature is below the normal range of 50.0 and above.':
