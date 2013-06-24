@@ -37,16 +37,17 @@ STAGE_LOAD_PARAMS = 2
 STAGE_LOAD_AGENTS = 3
 STAGE_LOAD_ASSETS = 4
 
+sep_bar = '----------------------------------------------------------------------'
+
 def assertion_wrapper(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        stack = extract_stack()
+        stack = extract_stack(limit=4)
         try:
             func(*args,**kwargs)
             return True
         except AssertionError as e:
-            log.error(e.message)
-            log.error('\n%s', ''.join(format_list(stack)))
+            log.error('\n%s\n%s\n%s',sep_bar,''.join(format_list(stack[:-1])), e.message)
         return False
     return wrapper
 
@@ -551,7 +552,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         # Absolute Pressure (SFLPRES_L0) is what comes off the instrumnet, SFLPRES_L1 is a pfunc
         # Let's go ahead and publish some fake data!!!
         # According to https://alfresco.oceanobservatories.org/alfresco/d/d/workspace/SpacesStore/63e16865-9d9e-4b11-b0b3-d5658faa5080/1341-00230_Data_Product_Spec_SFLPRES_OOI.pdf
-        # Appending A. Example 1.
+        # Appendix A. Example 1.
         # p_psia_tide = 14.8670
         # the tide should be 10.2504
 
