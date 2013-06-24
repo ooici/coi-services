@@ -783,7 +783,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         actor_header = get_actor_header(actor_id)
 
         #User with proper role should now be allowed to access this service operation.
-        id = self.ssclient.create_interval_timer(start_time="now", event_origin="Interval_Timer_233", headers=actor_header)
+        id = self.ssclient.create_interval_timer(start_time="now", end_time="-1", event_origin="Interval_Timer_233", headers=actor_header)
 
 
     @attr('LOCOINT')
