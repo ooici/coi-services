@@ -9,7 +9,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 from pyon.core.governance.negotiation import Negotiation
-from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
+from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound, Unauthorized
 from pyon.public import PRED, RT, IonObject, OT
 from ion.services.coi.identity_management_service import IdentityManagementService
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient, IdentityManagementServiceProcessClient
@@ -21,7 +21,7 @@ from pyon.util.context import LocalContextMixin
 from pyon.core.governance import ORG_MANAGER_ROLE
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
 
-
+from ooi.logging import log
 
 
 @attr('UNIT', group='coi')
@@ -599,6 +599,19 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         user_info_obj = IonObject("UserInfo", {"name": "Foo"})
         user_info_id = self.identity_management_service.create_user_info(actor_id, user_info_obj)
 
+        print 'target user %s actor %s' % (user_info_id, actor_id)
+
+        actor_identity_obj2 = IonObject("ActorIdentity", {"name": 'test caller'})
+        actor_id2 = self.identity_management_service.create_actor_identity(actor_identity_obj2)
+
+        user_credentials_obj2 = IonObject("UserCredentials", {"name": 'test caller'})
+        self.identity_management_service.register_user_credentials(actor_id2, user_credentials_obj2)
+
+        user_info_obj2 = IonObject("UserInfo", {"name": "Joe"})
+        user_info_id2 = self.identity_management_service.create_user_info(actor_id2, user_info_obj2)
+
+        print 'calling user %s actor %s' % (user_info_id2, actor_id2)
+
         ion_org = self.org_client.find_org()
 
         #Build the Service Agreement Proposal to to request a role but never close it
@@ -612,9 +625,25 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
             self.identity_management_service.get_user_info_extension('That rug really tied the room together.')
         with self.assertRaises(BadRequest):
             self.identity_management_service.get_user_info_extension()
+        # should fail without calling user
+        with self.assertRaises(Unauthorized):
+            self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id)
+        # should fail to give one user info about another
+        with self.assertRaises(Unauthorized):
+            self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id, headers={'ion-actor-id':actor_id2})
 
-        #Check the user without the negotiation role request
-        extended_user = self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id)
+        # can get info about self
+        try:
+            extended_user = self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id, headers={'ion-actor-id':actor_id})
+        except:
+            self.fail('failed to get user info with credentials')
+
+        # ION_MANAGER can do anything
+        try:
+            extended_user = self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id, headers={'ion-actor-id':actor_id2, 'ion-actor-roles': { 'ION': ['ION_MANAGER']}})
+        except:
+            self.fail('failed to get user info with credentials')
+
         self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
         self.assertEqual(len(extended_user.roles),1)
         self.assertEqual(len(extended_user.open_requests),1)
@@ -629,7 +658,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         sap_response2 = self.org_client.negotiate(sap_response)
 
         #Now check the user after the negotiation has been accepted and the role granted
-        extended_user = self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id)
+        extended_user = self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id, headers={'ion-actor-id':actor_id})
         self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
         self.assertEqual(len(extended_user.roles),2)
         self.assertEqual(len(extended_user.open_requests),0)
