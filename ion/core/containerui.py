@@ -199,6 +199,47 @@ def process_list_resource_types():
 
 # ----------------------------------------------------------------------------------------
 
+@app.route('/alt/<namespace>/<alt_id>', methods=['GET'])
+def process_alt_ids(namespace, alt_id):
+    try:
+        res_list, _ = Container.instance.resource_registry.find_resources_ext(alt_id_ns=namespace.encode('ascii'), alt_id=alt_id.encode('ascii'))
+        fragments = [
+            build_standard_menu(),
+            "<h1>List of Matching Resources: %s</h1>" % alt_id,
+            "<p>",
+            "<table>",
+        ]
+        fragments.extend([
+            "<thead>",
+            "<tr>",
+            "<th>ID</th>",
+            "<th>Name</th>",
+            "<th>Description</th>",
+            "<th>Resource Type</th>",
+            "<th>alt_ids</th>",
+            "</tr>",
+            "</thead>"])
+        fragments.append("<tbody>")
+
+        for res in res_list:
+            fragments.append("<tr>")
+            fragments.extend(build_table_alt_row(res))
+            fragments.append("</tr>")
+        fragments.append("</tbody>")
+
+        fragments.append("</table></p>")
+        fragments.append("<p>Number of resources: %s</p>" % len(res_list))
+
+        content = "\n".join(fragments)
+        return build_page(content)
+
+    except NotFound:
+        return flask.redirect("/")
+    except Exception:
+        return build_error_page(traceback.format_exc())
+        
+# ----------------------------------------------------------------------------------------
+
 @app.route('/list/<resource_type>', methods=['GET','POST'])
 def process_list_resources(resource_type):
     try:
@@ -269,6 +310,16 @@ def build_table_header(objtype):
     for field in sorted(schema.keys()):
         if field not in standard_resattrs:
             fragments.append("<th>%s</th>" % (field))
+    return fragments
+
+def build_table_alt_row(obj):
+    fragments = []
+    fragments.extend([
+        "<td><a href='/view/%s'>%s</a></td>" % (obj._id,obj._id),
+        "<td>%s</td>" % obj.name,
+        "<td>%s</td>" % obj.description,
+        "<td><a href='/list/%s'>%s</a></td>" % (obj._get_type(),obj._get_type()),
+        "<td>%s</td>" % obj.alt_ids])
     return fragments
 
 def build_table_row(obj):
@@ -1036,6 +1087,7 @@ def build_simple_page(content):
 
 def build_page(content, title=""):
     fragments = [
+        "<!doctype html>",
         "<html><head>",
         "<link type='text/css' rel='stylesheet' href='/static/default.css' />"
         "<link type='text/css' rel='stylesheet' href='/static/demo.css' />",
