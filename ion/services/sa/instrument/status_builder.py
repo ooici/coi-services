@@ -32,6 +32,9 @@ class AgentStatusBuilder(object):
         self.dtm = DriverTypingMethod.ByRR
         self.RR2 = None
 
+        # make an internal pointer to this function so we can Mock it for testing
+        self._get_agent_client = ResourceAgentClient
+
         if DriverTypingMethod.ByRR == self.dtm:
             self.RR2 = EnhancedResourceRegistryClient(process.clients.resource_registry)
 
@@ -66,7 +69,7 @@ class AgentStatusBuilder(object):
             return None, "No device ID was provided"
 
         try:
-            h_agent = ResourceAgentClient(device_id, process=self.process)
+            h_agent = self._get_agent_client(device_id, process=self.process)
             log.debug("got the agent client here: %s for the device id: %s and process: %s",
                       h_agent, device_id, self.process)
         except NotFound:
@@ -74,6 +77,9 @@ class AgentStatusBuilder(object):
 
         except Unauthorized:
             return None, "The requester does not have the proper role to access the status of this agent"
+
+        except AttributeError:
+            return None, "Could not find an agent instance for this device id"
 
         return h_agent, ""
 
@@ -94,7 +100,7 @@ class AgentStatusBuilder(object):
 
         except Unauthorized:
             log.warn("The requester does not have the proper role to access the status of this agent")
-            return None, "Error getting status: : InstrumentDevice(get_agent) has been denied"
+            return None, "Error getting status: 'aggstatus' has been denied"
 
         out_status = {device_id: this_status}
 
@@ -115,7 +121,7 @@ class AgentStatusBuilder(object):
             return out_status, None
         except Unauthorized:
             log.warn("The requester does not have the proper role to access the child_agg_status of this agent")
-            return out_status, "Error getting child status: InstrumentDevice(get_agent) has been denied"
+            return out_status, "Error getting child status: 'child_agg_status' has been denied"
 
 
     #return this aggregate status, reason for fail, dict of device_id -> agg status
@@ -134,7 +140,7 @@ class AgentStatusBuilder(object):
         # if child device ids is not none, the developer had better be giving us a list
         assert isinstance(child_device_ids, list)
 
-
+        log.debug("Computing rollup of devices%s in status from %s", child_device_ids + [device_id], master_status_dict)
         rollup_statuses = {}
         # 1. loop through the items in this device status,
         # 2. append all the statuses of that type from child devices,
