@@ -18,7 +18,7 @@ class EventPersister(StandaloneProcess):
         # Time in between event persists
         self.persist_interval = float(self.CFG.get_safe("process.event_persister.persist_interval", 1.0))
 
-        self.persist_blacklist = self.CFG.get_safe("process.event_persister.persist_blacklist", 1.0)
+        self.persist_blacklist = self.CFG.get_safe("process.event_persister.persist_blacklist", {})
 
         self._event_type_blacklist = [entry['event_type'] for entry in self.persist_blacklist if entry.get('event_type', None) and len(entry) == 1]
         self._complex_blacklist = [entry for entry in self.persist_blacklist if not (entry.get('event_type', None) and len(entry) == 1)]
