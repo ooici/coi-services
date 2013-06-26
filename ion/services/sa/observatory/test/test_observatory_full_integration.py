@@ -69,6 +69,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         self.damsclient = DataAcquisitionManagementServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
         self.data_retriever = DataRetrieverServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
 
         self._load_stage = 0
         self._resources = {}
@@ -654,6 +655,15 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         passing &= self.check_vel3d_instrument_data_products('RS03AXBS-MJ03A-12-VEL3DB301')
         passing &= self.check_vel3d_instrument_data_products('RS03INT2-MJ03D-12-VEL3DB304')
         passing &= self.check_tempsf_instrument_data_product('RS03ASHS-MJ03B-07-TMPSFA301')
+
+        self.data_product_management.activate_data_product_persistence(data_product_id)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        self.assert_array_almost_equal(rdt['seafloor_pressure'], [10.2504], 4)
+        self.assert_array_almost_equal(rdt['absolute_pressure'], [14.8670], 4)
+        self.data_product_management.suspend_data_product_persistence(data_product_id) # Should do nothing and not raise anything
+        
         return passing
 
 

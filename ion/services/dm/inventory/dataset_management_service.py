@@ -45,7 +45,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None, temporal_domain=None, parameter_dictionary_id='', description=''):
+    def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None, temporal_domain=None, parameter_dictionary_id='', description='', parent_dataset_id=''):
         validate_true(parameter_dict or parameter_dictionary_id, 'A parameter dictionary must be supplied to register a new dataset.')
         validate_is_not_none(spatial_domain, 'A spatial domain must be supplied to register a new dataset.')
         validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
@@ -76,6 +76,10 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.add_stream(dataset_id,stream_id)
 
         log.debug('creating dataset: %s', dataset_id)
+        if parent_dataset_id:
+            vcov = self._create_view_coverage(dataset_id, description or dataset_id, parent_dataset_id)
+            vcov.close()
+            return dataset_id
 
         cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
         self._save_coverage(cov)
@@ -447,6 +451,17 @@ class DatasetManagementService(BaseDatasetManagementService):
         vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
         scov.close()
         return vcov
+
+    def _create_view_coverage(self, dataset_id, description, parent_dataset_id):
+        # As annoying as it is we need to load the view coverage belonging to parent dataset id and use the information
+        # inside to build the new one...
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        pscov = self._get_simplex_coverage(parent_dataset_id, mode='r')
+        scov_location = pscov.persistence_dir
+        pscov.close()
+        vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov_location)
+        return vcov
+
 
     @classmethod
     def _create_simplex_coverage(cls, dataset_id, parameter_dictionary, spatial_domain, temporal_domain, inline_data_writes=True):

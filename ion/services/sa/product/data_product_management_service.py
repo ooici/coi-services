@@ -9,7 +9,7 @@ from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, OT, PRED, LCS, CFG
 from pyon.util.ion_time import IonTime
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false
+from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false, validate_true
 
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
@@ -28,6 +28,20 @@ import numpy as np
 import string
 from collections import deque
 
+import functools
+def debug_wrapper(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except:
+            from traceback import print_exc
+            print_exc()
+            raise
+    return wrapper
+
+
+
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
         @file       ion/services/sa/product/data_product_management_service.py
@@ -39,20 +53,28 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point='', dataset_id=''):
+    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point='', dataset_id='', parent_data_product_id=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
         @retval     data_product_id
         """
-
         data_product_id = self.create_data_product_(data_product)
 
         self.assign_stream_definition_to_data_product(data_product_id=data_product_id,
             stream_definition_id=stream_definition_id, exchange_point=exchange_point)
 
-        if dataset_id:
+        if dataset_id and parent_data_product_id:
+            print "Dataset id: ", dataset_id
+            print "parent data product id: ", parent_data_product_id
+            raise BadRequest('A parent dataset or parent data product can be specified, not both.')
+        if dataset_id and not data_product_id:
             self.assign_dataset_to_data_product(data_product_id=data_product_id, dataset_id=dataset_id)
+        if parent_data_product_id and not dataset_id:
+            self.assign_data_product_to_data_product(data_product_id=data_product_id, parent_data_product_id=parent_data_product_id)
+            dataset_ids, _ = self.clients.resource_registry.find_objects(parent_data_product_id, predicate=PRED.hasDataset, id_only=True)
+            for dataset_id in dataset_ids:
+                self.assign_dataset_to_data_product(data_product_id, dataset_id)
 
       # Return the id of the new data product
         return data_product_id
@@ -104,6 +126,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(dataset_id, 'A dataset id must be passed to assign a dataset to a data product')
 
         self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+
+    def assign_data_product_to_data_product(self, data_product_id='', parent_data_product_id=''):
+        validate_true(data_product_id, 'A data product id must be specified')
+        validate_true(parent_data_product_id, 'A data product id must be specified')
+
+        self.RR2.assign_data_product_to_data_product_with_has_data_product_parent(parent_data_product_id, data_product_id)
 
 
     def read_data_product(self, data_product_id=''):
@@ -212,7 +240,24 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id) # additional read necessary to fill in the pdict
 
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
+        parent_data_product_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
+        dataset_ids = []
+        if len(parent_data_product_ids)==1:
+            parent_id = parent_data_product_ids[0]
+            dataset_ids, _ = self.clients.resource_registry.find_objects(parent_id, predicate=PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                raise BadRequest('Parent Data Product must be activated first')
+            parent_dataset_id = dataset_ids[0]
+            dataset_id = self.clients.dataset_management.create_dataset(name='dataset_%s' % stream_id, 
+                                                            spatial_domain={'null':'null'},
+                                                            temporal_domain={'null':'null'},
+                                                            parameter_dict=stream_def.parameter_dictionary,
+                                                            parent_dataset_id=parent_dataset_id)
+            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+            self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
+            return
+        else:
+            dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
 
         temporal_domain, spatial_domain = time_series_domain()
         temporal_domain = temporal_domain.dump()
@@ -304,7 +349,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(data_product_obj, 'Should not have been empty')
         validate_is_instance(data_product_obj, DataProduct)
 
+        parent_dp_ids, _ = self.clients.resource_registry.find_objects(data_product_id,PRED.hasDataProductParent, id_only=True)
+
         if not data_product_obj.dataset_configuration_id:
+            if parent_dp_ids:
+                # It's a derived data product, we're done here
+                return
             raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
         #--------------------------------------------------------------------------------

@@ -2692,11 +2692,9 @@ Reason: %s
         gcrs_id = row['coordinate_system_id']
         if gcrs_id:
             res_obj.geospatial_coordinate_reference_system = self.resource_ids[gcrs_id]
-        parent_dataset_id=None
+        parent_id = None
         if row['parent'] and row['parent'] in self.resource_ids:
             parent_id = self.resource_ids[row['parent']]
-            parent_dataset_ids, _ = self.container.resource_registry.find_objects(parent_id,PRED.hasDataset, id_only=True)
-            parent_dataset_id = parent_dataset_ids[0] if len(parent_dataset_ids) else None
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
 
@@ -2717,7 +2715,7 @@ Reason: %s
             stream_definition_id = self.resource_ids[row["stream_def_id"]] if row["stream_def_id"] else None
             if stream_definition_id:
                 res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id,
-                        dataset_id=parent_dataset_id or None,
+                        parent_data_product_id=parent_id,
                     headers=headers)
             else:
                 res_id = svc_client.create_data_product_(data_product=res_obj,
