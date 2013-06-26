@@ -70,6 +70,7 @@ class PortAgentType(BaseEnum):
     What type of port agent are we running?  ethernet, serial, digi etc...
     """
     ETHERNET = 'ethernet'
+    SERIAL = 'serial'
     BOTPT = "botpt"
 
 class ObservatoryType(BaseEnum):
@@ -366,11 +367,19 @@ class UnixPortAgentProcess(PortAgentProcess):
         self._log_level = config.get("log_level");
         self._type = config.get("instrument_type", PortAgentType.ETHERNET)
 
+        if self._type == PortAgentType.ETHERNET:
+            self._device_addr = config.get("device_addr")
+            self._device_port = config.get("device_port")
+        elif self._type == PortAgentType.SERIAL:
+            self._device_os_port = config.get("device_os_port", None)
+            self._device_baud = config.get("device_baud", None)
+            self._device_data_bits = config.get("device_data_bits", None)
+            self._device_parity = config.get("device_parity", None)
+            self._device_stop_bits = config.get("device_stop_bits", None)
+            self._device_flow_control = config.get("device_flow_control", None)
+
         if not self._pa_addr:
             self._pa_addr = LOCALHOST
-
-        if not self._device_addr:
-            raise PortAgentMissingConfig("missing config: device_addr")
 
         if not self._heartbeat_interval:
             self._heartbeat_interval = DEFAULT_HEARTBEAT
@@ -381,8 +390,23 @@ class UnixPortAgentProcess(PortAgentProcess):
             if not self._device_rx_port:
                 raise PortAgentMissingConfig("missing config: device_rx_port (BOTPT)")
         elif PortAgentType.ETHERNET == self._type: 
+            if not self._device_addr:
+                raise PortAgentMissingConfig("missing config: device_addr")
             if not self._device_port:
                 raise PortAgentMissingConfig("missing config: device_port (ETHERNET)")
+        elif PortAgentType.SERIAL == self._type:
+            if self._device_os_port == None:
+                raise PortAgentMissingConfig("missing config: device_os_port")
+            if self._device_baud == None:
+                raise PortAgentMissingConfig("missing config: device_baud")
+            if self._device_data_bits == None:
+                raise PortAgentMissingConfig("missing config: device_data_bits")
+            if self._device_parity == None:
+                raise PortAgentMissingConfig("missing config: device_parity")
+            if self._device_stop_bits == None:
+                raise PortAgentMissingConfig("missing config: device_stop_bits")
+            if self._device_flow_control == None:
+                raise PortAgentMissingConfig("missing config: device_flow_control")
         else:  
             raise PortAgentLaunchException("unknown port agent type: %s" % self._type)
 
@@ -416,6 +440,16 @@ class UnixPortAgentProcess(PortAgentProcess):
             temp.write("instrument_type botpt\n")
             temp.write("instrument_data_tx_port %d\n" % (self._device_tx_port) )
             temp.write("instrument_data_rx_port %d\n" % (self._device_rx_port) )
+        elif PortAgentType.SERIAL == self._type:
+            temp.write("instrument_type serial\n")
+            temp.write("baud 9600\n")
+            temp.write("device_path %s\n" % (self._device_os_port) )
+            temp.write("baud %d\n" % (self._device_baud) )
+
+            temp.write("databits %d\n" % (self._device_data_bits) )
+            temp.write("parity %s\n" % (self._device_parity) )
+            temp.write("stopbits %d\n" % (self._device_stop_bits) )
+            temp.write("flow %s\n" % (self._device_flow_control) )
         else:
             temp.write("instrument_type tcp\n")
             temp.write("instrument_data_port %d\n" % (self._device_port) )
