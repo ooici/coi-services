@@ -1079,36 +1079,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
-        # JIRA OOIION-1110: using associations to find device and site fails
-        # so temporarily workaround by finding jira1110_{instrument/platform}_{site/device}
-        # and copying into device and site
-        # WHEN JIRA IS FIXED, REMOVE THIS BLOCK OF CODE AND THE JIRA_* ATTRIBUTES
-        #
-#        if hasattr(extended_deployment.jira1110_instrument_device, '_id'):
-#            if hasattr(extended_deployment.jira1110_platform_device, '_id'):
-#                raise Inconsistent('deployment %s associated with both instrument device %s and platform device %s' %
-#                        (deployment_id, extended_deployment.jira1110_instrument_device._id, extended_deployment.jira1110_platform_device._id))
-#            if hasattr(extended_deployment.jira1110_platform_site, '_id'):
-#                raise Inconsistent('deployment %s associated with instrument device %s but platform site %s' %
-#                    (deployment_id, extended_deployment.jira1110_instrument_device._id, extended_deployment.jira1110_platform_site._id))
-#            if not hasattr(extended_deployment.jira1110_instrument_site, '_id'):
-#                raise Inconsistent('deployment %s associated with instrument device %s but no instrument site' %
-#                    (deployment_id, extended_deployment.jira1110_instrument_device._id))
-#            extended_deployment.device = extended_deployment.jira1110_instrument_device
-#            extended_deployment.site = extended_deployment.jira1110_instrument_site
-#        else:
-#            if not hasattr(extended_deployment.jira1110_platform_device, '_id'):
-#                raise Inconsistent('deployment %s has no instrument device or platform device' % deployment_id)
-#            if hasattr(extended_deployment.jira1110_instrument_site, '_id'):
-#                raise Inconsistent('deployment %s associated with platform device %s but instrument site %s' %
-#                    (deployment_id, extended_deployment.jira1110_platform_device._id, extended_deployment.jira1110_instrument_site._id))
-#            if not hasattr(extended_deployment.jira1110_platform_site, '_id'):
-#                raise Inconsistent('deployment %s associated with platform device %s but no platform site' %
-#                    (deployment_id, extended_deployment.jira1110_platform_device._id))
-#            extended_deployment.device = extended_deployment.jira1110_platform_device
-#            extended_deployment.site = extended_deployment.jira1110_platform_site
-        # end of block REMOVE ABOVE THIS LINE WHEN JIRA IS FIXED
-
         if not extended_deployment.device or not extended_deployment.site \
             or not hasattr(extended_deployment.device, '_id') \
             or not hasattr(extended_deployment.site, '_id'):
