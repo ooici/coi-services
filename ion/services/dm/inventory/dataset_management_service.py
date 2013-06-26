@@ -180,7 +180,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         return obj
 
 
-    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report='', units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map='', standard_name='', ooi_short_name='', precision=''):
+    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report='', units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map='', standard_name='', ooi_short_name='', precision='', visible=True):
         
         validate_true(name, 'Name field may not be empty')
         validate_is_instance(parameter_context, dict, 'parameter_context field is not dictable.')
@@ -199,6 +199,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         pc_res.standard_name = standard_name
         pc_res.ooi_short_name = ooi_short_name
         pc_res.precision = precision or '5'
+        pc_res.visible = visible
 
         pc_id, ver = self.clients.resource_registry.create(pc_res)
         if parameter_function_id:
