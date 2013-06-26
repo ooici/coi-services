@@ -50,6 +50,7 @@ from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverState
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 
 from gevent import sleep
 from gevent.event import AsyncResult
@@ -588,6 +589,15 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._wait_for_a_data_sample()
         self._stop_resource_monitoring()
 
+        """
+        for x in self._samples_received:
+            print '########################## sample:'
+            rdt = RecordDictionaryTool.load_from_granule(x)
+            fields = rdt.fields
+            for y in fields:
+                print '%s : %s' % (str(y), str(rdt[y]))
+        """
+        
     def test_external_event_dispatch(self):
         self._create_network_and_start_root_platform()
 

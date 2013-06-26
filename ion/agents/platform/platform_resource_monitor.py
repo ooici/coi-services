@@ -315,6 +315,7 @@ class PlatformResourceMonitor(object):
             log.debug("%r: _dispatch_publication: no new data collected.", self._platform_id)
             return
 
+        """
         # step 2:
         # - put None's for any missing attribute value per timestamp:
         for ts in by_ts:
@@ -324,11 +325,37 @@ class PlatformResourceMonitor(object):
             for attr_id in attrs_with_actual_values:
                 if not attr_id in by_ts[ts]:
                     by_ts[ts][attr_id] = None
+        """
 
+        # step 2:
+        # - put None's for any missing attribute value per timestamp:
+        # EH. Here I used all attributes instead of only the measured ones
+        # so the agent can properly populate rdts and construct granules.
+        for ts in by_ts:
+            # only do this for attrs_with_actual_values:
+            # (note: these attributes do have actual values, but not necessarily
+            # at every reported timestamp in this cycle):
+            for attr_id in self._buffers.keys():
+                if not attr_id in by_ts[ts]:
+                    by_ts[ts][attr_id] = None
+
+        """        
         # step 3:
         # - construct vals_dict for the event:
         vals_dict = {}
         for attr_id in attrs_with_actual_values:
+            vals_dict[attr_id] = []
+            for ts in sorted(by_ts.iterkeys()):
+                val = by_ts[ts][attr_id]
+                vals_dict[attr_id].append((val, ts))
+        """
+        
+        # step 3:
+        # - construct vals_dict for the event:
+        # EH. Here I used all attributes instead of only the measured ones
+        # so the agent can properly populate rdts and construct granules.
+        vals_dict = {}
+        for attr_id in self._buffers.keys():
             vals_dict[attr_id] = []
             for ts in sorted(by_ts.iterkeys()):
                 val = by_ts[ts][attr_id]
