@@ -114,7 +114,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEJ3c0dhMUVMdGNtcjVmVTR3Sm8wOXc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydC1mX1BmQ3dGVm1vZ21EbTI3RFhjWGc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1861,6 +1861,7 @@ Reason: %s
         param_id     = row['ID']
         lookup_value = row['Lookup Value']
         qc           = row['QC Functions']
+        visible      = get_typed_value(row['visible'], targettype="bool") if row['visible'] else True
 
         dataset_management = self._get_service_client('dataset_management')
 
@@ -1888,6 +1889,7 @@ Reason: %s
             context.ooi_short_name = sname
             context.description = description
             context.precision = precision
+            context.visible = visible
             if lookup_value:
                 if lookup_value.lower() == 'true':
                     context.lookup_value = name
@@ -1965,6 +1967,7 @@ Reason: %s
                 standard_name=std_name,
                 ooi_short_name=sname,
                 precision=precision,
+                visible=visible,
                 headers=self._get_system_actor_headers())
             if pfid:
                 try:
@@ -2692,11 +2695,9 @@ Reason: %s
         gcrs_id = row['coordinate_system_id']
         if gcrs_id:
             res_obj.geospatial_coordinate_reference_system = self.resource_ids[gcrs_id]
-        parent_dataset_id=None
+        parent_id = None
         if row['parent'] and row['parent'] in self.resource_ids:
             parent_id = self.resource_ids[row['parent']]
-            parent_dataset_ids, _ = self.container.resource_registry.find_objects(parent_id,PRED.hasDataset, id_only=True)
-            parent_dataset_id = parent_dataset_ids[0] if len(parent_dataset_ids) else None
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
 
@@ -2717,7 +2718,7 @@ Reason: %s
             stream_definition_id = self.resource_ids[row["stream_def_id"]] if row["stream_def_id"] else None
             if stream_definition_id:
                 res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id,
-                        dataset_id=parent_dataset_id or None,
+                        parent_data_product_id=parent_id,
                     headers=headers)
             else:
                 res_id = svc_client.create_data_product_(data_product=res_obj,
