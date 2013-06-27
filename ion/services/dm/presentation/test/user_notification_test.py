@@ -1,10 +1,8 @@
-'''
-@author Bill Bollenbacher
-@author Swarbhanu Chatterjee
-@author David Stuebe
-@file ion/services/dm/presentation/test/user_notification_test.py
-@description Unit and Integration test implementations for the user notification service class.
-'''
+#!/usr/bin/env python
+
+"""Unit and Integration test implementations for the user notification service class"""
+
+__author__ = 'Bill Bollenbacher, Swarbhanu Chatterjee, David Stuebe'
 
 from nose.plugins.attrib import attr
 import unittest
@@ -50,11 +48,6 @@ from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
-def now():
-    '''
-    This method defines what the UNS uses as its "current" time
-    '''
-    return datetime.utcnow()
 
 class FakeProcess(LocalContextMixin):
     name = 'scheduler_for_user_notification_test'
@@ -2113,9 +2106,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         success = self.event_poll(poller, 10)
         self.assertTrue(success)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_get_subscriptions(self):
         # Test that the get_subscriptions works correctly
 
@@ -2267,9 +2257,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(len(res_notifs), 4)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_get_subscriptions_for_user(self):
         # Test that the get_subscriptions works correctly
 
