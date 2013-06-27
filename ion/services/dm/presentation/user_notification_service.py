@@ -25,6 +25,8 @@ from interface.objects import ComputedValueAvailability, ComputedListValue, Devi
 from interface.objects import ProcessDefinition, TemporalBounds
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 
+CFG_ELASTIC_SEARCH = CFG.get_safe('system.elasticsearch', False)
+
 
 """
 For every user that has existing notification requests (who has called
@@ -44,8 +46,6 @@ that is passed to all event subscribers for each notification the user has creat
 Each notification object will encapsulate the notification information and a
 list of event subscribers (only one for LCA) that listen for the events in the notification.
 """
-
-
 class EmailEventProcessor(object):
     """
     A class that helps to get user subscribed to notifications
@@ -747,28 +747,40 @@ class UserNotificationService(BaseUserNotificationService):
                 if notification.temporal_bounds.end_datetime:
                     continue
 
-                if notification.origin:
-                    search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
+                if CFG_ELASTIC_SEARCH:
+                    if notification.origin:
+                        search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
+                    else:
+                        search_origin = 'search "origin" is "*" from "events_index"'
+
+                    if notification.origin_type:
+                        search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
+                    else:
+                        search_origin_type= 'search "origin_type" is "*" from "events_index"'
+
+                    if notification.event_type:
+                        search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
+                    else:
+                        search_event_type = 'search "type_" is "*" from "events_index"'
+
+                    search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
+
+                    # get the list of ids corresponding to the events
+                    log.debug('process_batch  search_string: %s', search_string)
+                    ret_vals = self.discovery.parse(search_string)
+
+                    events_for_message.extend(self.datastore.read_mult(ret_vals))
+
                 else:
-                    search_origin = 'search "origin" is "*" from "events_index"'
+                    # Adding a branch
+                    event_tuples = self.container.event_repository.find_events(
+                        origin=notification.origin,
+                        event_type=notification.event_type,
+                        start_ts=start_time,
+                        end_ts=end_time)
+                    events = [item[2] for item in event_tuples]
 
-                if notification.origin_type:
-                    search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
-                else:
-                    search_origin_type= 'search "origin_type" is "*" from "events_index"'
-
-                if notification.event_type:
-                    search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
-                else:
-                    search_event_type = 'search "type_" is "*" from "events_index"'
-
-                search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
-
-                # get the list of ids corresponding to the events
-                log.debug('process_batch  search_string: %s', search_string)
-                ret_vals = self.discovery.parse(search_string)
-
-                events_for_message.extend(self.datastore.read_mult(ret_vals))
+                    events_for_message.extend(events)
 
             log.debug("Found following events of interest to user, %s: %s", user_id, events_for_message)
 
