@@ -62,7 +62,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_id = self.create_data_product_(data_product)
 
         self.assign_stream_definition_to_data_product(data_product_id=data_product_id,
-            stream_definition_id=stream_definition_id, exchange_point=exchange_point)
+                                                      stream_definition_id=stream_definition_id,
+                                                      exchange_point=exchange_point)
 
         if dataset_id and parent_data_product_id:
             print "Dataset id: ", dataset_id
@@ -110,12 +111,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         #@todo: What about topics?
 
         # Associate the StreamDefinition with the data product
-        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id, data_product_id)
+        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id,
+                                                                                     data_product_id)
 
-        stream_id,route = self.clients.pubsub_management.create_stream(name=data_product.name,
-            exchange_point=exchange_point,
-            description=data_product.description,
-            stream_definition_id=stream_definition_id)
+        stream_id, route = self.clients.pubsub_management.create_stream(name=data_product.name,
+                                                                        exchange_point=exchange_point,
+                                                                        description=data_product.description,
+                                                                        stream_definition_id=stream_definition_id)
 
         # Associate the Stream with the main Data Product and with the default data product version
         self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)
@@ -420,12 +422,13 @@ class DataProductManagementService(BaseDataProductManagementService):
             ret = {}
             data_producer_obj = self.clients.resource_registry.read(object_id=producer_id)
             ret['config'] = data_producer_obj.producer_context.configuration
-            data_obj_ids, _ = self.clients.resource_registry.find_subjects(predicate=PRED.hasDataProducer, object=producer_id, id_only=True)
+            data_obj_ids, _ = self.clients.resource_registry.find_subjects(predicate=PRED.hasDataProducer,
+                                                                           object=producer_id, id_only=True)
 
             if data_obj_ids:
-
-                producer_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasParent, id_only=True)
-
+                producer_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id,
+                                                                              predicate=PRED.hasParent,
+                                                                              id_only=True)
                 if producer_ids:
                     ret['parent'] = producer_ids
 
@@ -529,8 +532,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.RR2.pluck_delete(data_product_collection_id, RT.DataProductCollection)
 
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
-
-
         dp_collection_obj =self.clients.resource_registry.read(data_product_collection_id)
 
         #retrieve the stream definition for both the new data product to add to this collection and the base data product for this collection
@@ -549,7 +550,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         #todo: validate that the spatial/temporal domain match the base data product
 
-
         dpv = DataProductVersion()
         dpv.name = version_name
         dpv.description = version_description
@@ -562,23 +562,17 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return
 
+
     def get_current_version(self, data_product_collection_id=''):
-
         data_product_collection_obj = self.clients.resource_registry.read(data_product_collection_id)
-
         count = len (data_product_collection_obj.version_list)
-
-
         dpv_obj = data_product_collection_obj.version_list[count - 1]
-
         return dpv_obj.data_product_id
 
+
     def get_base_version(self, data_product_collection_id=''):
-
         data_product_collection_obj = self.clients.resource_registry.read(data_product_collection_id)
-
         dpv_obj = data_product_collection_obj.version_list[0]
-
         return dpv_obj.data_product_id
 
 
@@ -588,6 +582,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product_id the resource id
         """
         return self.RR2.advance_lcs(data_product_id, lifecycle_event)
+
 
     def get_last_update(self, data_product_id=''):
         """@todo document this interface!!!
@@ -609,6 +604,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                 continue
         return retval
 
+
     def get_data_product_group_list(self, org_id=''):
         group_names = set()
 
@@ -620,6 +616,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                 group_names.add(group_name)
 
         return sorted(list(group_names))
+
 
     def _get_dataset_id(self, data_product_id=''):
         # find datasets for the data product
