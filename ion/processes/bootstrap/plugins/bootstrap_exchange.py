@@ -106,13 +106,21 @@ class BootstrapExchange(BootstrapPlugin):
         xp_objs, _ = process.container.resource_registry.find_resources(RT.ExchangePoint)
         xn_objs, _ = process.container.resource_registry.find_resources(RT.ExchangeName)
 
+        xs_by_xp = {}
+        assocs = process.container.resource_registry.find_associations(predicate=PRED.hasExchangePoint, id_only=False)
+        for assoc in assocs:
+            if assoc.st == RT.ExchangeSpace and assoc.ot == RT.ExchangePoint:
+                xs_by_xp[assoc.o] = assoc.s
+
         #
         # VERIFY XSs have a declared exchange
         #
         rem_exchanges = set(exchanges)
 
+        xs_by_id = {}
         for rrxs in xs_objs:
             xs = ExchangeSpace(ex_manager, ex_manager._priviledged_transport, rrxs.name)
+            xs_by_id[rrxs._id] = xs
 
             if xs.exchange in rem_exchanges:
                 rem_exchanges.remove(xs.exchange)
@@ -120,7 +128,12 @@ class BootstrapExchange(BootstrapPlugin):
                 log.warn("BootstrapExchange restart: RR XS %s, id: %s NOT FOUND in exchanges", rrxs.name, rrxs._id)
 
         for rrxp in xp_objs:
-            xp = ExchangePoint(ex_manager, ex_manager._priviledged_transport, rrxp.name)
+            xs_id = xs_by_xp.get(rrxp._id, None)
+            if not xs_id or xs_id not in xs_by_id:
+                log.warn("Inconsistent!! XS for XP %s not found", rrxp.name)
+                continue
+            xs = xs_by_id[xs_id]
+            xp = ExchangePoint(ex_manager, ex_manager._priviledged_transport, rrxp.name, xs)
 
             if xp.exchange in rem_exchanges:
                 rem_exchanges.remove(xp.exchange)
@@ -162,7 +175,7 @@ class BootstrapExchange(BootstrapPlugin):
 
             exchange_space_list, assoc_list = process.container.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, rrxn._id)
             if not len(exchange_space_list) == 1:
-                raise StandardError("Associated Exchange Space to Exchange Name %s does not exist" % rrxn._id)
+                raise StandardError("Association from ExchangeSpace to ExchangeName %s does not exist" % rrxn._id)
 
             rrxs = exchange_space_list[0]
 
