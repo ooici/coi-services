@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 
-"""
-Process that observes interactions in the Exchange
-"""
+"""Observes message interactions through the Exchange"""
 
-__author__ = 'Prashant Kediyal'
+__author__ = 'Prashant Kediyal, Michael Meisinger'
 __license__ = 'Apache 2.0'
 
 import string
@@ -13,45 +11,46 @@ from pyon.util.containers import get_ion_ts
 from pyon.event.event import EventSubscriber
 from pyon.ion.conversation_log import ConvSubscriber
 
+
 MAX_MSGLOG = 3000
 SLICE = 100
 
 
 class InteractionObserver(object):
     """
-    @brief Process that observes ongoing interactions in the Exchange. Logs
-        them to disk and makes them available in the local container (for
-        testing) and on request.
+    Observes ongoing interactions in the Exchange. Logs them to disk and makes them available
+    in the local container (for development purposes) and on request.
     """
 
     def start(self):
-        """
-        """
         self.msg_log = []
-        self.persist_interval = 1.0
 
         self.event_sub = None
         self.conv_sub = None
 
         #Conv subscription
-        self.conv_sub = ConvSubscriber(callback=self._msg_receive)
+        self.conv_sub = ConvSubscriber(callback=self._msg_received)
         self.conv_sub.start()
 
         # Event subscription
         self.event_sub = EventSubscriber(pattern=EventSubscriber.ALL_EVENTS,
-                                         callback=self._ev_receive, queue_name="event_persister")
+                                         callback=self._event_received,
+                                         queue_name="event_persister")
         self.event_sub.start()
+
+        self.started = True
 
     def stop(self):
         # Stop event subscriber
         self.event_sub.stop()
         # Stop conv subscriber
         self.conv_sub.stop()
+        self.started = False
 
-    def _msg_receive(self, msg, *args, **kwargs):
+    def _msg_received(self, msg, *args, **kwargs):
         self.log_message(args[0])
 
-    def _ev_receive(self, event, *args, **kwargs):
+    def _event_received(self, event, *args, **kwargs):
         if 'origin' in event:
             args[0]['origin'] = event.origin
         if 'origin_type' in event:
@@ -64,7 +63,6 @@ class InteractionObserver(object):
         """
         @param evmsg    This message is an event, render it as such!
         """
-
         mhdrs['_content_type'] = mhdrs.get('format', None)
 
         # TUPLE: timestamp (MS), type, boolean if its an event
@@ -154,7 +152,7 @@ class InteractionObserver(object):
                         datatemp["error"] = True
 
                 else:
-                    # non rpc -> perhaps a data message for ingest/exgest?
+                    # non rpc -> perhaps a data message?
                     datatemp["type"] = "data"
 
             msgdata.append(datatemp)

@@ -9,9 +9,9 @@ from nose.plugins.attrib import attr
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.net.endpoint import Publisher
 from pyon.event.event import EventPublisher
-from ion.core.msc.interaction_observer import InteractionObserver
+from ion.core.interaction_observer import InteractionObserver
 
-@attr('INT',group='mscweb')
+@attr('INT', group='mscweb')
 class TestMSCWebProcess(IonIntegrationTestCase):
 
     def setUp(self):
