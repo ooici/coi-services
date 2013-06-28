@@ -1,15 +1,11 @@
 #!/usr/bin/env python
-"""
-@author Bill Bollenbacher
-@author Swarbhanu Chatterjee
-@author David Stuebe
-@file ion/services/dm/presentation/user_notification_service.py
-@description Implementation of the UserNotificationService
-"""
+
+"""Implementation of the UserNotificationService"""
+
+__author__ = 'Bill Bollenbacher, Swarbhanu Chatterjee, David Stuebe'
 
 import pprint
 import string
-import time
 from email.mime.text import MIMEText
 from datetime import datetime
 
@@ -17,7 +13,7 @@ from pyon.core.exception import BadRequest, IonException, NotFound
 from pyon.core.bootstrap import CFG
 from pyon.util.log import log
 from pyon.util.containers import get_ion_ts
-from pyon.public import RT, PRED, get_sys_name, Container, OT, IonObject
+from pyon.public import RT, PRED, get_sys_name, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_to_human_readable
@@ -25,9 +21,11 @@ from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_i
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue, DeviceStatusType
+from interface.objects import ComputedValueAvailability, ComputedListValue, DeviceStatusType
 from interface.objects import ProcessDefinition, TemporalBounds
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
+
+CFG_ELASTIC_SEARCH = CFG.get_safe('system.elasticsearch', False)
 
 
 """
@@ -48,8 +46,6 @@ that is passed to all event subscribers for each notification the user has creat
 Each notification object will encapsulate the notification information and a
 list of event subscribers (only one for LCA) that listen for the events in the notification.
 """
-
-
 class EmailEventProcessor(object):
     """
     A class that helps to get user subscribed to notifications
@@ -57,6 +53,7 @@ class EmailEventProcessor(object):
 
     def __init__(self):
         # the resource registry
+        # TODO: This should be the client generated for the UNS (a process client)
         self.rr = ResourceRegistryServiceClient()
 
     def add_notification_for_user(self, new_notification=None, user_id=''):
@@ -100,46 +97,30 @@ class UserNotificationService(BaseUserNotificationService):
     """
     A service that provides users with an API for CRUD methods for notifications.
     """
-
     def __init__(self, *args, **kwargs):
         self._schedule_ids = []
         BaseUserNotificationService.__init__(self, *args, **kwargs)
 
     def on_start(self):
-
-        #---------------------------------------------------------------------------------------------------
-        # Get the event Repository
-        #---------------------------------------------------------------------------------------------------
-
-#        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
         self.ION_NOTIFICATION_EMAIL_ADDRESS = CFG.get_safe('server.smtp.sender')
 
-
-        #---------------------------------------------------------------------------------------------------
         # Create an event processor
-        #---------------------------------------------------------------------------------------------------
-
         self.event_processor = EmailEventProcessor()
 
-        #---------------------------------------------------------------------------------------------------
-        # load event originators, types, and table
-        #---------------------------------------------------------------------------------------------------
-
+        # Event originators, types, and table
         self.notifications = {}
 
-        #---------------------------------------------------------------------------------------------------
         # Dictionaries that maintain information about users and their subscribed notifications
-        # The reverse_user_info is calculated from the user_info dictionary
-        #---------------------------------------------------------------------------------------------------
         self.user_info = {}
+
+        # The reverse_user_info is calculated from the user_info dictionary
         self.reverse_user_info = {}
 
-        #---------------------------------------------------------------------------------------------------
         # Get the clients
-        #---------------------------------------------------------------------------------------------------
-
+        # @TODO: Why are these not dependencies in the service YML???
         self.discovery = DiscoveryServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
+
         self.event_publisher = EventPublisher()
         self.datastore = self.container.datastore_manager.get_datastore('events')
 
@@ -189,12 +170,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         super(UserNotificationService, self).on_quit()
 
-    def __now(self):
-        """
-        This method defines what the UNS uses as its "current" time
-        """
-        return datetime.utcnow()
-
     def set_process_batch_key(self, process_batch_key = ''):
         """
         This method allows an operator to set the process_batch_key, a string.
@@ -203,8 +178,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         @param process_batch_key str
         """
-
-
         def process(event_msg, headers):
             self.end_time = get_ion_ts()
 
@@ -213,9 +186,7 @@ class UserNotificationService(BaseUserNotificationService):
             self.start_time = self.end_time
 
         # the subscriber for the batch processing
-        """
-        To trigger the batch notification, have the scheduler create a timer with event_origin = process_batch_key
-        """
+        # To trigger the batch notification, have the scheduler create a timer with event_origin = process_batch_key
         self.batch_processing_subscriber = EventSubscriber(
             event_type="TimerEvent",
             origin=process_batch_key,
@@ -234,9 +205,7 @@ class UserNotificationService(BaseUserNotificationService):
         @param user_id             str
         @retval notification_id    str
         @throws BadRequest    if object passed has _id or _rev attribute
-
         """
-
         if not user_id:
             raise BadRequest("User id not provided.")
 
@@ -778,28 +747,40 @@ class UserNotificationService(BaseUserNotificationService):
                 if notification.temporal_bounds.end_datetime:
                     continue
 
-                if notification.origin:
-                    search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
+                if CFG_ELASTIC_SEARCH:
+                    if notification.origin:
+                        search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
+                    else:
+                        search_origin = 'search "origin" is "*" from "events_index"'
+
+                    if notification.origin_type:
+                        search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
+                    else:
+                        search_origin_type= 'search "origin_type" is "*" from "events_index"'
+
+                    if notification.event_type:
+                        search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
+                    else:
+                        search_event_type = 'search "type_" is "*" from "events_index"'
+
+                    search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
+
+                    # get the list of ids corresponding to the events
+                    log.debug('process_batch  search_string: %s', search_string)
+                    ret_vals = self.discovery.parse(search_string)
+
+                    events_for_message.extend(self.datastore.read_mult(ret_vals))
+
                 else:
-                    search_origin = 'search "origin" is "*" from "events_index"'
+                    # Adding a branch
+                    event_tuples = self.container.event_repository.find_events(
+                        origin=notification.origin,
+                        event_type=notification.event_type,
+                        start_ts=start_time,
+                        end_ts=end_time)
+                    events = [item[2] for item in event_tuples]
 
-                if notification.origin_type:
-                    search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
-                else:
-                    search_origin_type= 'search "origin_type" is "*" from "events_index"'
-
-                if notification.event_type:
-                    search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
-                else:
-                    search_event_type = 'search "type_" is "*" from "events_index"'
-
-                search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
-
-                # get the list of ids corresponding to the events
-                log.debug('process_batch  search_string: %s', search_string)
-                ret_vals = self.discovery.parse(search_string)
-
-                events_for_message.extend(self.datastore.read_mult(ret_vals))
+                    events_for_message.extend(events)
 
             log.debug("Found following events of interest to user, %s: %s", user_id, events_for_message)
 
@@ -923,108 +904,37 @@ class UserNotificationService(BaseUserNotificationService):
         return user
 
 
-    def _get_subscriptions(self, resource_id='', include_nonactive=False):
-        """
-        This method is used to get the subscriptions to a data product. The method will return a list of NotificationRequest
-        objects for whom the origin is set to this data product. This way all the users who were interested in listening to
-        events with origin equal to this data product, will be known and all their subscriptions will be known.
-
-        @param resource_id
-        @param include_nonactive
-        @return notification_requests []
-
-        """
-
-        search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
-        ret_vals = self.discovery.parse(search_origin)
-
-        log.debug("Using discovery with search_string: %s", search_origin)
-        log.debug("_get_subscriptions() got ret_vals: %s", ret_vals )
-
-        notifications_all = set()
-        notifications_active = set()
-
-        object_ids = []
-        for item in ret_vals:
-            if item['_type'] == 'NotificationRequest':
-                object_ids.append(item['_id'])
-
-        notifs = self.clients.resource_registry.read_mult(object_ids)
-
-        log.debug("Got %s notifications here. But they include both active and past notifications", len(notifs))
-
-        if include_nonactive:
-            # Add active or retired notification
-            notifications_all.update(notifs)
-        else:
-            for notif in notifs:
-                log.debug("Got the end_datetime here: notif.temporal_bounds.end_datetime = %s", notif.temporal_bounds.end_datetime)
-                if notif.temporal_bounds.end_datetime == '':
-                    log.debug("removing the notification: %s", notif._id)
-                    # Add the active notification
-                    notifications_active.add(notif)
-
-        if include_nonactive:
-            return list(notifications_all)
-        else:
-            return list(notifications_active)
-
     def get_subscriptions(self, resource_id='', user_id = '', include_nonactive=False):
         """
-        This method takes the user-id as an input parameter. The logic will first find all notification requests for this resource
-        then if a user_id is present, it will filter on those that this user is associated with.
+        @param resource_id  a resource id (or other origin) that is the origin of events for notifications
+        @param user_id  a UserInfo ID that owns the NotificationRequest
+        @param include_nonactive  if False, filter to active NotificationRequest only
+        Return all NotificationRequest resources where origin is given resource_id.
         """
+        notif_reqs, _ = self.clients.resource_registry.find_resources_ext(
+            restype=RT.NotificationRequest, attr_name="origin", attr_value=resource_id, id_only=False)
 
-        # Get the notifications whose origin field has the provided resource_id
-        notifs = self._get_subscriptions(resource_id=resource_id, include_nonactive=include_nonactive)
+        log.debug("Got %s active and past NotificationRequests for resource/origin %s", len(notif_reqs), resource_id)
 
-        log.debug("For include_nonactive= %s, UNS fetched the following the notifications subscribed to the resource_id: %s --> %s. "
-                      "They are %s in number", include_nonactive,resource_id, notifs, len(notifs))
+        if not include_nonactive:
+            notif_reqs = [nr for nr in notif_reqs if nr.temporal_bounds.end_datetime == '']
+            log.debug("Filtered to %s active NotificationRequests", len(notif_reqs))
 
-        if not user_id:
-            return notifs
+        if user_id:
+            # Get all NotificationRequests (ID) that are associated to given UserInfo_id
+            user_notif_req_ids, _ = self.clients.resource_registry.find_objects(
+                subject=user_id, predicate=PRED.hasNotification, object_type=RT.NotificationRequest, id_only=True)
 
-        notifications = []
+            notif_reqs = [nr for nr in notif_reqs if nr._id in user_notif_req_ids]
+            log.debug("Filtered to %s NotificationRequests associated to user %s", len(notif_reqs), user_id)
 
-        # Now find the users who subscribed to the above notifications
-        #todo Right now looking at assocs in a loop which is not efficient to find the users linked to these notifications
-        # todo(contd) Need to use a more efficient way later
-        for notif in notifs:
-            notif_id = notif._id
-            # Find if the user is associated with this notification request
-            ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
-            log.debug("Got the following users: %s, associated with the notification: %s", ids, notif_id)
-
-            if ids and user_id in ids:
-                notifications.append(notif)
-
-        log.debug("For include_nonactive = %s, UNS fetched the following %s notifications subscribed to %s --> %s", include_nonactive,len(notifications),user_id, notifications)
-
-        return notifications
+        return notif_reqs
 
     def get_subscriptions_attribute(self, resource_id='', user_id = '', include_nonactive=False):
         retval = self.get_subscriptions(resource_id=resource_id, user_id=user_id, include_nonactive=include_nonactive)
         container = ComputedListValue(value=retval)
         return container
 
-
-#    def get_users_who_subscribed(self, resource_id='', include_nonactive=False):
-#
-#        # Get the notifications whose origin field has the provided resource_id
-#        notifications = self.get_subscriptions(resource_id, include_nonactive)
-#
-#        # Now find the users who subscribed to the above notifications
-#        #todo Right now looking at assocs in a loop which is not efficient to find the users linked to these notifications
-#        # todo(contd) Need to use a more efficient way later
-#
-#        user_ids = set()
-#        for notif in notifications:
-#            notif_id = notif._id
-#            # Find the users who are associated with this notification request
-#            ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
-#            user_ids.add(ids)
-#
-#        return user_ids
 
     def _notification_in_notifications(self, notification = None, notifications = None):
 
@@ -1046,13 +956,12 @@ class UserNotificationService(BaseUserNotificationService):
 
 
     def load_user_info(self):
-        '''
+        """
         Method to load the user info dictionary used by the notification workers and the UNS
 
         @retval user_info dict
-        '''
-
-        users, _ = self.clients.resource_registry.find_resources(restype= RT.UserInfo)
+        """
+        users, _ = self.clients.resource_registry.find_resources(restype=RT.UserInfo)
 
         user_info = {}
 

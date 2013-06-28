@@ -42,8 +42,6 @@ import gevent
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
 from ion.agents.instrument.common import BaseEnum
-from ion.agents.instrument.instrument_fsm import FSMStateError
-from ion.agents.instrument.instrument_fsm import FSMCommandUnknownError
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
@@ -710,16 +708,23 @@ class InstrumentAgent(ResourceAgent):
     ##############################################################    
 
     def _handler_direct_access_go_command(self, *args, **kwargs):
-        log.info("Instrument agent requested to stop direct access mode - %s",
+        log.error("Instrument agent requested to stop direct access mode - %s",
                  self._da_session_close_reason)
-        # tell driver to stop direct access mode
-        next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
-        # stop DA server
+
+        # Stop the DA server if it is still running.  This will
+        # only be the case if operator explicitly calls
+        # GO_COMMAND.
         if (self._da_server):
             self._da_server.stop()
             self._da_server = None
-        # re-set the 'reason' to be the default
-        self._da_session_close_reason = 'due to ION request'
+
+            # re-set the 'reason' to be the default
+            self._da_session_close_reason = 'due to ION request'
+
+        # tell driver to stop direct access mode
+        next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
+        log.error("_handler_direct_access_go_command: next agent state: %s", next_state)
+
         return (next_state, None)
 
     ##############################################################
@@ -1454,7 +1459,18 @@ class InstrumentAgent(ResourceAgent):
         """
         Callback passed to DA Server for receiving input from server.
         """
-        if isinstance(data, int):
+        if self._da_server == None:
+            # This might be the case when data is sent to the DA sever right before
+            # the client is disconnected.  You will see this in the logs when the
+            # disconnect comes before the execute direct command.
+            log.warn('No DA session started. Bytes not sent to driver: "%s"', data)
+
+        elif isinstance(data, int):
+            log.warning("Stopping DA Server")
+            # stop DA server
+            self._da_server.stop()
+            self._da_server = None
+
             # not character data, so check for lost connection
             if data == SessionCloseReasons.client_closed:
                 self._da_session_close_reason = "due to client closing session"
@@ -1465,11 +1481,13 @@ class InstrumentAgent(ResourceAgent):
             else:
                 log.error("InstAgent.telnet_input_processor: got unexpected integer " + str(data))
                 return
+
             log.warning("InstAgent.telnet_input_processor: connection closed %s" %self._da_session_close_reason)
             cmd = AgentCommand(command=ResourceAgentEvent.GO_COMMAND)
             self.execute_agent(command=cmd)
-            return
-        log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
-        # send the data to the driver
-        self._dvr_client.cmd_dvr('execute_direct', data)
+
+        else:
+            log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
+            # send the data to the driver
+            self._dvr_client.cmd_dvr('execute_direct', data)
 

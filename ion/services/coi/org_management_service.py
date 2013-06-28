@@ -52,23 +52,20 @@ negotiation_rules = {
 
 
 class OrgManagementService(BaseOrgManagementService):
-
     """
     Services to define and administer a facility (synonymous Org, community), to enroll/remove members and to provide
     access to the resources of an Org to enrolled or affiliated entities (identities). Contains contract
     and commitment repository
     """
-
     def on_init(self):
 
         self.event_pub = EventPublisher()
         self.negotiation_handler = Negotiation(self, negotiation_rules, self.event_pub)
 
-
     def _get_root_org_name(self):
 
         if self.container is None or self.container.governance_controller is None:
-            return CFG.get_safe('system.root_org' , "ION")
+            return CFG.get_safe('system.root_org', "ION")
 
         return self.container.governance_controller.system_root_org_name
 
@@ -79,7 +76,6 @@ class OrgManagementService(BaseOrgManagementService):
         org_id = None
 
         if kwargs.has_key('org_id'):
-
             org_id = kwargs['org_id']
 
             if not org_id:
@@ -92,7 +88,6 @@ class OrgManagementService(BaseOrgManagementService):
             parameter_objects['org'] = org
 
         if kwargs.has_key('actor_id'):
-
             actor_id = kwargs['actor_id']
 
             if not actor_id:
@@ -106,7 +101,6 @@ class OrgManagementService(BaseOrgManagementService):
 
 
         if kwargs.has_key('role_name'):
-
             role_name = kwargs['role_name']
 
             if not role_name:
@@ -123,7 +117,6 @@ class OrgManagementService(BaseOrgManagementService):
 
 
         if kwargs.has_key('resource_id'):
-
             resource_id = kwargs['resource_id']
 
             if not resource_id:
@@ -137,7 +130,6 @@ class OrgManagementService(BaseOrgManagementService):
 
 
         if kwargs.has_key('negotiation_id'):
-
             negotiation_id = kwargs['negotiation_id']
 
             if not negotiation_id:

@@ -59,7 +59,7 @@ echo -e "\n\n=== BOOTSTRAPPING ===\n"
 python bootstrap.py -v 1.7
 
 echo -e "\n\n=== BUILDING OUT ===\n"
-bin/buildout
+bin/buildout -c gcoverage*
 
 echo -e "\n\n=== GENERATING INTERFACES ===\n"
 bin/generate_interfaces --force
