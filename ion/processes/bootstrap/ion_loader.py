@@ -1481,7 +1481,7 @@ class IONLoader(ImmediateProcess):
         headers = self._get_system_actor_headers()
         with open(path) as f:
             doc = f.read()
-            data_acuisition.parse_qc_reference(parser_id, doc, headers=headers, timeout=120)
+            data_acuisition.parse_qc_reference(parser_id, doc, headers=headers, timeout=300)
 
 
     def _load_Subsite(self, row):
