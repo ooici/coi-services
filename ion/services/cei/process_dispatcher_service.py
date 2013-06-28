@@ -745,6 +745,7 @@ _PD_PROCESS_STATE_MAP = {
     "200-REQUESTED": ProcessStateEnum.REQUESTED,
     "250-DIED_REQUESTED": ProcessStateEnum.REQUESTED,
     "300-WAITING": ProcessStateEnum.WAITING,
+    "350-ASSIGNED": ProcessStateEnum.PENDING,
     "400-PENDING": ProcessStateEnum.PENDING,
     "500-RUNNING": ProcessStateEnum.RUNNING,
     "600-TERMINATING": ProcessStateEnum.TERMINATING,
@@ -949,13 +950,15 @@ class PDNativeBackend(object):
         run_type = 'pyon'
 
         restart_throttling_config = conf.get('restart_throttling_config', {'minimum_time_between_starts': 0})
+        dispatch_retry_seconds = conf.get('dispatch_retry_seconds', 30)
 
         self.core = ProcessDispatcherCore(self.store, self.registry,
             self.eeagent_client, self.notifier)
         self.doctor = PDDoctor(self.core, self.store, config=conf)
         self.matchmaker = PDMatchmaker(self.core, self.store, self.eeagent_client,
             self.registry, epum_client, self.notifier, dashi_name,
-            domain_definition_id, base_domain_config, run_type, restart_throttling_config)
+            domain_definition_id, base_domain_config, run_type, restart_throttling_config,
+            dispatch_retry_seconds)
 
         heartbeat_queue = conf.get('heartbeat_queue', DEFAULT_HEARTBEAT_QUEUE)
         self.beat_subscriber = HeartbeatSubscriber(heartbeat_queue,
