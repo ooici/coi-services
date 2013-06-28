@@ -5,19 +5,22 @@ __license__ = 'Apache 2.0'
 
 import collections, traceback, datetime, time, yaml
 import flask, ast, pprint
-from flask import Flask, request, abort
+from flask import Flask, request, abort, session, render_template
 from gevent.wsgi import WSGIServer
+import json
 
 from pyon.core.exception import NotFound, Inconsistent, BadRequest
 from pyon.core.object import IonObjectBase
 from pyon.core.registry import getextends, model_classes
 from pyon.public import Container, StandaloneProcess, log, PRED, RT, IonObject, CFG
 from pyon.util.containers import named_any
+from ion.core.interaction_observer import InteractionObserver
 
 from interface import objects
 
+
 #Initialize the flask app
-app = Flask(__name__)
+app = Flask(__name__, template_folder="static/templates")
 
 DEFAULT_WEB_SERVER_HOSTNAME = ""
 DEFAULT_WEB_SERVER_PORT = 8080
@@ -37,12 +40,14 @@ class ContainerUI(StandaloneProcess):
     A simple Web UI to introspect the container and the ION datastores.
     """
     def on_init(self):
-        #defaults
+
         self.http_server = None
         self.server_hostname = DEFAULT_WEB_SERVER_HOSTNAME
-        self.server_port = self.CFG.get_safe('container.flask_webapp.port',DEFAULT_WEB_SERVER_PORT)
+        self.server_port = self.CFG.get_safe('container.flask_webapp.port', DEFAULT_WEB_SERVER_PORT)
         self.web_server_enabled = True
         self.logging = None
+        self.interaction_observer = None
+        app.secret_key = self.__class__.__name__   # Enables sessions (for mscweb)
 
         #retain a pointer to this object for use in ProcessRPC calls
         global containerui_instance
@@ -53,6 +58,8 @@ class ContainerUI(StandaloneProcess):
             self.start_service(self.server_hostname, self.server_port)
 
     def on_quit(self):
+        if self.interaction_observer and self.interaction_observer.started:
+            self.interaction_observer.stop()
         self.stop_service()
 
     def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
@@ -70,9 +77,10 @@ class ContainerUI(StandaloneProcess):
             self.http_server.stop()
         return True
 
+
 # ----------------------------------------------------------------------------------------
 
-@app.route('/', methods=['GET','POST'])
+@app.route('/', methods=['GET', 'POST'])
 def process_index():
     try:
         from pyon.public import CFG
@@ -90,9 +98,14 @@ def process_index():
             "<li>Data: <a href='/list/DataProduct'>DataProduct</a>, <a href='/list/Dataset'>Dataset</a>, <a href='/list/Stream'>Stream</a></li>",
             "<li>Parameters: <a href='/list/ParameterContext'>ParameterContext</a>, <a href='/list/ParameterDictionary'>ParameterDictionary</a>, <a href='/list/StreamDefinition'>StreamDefinition</a></li>",
             "<li>Process: <a href='/list/DataProcessDefinition'>DataProcessDefinition</a>, <a href='/list/DataProcess'>DataProcess</a>, <a href='/list/ProcessDefinition'>ProcessDefinition</a></li>",
+            "<li>Exchange: <a href='/list/ExchangeSpace'>ExchangeSpace</a>, <a href='/list/ExchangePoint'>ExchangePoint</a>, <a href='/list/ExchangeName'>ExchangeName</a>, <a href='/list/ExchangeBroker'>ExchangeBroker</a></li>",
             "</ul></li>",
             #"<li><a href='/dir'><b>Browse ION Directory</b></a></li>",
             "<li><a href='/events'><b>Browse Events</b></a></li>",
+            "<li><a href='/mscweb'><b>Show system messages (MSCWeb)</b></a>",
+            "<ul>",
+            "<li><a href='/mscaction/stop'>Stop system message recording</a></li>",
+            "</ul></li>",
             "<li><a href='http://localhost:3000'><b>ION Web UI (if running)</b></a></li>",
             "<li><a href='http://localhost:5984/_utils'><b>CouchDB Futon UI (if running)</b></a></li>",
             "<li><a href='http://localhost:55672/'><b>RabbitMQ Management UI (if running)</b></a></li>",
@@ -1200,6 +1213,7 @@ def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None,
         return "&nbsp;"
     return value
 
+
 def get_datetime(ts, time_millis=False):
     tsf = float(ts) / 1000
     dt = datetime.datetime.fromtimestamp(time.mktime(time.localtime(tsf)))
@@ -1207,3 +1221,62 @@ def get_datetime(ts, time_millis=False):
     if time_millis:
         dts += "." + ts[-3:]
     return dts
+
+
+@app.route('/mscaction/<action>', methods=['GET', 'POST'])
+def mscaction(action):
+    if action:
+        action = str(action)
+    if action == "start":
+        if not containerui_instance.interaction_observer:
+            containerui_instance.interaction_observer = InteractionObserver()
+            containerui_instance.interaction_observer.start()
+        return flask.redirect("/mscweb")
+    elif action == "stop":
+        if containerui_instance.interaction_observer and containerui_instance.interaction_observer.started:
+            containerui_instance.interaction_observer.stop()
+            return build_page("Message recording stopped")
+        else:
+            return build_page("Message recording was not enabled!")
+    else:
+        return flask.redirect("/")
+
+@app.route('/mscweb', methods=['GET', 'POST'])
+def mscweb():
+    if not containerui_instance.interaction_observer:
+        containerui_instance.interaction_observer = InteractionObserver()
+        containerui_instance.interaction_observer.start()
+
+    if 'last_data' not in session:
+        last_data = {'last_index': 0}
+        session['last_data'] = last_data
+
+    return render_template('mschart.html')
+
+@app.route('/data')
+def data():
+    # get associated last request
+    last_data = session['last_data']
+    use_idx = last_data['last_index']
+
+    if use_idx is not None and containerui_instance.interaction_observer:
+
+        # get open conversations if any saved in the session
+        response_msgs = last_data.get('response_msgs', {})
+
+        # get data out of io
+        rawdata = containerui_instance.interaction_observer.msg_log[use_idx:]
+        mscdata, response_msgs = containerui_instance.interaction_observer._get_data(rawdata, response_msgs)
+
+        #store open conversations
+        last_data['response_msgs'] = response_msgs
+        # store last index
+        last_data['last_index'] = len(containerui_instance.interaction_observer.msg_log)
+        session['last_data'] = last_data
+
+        # jsonize this and return it
+        return json.dumps(mscdata)
+
+    else:
+        # may have a timestamp here from the user
+        raise Exception("no can do chief")
