@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>MSCWeb</title>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+    <script type="text/javascript" src="http://cachedcommons.org/cache/jquery-cookie/0.0.0/javascripts/jquery-cookie.js"></script>
+    <script type="text/javascript" src="http://d3js.org/d3.v2.js"></script>
+    <style>
+        body {
+            margin: 0px;
+            font-size: 10px;
+            font-family: helvetica, sans-serif;
+            background-color: white;
+        }
+        #mscheader {
+            position: fixed;
+            height: 65px;
+            top: 0px;
+            left: 0px;
+            width: 100%;
+            background-color: #000033;
+        }
+        #msccontain {
+            position: absolute;
+            width: 100%;
+            top: 65px;
+            bottom: 0px;
+            overflow: auto;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            height: 70px;
+            width: 120px;
+            background-color: #efefef;
+            border: 1px solid #666;
+            box-shadow: 0 1px 10px rgba(0,0,0,0.75);
+            text-align: center;
+        }
+        #controls a {
+            float: right;
+            margin-top: 5px;
+            margin-right: 5px;
+        }
+        #controls button {
+            width: 95%;
+        }
+        #headercanvas {
+            width: 900px;
+            height: 65px;
+        }
+        #maincanvas {
+            width: 900px;
+            height: 600px;
+        }
+
+        #hover {
+            background-color: #ccccff;
+            width: 200px;
+            height: 100px;
+            bottom: 20px;
+            right: 20px;
+            display: none;
+            position: absolute;
+            z-index: 10;
+            overflow: auto;
+            box-shadow: 0 1px 15px rgba(0,0,0,0.75);
+        }
+
+        .lite text {
+        }
+
+        .lite .dataevent {
+            fill: #ff6633;
+            stroke: #ff3366;
+        }
+        .lite .eventtext {
+            fill: #cc33ff;
+        }
+
+        .lite .dataline {
+            stroke: #ff6633;
+        }
+
+        .lite .datatext {
+            fill: #3366ff;
+        }
+        button {
+            margin: 2px auto;
+            border: 1px solid #999;
+            background-color: #ccc;
+            background: -webkit-linear-gradient(top, rgba(255,255,255,.3) 0%,rgba(0,0,0,.3) 100%);
+            background: -moz-linear-gradient(top, rgba(255,255,255,.3) 0%, rgba(0,0,0,.3) 100%);
+            background: linear-gradient(top, rgba(255,255,255,.3) 0%,rgba(0,0,0,.3) 100%);
+            padding: 5px;
+            border-radius: 3px;
+        }
+        button:active {
+            border-color: white;
+            color: white;
+        }
+
+        #bigcontrols {
+            position: absolute;
+            top: 200px;
+            left: 50%;
+            margin-left: -200px;
+            display: none;
+
+            width: 400px;
+            /*height: 600px;*/
+
+            background-color: #efefef;
+            border: 1px solid #666;
+
+            padding: 5px;
+            box-shadow: 0 1px 15px rgba(0,0,0,0.75);
+        }
+
+        h1 {
+            margin: 0px;
+            padding: 3px;
+            background-color: #ff6633;
+            background: -webkit-linear-gradient(top, #f63 0%, #f64 100%);
+            background: -moz-linear-gradient(top, #f63 0%, #f64 100%);
+            background: linear-gradient(top, #f63 0%,#f64 100%);
+            border: 1px solid black;
+        }
+
+        #controls h1 {
+            font-size: 8px;
+            margin: 1px 2px;
+        }
+
+        #bigcontrols #ignorelistcontain {
+            overflow: auto;
+            height: 250px;
+            border: 1px solid #ccc;
+        }
+
+        #bigcontrols ul {
+            list-style-type: none;
+            margin: 0px;
+            padding: 0px;
+            width: 100%;
+        }
+
+        #bigcontrols ul li {
+            width: 100%;
+        }
+
+        #bigcontrols ul li label {
+            display: block;
+            padding: 4px;
+        }
+
+        #bigcontrols ul li:nth-child(odd) {
+            background-color: white;
+        }
+
+        #bigcontrols #saves {
+            text-align: left;
+        }
+
+    </style>
+</head>
+<body>
+<div id="mscheader">
+    <div id="headercanvas">
+        <svg id="headersvg" width="900" height="100" />
+    </div>
+</div>
+<div id="hover"></div>
+<div id="msccontain">
+    <div id="maincanvas">
+        <svg id="mainsvg" width="900" height="600">
+            <defs>
+                <marker id="rpcreq" viewBox="0 0 10 20" refX=10 refY=10 markerUnits="strokeWidth" orient="auto" markerWidth=10 markerHeight=10>
+                    <polyline points="0,0 10,10 0,20" fill="#000000" />
+                </marker>
+                <marker id="rpcres" viewBox="0 0 10 20" refX=10 refY=10 markerUnits="strokeWidth" orient="auto" markerWidth=10 markerHeight=10>
+                    <polyline points="0,0 10,10 0,20" fill="#999999" />
+                </marker>
+                <marker id="data" viewBox="0 0 10 20" refX=10 refY=10 markerUnits="strokeWidth" orient="auto" markerWidth=10 markerHeight=10>
+                    <polyline points="0,0 10,10 0,20" fill="#0000ff" />
+                </marker>
+            </defs>
+        </svg>
+    </div>
+</div>
+<div id="controls">
+    <h1>MSCWeb</h1>
+    <!--<button name="getlive" type="button" value="getlive">get live (debug)</button>-->
+    <button name="flowcontrol" type="button" value="live">Start</button>
+    <br/>
+    <input id="scrollondata" name="scrollondata" type="checkbox" checked="checked" value="Scroll on new data" />
+    <label for="scrollondata" name="lbl_scrollondata">Autoscroll</label>
+    <a href="#" id="more">more...</a>
+</div>
+<div id="bigcontrols">
+    <h1>MSCWeb Admin</h1>
+
+    <h3>Admin</h3>
+    <button name="resetio" type="button">Reset IO</button>
+    <button name="resetview" type="button">Reset View</button>
+
+    <h3>Ignore List</h3>
+    <div id="saves">
+        <button name="saveignores" type="button">Save Ignores</button>
+        <button name="resetignores" type="button">Reset Saved Ignores</button>
+        <span id="savedignorescount"></span>
+    </div>
+    <div id="ignorelistcontain">
+        <ul id="ignorelist">
+        </ul>
+    </div>
+
+    <button name="closebig" type="button">Close</button>
+</div>
+
+<script type="text/javascript">
+var gheaders = []; // group headers
+var headers={}; // associative array groupheader->[] of subheaders
+var data = [];
+var ignore_list = [];
+
+var cheader;
+var cmain;
+var ccontrols;
+var curheight = 600;
+var curwidth = 900;
+var curheads = 0;
+var lastvidx = 0; // last visible index, set on every draw
+
+function getnames(x) {
+    var sidx = x.indexOf(",");
+    if (sidx == -1)
+        return { gname: x, name: x };
+    else
+        return { gname: x.slice(0, sidx), name: x.slice(sidx+1) };
+}
+
+function doheaders(indata) {
+    var dirty = 0;
+    $.each(indata, function(i, d) {
+
+        function addunknown(x, dname) {
+            slices = getnames(x);
+            gname = slices.gname;
+            name = slices.name;
+
+            displayslices = getnames(dname);
+
+            if ($.inArray(gname, $.map(gheaders, function(el, idx) { return el.name; })) == -1) {
+                gheaders.push({name:gname, dispname:displayslices.gname, collapsed:true, hidden:$.inArray(gname, ignore_list) != -1});
+                headers[gname] = [];
+                gheaders.sort(function(a, b) {
+                    a = a.name.toLowerCase();
+                    b = b.name.toLowerCase();
+                    if (a < b) return -1;
+                    if (a > b) return 1;
+                    return 0;
+                });
+            }
+
+            if ($.inArray(name, $.map(headers[gname], function(el,idx) { return el.name; })) == -1) {
+                dirty += 1;
+                headers[gname].push({name:name, dispname:displayslices.name, hidden:false});
+                headers[gname].sort(function(a, b) {
+                    a = a.name.toLowerCase();
+                    b = b.name.toLowerCase();
+                    if (a < b) return -1;
+                    if (a > b) return 1;
+                    return 0;
+                });
+            }
+        }
+
+        if (d.type != "event")
+            addunknown(d.to, d.to_raw);
+        addunknown(d.from, d.from_raw);
+    });
+
+    //console.log(gheaders);
+    //console.log(headers.datastore);
+
+    return dirty;
+}
+
+function drawheaders()
+{
+    // first, group headers
+    //console.log(gheaders);
+
+    // filter out gheaders for what is hidden or not
+    gheaders_filtered = $.grep(gheaders, function(el, idx) { return !el.hidden; });
+
+    var gheads = cheader.selectAll("g.gheader")
+            .data(gheaders_filtered, function(d) { return d.name; } );
+
+    function getgroupxoffset(d, i) {
+        var x, y = 0;
+        // x is the sum of the previous headers' children size
+        var icount = 0;
+        for (var i = 0; i < gheaders.indexOf(d); i++)
+        {
+            if (gheaders[i].hidden)
+                icount += 0;
+            else if (gheaders[i].collapsed)
+                icount += 1;
+            else
+                icount += headers[gheaders[i].name].length;
+        }
+
+        x = icount * 150;
+
+        return "translate(" + x + "," + y + ")";
+    }
+
+    // update current ones
+    gheads.transition()
+            .duration(500)
+            .attr("transform", getgroupxoffset)
+            .attr("width", function(d, i) {
+                if (d.collapsed)
+                    return 150;
+                else
+                    return headers[d.name].length * 150;
+            });
+    gheads.selectAll(".grect").transition()
+            .duration(500)
+            .attr("width", function(d) {
+                if (d.collapsed)
+                    return 150 - 10;
+                else
+                    return headers[d.name].length * 150 - 10;
+            });
+
+    gheads.selectAll(".gtext").transition()
+            .duration(500)
+            .attr("x", function(d) {
+                if (d.collapsed)
+                    return 150 / 2;
+                else
+                    return headers[d.name].length * 150 / 2;
+            });
+
+    // delete ones
+    gheads.exit().remove();
+
+    // create new ones
+    var newgheads = gheads.enter().append("svg:g")
+            .attr("id", function(d) { return d.name; })
+            .attr("class", "gheader")
+            .attr("transform", getgroupxoffset)
+            .attr("width", function(d, i) {
+                if (d.collapsed)
+                    return 150;
+                else
+                    return headers[d.name].length * 150;
+            })
+            .attr("height", 50)
+            .attr("fill", "#ff0000");
+
+    $('g.gheader').unbind('click').click(function(e) {
+        headname = $(this).attr('id')
+        for (var i = 0; i < gheaders.length; i++)
+            if (gheaders[i].name == headname)
+            {
+                gheaders[i].collapsed = !gheaders[i].collapsed;
+                break;
+            }
+
+
+        redraw([]);
+    });
+    $('.grect,.gtext').unbind('mouseover').mouseover(function(e) {
+        headname = $(this).parent().attr('id');
+        cmain.selectAll('g.msg[data-from^='+headname+']').classed("lite", true).classed("lite-from", true);
+        cmain.selectAll('g.msg[data-to^='+headname+']').classed("lite", true).classed("lite-to", true);
+    });
+    $('.grect,.gtext').unbind('mouseout').mouseout(function(e) {
+        headname = $(this).parent().attr('id');
+        cmain.selectAll('g.msg[data-from^='+headname+']').classed("lite", false).classed("lite-from", false);
+        cmain.selectAll('g.msg[data-to^='+headname+']').classed("lite", false).classed("lite-to", false);
+    });
+
+    // create rects/texts on any new items
+    newgheads.append("svg:rect")
+            .attr("class", "grect")
+            .attr("fill", "#336699")
+            .attr("x", 5)
+            .attr("y", 5)
+            .attr("width", function(d, i) {
+                if (d.collapsed)
+                    return 150 - 10;
+                else
+                    return headers[d.name].length * 150 - 10;
+            })
+            .attr("height", 25);
+
+    newgheads.append("svg:text")
+            .attr("class", "gtext")
+            .attr("fill", "white")
+            .attr("x", function(d) {
+                if (d.collapsed)
+                    return 150 / 2;
+                else
+                    return headers[d.name].length * 150 / 2;
+            })
+            .attr("y", 20)
+            .attr("text-anchor", "middle")
+            .text(function(d) { return d.dispname; });
+
+    // now draw subheaders
+    cheader.selectAll('.gheader').each(function (d, i) {
+
+        var heads = d3.select(this).selectAll('.subhead');
+        var sheads;
+        if (d.hidden)
+            sheads = heads.data([]);
+        else if (d.collapsed)
+            sheads = heads.data([{name:"(" + headers[d.name].length + " items)", dispname:"(" + headers[d.name].length + " items)"}], function(dx) { return dx.name; });
+        else
+            sheads = heads.data(headers[d.name], function(dx) { return dx.name; })
+
+        function getsubxoffset(d, i) {
+            var x, y = 30;
+            x = i * 150;
+            return "translate(" + x + "," + y + ")";
+        }
+
+        // update existing
+        sheads
+                .attr('id', function(d) { return d.name; })
+                .transition()
+                .duration(500)
+                .attr("transform", getsubxoffset);
+
+        sheads.selectAll('text')
+                .text(function(d) { return d.dispname });
+
+        // append new ones
+        var newsubheads = sheads.enter().append("svg:g")
+                .attr("id", function(d) { return d.name; })
+                .attr("class", "subhead")
+                .attr("transform", getsubxoffset)
+                .attr("opacity", 0);
+
+        newsubheads.transition()
+                .delay(250)
+                .duration(500)
+                .attr("opacity", 1);
+
+        newsubheads.append("svg:rect")
+                .attr("x", 5)
+                .attr("y", 5)
+                .attr("width", 140)
+                .attr("height", 25)
+                .attr("fill", "#3696ef");
+
+        newsubheads.append("svg:text")
+                .attr("x", 75)
+                .attr("y", 20)
+                .attr("fill", "white")
+                .attr("text-anchor", "middle")
+                .text(function(d) { return d.dispname });
+
+        // remove old ones (recently collapsed or hidden)
+        sheads.exit().remove();
+
+        $('g.subhead rect, g.subhead text').unbind('mouseover').mouseover(function(e) {
+            headname = $(this).parent().attr('id');
+            if (headname[0] == "(")
+                return;
+            cmain.selectAll('g.msg[data-from$='+headname+']').classed("lite", true).classed("lite-from", true);
+            cmain.selectAll('g.msg[data-to$='+headname+']').classed("lite", true).classed("lite-to", true);
+        });
+        $('g.subhead rect, g.subhead text').unbind('mouseout').mouseout(function(e) {
+            headname = $(this).parent().attr('id');
+            if (headname[0] == "(")
+                return;
+            cmain.selectAll('g.msg[data-from$='+headname+']').classed("lite", false).classed("lite-from", false);
+            cmain.selectAll('g.msg[data-to$='+headname+']').classed("lite", false).classed("lite-to", false);
+        });
+
+    });
+
+    // now draw lines on main doc
+
+    // assemble the current data in sorted form
+    linedata = [];
+    $.each(gheaders, function(i, d) {
+        if (!d.hidden)
+        {
+            if (d.collapsed)
+                linedata.push("line_" + d.name);
+            else
+            {
+                $.each(headers[d.name], function(ii, dd) {
+                    linedata.push("line_" + d.name + "_" + dd.name);
+                });
+            }
+        }
+    });
+
+    var msclines = cmain.selectAll("line.proc")
+            .data(linedata, function(d) { return d; });
+
+    // update
+    var rettrans = msclines/*.transition()
+     .duration(500)*/
+            .attr("x1", function(d, i) { return i * 150 + 75; })
+            .attr("x2", function(d, i) { return i * 150 + 75; });
+
+    msclines.enter().append("svg:line")
+            .attr("id", function(d) { return d; })
+            .attr("class", "proc")
+            .attr("x1", function(d, i) { return i * 150 + 75; })
+            .attr("y1", 0)
+            .attr("x2", function(d, i) { return i * 150 + 75; })
+            .attr("y2", curheight)
+            .attr("stroke", "#999")
+            .attr("stroke-dasharray", "2, 2");
+
+    // remove dead ones
+    msclines.exit().remove();
+
+    return rettrans; // so we can chain off of this
+}
+
+function drawdata() {
+
+    filtdata = $.grep(data, function(el, idx) {
+        names = [getnames(el.from).gname, getnames(el.to).gname];
+
+        for (var i = 0; i < gheaders.length; i++)
+            if ($.inArray(gheaders[i].name, names) != -1 && gheaders[i].hidden)
+                return false;
+
+        return true;
+    });
+
+    // update visible indicies
+    $.each(filtdata, function(idx, el) { el.vidx = idx; lastvidx = idx + 1; });
+
+    var dlines = cmain.selectAll("g.msg")
+            .data(filtdata, function(d) { return d.idx; } ); // index is fine
+
+    //console.log(dlines);
+    //console.log(dlines.enter());
+    //console.log(dlines.exit());
+
+    function getlinex(rawid) {
+        splits = getnames(rawid);
+        var collapsed = false;
+        for (var i = 0; i < gheaders.length; i++)
+        {
+            if (gheaders[i].name == splits.gname) {
+                collapsed = gheaders[i].collapsed;
+                break;
+            }
+        }
+
+        if (collapsed)
+            lid = "line_" + splits.gname;
+        else
+            lid = "line_" + splits.gname + "_" + splits.name;
+
+        return cmain.select("line#" + lid).attr("x1");
+    }
+
+    // anything dead? remove it
+    dlines.exit().remove();
+
+    // update existing
+    dlines.selectAll(".dataline").transition()
+            .duration(500)
+            .attr("x1", function(d) { return getlinex(d.from) })
+            .attr("x2", function(d) { return getlinex(d.to) })
+            .attr("y1", function(d, i) { return 30 * d.vidx + 10; })
+            .attr("y2", function(d, i) { return 30 * d.vidx + 10; });
+
+    dlines.selectAll(".datatext").transition()
+            .duration(500)
+            .attr("x", function(d) { return (parseInt(getlinex(d.from)) + parseInt(getlinex(d.to))) / 2; } )
+            .attr("y", function(d, i) { return 30 * d.vidx + 8; });
+
+    dlines.selectAll(".dataevent").transition()
+            .duration(500)
+            .attr("x", function(d) { return getlinex(d.from) - 75; })
+            .attr("y", function(d) { return 30 * d.vidx; });
+
+    dlines.selectAll(".eventtext").transition()
+            .duration(500)
+            .attr("x", function(d) { return getlinex(d.from); })
+            .attr("y", function(d) { return 30 * d.vidx + 12; });
+
+    // create new ones
+    var newdatas = dlines.enter().append("svg:g")
+        //.attr("style", "text-shadow: 0px 0px 5px #fff;")
+            .attr("data-to", function(d) { return d.to; })
+            .attr("data-from", function(d) { return d.from; })
+            .attr("class", "msg")
+            .attr("opacity", 0);
+
+    newdatas.transition()
+            .duration(500)
+            .attr("opacity", 1);
+
+    var noevdatas = newdatas.filter(function(d) { return d.type != "event"; });
+
+    noevdatas.append("svg:line")
+            .attr("class", "dataline")
+            .attr("stroke", "#666")
+            .attr("x1", function(d, i) { return getlinex(d.from); })
+            .attr("y1", function(d, i) { return 30 * d.vidx + 10; })
+            .attr("x2", function(d, i) { return getlinex(d.to); })
+            .attr("y2", function(d, i) { return 30 * d.vidx + 10; })
+            .attr("stroke-width", 2)
+            .attr("marker-end", function(d) { return "url(#" + d.type + ")"; } )
+            .attr("stroke-dasharray", function(d) {
+                if (d.type == "rpcreq")
+                    return "none";
+                else if (d.type == "data")
+                    return "5, 2";
+                else
+                    return "2, 2";
+            });
+
+    noevdatas.append("svg:text")
+            .attr("class", "datatext")
+            .attr("fill", "#000")
+            .attr("data-full", function(d, i) { return d.content; })
+        //.attr("stroke", "#fff")
+        //.attr("stroke-width", 15)
+            .attr("x", function(d, i) { return (parseInt(getlinex(d.from)) + parseInt(getlinex(d.to))) / 2; } )
+            .attr("y", function(d, i) { return 30 * d.vidx + 8; })
+            .attr("text-anchor", "middle")
+            .text(function(d) { return d.topline; });
+
+    var evdatas = newdatas.filter(function(d) { return d.type == "event"; });
+
+    evdatas.append("svg:rect")
+            .attr("class", "dataevent")
+            .attr("stroke", "#f5b800")
+            .attr("fill", "#ffcc33")
+            .attr("data-full", function(d, i) { return d.content; })
+            .attr("x", function(d, i) { return getlinex(d.from) - 75; })
+            .attr("y", function(d, i) { return 30 * d.vidx; })
+            .attr("width", 150)
+            .attr("height", 20)
+            .attr("stroke-width", 2);
+
+    evdatas.append("svg:text")
+            .attr("class", "eventtext")
+            .attr("fill", "#000")
+            .attr("x", function(d, i) { return getlinex(d.from); })
+            .attr("y", function(d, i) { return 30 * d.vidx + 12; })
+            .attr("text-anchor", "middle")
+            .text(function(d) { return d.topline; });
+
+    $('g.msg').unbind('mouseover').mouseover(function(e) {
+        $('#hover').text($('[data-full]', this).attr('data-full'));
+        //$('#hover').offset({top:e.pageX - 10, left: e.pageY - 100});
+        $('#hover').css({display:'block', left:e.pageX - 100, top:e.pageY + 20});
+    });
+    $('g.msg').unbind('mouseout').mouseout(function(e) {
+        $('#hover').css({display:'none'});
+    });
+}
+
+
+var intervalID;
+
+function get_live_data(reschedule)
+{
+    console.log('get_live_data');
+    $.getJSON('/data', function(newdata) {
+        console.log(newdata);
+        console.log("Retrieved " + newdata.length + " new elements.");
+
+        for (var i = 0; i < newdata.length; i++)
+        {
+            newdata[i].idx = data.length;
+            data.push(newdata[i]);
+        }
+        redraw(newdata);
+        if ($("input[name='scrollondata']").attr('checked') == 'checked' && newdata.length > 0)
+            $('#msccontain').scrollTop($('#msccontain').attr('height'));
+
+        if (reschedule == true)
+            intervalID = window.setTimeout(get_live_data, 2000, true);
+    }).error(function() {
+                console.warn("Retrieve data errored, stopping automatic retrieval for now.");
+                window.clearTimeout(intervalID);
+                $(this).text('Start');
+            });
+}
+
+function resize_svgs()
+{
+    headcount = 0;
+    $.each(gheaders, function(idx, el) {
+        if (!el.hidden)
+            if (el.collapsed)
+                headcount+=1;
+            else
+                headcount += headers[el.name].length;
+    });
+
+    if (headcount * 150 != $("#msccontain").attr("width"))
+    {
+        curwidth = headcount * 150;
+        $("#msccontain,#mscheader,svg").attr("width", curwidth);
+
+    }
+
+    if (lastvidx * 30 + 10 != $("#msccontain").attr("height"))
+    {
+        curheight = lastvidx * 30 + 10;
+        $('#msccontain, #msccontain svg').attr('height', curheight);
+
+        var msclines = cmain.selectAll("line.proc");
+        msclines.attr('y2', curheight);
+    }
+}
+
+function redraw(newdata, force)
+{
+    console.log('attempting to redraw')
+    var trans = null;
+    var dirty = doheaders(newdata);
+
+    curheads += dirty;
+    //console.log("currently " + curheads);
+
+    // resize
+    resize_svgs();
+
+    trans = drawheaders();
+
+    // anim is too annoying, don't bother
+    drawdata();
+
+    if ($('#bigcontrols').is(':visible'))
+        drawignorelist();
+}
+
+function drawignorelist()
+{
+    var ignoreupdate = ccontrols.selectAll('li')
+            .data(gheaders, function(d) { return d.name; });
+
+    // update things
+    ignoreupdate.select('input')
+            .property('checked', function(d) { return d.hidden; });
+
+    // add new things
+    var li = ignoreupdate.enter().append('li')
+            .attr('data-gheader', function(d) { return d.name; });
+
+    var lbl = li.append('label')
+            .attr('for', function(d) { return 'icb_' + d.name; })
+
+    lbl.append('input')
+            .attr('type', 'checkbox')
+            .property('checked', function(d) { return d.hidden; })
+            .attr('id', function(d) { return 'icb_' + d.name; });
+
+    lbl.append('span')
+            .text(function(d) { return d.name; });
+
+    // remove dead things
+    ignoreupdate.exit().remove();
+
+    // rig up listener
+    $('#ignorelist input').unbind('change').change(function(e) {
+        headname = $(this).closest('li').attr('data-gheader');
+
+        for (var i = 0; i < gheaders.length; i++)
+            if (gheaders[i].name == headname)
+            {
+                gheaders[i].hidden = $(this).is(':checked');
+                break;
+            }
+
+        redraw([]);
+    });
+
+}
+
+$(function() {
+    // setup errything
+    cheader = d3.select('#headercanvas').select('svg');
+    cmain = d3.select('#maincanvas').select('svg');
+    ccontrols = d3.select('#ignorelist');
+
+    $("button[name='getlive']").click(function() {
+        get_live_data(false);
+    });
+
+    $("button[name='flowcontrol']").click(function() {
+        if ($(this).text() == "Stop")
+        {
+            console.log('flowcontrol stop')
+            window.clearTimeout(intervalID);
+            $(this).text('Start');
+        }
+        else
+        {
+            get_live_data(true);
+            $(this).text('Stop');
+        }
+    });
+
+    $("button[name='closebig']").click(function() {
+        $('#bigcontrols').hide();
+    });
+
+    $("a#more").click(function() {
+        drawignorelist();
+        $('#bigcontrols').show();
+        return false;
+    });
+
+    $("button[name='resetview']").click(function() {
+        data = [];
+        gheaders = [];
+        headers = [];
+        redraw([]);
+    });
+
+    $("button[name='saveignores']").click(function() {
+        ignored = $.grep(gheaders, function(el, idx) { return el.hidden; });
+        $.cookie('msc_saved_ignores', $.map(ignored, function(el, idx) {
+            return el.name;
+        }), { expires: 365 });
+
+        $('#savedignorescount').text(ignored.length + " saved");
+    });
+
+    $("button[name='resetignores']").click(function() {
+        $.cookie('msc_saved_ignores', null);
+    });
+
+    ignore_list = $.cookie('msc_saved_ignores');
+    if (!ignore_list)
+        ignore_list = [];
+    else
+        ignore_list = ignore_list.split(',');
+
+    $('#savedignorescount').text(ignore_list.length + " saved");
+});
+
+$(function() {
+    $('#msccontain').scroll(function() {
+        ls = $(this).scrollLeft();
+        //console.log($(this).scrollLeft());
+        $('#headercanvas').offset({ top:0, left: 0 - ls});
+    });
+});
+
+$(function() { redraw(data, true); });
+</script>
+</body>
+</html>
