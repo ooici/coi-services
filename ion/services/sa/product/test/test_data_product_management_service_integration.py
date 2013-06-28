@@ -138,8 +138,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
         #------------------------------------------------------------------------------------------------
-        parameter_dictionary_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
-        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=parameter_dictionary_id)
+        parameter_dictionary = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=parameter_dictionary._id)
         log.debug("Created stream def id %s" % ctd_stream_def_id)
 
         #------------------------------------------------------------------------------------------------
