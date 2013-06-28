@@ -123,7 +123,9 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         if rdt[time_field] is None:
             return None
 
-        time_fill_value = 0.0 # should be derived from the granule's param dict.
+        #time_fill_value = 0.0 # should be derived from the granule's param dict.
+        time_fill_value = fill_values[time_field] # should be derived from the granule's param dict.
+        total_num_of_records = len(rdt[time_field])
         data_description.append(('time','number','time'))
 
 
@@ -145,8 +147,8 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             # only consider fields which are allowed.
             if rdt[field] == None:
-                log.error ("Data for %s in record dictionary is None. This should be replaced with fill_values.", field)
-                continue
+                log.error ("Data for %s in record dictionary is None for ", field, ". Replacing it with fill_values")
+                rdt[field] = [fill_values[field]] * total_num_of_records
 
             # Check if visibility is false (system generated params)
             if hasattr(rdt.context(field),'visible') and not rdt.context(field).visible:
