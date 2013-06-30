@@ -3,11 +3,10 @@
 __author__ = 'Thomas R. Lennan, Stephen Henrie'
 __license__ = 'Apache 2.0'
 
-from pyon.core.exception import Conflict, Inconsistent, NotFound, BadRequest, Unauthorized
+from pyon.core.exception import Conflict, Inconsistent, NotFound, BadRequest
 from pyon.core.security.authentication import Authentication
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.core.governance.negotiation import Negotiation
-from pyon.core.governance import ORG_MANAGER_ROLE, ION_MANAGER
 from pyon.public import PRED, RT, IonObject, OT
 from pyon.util.log import log
 from interface.objects import  NegotiationStatusEnum
@@ -25,16 +24,9 @@ class IdentityManagementService(BaseIdentityManagementService):
     """
     A resource registry that stores identities of users and resources, including bindings of internal identities to external identities. Also stores metadata such as a user profile.a	A resource registry that stores identities of users and resources, including bindings of internal identities to external identities. Also stores metadata such as a user profile.a
     """
-    org_client = None
 
     def on_init(self):
         self.authentication = Authentication()
-
-    def _get_org_client(self):
-        """ avoid building this client every single time it is called """
-        if not self.org_client:
-            self.org_client = OrgManagementServiceProcessClient(process=self)
-        return self.org_client
 
     def create_actor_identity(self, actor_identity=None):
         # Persist ActorIdentity object and return object _id as OOI id
@@ -229,50 +221,6 @@ class IdentityManagementService(BaseIdentityManagementService):
             log.debug("Signon returning actor_id, valid_until, registered: %s, %s, False" % (actor_id, valid_until))
             return actor_id, valid_until, False
 
-    def can_view_user_info(self, user_info_id, org_names):
-        """
-        @param user_info_id: user whose information will be viewed
-        @param org_id: org of the user whose information will be viewed
-        @return: True if the calling user should be allowed to view this information:
-        """
-        calling_actor_id = self.__get_current_user_id()
-        log.debug('checking if calling actor %s can view user info %s', calling_actor_id, user_info_id)
-        if not calling_actor_id:
-            log.warn('no caller found in context: %r', self.get_context())
-            return False
-
-        user_ids, assocs = self.clients.resource_registry.find_objects(subject=calling_actor_id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=True)
-        # current user not found
-        if not user_ids:
-            log.warn('no user found for calling actor id %s', calling_actor_id)
-            return False
-
-        # can always view your own user
-        if user_ids[0]==user_info_id:
-            return True
-
-        # DO WE REALLY TRUST THE HEADER?
-        #roles = self._get_org_client().find_all_roles_by_user(calling_actor_id)
-        roles = self.__get_current_user_roles()
-        if not roles:
-            return False
-
-        # ION_MANAGER can view anyone
-        if ION_MANAGER in roles['ION']:
-            return True
-
-        # ORG_MANAGER can view anyone in their own org
-        for org_name in org_names:
-            if org_name in roles and ORG_MANAGER_ROLE in roles[org_name]:
-                return True
-
-        # otherwise keep info private
-        return False
-
-    def assert_can_view(self, user_info_id, org_names):
-        if not self.can_view_user_info(user_info_id, org_names):
-            raise Unauthorized('You are not authorized to access contact information.')
-
     def get_user_info_extension(self, user_info_id='', org_id=''):
         """Returns an UserInfoExtension object containing additional related information
 
@@ -281,7 +229,6 @@ class IdentityManagementService(BaseIdentityManagementService):
         @retval user_info    UserInfoExtension
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified actor_id does not exist
-        @throws Unauthorized  if caller is not ORG_MANAGER or ION_MANAGER
         """
         if not user_info_id:
             raise BadRequest("The user_info_id parameter is empty")
@@ -294,6 +241,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         actors, _ = self.clients.resource_registry.find_subjects(subject_type=RT.ActorIdentity, predicate=PRED.hasInfo, object=user_info_id, id_only=True)
         actor_id = actors[0] if len(actors) > 0 else ''
 
+
         extended_resource_handler = ExtendedResourceContainer(self)
         extended_user = extended_resource_handler.create_extended_resource_container(
             extended_resource_type=OT.UserInfoExtension,
@@ -304,21 +252,23 @@ class IdentityManagementService(BaseIdentityManagementService):
             actor_id=actor_id)
 
         #If the org_id is not provided then skip looking for Org related roles.
-        if not extended_user:
-            raise NotFound('no user was found with id %s'%user_info_id)
+        if extended_user:
+            #Did not setup a dependency to org_management service to avoid a potential circular bootstrap issue
+            # since this method should never be called until the system is fully running
+            try:
+                org_client = OrgManagementServiceProcessClient(process=self)
+                roles = org_client.find_all_roles_by_user(extended_user.actor_identity._id)
+                extended_user.roles = list()
+                for org_name in roles:
+                    for role in roles[org_name]:
+                        flattened_role = copy.copy(role.__dict__)
+                        del flattened_role['type_']  #Have to do this to appease the message validators for ION objects
+                        flattened_role['org_name'] = org_name  #Nothing like forcing a value into the dict to appease the UI code
+                        extended_user.roles.append(flattened_role)
 
-        log.debug('about to get roles')
-        roles = self._get_org_client().find_all_roles_by_user(extended_user.actor_identity._id)
-        log.debug('about to assert permission')
-        self.assert_can_view(user_info_id, roles.keys())
-        log.debug('have permission')
-        extended_user.roles = list()
-        for org_name in roles:
-            for role in roles[org_name]:
-                flattened_role = copy.copy(role.__dict__)
-                del flattened_role['type_']  #Have to do this to appease the message validators for ION objects
-                flattened_role['org_name'] = org_name  #Nothing like forcing a value into the dict to appease the UI code
-                extended_user.roles.append(flattened_role)
+            except Exception, e:
+                raise NotFound('Could not retrieve UserRoles for User Info id: %s - %s' % (user_info_id, e.message))
+
 
         return extended_user
 
@@ -332,7 +282,10 @@ class IdentityManagementService(BaseIdentityManagementService):
         @param org_id:
         @return:
         """
-        neg_list = self._get_org_client().find_user_negotiations(actor_id=actor_id, org_id=org_id, negotiation_status=NegotiationStatusEnum.OPEN)
+        org_client = OrgManagementServiceProcessClient(process=self)
+
+        neg_list = org_client.find_user_negotiations(actor_id=actor_id, org_id=org_id, negotiation_status=NegotiationStatusEnum.OPEN)
+
         return self._convert_negotiations_to_requests(neg_list, user_info_id, org_id)
 
     def find_user_closed_requests(self, user_info_id='', actor_id='', org_id=''):
@@ -344,7 +297,10 @@ class IdentityManagementService(BaseIdentityManagementService):
         @param org_id:
         @return:
         """
-        neg_list = self._get_org_client().find_user_negotiations(actor_id=actor_id, org_id=org_id)
+        org_client = OrgManagementServiceProcessClient(process=self)
+
+        neg_list = org_client.find_user_negotiations(actor_id=actor_id, org_id=org_id)
+
         #Filter out non Open negotiations
         neg_list = [neg for neg in neg_list if neg.negotiation_status != NegotiationStatusEnum.OPEN]
 
@@ -391,10 +347,6 @@ class IdentityManagementService(BaseIdentityManagementService):
     def __get_current_user_id(self):
         ctx = self.get_context()
         return ctx.get('ion-actor-id', None) if ctx else None
-
-    def __get_current_user_roles(self):
-        ctx = self.get_context()
-        return ctx.get('ion-actor-roles', None) if ctx else None
 
     def __update_user_info_token(self, token=""):
         if not token:
