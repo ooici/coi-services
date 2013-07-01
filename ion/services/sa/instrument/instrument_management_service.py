@@ -589,12 +589,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
-        process_definition.executable['module']='ion.agents.instrument.instrument_agent'
-        process_definition.executable['class'] = 'InstrumentAgent'
+        process_definition.executable['url'] = instrument_agent.agent_uri
+        process_definition.executable['module'] = instrument_agent.agent_module or 'ion.agents.instrument.instrument_agent'
+        process_definition.executable['class'] = instrument_agent.agent_class or 'InstrumentAgent'
         pd = self.clients.process_dispatcher
         process_definition_id = pd.create_process_definition(process_definition=process_definition)
 
-        #associate the agent and the process def
+        # Associate the agent and the process def
         self.RR2.assign_process_definition_to_instrument_agent_with_has_process_definition(process_definition_id, instrument_agent_id)
 
         return instrument_agent_id
@@ -990,12 +991,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
-        process_definition.executable['module']='ion.agents.platform.platform_agent'
-        process_definition.executable['class'] = 'PlatformAgent'
+        process_definition.executable['url'] = platform_agent.agent_uri
+        process_definition.executable['module'] = platform_agent.agent_module or 'ion.agents.platform.platform_agent'
+        process_definition.executable['class'] = platform_agent.agent_class or 'PlatformAgent'
         pd = self.clients.process_dispatcher
         process_definition_id = pd.create_process_definition(process_definition=process_definition)
 
-        #associate the agent and the process def
+        # Associate the agent and the process def
         self.RR2.assign_process_definition_to_platform_agent_with_has_process_definition(process_definition_id,
                                                                                          platform_agent_id)
         return platform_agent_id

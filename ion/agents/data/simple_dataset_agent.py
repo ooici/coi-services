@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 TwoDelegateDatasetAgent: improved generalized implementation of external dataset agent:
 - avoids artificial agent/driver communication and state model
@@ -30,34 +32,43 @@ interrupt/resume state:
 - after successful parsing, the memento is persisted as part of the agent state
 - upon restart, the agent reads the memento and passes to the new poller
 """
+
+__author__ = 'Christopher Mueller, Jonathan Newbrough'
+
+
+import os
+
 from ooi.logging import log
 from ooi.reflection import EggCache
-from pyon.util.containers import get_safe
+from ooi.poller import DirectoryPoller
+
+from pyon.agent.agent import ResourceAgentEvent
+from pyon.agent.agent import ResourceAgentState
 from pyon.core.exception import InstDriverError
 from pyon.core.exception import InstStateError
 from pyon.public import OT
 from pyon.core.bootstrap import IonObject
-from ion.agents.instrument.exceptions import InstrumentStateException
-
-from pyon.agent.agent import ResourceAgentEvent
-from pyon.agent.agent import ResourceAgentState
-from ion.agents.instrument.instrument_agent import InstrumentAgent
-from ion.core.includes.mi import DriverEvent
-from ooi.poller import DirectoryPoller
+from pyon.util.containers import get_safe
 from pyon.agent.agent import ResourceAgentState
 from pyon.ion.stream import StandaloneStreamPublisher
+
+from ion.agents.instrument.exceptions import InstrumentStateException
+from ion.agents.instrument.instrument_agent import InstrumentAgent
+from ion.core.includes.mi import DriverEvent
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+
 from coverage_model import ParameterDictionary
 
 # TODO: make unique for multiple processes on same VM
-import os
-EGG_CACHE=EggCache('/tmp/eggs%d'%os.getpid())
+EGG_CACHE=EggCache('/tmp/eggs%d' % os.getpid())
+
 
 class Poller(object):
     """ abstract class to show API needed for plugin poller objects """
     def __init__(self, config, memento, data_callback, exception_callback):  pass
     def start(self): pass
     def shutdown(self): pass
+
 
 class Parser(object):
     """ abstract class to show API needed for plugin poller objects """
@@ -84,6 +95,7 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
     def __init__(self,*a,**b):
         super(TwoDelegateDatasetAgent,self).__init__(*a,**b)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_streaming_execute_resource)
+
     def _start_driver(self, dvr_config):
         try:
             self.set_configuration(dvr_config)
@@ -91,9 +103,11 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
             log.error('error in configuration', exc_info=True)
             raise
         self._dvr_client = self
+
     def _stop_driver(self):
         self.stop_sampling()
         self._dvr_client = None
+
     def _handler_streaming_execute_resource(self, command, *args, **kwargs):
         """
         Handler for execute_resource command in streaming state.
@@ -103,12 +117,15 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
             return self._handler_execute_resource(command, *args, **kwargs)
         else:
             raise InstrumentStateException('Command \'{0}\' not allowed in current state {1}'.format(command, self._fsm.get_current_state()))
+
     def _handler_active_unknown_go_inactive(self, *args, **kwargs):
         self.stop_sampling()
         return (ResourceAgentState.INACTIVE, None)
+
     def _handler_inactive_go_active(self, *args, **kwargs):
         self.start_sampling()
         return (ResourceAgentState.IDLE, None)
+
     def cmd_dvr(self, cmd, *args, **kwargs):
         if cmd == 'execute_start_autosample':
             # Delegate to BaseDataHandler.execute_start_autosample()
@@ -125,9 +142,9 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
         out = True
         for key in 'stream_id', 'stream_route', 'poller', 'parser', 'parameter_dict':
             if key not in self._dvr_config:
-                log.error('missing key: %s',key)
+                log.error('missing key: %s', key)
                 out = False
-        if get_safe(self._dvr_config, 'max_records', 100)<1:
+        if get_safe(self._dvr_config, 'max_records', 100) < 1:
             log.error('max_records=%d, must be at least 1 or unset (default 100)', self.max_records)
             out = False
         return out
@@ -196,11 +213,12 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
         log.debug('stop_sampling')
         self._poller.shutdown()
 
+
 ## once we want to support more than one way to reach external datasets,
 ## we'll probably want to move this out into another file and add
 ## other pollers that check HTTP, FTP or other methods of finding data
 
-class AdditiveSequentialFilePoller(DirectoryPoller,Poller):
+class AdditiveSequentialFilePoller(DirectoryPoller, Poller):
     """ polls directory for files that match wildcard, in order """
     def __init__(self, config, memento, file_callback, exception_callback):
         self.callback = file_callback

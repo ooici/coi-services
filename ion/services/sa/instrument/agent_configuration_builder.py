@@ -25,16 +25,19 @@ class AgentConfigurationBuilderFactory(object):
         self.RR2 = RR2
 
     def create_by_device_type(self, device_type):
-        if RT.InstrumentDevice == device_type:
+        # WARNING: This is ambiguous for ExternalDatasetAgents
+        if device_type == RT.InstrumentDevice:
             return InstrumentAgentConfigurationBuilder(self.clients, self.RR2)
-        elif RT.PlatformDevice == device_type:
+        elif device_type == RT.PlatformDevice:
             return PlatformAgentConfigurationBuilder(self.clients, self.RR2)
 
     def create_by_agent_instance_type(self, instance_type):
-        if RT.InstrumentAgentInstance == instance_type:
+        if instance_type == RT.InstrumentAgentInstance:
             return InstrumentAgentConfigurationBuilder(self.clients, self.RR2)
-        elif RT.PlatformAgentInstance == instance_type:
+        elif instance_type == RT.PlatformAgentInstance:
             return PlatformAgentConfigurationBuilder(self.clients, self.RR2)
+        elif instance_type == RT.ExternalDatasetAgentInstance:
+            return ExternalDatasetAgentConfigurationBuilder(self.clients, self.RR2)
 
 
 class AgentConfigurationBuilder(object):
@@ -508,7 +511,10 @@ class AgentConfigurationBuilder(object):
         return self.associated_objects[RT.ProcessDefinition]
 
 
+class ExternalDatasetAgentConfigurationBuilder(AgentConfigurationBuilder):
 
+    pass
+    # TODO
 
 class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
 
