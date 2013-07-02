@@ -147,7 +147,6 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             # only consider fields which are allowed.
             if rdt[field] == None:
-                log.error ("Data for %s in record dictionary is None for ", field, ". Replacing it with fill_values")
                 rdt[field] = [fill_values[field]] * total_num_of_records
 
             # Check if visibility is false (system generated params)
