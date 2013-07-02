@@ -907,6 +907,8 @@ class OOILoader(object):
                         iatype=iatype,
                         iart=inst_obj['ia_rt_data'],
                         ia_ready=instagent_obj['present'] if iatype else False,
+                        ia_active=instagent_obj['active'] if iatype else False,
+                        ia_sc=bool(instagent_obj['parsed_sc']) if iatype else False,
                         dart=inst_obj['da_rt'],
                         dapr=inst_obj['da_pr'],
                         )
@@ -915,6 +917,8 @@ class OOILoader(object):
                     if di_dict['dart']: qualifiers.append("DA_RT")
                     if di_dict['dapr']: qualifiers.append("DA_POST")
                     if iatype and di_dict['iart'] and not di_dict['ia_ready']: qualifiers.append("IA_NOT_READY")
+                    if iatype and di_dict['iart'] and not di_dict['ia_active']: qualifiers.append("IA_NOT_ACTIVE")
+                    if iatype and di_dict['iart'] and di_dict['ia_active'] and not di_dict['ia_sc']: qualifiers.append('STREAM_CONF_UNDEF')
 
                     if not end_date or deploy_date <= end_date:
                         deploy_instruments[inst_id] = di_dict

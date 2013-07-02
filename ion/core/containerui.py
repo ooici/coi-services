@@ -100,8 +100,8 @@ def process_index():
             "<li>Process: <a href='/list/DataProcessDefinition'>DataProcessDefinition</a>, <a href='/list/DataProcess'>DataProcess</a>, <a href='/list/ProcessDefinition'>ProcessDefinition</a></li>",
             "<li>Exchange: <a href='/list/ExchangeSpace'>ExchangeSpace</a>, <a href='/list/ExchangePoint'>ExchangePoint</a>, <a href='/list/ExchangeName'>ExchangeName</a>, <a href='/list/ExchangeBroker'>ExchangeBroker</a></li>",
             "</ul></li>",
-            #"<li><a href='/dir'><b>Browse ION Directory</b></a></li>",
             "<li><a href='/events'><b>Browse Events</b></a></li>",
+            "<li><a href='/dir'><b>Browse ION Directory</b></a></li>",
             "<li><a href='/mscweb'><b>Show system messages (MSCWeb)</b></a>",
             "<ul>",
             "<li><a href='/mscaction/stop'>Stop system message recording</a></li>",
@@ -967,8 +967,7 @@ def process_dir_path(path):
         #path = convert_unicode(path)
         path = str(path)
         path = path.replace("~", "/")
-        de_list = Container.instance.directory.find_child_entries(path)
-        entry = Container.instance.directory.lookup(path)
+
         fragments = [
             build_standard_menu(),
             "<h1>Directory %s</h1>" % (build_dir_path(path)),
@@ -976,12 +975,15 @@ def process_dir_path(path):
             "<p><table><tr><th>Name</th><th>Value</th></tr>"
         ]
 
-        for attr in sorted(entry.keys()):
-            attval = entry[attr]
-            fragments.append("<tr><td>%s</td><td>%s</td></tr>" % (attr, attval))
+        entry = Container.instance.directory.lookup(path)
+        if entry:
+            for attr in sorted(entry.keys()):
+                attval = entry[attr]
+                fragments.append("<tr><td>%s</td><td>%s</td></tr>" % (attr, attval))
         fragments.append("</table></p>")
 
         fragments.append("</p><h2>Child Entries</h2><p><table><tr><th>Key</th><th>Timestamp</th><th>Attributes</th></tr>")
+        de_list = Container.instance.directory.find_child_entries(path)
         for de in de_list:
             if '/' in de.parent:
                 org, parent = de.parent.split("/", 1)
@@ -1014,7 +1016,10 @@ def build_dir_path(path):
     return "".join(fragments)
 
 def build_dir_link(parent, key):
-    path = "%s/%s" % (parent, key)
+    if parent == "/":
+        path = "/%s" % (key)
+    else:
+        path = "%s/%s" % (parent, key)
     path = path.replace("/","~")
     return build_link(key, "/dir/%s" % path)
 
