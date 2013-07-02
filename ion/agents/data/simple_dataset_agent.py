@@ -65,15 +65,23 @@ EGG_CACHE=EggCache('/tmp/eggs%d' % os.getpid())
 
 class Poller(object):
     """ abstract class to show API needed for plugin poller objects """
-    def __init__(self, config, memento, data_callback, exception_callback):  pass
-    def start(self): pass
-    def shutdown(self): pass
+    def __init__(self, config, memento, data_callback, exception_callback):  
+        pass
+    
+    def start(self): 
+        pass
+    
+    def shutdown(self): 
+        pass
 
 
 class Parser(object):
     """ abstract class to show API needed for plugin poller objects """
-    def __init__(self, open_file, parser_after):  pass
-    def get_records(self,max_count): pass
+    def __init__(self, open_file, parser_after):  
+        pass
+    
+    def get_records(self,max_count): 
+        pass
 
 
 class TwoDelegateDatasetAgent(InstrumentAgent):

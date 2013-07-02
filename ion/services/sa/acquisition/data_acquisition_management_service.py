@@ -704,17 +704,20 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_product_objs, _ = self.clients.resource_registry.find_objects(source_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
         if not data_product_objs:
             raise NotFound("No stream found for %s" % source_id)
+
         for dp in data_product_objs:
-            if dp.processing_level_code == "Parsed":
+            if 'parsed' in dp.processing_level_code.lower():
                 data_product_id = dp._id
                 break
+        
         if not data_product_id:
             data_product_id = data_product_objs[0]._id
             log.warn("Cannot find parsed DataProduct for %s" % source_id)
+        
+        stream_def_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStreamDefinition, RT.StreamDefinition, id_only=True)
+        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_def_id)
 
         stream_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
-
-        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_id=stream_id)
         route = self.clients.pubsub_management.read_stream_route(stream_id)
 
         if log.isEnabledFor(logging.DEBUG):

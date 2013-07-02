@@ -40,14 +40,23 @@ class TestIntSimpleDatasetAgent(IonIntegrationTestCase):
     def test_simple_agent(self):
         # Setup resources
         eda_obj = IonObject(RT.ExternalDatasetAgent,
-                            name="Demo Agent")
+                            name="Demo Agent",
+                            poller_module='ion.agents.data.simple_dataset_agent',
+                            poller_class='AdditiveSequentialFilePoller',
+                            parser_module='ion.agents.data.handlers.sbe52_binary_handler',
+                            parser_class='SBE52BinaryCTDParser')
         eda_id = self.dams.create_external_dataset_agent(eda_obj)
 
         ro = self.rr.read(eda_id)
         self.assertEquals(ro.name, eda_obj.name)
 
+    
+        
+
         edai_obj = IonObject(RT.ExternalDatasetAgentInstance,
-                            name="Demo Agent Instance")
+                            name="Demo Agent Instance",
+
+                            )
         edai_id = self.dams.create_external_dataset_agent_instance(edai_obj, external_dataset_agent_id=eda_id)
 
         ro = self.rr.read(edai_id)
