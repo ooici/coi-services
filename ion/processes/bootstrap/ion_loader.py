@@ -2498,12 +2498,15 @@ Reason: %s
         institution = self._create_object_from_row("Institution", row, "i/")
 
         self._basic_resource_create(row, "ExternalDataProvider", "p/",
-            "data_acquisition_management", "create_external_data_provider",
-            set_attributes=dict(institution=institution, contact=contact))
+                                    "data_acquisition_management", "create_external_data_provider",
+                                    set_attributes=dict(institution=institution, contact=contact),
+                                    support_bulk=True)
 
     def _load_ExternalDatasetModel(self, row):
         # ID, lcstate, name, description, dataset_type
-        self._basic_resource_create(row, 'ExternalDatasetModel', 'edm/', 'data_acquisition_management', 'create_external_dataset_model')
+        self._basic_resource_create(row, 'ExternalDatasetModel', 'edm/',
+                                    'data_acquisition_management', 'create_external_dataset_model',
+                                    support_bulk=True)
 
     def _load_ExternalDataset(self, row):
         # ID	owner_id	lcstate	org_ids	contact_id	name	description	data_sampling	parameters
@@ -2527,62 +2530,67 @@ Reason: %s
         self.external_dataset_producer_id[id] = producer_id
 
     def _load_ExternalDatasetAgent(self, row):
-        self.row_count += 1
-        agent = self._create_object_from_row(RT.ExternalDatasetAgent, row, 'eda/')
-        model = self._get_resource_id(row['model'])
-        id = self._get_service_client('data_acquisition_management').create_external_dataset_agent(external_dataset_agent=agent, external_dataset_model_id=model)
-        agent._id = id
-        self._register_id(row['ID'], id, agent)
+        stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
+        stream_configurations = [self.stream_config[name] for name in stream_config_names]
+
+        eda_id = self._basic_resource_create(row, "ExternalDatasetAgent", "eda/",
+            "data_acquisition_management", "create_external_dataset_agent",
+            set_attributes=dict(stream_configurations=stream_configurations),
+            support_bulk=True)
+
+        svc_client = self._get_service_client('data_acquisition_management')
+        headers = self._get_op_headers(row)
+        model_ids = row["model_ids"]
+        if model_ids:
+            model_ids = get_typed_value(model_ids, targettype="simplelist")
+            for mid in model_ids:
+                if self.bulk:
+                    model_obj = self._get_resource_obj(mid)
+                    agent_obj = self._get_resource_obj(row[COL_ID])
+                    self._create_association(agent_obj, PRED.hasModel, model_obj)
+                else:
+                    svc_client.assign_model_to_external_dataset_agent(self.resource_ids[mid], eda_id,
+                        headers=headers)
 
     def _load_ExternalDatasetAgentInstance(self, row):
-        # FIELDS IN THE ION OBJECT:
-        # name='', description='', lcstate='DRAFT', availability='PRIVATE', ts_created='', ts_updated='', alt_ids=None, addl=None,
-        # deployment_type=DeploymentTypeEnum.PROCESS, driver_config=None, agent_config=None, agent_process_id='',
-        # alerts=None, handler_module='', handler_class='', dataset_driver_config=None, dataset_agent_config=None, dataset_agent_process_id=''):
-
         # Generate the data product and associate it to the ExternalDataset
-        self.row_count += 1
-        name = row['name']
-        description = row['description']
-        source_id = self._get_resource_id(row['source'])
+        source_id = self._get_resource_id(row['source_id'])
 
         streamdef_id = self._get_resource_id(row['streamdef'])
-        agent = self._get_resource_obj(row['agent'])
-        agent_config = parse_dict(row['agent_config'])
-        driver_config = parse_dict(row['driver_config'])
+        agent_obj = self._get_resource_obj(row['agent_id'])
 
-        # NOTE: unit tests show additional keys in this configuration
-        # but some are handler-specific, others seem just for testing
-        # TODO: come back and look again when trying to start this process
+        parser_cfg = copy.deepcopy(agent_obj.parser_default_config)
+        poller_cfg = copy.deepcopy(agent_obj.poller_default_config)
+
+        driver_config = parse_dict(row['driver_config'])
         driver_config.update( {
                 'parser': {
-                    'uri': row['parser_uri'],
-                    'module': row['parser_module'],
-                    'class': row['parser_class'],
-                    'config': parse_dict(row['parser_config']),
+                    'uri': agent_obj.parser_uri,
+                    'module': agent_obj.parser_module,
+                    'class': agent_obj.parser_class,
+                    'config': parser_cfg.update(parse_dict(row['parser_config'])),
                 },
                 'poller': {
-                    'uri': row['poller_uri'],
-                    'module': row['poller_module'],
-                    'class': row['poller_class'],
-                    'config': parse_dict(row['poller_config']),
+                    'uri': agent_obj.poller_uri,
+                    'module': agent_obj.poller_module,
+                    'class': agent_obj.poller_class,
+                    'config': poller_cfg.update(parse_dict(row['poller_config'])),
                 },
                 'stream_def': streamdef_id,
-#                'data_producer_id':self.external_dataset_producer_id[dataset_id],
                 'max_records': int(row['records_per_granule']),
             } )
+        agent_config = parse_dict(row['agent_config'])
         agent_config.update( {
             'driver_config' : driver_config,
             'stream_config' : { },
             'agent'         : {'resource_id': source_id},
         } )
 
-        agent_instance = IonObject(RT.ExternalDatasetAgentInstance,  name=name, description=description,
-            dataset_driver_config=driver_config, dataset_agent_config=agent_config)
-
-        client = self._get_service_client('data_acquisition_management')
-        instance_id = client.create_external_dataset_agent_instance(external_dataset_agent_instance=agent_instance,
-            external_dataset_agent_id=agent._id, external_dataset_id=source_id)
+        edai_id = self._basic_resource_create(row, "ExternalDatasetAgentInstance", "ai/",
+            "data_acquisition_management", "create_external_dataset_agent_instance",
+            set_attributes=dict(dataset_driver_config=driver_config, dataset_agent_config=agent_config),
+            external_dataset_agent_id=self.resource_ids[row['agent_id']], external_dataset_id=source_id
+        )
 
     def _load_InstrumentAgentInstance(self, row):
         # TODO: Allow update via incremental preload

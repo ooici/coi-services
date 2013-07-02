@@ -601,14 +601,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     # ExternalDatasetAgent
     #
 
-    def create_external_dataset_agent(self, external_dataset_agent=None, external_dataset_model_id='', device_model_id=''):
+    def create_external_dataset_agent(self, external_dataset_agent=None, external_dataset_model_id=''):
         # Persist ExternalDatasetAgent object and return object _id as OOI id
         agent_id = self.RR2.create(external_dataset_agent, RT.ExternalDatasetAgent)
 
         if external_dataset_model_id:
-            self.RR2.assign_external_dataset_model_to_external_dataset_agent_with_has_model(external_dataset_model_id, agent_id)
-        if device_model_id:
-            self.clients.resource_registry.create_association(agent_id, PRED.hasModel, device_model_id)
+            # NOTE: external_dataset_model_id can be any model type
+            self.clients.resource_registry.create_association(agent_id, PRED.hasModel, external_dataset_model_id)
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
