@@ -694,11 +694,12 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             if p.name=='time': # Ignore the domain parameter
                 continue
             passing &= self.assertTrue(p.ooi_short_name.startswith('SFLPRES'))
-        passing &= self.check_presta_instrument_data_products('RS03AXBS-MJ03A-06-PRESTA301')
         passing &= self.check_presta_instrument_data_products('RS01SLBS-MJ01A-06-PRESTA101')
-        passing &= self.check_vel3d_instrument_data_products('RS03AXBS-MJ03A-12-VEL3DB301')
-        passing &= self.check_vel3d_instrument_data_products('RS03INT2-MJ03D-12-VEL3DB304')
-        passing &= self.check_tempsf_instrument_data_product('RS03ASHS-MJ03B-07-TMPSFA301')
+        passing &= self.check_vel3d_instrument_data_products( 'RS01SLBS-MJ01A-12-VEL3DB101')
+        passing &= self.check_presta_instrument_data_products('RS03AXBS-MJ03A-06-PRESTA301')
+        passing &= self.check_vel3d_instrument_data_products( 'RS03AXBS-MJ03A-12-VEL3DB301')
+        passing &= self.check_tempsf_instrument_data_product( 'RS03ASHS-MJ03B-07-TMPSFA301')
+        passing &= self.check_vel3d_instrument_data_products( 'RS03INT2-MJ03D-12-VEL3DB304')
 
         self.data_product_management.activate_data_product_persistence(data_product_id)
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
@@ -707,6 +708,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         self.assert_array_almost_equal(rdt['seafloor_pressure'], [10.2504], 4)
         self.assert_array_almost_equal(rdt['absolute_pressure'], [14.8670], 4)
         self.data_product_management.suspend_data_product_persistence(data_product_id) # Should do nothing and not raise anything
+
         
         return passing
 
