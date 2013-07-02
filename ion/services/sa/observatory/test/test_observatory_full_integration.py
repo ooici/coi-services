@@ -550,6 +550,79 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             5.3456, 4.2994, 4.3009]])
         return passing
     
+    def check_trhph_instrument_data_products(self, reference_designator):
+        passing = True
+        info_list = []
+        passing &= self.check_data_product_reference(reference_designator, info_list)
+        if not passing:
+            return passing
+
+        data_product_id, stream_def_id, dataset_id = info_list.pop()
+
+        pdict = self.RR2.find_parameter_dictionary_of_stream_definition_using_has_parameter_dictionary(stream_def_id)
+        passing &= self.assertEquals(pdict.name, 'trhph_sample')
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+
+        # calibration constants
+        a = 1.98e-9
+        b = -2.45e-6
+        c = 9.28e-4
+        d = -0.0888
+        e = 0.731
+
+        V_s = 1.506
+        V_c = 0.
+        T = 11.8
+
+        r1 = 0.906
+        r2 = 4.095
+        r3 = 4.095
+
+        ORP_V = 1.806
+        Cl = np.nan
+
+        offset = 2008
+        gain = 4.0
+        # Normally this would be 50 per the DPS but the precision is %4.0f which truncates the values to the nearest 1...
+        ORP = ((ORP_V * 1000.) - offset) / gain
+
+        ntp_now = time.time() + 2208988800
+
+        rdt['cc_a'] = [a]
+        rdt['cc_b'] = [b]
+        rdt['cc_c'] = [c]
+        rdt['cc_d'] = [d]
+        rdt['cc_e'] = [e]
+        rdt['ref_temp_volts'] = [V_s]
+        rdt['resistivity_temp_volts'] = [V_c]
+        rdt['eh_sensor'] = [ORP_V]
+        rdt['resistivity_5'] = [r1]
+        rdt['resistivity_x1'] = [r2]
+        rdt['resistivity_x5'] = [r3]
+        rdt['cc_offset'] = [offset]
+        rdt['cc_gain'] = [gain]
+        rdt['time'] = [ntp_now]
+
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_temperaure'], [T], 2)
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_chloride_conc'], [Cl], 4)
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_orp'], [ORP], 4)
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+        passing &= self.assertTrue(dataset_monitor.event.wait(60))
+        if not passing: return passing
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_temperaure'], [T], 2)
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_chloride_conc'], [Cl], 4)
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_orp'], [ORP], 4)
+
+        return passing
+
     def check_vel3d_instrument_data_products(self, reference_designator):
         passing = True
         info_list = []
@@ -700,6 +773,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         passing &= self.check_vel3d_instrument_data_products( 'RS03AXBS-MJ03A-12-VEL3DB301')
         passing &= self.check_tempsf_instrument_data_product( 'RS03ASHS-MJ03B-07-TMPSFA301')
         passing &= self.check_vel3d_instrument_data_products( 'RS03INT2-MJ03D-12-VEL3DB304')
+        passing &= self.check_trhph_instrument_data_products( 'RS03INT1-MJ03C-10-TRHPHA301')
 
         self.data_product_management.activate_data_product_persistence(data_product_id)
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
