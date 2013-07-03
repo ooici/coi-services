@@ -1,21 +1,24 @@
 #!/usr/bin/env python
 
-"""
-@package  ion.services.sa.instrument.agent_ConfigurationBuilder
-@author   Ian Katz
-"""
+"""Builds spawn configurations for agent processes"""
 
+__author__ = 'Ian Katz, Michael Meisinger'
+
+import copy
 import tempfile
+
+from ooi import logging
+from ooi.logging import log
+
+from pyon.core.exception import NotFound, BadRequest
+from pyon.ion.resource import PRED, RT
+from pyon.util.containers import get_ion_ts, dict_merge
+
 from ion.agents.instrument.driver_process import DriverProcessType
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
-from ooi import logging
-from pyon.core.exception import NotFound, BadRequest
-from pyon.ion.resource import PRED, RT
 
-from ooi.logging import log
-from pyon.util.containers import get_ion_ts
 
 
 class AgentConfigurationBuilderFactory(object):
@@ -127,6 +130,7 @@ class AgentConfigurationBuilder(object):
         raise NotImplementedError("Extender of class must implement this")
 
     def _augment_dict(self, title, basedict, newitems):
+        # TODO: pyon.util.containers has dict_merge for this purpose (without logs)
         for k, v in newitems.iteritems():
             if k in basedict:
                 prev_v = basedict[k]
@@ -180,7 +184,8 @@ class AgentConfigurationBuilder(object):
         assert self.agent_instance_obj
 
         if will_launch:
-            #if there is an agent pid then assume that a drive is already started
+            # TODO: Better check in the directory, because process_id may be outdated for whatever reason
+            # if there is an agent pid then assume that a drive is already started
             if self.agent_instance_obj.agent_process_id:
                 raise BadRequest("Agent Instance already running for this device pid: %s" %
                                  str(self.agent_instance_obj.agent_process_id))
@@ -237,7 +242,7 @@ class AgentConfigurationBuilder(object):
             self.RR2.find_parameter_contexts_of_parameter_dictionary_using_has_parameter_context(dict_obj._id)
         return DatasetManagementService.build_parameter_dictionary(dict_obj, parameter_contexts)
 
-    def _meet_in_the_middle(self,dp_id, pdict_id):
+    def _meet_in_the_middle(self, dp_id, pdict_id):
         # Given a pdict_id and a data_product_id find the stream def in the middle
         pdict_stream_defs = self.RR2.find_stream_definition_ids_by_parameter_dictionary_using_has_parameter_dictionary(pdict_id)
         stream_def_id = self.RR2.find_stream_definition_id_of_data_product_using_has_stream_definition(dp_id)
@@ -263,13 +268,14 @@ class AgentConfigurationBuilder(object):
                                                      }
 
         #retrieve the output products
+        # TODO: What about platforms? other things?
         device_id = device_obj._id
         data_product_objs = self.RR2.find_data_products_of_instrument_device_using_has_output_product(device_id)
 
         stream_config = {}
         for d in data_product_objs:
             stream_def_id = self.RR2.find_stream_definition_id_of_data_product_using_has_stream_definition(d._id)
-            for model_stream_name, stream_info_dict  in streams_dict.items():
+            for model_stream_name, stream_info_dict in streams_dict.items():
                 # read objects from cache to be compared
                 pdict = self.RR2.find_resource_by_name(RT.ParameterDictionary, stream_info_dict.get('param_dict_name'))
                 stream_def_id = self._meet_in_the_middle(d._id, pdict._id)
@@ -288,7 +294,7 @@ class AgentConfigurationBuilder(object):
                     sdtype = stream_def_dict.pop('type_')
 
                     if model_stream_name in stream_config:
-                        log.warn("Overwiting stream_config[%s]", model_stream_name)
+                        log.warn("Overwriting stream_config[%s]", model_stream_name)
 
                     stream_config[model_stream_name] = {'routing_key'           : stream_route.routing_key,
                                                         'stream_id'             : product_stream_id,
@@ -455,7 +461,7 @@ class AgentConfigurationBuilder(object):
 #        model_id = model_obj
 
         #retrive the stream info for this model
-        #todo: add stream info to the platofrom model create
+        #todo: add stream info to the platform model create
         #        streams_dict = platform_models_objs[0].custom_attributes['streams']
         #        if not streams_dict:
         #            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(platform_models_objs[0]) )
@@ -513,8 +519,44 @@ class AgentConfigurationBuilder(object):
 
 class ExternalDatasetAgentConfigurationBuilder(AgentConfigurationBuilder):
 
-    pass
-    # TODO
+    def _lookup_means(self):
+        agent_lookup_means = {}
+        agent_lookup_means[PRED.hasAgentInstance]   = RT.InstrumentDevice
+        agent_lookup_means[PRED.hasModel]           = RT.InstrumentModel
+        agent_lookup_means[PRED.hasAgentDefinition] = RT.ExternalDatasetAgent
+
+        return agent_lookup_means
+
+    def _generate_driver_config(self):
+        log.debug("_generate_driver_config for %s", self.agent_instance_obj.name)
+        # get default config
+        driver_config = super(ExternalDatasetAgentConfigurationBuilder, self)._generate_driver_config()
+
+        agent_instance_obj = self.agent_instance_obj
+        agent_obj = self._get_agent()
+
+        parser_cfg = copy.deepcopy(agent_obj.parser_default_config)
+        poller_cfg = copy.deepcopy(agent_obj.poller_default_config)
+
+        # Create driver config.
+        base_driver_config = {
+            'parser': {
+                'uri': agent_obj.parser_uri,
+                'module': agent_obj.parser_module,
+                'class': agent_obj.parser_class,
+                'config': parser_cfg,
+            },
+            'poller': {
+                'uri': agent_obj.poller_uri,
+                'module': agent_obj.poller_module,
+                'class': agent_obj.poller_class,
+                'config': poller_cfg,
+            },
+        }
+
+        res_driver_config = dict_merge(base_driver_config, driver_config)
+
+        return res_driver_config
 
 class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
 
@@ -525,7 +567,6 @@ class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
         instrument_agent_lookup_means[PRED.hasAgentDefinition] = RT.InstrumentAgent
 
         return instrument_agent_lookup_means
-
 
     def _generate_startup_config(self):
         log.debug("_generate_startup_config for %s", self.agent_instance_obj.name)
@@ -630,6 +671,5 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
             ConfigurationBuilder = ConfigurationBuilder_factory.create_by_agent_instance_type(agent_instance_type)
             ConfigurationBuilder.set_agent_instance_object(a)
             ret[d] = ConfigurationBuilder.prepare(will_launch=False)
-
 
         return ret

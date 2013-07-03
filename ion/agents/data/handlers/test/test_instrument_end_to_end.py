@@ -1,25 +1,32 @@
-from ion.services.sa.acquisition.test.test_bulk_data_ingestion import BulkIngestBase
-from interface.objects import ExternalDataset, AgentCommand
-from interface.objects import ContactInformation, UpdateDescription, DatasetDescription
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from pyon.event.event import EventSubscriber
-from coverage_model.parameter import ParameterContext
-from coverage_model.parameter_types import QuantityType, ArrayType
-from pyon.public import RT, log, PRED, OT
-from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+#!/usr/bin/env python
+
+import time
 import numpy as np
 from nose.plugins.attrib import attr
 from gevent.event import Event
+
+from pyon.event.event import EventSubscriber
+from pyon.public import RT, log, PRED, OT
+from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.ion.stream import StandaloneStreamSubscriber
-from ion.services.sa.acquisition.test.test_bulk_data_ingestion import FakeProcess
-from ion.core.includes.mi import DriverEvent
-from interface.services.sa.idata_acquisition_management_service import  DataAcquisitionManagementServiceClient
-import time
 from pyon.core.exception import NotFound
 
+from ion.services.sa.acquisition.test.test_bulk_data_ingestion import BulkIngestBase
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.sa.acquisition.test.test_bulk_data_ingestion import FakeProcess
+from ion.core.includes.mi import DriverEvent
+
+from coverage_model.parameter import ParameterContext
+from coverage_model.parameter_types import QuantityType, ArrayType
+
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.sa.idata_acquisition_management_service import  DataAcquisitionManagementServiceClient
+from interface.objects import ExternalDataset, AgentCommand
+from interface.objects import ContactInformation, UpdateDescription, DatasetDescription
+
 MAX_AGENT_START_TIME=300
+
 
 @attr('INT', group='eoi')
 class TestPreloadThenLoadDataset(IonIntegrationTestCase):
@@ -32,21 +39,10 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         # Start container
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        config = dict(op="load", scenario="BETA,NOSE", attachments="res/preload/r2_ioc/attachments")
+        config = dict(op="load", scenario="NOSE", attachments="res/preload/r2_ioc/attachments", path="master")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
         self.pubsub = PubsubManagementServiceClient()
         self.dams = DataAcquisitionManagementServiceClient()
-
-    def find_object_by_name(self, name, resource_type):
-        objects,_ = self.container.resource_registry.find_resources(resource_type)
-        self.assertTrue(len(objects) >= 1)
-#        filtered_objs = [obj for obj in objects if obj.name == name]
-        filtered_objs = []
-        for obj in objects:
-            if obj.name==name:
-                filtered_objs.append(obj)
-        self.assertEquals(len(filtered_objs), 1, msg='Found %d objects with name %s'%(len(filtered_objs),name))
-        return filtered_objs[0]
 
     def test_use_case(self):
         # setUp() has already started the container and performed the preload
@@ -58,18 +54,20 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.do_shutdown()
 
     def assert_dataset_loaded(self, name):
-#        self.external_dataset = self.find_object_by_name(name, RT.ExternalDataset)
-        self.device = self.find_object_by_name(name, RT.InstrumentDevice)
         rr = self.container.resource_registry
+#        self.external_dataset = self.find_object_by_name(name, RT.ExternalDataset)
+        devs, _ = rr.find_resources(RT.InstrumentDevice, name=name, id_only=False)
+        self.assertEquals(len(devs), 1)
+        self.device = devs[0]
         obj,_ = rr.find_objects(subject=self.device._id, predicate=PRED.hasAgentInstance, object_type=RT.ExternalDatasetAgentInstance)
         self.agent_instance = obj[0]
         obj,_ = rr.find_objects(object_type=RT.ExternalDatasetAgent, predicate=PRED.hasAgentDefinition, subject=self.agent_instance._id)
         self.agent = obj[0]
-        stream_definition_id = self.agent_instance.dataset_driver_config['dh_cfg']['stream_def'] if 'dh_cfg' in self.agent_instance.dataset_driver_config else self.agent_instance.dataset_driver_config['stream_def']
-        self.stream_definition = rr.read(stream_definition_id)
-#        data_producer_id = self.agent_instance.dataset_driver_config['dh_cfg']['data_producer_id'] if 'dh_cfg' in self.agent_instance.dataset_driver_config else self.agent_instance.dataset_driver_config['data_producer_id']
-#        self.data_producer = rr.read(data_producer_id) #subject="", predicate="", object_type="", assoc="", id_only=False)
-#        self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.external_dataset._id)
+
+        driver_cfg = self.agent_instance.driver_config
+        #stream_definition_id = driver_cfg['dh_cfg']['stream_def'] if 'dh_cfg' in driver_cfg else driver_cfg['stream_def']
+        #self.stream_definition = rr.read(stream_definition_id)
+
         self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.device._id)
         ids,_ = rr.find_objects(self.data_product._id, PRED.hasStream, RT.Stream, id_only=True)
         self.stream_id = ids[0]

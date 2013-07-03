@@ -589,6 +589,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
+        process_definition.name = "ProcessDefinition for InstrumentAgent %s" % instrument_agent.name
         process_definition.executable['url'] = instrument_agent.agent_uri
         process_definition.executable['module'] = instrument_agent.agent_module or 'ion.agents.instrument.instrument_agent'
         process_definition.executable['class'] = instrument_agent.agent_class or 'InstrumentAgent'
@@ -991,6 +992,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
+        process_definition.name = "ProcessDefinition for PlatformAgent %s" % platform_agent.name
         process_definition.executable['url'] = platform_agent.agent_uri
         process_definition.executable['module'] = platform_agent.agent_module or 'ion.agents.platform.platform_agent'
         process_definition.executable['class'] = platform_agent.agent_class or 'PlatformAgent'

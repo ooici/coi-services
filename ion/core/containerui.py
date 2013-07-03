@@ -402,9 +402,11 @@ def build_nested_obj(obj, prefix, edit=False):
         if field not in standard_resattrs:
             value = getattr(obj, field)
             if schema[field]["type"] in model_classes or isinstance(value, IonObjectBase):
+                value_type = value._get_type() if value else "None"
                 # Nested object case
-                fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], "[%s]" % value._get_type()))
-                fragments.extend(build_nested_obj(value, "%s%s." % (prefix,field), edit=edit))
+                fragments.append("<tr><td>%s%s</td><td>%s</td><td>%s</td>" % (prefix, field, schema[field]["type"], "[%s]" % value_type))
+                if value:
+                    fragments.extend(build_nested_obj(value, "%s%s." % (prefix,field), edit=edit))
             else:
                 value = get_formatted_value(value, fieldname=field, fieldtype=schema[field]["type"])
                 if edit and field not in EDIT_IGNORE_FIELDS and schema[field]["type"] not in EDIT_IGNORE_TYPES:
