@@ -288,6 +288,70 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
             return agt_cmds, agt_pars, res_cmds, res_pars
 
+        def verify_schema(caps_list):
+            
+            dd_list = ['display_name','description']
+            ddt_list = ['display_name','description','type']
+            ddvt_list = ['display_name','description','visibility','type']
+            ddak_list = ['display_name','description','args','kwargs']
+            kkvt_etc_list = ddvt_list.expand(['monitor_cycle_seconds','precision','min_val','max_val','units','group'])            
+            stream_list = ['raw', 'parsed']            
+            
+            for x in caps_list:
+                if isinstance(x,dict):
+                    x.pop('type_')
+                    x = IonObject('AgentCapability', **x)
+                
+                if x.cap_type == CapabilityType.AGT_CMD:
+                    keys = x.schema.keys()
+                    for y in ddak_list:
+                        self.assertIn(y, keys)
+                    
+                elif x.cap_type == CapabilityType.AGT_PAR:
+                        if x.name != 'example':
+                            keys = x.schema.keys()
+                            for y in ddvt_list:
+                                self.assertIn(y, keys)
+                        
+                elif x.cap_type == CapabilityType.RES_CMD:
+                    keys = x.schema.keys()
+                    for y in ddak_list:
+                        self.assertIn(y, keys)
+               
+                elif x.cap_type == CapabilityType.RES_IFACE:
+                    pass
+
+                elif x.cap_type == CapabilityType.RES_PAR:
+                    keys = x.schema.keys()
+                    for y in ddvt_etc_list:
+                        self.assertIn(y, keys)
+                        
+                elif x.cap_type == CapabilityType.AGT_STATES:
+                    for (k,v) in x.schema.iteritems():
+                        keys = v.keys()
+                        for y in dd_list:
+                            self.assertIn(y, keys)
+                
+                elif x.cap_type == CapabilityType.ALERT_DEFS:
+                    for (k,v) in x.schema.iteritems():
+                        keys = v.keys()
+                        for y in ddt_list:
+                            self.assertIn(y, keys)
+                                
+                elif x.cap_type == CapabilityType.AGT_CMD_ARGS:
+                    pass
+                    """
+                    for (k,v) in x.schema.iteritems():
+                        keys = v.keys()
+                        for y in ddt_list:
+                            self.assertIn(y, keys)
+                    """
+                
+                elif x.cap_type == CapabilityType.AGT_STREAMS:
+                    keys = x.schema.keys()
+                    for y in stream_list:
+                        self.assertIn(y, keys)
+
         agt_pars_all = [
             'example',
             'child_agg_status',
@@ -336,6 +400,9 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_pars, [])
 
+        print '###########'
+        for x in retval:
+            print str(x)
 
         ##################################################################
         # INACTIVE

@@ -37,6 +37,7 @@ from ion.agents.agent_alert_manager import AgentAlertManager
 
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
 
+
 from pyon.util.containers import DotDict
 
 from pyon.agent.common import BaseEnum
@@ -267,6 +268,9 @@ class PlatformAgent(ResourceAgent):
         #
         # TODO overall synchronization is also needed in other places!
         #
+        from ion.agents.platform.node_schema import get_schema
+
+        self._agent_schema = get_schema()
 
         #####################################
         log.info("PlatformAgent constructor complete.")
