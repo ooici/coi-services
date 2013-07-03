@@ -585,7 +585,7 @@ class PlatformAgent(ResourceAgent):
         """
         log.debug("%r: triggering driver event CONNECT", self._platform_id)
         self._trigger_driver_event(PlatformDriverEvent.CONNECT)
-
+        
         self._asp.reset_connection()
 
     def _go_inactive_this_platform(self):
@@ -625,7 +625,8 @@ class PlatformAgent(ResourceAgent):
             # destroy driver:
             self._plat_driver.destroy()
             self._plat_driver = None
-
+            self._resource_schema = {}
+            
         if self._asp:
             self._asp.reset()
 
@@ -853,6 +854,8 @@ class PlatformAgent(ResourceAgent):
         self._trigger_driver_event(PlatformDriverEvent.CONFIGURE, driver_config=self._driver_config)
 
         self._assert_driver_state(PlatformDriverState.DISCONNECTED)
+
+        self._resource_schema = self._plat_driver.get_config_metadata()
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: driver configured." % self._platform_id)

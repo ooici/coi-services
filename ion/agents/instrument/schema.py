@@ -98,7 +98,7 @@ DRIVER_CONFIG = {
             "required" : False,
             "type" : "str"     
         },
-        "comms_config" : "/command_args/comms_config"
+        "comms_config" : COMMS_CONFIG
     }
 }
 
@@ -114,7 +114,8 @@ AGENT_SCHEMA_V1 = {
                     [
                         {
                             "required" : False,
-                            "type" : "/command_args/driver_config"
+                            "type" : "dict",
+                            "valid_values" : [DRIVER_CONFIG]
                         }
                     ],
                 "kwargs" : {}

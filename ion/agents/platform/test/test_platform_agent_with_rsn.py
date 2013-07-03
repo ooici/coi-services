@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 # The following can be prefixed with PLAT_NETWORK=single to exercise the tests
 # with a single platform (with no sub-platforms). Otherwise a small network is
 # used. See HelperTestMixin.
-#
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_capabilities
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_some_state_transitions
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_get_set_resources

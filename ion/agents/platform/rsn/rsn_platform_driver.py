@@ -14,6 +14,8 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 import logging
 
+from copy import deepcopy
+
 from ion.agents.platform.platform_driver import PlatformDriver
 from ion.agents.platform.platform_driver import PlatformDriverState
 from ion.agents.platform.platform_driver import PlatformDriverEvent
@@ -100,7 +102,100 @@ class RSNPlatformDriver(PlatformDriver):
         @param driver_config with required 'oms_uri' entry.
         """
         PlatformDriver.configure(self, driver_config)
+        self._construct_resource_schema()
 
+    def _construct_resource_schema(self):
+        """
+        """
+        
+        parameters = deepcopy(self._driver_config.get('attributes',{}))
+        ports_dict = self._driver_config.get('ports',{})
+        ports = []
+        for k,v in ports_dict.iteritems():
+            ports.append(v['port_id'])
+        for k,v in parameters.iteritems():
+            read_write = v.get('read_write', None)
+            if read_write == 'write':
+                v['visibility'] = 'READ_WRITE'
+            else:
+                v['visibility'] = 'READ_ONLY'
+                
+        commands = {}
+        commands[RSNPlatformDriverEvent.CONNECT_INSTRUMENT] = \
+            {
+                "display_name" : "Connect Instrument",
+                "description" : "Connect an instrument to the platform.",
+                "args" : [], 
+                "kwargs" : {
+                    'port_id' : {
+                        "required" : True,
+                        "type" : "int",
+                        "valid_values" : ports
+                        },
+                    'instrument_id' : {
+                        "required" : True,
+                        "type" : "str"
+                        },
+                    'attributes' : {
+                        "required" : True,
+                        "type" : "dict"
+                        }                    
+                }
+            }
+        commands[RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT] = \
+            {
+                "display_name" : "Disconnect Instrument",
+                "description" : "Disconnect an instrument from the platform.",
+                "args" : [], 
+                "kwargs" : {
+                    'port_id' : {
+                        "required" : True,
+                        "type" : "int",
+                        "valid_values" : ports
+                        },
+                    'instrument_id' : {
+                        "required" : True,
+                        "type" : "str"
+                        }
+                }
+            }
+        commands[RSNPlatformDriverEvent.TURN_ON_PORT] = \
+            {
+                "display_name" : "Port Power On",
+                "description" : "Activate port power.",
+                "args" : [],
+                "kwargs" : {
+                       'port_id' : {
+                            "required" : True,
+                            "type" : "int",
+                            "valid_values" : ports
+                        }
+                }
+                     
+            }
+        commands[RSNPlatformDriverEvent.TURN_OFF_PORT] = \
+            {
+                "display_name" : "Port Power Off",
+                "description" : "Deactivate port power.",
+                "args" : [],
+                "kwargs" : {
+                       'port_id' : {
+                            "required" : True,
+                            "type" : "int",
+                            "valid_values" : ports
+                        }
+                }
+            }
+        commands[RSNPlatformDriverEvent.CHECK_SYNC] = \
+            {
+                "display_name" : "Check Platform Hierarchy",
+                "description" : "Verify the platform hierarchy is consistent with OMS.",
+                "args" : [],
+                "kwargs" : {}
+            }       
+        self._resource_schema['parameters'] = parameters
+        self._resource_schema['commands'] = commands
+                
     def _assert_rsn_oms(self):
         assert self._rsn_oms is not None, "_rsn_oms object required (created via connect() call)"
 
