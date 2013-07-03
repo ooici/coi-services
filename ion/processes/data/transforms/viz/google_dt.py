@@ -128,10 +128,12 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         total_num_of_records = len(rdt[time_field])
         data_description.append(('time','number','time'))
 
-
         ###### DEBUG ##########
         #for field in fields:
-        #    print "  '", field, "' : ", rdt[field]
+        #    if hasattr(rdt.context(field),'visible'):
+        #        print "  >>>>>>>> '", field, "' [visible = ", rdt.context(field).visible,"] : ", rdt[field]
+        #    else:
+        #        print "  >>>>>>>> '", field, "' [visible = NOT SPECIFIED] : ", rdt[field]
 
         import re
         for field in fields:
@@ -139,17 +141,19 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             if field == time_field:
                 continue
 
+            rdt_field = rdt[field]
             # If a config block was passed, consider only the params listed in it
             if config and 'parameters' in config and len(config['parameters']) > 0:
                 if not field in config['parameters']:
                     log.info("Skipping ", field, " since it was not present in the list of allowed parameters")
                     continue
 
-            # only consider fields which are allowed.
-            if rdt[field] == None:
-                rdt[field] = [fill_values[field]] * total_num_of_records
+            # If the value is none, assign it a small one fill_value array for now to generate description,
+            # Actual array of fill_values will be assigned later
+            if rdt_field == None:
+                rdt_field = np.array([fill_values[field]])
 
-            # Check if visibility is false (system generated params)
+            # Check if visibility is false (system generated params) or not specified explicitly
             if hasattr(rdt.context(field),'visible') and not rdt.context(field).visible:
                 continue
 
@@ -159,10 +163,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             # Handle string type or if its an unknown type, convert to string
             context = rdt.context(field)
-            if (rdt[field].dtype == 'string' or rdt[field].dtype not in gdt_allowed_numerical_types):
+            if (rdt_field.dtype == 'string' or rdt_field.dtype not in gdt_allowed_numerical_types):
                 data_description.append((field, 'string', field ))
-            elif (isinstance(context.param_type, ArrayType) or isinstance(context.param_type,ParameterFunctionType)) and len(rdt[field].shape)>1:
-                for i in xrange(rdt[field].shape[1]):
+            elif (isinstance(context.param_type, ArrayType) or isinstance(context.param_type,ParameterFunctionType)) and len(rdt_field.shape)>1:
+                for i in xrange(rdt_field.shape[1]):
                     data_description.append(('%s[%s]' % (field,i), 'number', '%s[%s]' % (field,i), {'precision':str(precisions[field])}))
             else:
                 data_description.append((field, 'number', field, {'precision':str(precisions[field])} ))
@@ -184,27 +188,31 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                 if field == None or field == time_field:
                     continue
 
+                rdt_field = rdt[field]
+                if rdt_field == None:
+                    rdt_field = np.array([fill_values[field]] * total_num_of_records)
+
                 if re.match(r'.*\[\d+\]', field):
                     field, j = re.match(r'(.*)\[(\d+)\]', field).groups()
                     j = int(j)
-                    varTuple.append(float(rdt[field][i][j]))
-                elif rdt[field] == None or rdt[field][i] == None:
+                    varTuple.append(float(rdt_field[i][j]))
+                elif rdt_field == None or rdt_field[i] == None:
                     varTuple.append(None)
                 else:
                     if(field_type == 'number'):
-                        if rdt[field][i] == None or rdt[field][i] == fill_values[field]:
+                        if rdt_field[i] == None or rdt_field[i] == fill_values[field]:
                             varTuple.append(None)
                         else:
                             # Adjust float for precision
                             if (precisions[field] == None):
-                                varTuple.append(float(rdt[field][i]))
+                                varTuple.append(float(rdt_field[i]))
                             else:
-                                varTuple.append(round(float(rdt[field][i]), precisions[field]))
+                                varTuple.append(round(float(rdt_field[i]), precisions[field]))
 
                     # if field type is string, there are two possibilities. Either it really is a string or
                     # its an object that needs to be converted to string.
                     if(field_type == 'string'):
-                        varTuple.append(str(rdt[field][i]))
+                        varTuple.append(str(rdt_field[i]))
 
             # Append the tuples to the data table
             if len(varTuple) > 0:
