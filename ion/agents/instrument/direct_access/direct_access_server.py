@@ -5,24 +5,32 @@ __license__ = 'Apache 2.0'
 
 from pyon.util.log import log
 from pyon.core.exception import ServerError
-from ion.agents.instrument.exceptions import NotImplementedException
+from ion.agents.instrument.exceptions import NotImplementedException, InstrumentTimeoutException
 import time
 import gevent
 import uuid
 import errno
+import sys
 
 
 class DirectAccessTypes:
     # set up range so values line up with attributes of class to get enum names back
     # using 'dir(DirectAccessTypes)[enum_value]
-    # NOTE: list names must be alphabetical for this to work
+    # NOTE: list names must be in alphabetical order for this to work
     (ssh, telnet, vsp) = range(2, 5)
     
 class SessionCloseReasons:
-    # set up range so values line up with attributes of class to get enum names back
-    # using 'dir(SessionCloseReasons)[enum_value]
-    # NOTE: list names must be alphabetical for this to work
-    (client_closed, inactivity_timeout, parent_closed, session_timeout) = range(2, 6)
+    enum_range = range(0, 5)
+    (client_closed, inactivity_timeout, parent_closed, session_timeout, unspecified_reason) = enum_range
+    str_rep = ['client closed', 'inactivity timeout', 'parent closed', 'session timeout', 'unspecified reason']
+    
+    @staticmethod
+    def string(enum_value):
+        if not isinstance(enum_value, int):
+            return 'SessionCloseReasons.string: enum not an int'
+        if enum_value not in SessionCloseReasons.enum_range:
+            return 'unrecognized reason - %d' %enum_value
+        return SessionCloseReasons.str_rep[enum_value]
            
 
 """
@@ -98,14 +106,22 @@ class TcpServer(object):
         return False
     
     
-    def stop(self, reason=None):
+    def stop(self, reason):
         if self.already_stopping == True:
             log.debug("TcpServer.stop(): already stopping")
             return
-        log.debug("TcpServer.stop(): stopping telnet server - reason = %s", dir(SessionCloseReasons)[reason])
-        if (reason):
-            self.close_reason = reason
-        self.server.kill()
+        if not reason in SessionCloseReasons.enum_range:
+            log.debug("TcpServer.stop(): unrecognized reason = %d" %reason)     
+            reason = SessionCloseReasons.unspecified_reason
+        log.debug("TcpServer.stop(): stopping TCP server - reason = %s", SessionCloseReasons.string(reason))     
+        self.close_reason = reason
+        reason_str = str(SessionCloseReasons.string(reason))
+        try:
+            timeout_exception = InstrumentTimeoutException("session closed due to %s" %reason_str)
+        except Exception as ex:
+            log.debug("TcpServer.stop(): exception caught creating timeout exception - %s" %ex)                 
+            timeout_exception = InstrumentTimeoutException("session closed due to an unrecognized reason")
+        self.server.kill(exception=timeout_exception)
         log.debug("TcpServer.stop(): server killed")
             
 
@@ -149,8 +165,6 @@ class TcpServer(object):
     def _exit_handler (self, reason):
         log.debug("TcpServer._exit_handler(): stopping, " + reason)
         self.already_stopping = True
-        # indicate to parent that connection seems to have been closed by client
-        self.parent_input_callback(self.close_reason)
     
 
     def _handler(self):
@@ -168,9 +182,11 @@ class TcpServer(object):
             self._handler()
         except Exception as ex:
             log.info("TcpServer._server_greenlet(): exception caught <%s>" %str(ex))
+        finally:
             if self.close_reason != SessionCloseReasons.parent_closed:
                 # indicate to parent that connection has been closed if it didn't initiate it
-                log.debug("TcpServer._server_greenlet(): telling parent to close session")
+                log.debug("TcpServer._server_greenlet(): telling parent to close session, reason = %s"
+                          %SessionCloseReasons.string(self.close_reason))
                 self.parent_input_callback(self.close_reason)
         log.debug("TcpServer._server_greenlet(): stopped")
         
@@ -185,6 +201,7 @@ class TelnetServer(TcpServer):
     # 'do echo' command sequence to be sent back from telnet client
     DO_ECHO_CMD   = '\xff\xfb\x03\xff\xfd\x03\xff\xfd\x01'
     
+
     def _setup_session(self):
         # negotiate with the telnet client to have server echo characters
         response = input = ''
@@ -213,6 +230,7 @@ class TelnetServer(TcpServer):
                 self._writeline("session negotiation with telnet client failed, closing connection")
                 return False            
             
+
     def _handler(self):
         "The actual telnet server to which the user has connected."
         log.debug("TelnetServer._handler(): starting")
@@ -338,13 +356,16 @@ class DirectAccessServer(object):
         if self.already_stopping == True:
             log.debug("DirectAccessServer.stop(): already stopping")
             return
-        log.debug("DirectAccessServer.stop(): stopping DA server - reason = %s", dir(SessionCloseReasons)[reason])
+        log.debug("DirectAccessServer.stop(): stopping DA server - reason = %s (%d)", 
+                  SessionCloseReasons.string(reason), reason)
         self.already_stopping = True
         if self.server:
+            log.debug("DirectAccessServer.stop(): stopping TCP server")
             self.server.stop(reason)
             del self.server
         if self.timer and reason == SessionCloseReasons.parent_closed:
             # timer didn't initiate the stop, so kill it
+            log.debug("DirectAccessServer.stop(): stopping timer")
             try:
                 self.timer.kill()
             except Exception as ex:

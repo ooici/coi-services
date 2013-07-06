@@ -714,6 +714,7 @@ class InstrumentAgent(ResourceAgent):
                  self._da_session_close_reason)
         # tell driver to stop direct access mode
         next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
+        log.info("_handler_direct_access_go_command: next_state returned from driver = %s" %next_state)
         # stop DA server
         if (self._da_server):
             self._da_server.stop()
