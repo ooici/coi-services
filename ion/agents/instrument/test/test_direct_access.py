@@ -269,7 +269,7 @@ class TcpClient():
         try:
             assert_success(self.expect, "Username: ")
             assert_success(self.send_data, "someone\r\n")
-            assert_success(self.expect, "tOken: ")
+            assert_success(self.expect, "token: ")
             assert_success(self.send_data, token + "\r\n")
             assert_success(self.do_telnet_handshake)
             assert_success(self.expect, "connected\r\n")
@@ -306,7 +306,10 @@ class TcpClient():
             delta = time.time() - starttime
             if delta > timeout:
                 break
-        return found            
+        if prompt == None:
+            return found, self.buf 
+        else:
+            return found           
                 
 
 class FakeProcess(LocalContextMixin):
@@ -710,8 +713,8 @@ class InstrumentAgentTest():
                 return True
             if time.time() >= end_time:
                 self.fail("assertInstrumentAgentState: IA failed to transition to %s state" %expected_state)
-            gevent.sleep(1)
-            #time.sleep(1)
+            #gevent.sleep(1)
+            time.sleep(2)
                 
     
     def assertSetInstrumentState(self, command, new_state):
@@ -744,9 +747,9 @@ class InstrumentAgentTest():
         self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
-                            kwargs={'session_type':DirectAccessTypes.vsp,
-                            'session_timeout':600,
-                            'inactivity_timeout':600})
+                           kwargs={'session_type':DirectAccessTypes.vsp,
+                           'session_timeout':600,
+                           'inactivity_timeout':600})
         
         retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
 
@@ -832,9 +835,9 @@ class InstrumentAgentTest():
         self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
-                            kwargs={'session_type': DirectAccessTypes.telnet,
-                            'session_timeout':600,
-                            'inactivity_timeout':600})
+                           kwargs={'session_type': DirectAccessTypes.telnet,
+                           'session_timeout':600,
+                           'inactivity_timeout':600})
         
         retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
 
@@ -907,7 +910,91 @@ class InstrumentAgentTest():
         
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
-    def test_direct_access_session_timeout(self):
+    def test_direct_access_vsp_client_disconnect(self):
+        """
+        Test agent direct_access mode for virtual serial port with client disconnect. This causes creation of
+        driver process and transition to direct access.
+        """
+
+        self.assertInstrumentAgentState(ResourceAgentState.UNINITIALIZED)
+    
+        self.assertSetInstrumentState(ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
+                           kwargs={'session_type':DirectAccessTypes.vsp,
+                           'session_timeout':600,
+                           'inactivity_timeout':600})
+        
+        retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
+
+        log.info("GO_DIRECT_ACCESS retval=" + str(retval.result))
+
+        # {'status': 0, 'type_': 'AgentCommandResult', 'command': 'RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS',
+        # 'result': {'token': 'F2B6EED3-F926-4B3B-AE80-4F8DE79276F3', 'ip_address': 'Edwards-MacBook-Pro.local', 'port': 8000},
+        # 'ts_execute': '1344889063861', 'command_id': ''}
+        
+        host = retval.result['ip_address']
+        port = retval.result['port']
+        token = retval.result['token']
+        
+        tcp_client = TcpClient(host, port)
+        
+        self.assertTrue(tcp_client.send_data('ts\r\n'))
+        
+        tcp_client.disconnect()
+
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+                
+        self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
+        
+    def test_direct_access_telnet_client_disconnect(self):
+        """
+        Test agent direct_access mode for telnet client disconnect. This causes creation of
+        driver process and transition to direct access.
+        """
+
+        self.assertInstrumentAgentState(ResourceAgentState.UNINITIALIZED)
+    
+        self.assertSetInstrumentState(ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
+                           kwargs={'session_type': DirectAccessTypes.telnet,
+                           'session_timeout':600,
+                           'inactivity_timeout':600})
+        
+        retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
+
+        log.info("GO_DIRECT_ACCESS retval=" + str(retval.result))
+
+        # {'status': 0, 'type_': 'AgentCommandResult', 'command': 'RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS',
+        # 'result': {'token': 'F2B6EED3-F926-4B3B-AE80-4F8DE79276F3', 'ip_address': 'Edwards-MacBook-Pro.local', 'port': 8000},
+        # 'ts_execute': '1344889063861', 'command_id': ''}
+        
+        host = retval.result['ip_address']
+        port = retval.result['port']
+        token = retval.result['token']
+        
+        tcp_client = TcpClient(host, port)
+        
+        self.assertTrue(tcp_client.start_telnet(token))
+
+        self.assertTrue(tcp_client.send_data('ts\r\n'))
+        
+        tcp_client.disconnect()
+
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+                
+        self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
+        
+    def test_direct_access_vsp_session_timeout(self):
         """
         Test agent session timeout for direct_access mode. This causes creation of
         driver process and transition to direct access.
@@ -922,10 +1009,9 @@ class InstrumentAgentTest():
         self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
-                            #kwargs={'session_type': DirectAccessTypes.telnet,
-                            kwargs={'session_type':DirectAccessTypes.vsp,
-                            'session_timeout':10,
-                            'inactivity_timeout':600})
+                           kwargs={'session_type':DirectAccessTypes.vsp,
+                           'session_timeout':10,
+                           'inactivity_timeout':600})
         
         retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
 
@@ -939,7 +1025,46 @@ class InstrumentAgentTest():
         
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
-    def test_direct_access_inactivity_timeout(self):
+    def test_direct_access_telnet_session_timeout(self):
+        """
+        Test agent session timeout for direct_access mode. This causes creation of
+        driver process and transition to direct access.
+        """
+
+        self.assertInstrumentAgentState(ResourceAgentState.UNINITIALIZED)
+    
+        self.assertSetInstrumentState(ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
+                           kwargs={'session_type': DirectAccessTypes.telnet,
+                           'session_timeout':10,
+                           'inactivity_timeout':600})
+        
+        retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
+
+        log.info("GO_DIRECT_ACCESS retval=" + str(retval.result))
+
+        # {'status': 0, 'type_': 'AgentCommandResult', 'command': 'RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS',
+        # 'result': {'token': 'F2B6EED3-F926-4B3B-AE80-4F8DE79276F3', 'ip_address': 'Edwards-MacBook-Pro.local', 'port': 8000},
+        # 'ts_execute': '1344889063861', 'command_id': ''}
+
+        host = retval.result['ip_address']
+        port = retval.result['port']
+        token = retval.result['token']
+        
+        tcp_client = TcpClient(host, port)
+        
+        self.assertTrue(tcp_client.start_telnet(token))
+
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+        
+        self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
+        
+    def test_direct_access_vsp_inactivity_timeout(self):
         """
         Test agent inactivity timeout for direct_access mode. This causes creation of
         driver process and transition to direct access.
@@ -954,10 +1079,9 @@ class InstrumentAgentTest():
         self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
-                            #kwargs={'session_type': DirectAccessTypes.telnet,
-                            kwargs={'session_type':DirectAccessTypes.vsp,
-                            'session_timeout':600,
-                            'inactivity_timeout':10})
+                           kwargs={'session_type':DirectAccessTypes.vsp,
+                           'session_timeout':600,
+                           'inactivity_timeout':10})
         
         retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
 
@@ -966,6 +1090,45 @@ class InstrumentAgentTest():
         # {'status': 0, 'type_': 'AgentCommandResult', 'command': 'RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS',
         # 'result': {'token': 'F2B6EED3-F926-4B3B-AE80-4F8DE79276F3', 'ip_address': 'Edwards-MacBook-Pro.local', 'port': 8000},
         # 'ts_execute': '1344889063861', 'command_id': ''}
+
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+        
+        self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
+        
+    def test_direct_access_telnet_inactivity_timeout(self):
+        """
+        Test agent inactivity timeout for direct_access mode. This causes creation of
+        driver process and transition to direct access.
+        """
+
+        self.assertInstrumentAgentState(ResourceAgentState.UNINITIALIZED)
+    
+        self.assertSetInstrumentState(ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
+                           kwargs={'session_type': DirectAccessTypes.telnet,
+                           'session_timeout':600,
+                           'inactivity_timeout':10})
+        
+        retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
+
+        log.info("GO_DIRECT_ACCESS retval=" + str(retval.result))
+
+        # {'status': 0, 'type_': 'AgentCommandResult', 'command': 'RESOURCE_AGENT_EVENT_GO_DIRECT_ACCESS',
+        # 'result': {'token': 'F2B6EED3-F926-4B3B-AE80-4F8DE79276F3', 'ip_address': 'Edwards-MacBook-Pro.local', 'port': 8000},
+        # 'ts_execute': '1344889063861', 'command_id': ''}
+
+        host = retval.result['ip_address']
+        port = retval.result['port']
+        token = retval.result['token']
+        
+        tcp_client = TcpClient(host, port)
+        
+        self.assertTrue(tcp_client.start_telnet(token))
 
         self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
         
@@ -997,10 +1160,9 @@ class InstrumentAgentTest():
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
-                            #kwargs={'session_type': DirectAccessTypes.telnet,
-                            kwargs={'session_type':DirectAccessTypes.vsp,
-                            'session_timeout':600,
-                            'inactivity_timeout':600})
+                           kwargs={'session_type':DirectAccessTypes.vsp,
+                           'session_timeout':600,
+                           'inactivity_timeout':600})
         
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
