@@ -236,6 +236,7 @@ class TcpClient():
         @param port: host port
         '''
         self.buf = ""
+        s = None
 
         if(host and port):
             self._connect(host, port)
@@ -250,6 +251,7 @@ class TcpClient():
         log.debug("TcpClient.disconnect:")
         if(self.s):
             self.s.close()
+            self.s = None
 
     def do_telnet_handshake(self):
         if(self.expect(self.WILL_ECHO_CMD)):
@@ -279,6 +281,8 @@ class TcpClient():
         return True
     
     def send_data(self, data):
+        if self.s == None:
+            return False
         log.debug("TcpClient.send_data: data to send = [" + repr(data) + "]")
         try:
             self.s.sendall(data)
@@ -289,6 +293,8 @@ class TcpClient():
 
     def expect(self, prompt, timeout=1):
 
+        if self.s == None:
+            return False
         self.buf = ''
         found = False
         starttime = time.time() 
@@ -713,8 +719,7 @@ class InstrumentAgentTest():
                 return True
             if time.time() >= end_time:
                 self.fail("assertInstrumentAgentState: IA failed to transition to %s state" %expected_state)
-            #gevent.sleep(1)
-            time.sleep(2)
+            gevent.sleep(1)
                 
     
     def assertSetInstrumentState(self, command, new_state):
