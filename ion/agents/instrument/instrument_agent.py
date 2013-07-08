@@ -709,16 +709,19 @@ class InstrumentAgent(ResourceAgent):
     # DIRECT_ACCESS event handlers.
     ##############################################################    
 
+    def _handler_direct_access_execute_resource(self, *args, **kwargs):
+        return self._dvr_client.cmd_dvr('execute_direct', *args, **kwargs)
+
     def _handler_direct_access_go_command(self, *args, **kwargs):
         log.info("Instrument agent requested to stop direct access mode - %s",
                  self._da_session_close_reason)
-        # tell driver to stop direct access mode
-        next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
-        log.info("_handler_direct_access_go_command: next_state returned from driver = %s" %next_state)
         # stop DA server
         if (self._da_server):
             self._da_server.stop()
             self._da_server = None
+        # tell driver to stop direct access mode
+        next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
+        log.info("_handler_direct_access_go_command: next_state returned from driver = %s" %next_state)
         # re-set the 'reason' to be the default
         self._da_session_close_reason = 'due to ION request'
         return (next_state, None)
@@ -1053,7 +1056,7 @@ class InstrumentAgent(ResourceAgent):
         Send async DA event.
         """
         try:
-            evt = "Unknown"
+            evt = "Direct Access"
             if (self._da_server):
                 if (val):
                     self._da_server.send(val)
@@ -1064,8 +1067,8 @@ class InstrumentAgent(ResourceAgent):
                 log.error('Instrument agent %s error %s processing driver event %s',
                           self._proc_name, '<no DA server>', str(evt))
         except:
-            log.error('Instrument agent %s could not publish driver result event.',
-                      self._proc_name)            
+            log.error('Instrument agent %s error %s driver event %s',
+                      self._proc_name, 'could not process', str(evt))            
 
     def _async_driver_event_agent_event(self, val, ts):
         """
@@ -1189,6 +1192,7 @@ class InstrumentAgent(ResourceAgent):
         # DIRECT_ACCESS state event handlers.
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GO_COMMAND, self._handler_direct_access_go_command)
+        self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_direct_access_execute_resource)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
@@ -1464,13 +1468,19 @@ class InstrumentAgent(ResourceAgent):
             elif data == SessionCloseReasons.inactivity_timeout:
                 self._da_session_close_reason = "due to inactivity"
             else:
-                log.error("InstAgent.telnet_input_processor: got unexpected integer " + str(data))
+                log.error("InstAgent._da_server_input_processor: got unexpected integer " + str(data))
                 return
-            log.warning("InstAgent.telnet_input_processor: connection closed %s" %self._da_session_close_reason)
+            log.warning("InstAgent._da_server_input_processor: connection closed %s" %self._da_session_close_reason)
             cmd = AgentCommand(command=ResourceAgentEvent.GO_COMMAND)
             self.execute_agent(command=cmd)
             return
-        log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
-        # send the data to the driver
-        self._dvr_client.cmd_dvr('execute_direct', data)
+        log.debug("InstAgent._da_server_input_processor: data = <" + str(data) + "> len=" + str(len(data)))
+        state = self._fsm.get_current_state()
+        if state == ResourceAgentState.DIRECT_ACCESS:
+            # send the data to the driver using the fsm to utilize the thread safe blocking to avoid race conditions
+            cmd = AgentCommand(command=ResourceAgentEvent.EXECUTE_RESOURCE, args=[data])
+            self.execute_agent(command=cmd)
+        else:
+            log.debug("InstAgent._da_server_input_processor: IA not in DA state, data not forwarded to driver")
+            
 
