@@ -25,7 +25,7 @@ from interface.services.sa.idata_acquisition_management_service import  DataAcqu
 from interface.objects import ExternalDataset, AgentCommand
 from interface.objects import ContactInformation, UpdateDescription, DatasetDescription
 
-MAX_AGENT_START_TIME=300
+MAX_AGENT_START_TIME = 300
 
 
 @attr('INT', group='eoi')
@@ -68,8 +68,8 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         #stream_definition_id = driver_cfg['dh_cfg']['stream_def'] if 'dh_cfg' in driver_cfg else driver_cfg['stream_def']
         #self.stream_definition = rr.read(stream_definition_id)
 
-        self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.device._id)
-        ids,_ = rr.find_objects(self.data_product._id, PRED.hasStream, RT.Stream, id_only=True)
+        self.data_product = rr.read_object(subject=self.device._id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct)
+        ids,_ = rr.find_objects(subject=self.data_product._id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         self.stream_id = ids[0]
         self.route = self.pubsub.read_stream_route(self.stream_id)
 
@@ -99,7 +99,6 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.addCleanup(es.stop)
 
     def do_read_dataset(self):
-
         self.dams.start_external_dataset_agent_instance(self.agent_instance._id)
         #
         # should i wait for process (above) to start
@@ -107,16 +106,20 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         #
         self.client = None
         end = time.time() + MAX_AGENT_START_TIME
-        while time.time()<end:
+        while not self.client and time.time() < end:
             try:
                 self.client = ResourceAgentClient(self.device._id, process=FakeProcess())
             except NotFound:
-                time.sleep(10)
+                time.sleep(2)
         if not self.client:
-            self.fail(msg='external dataset agent process did not start in %d seconds'%MAX_AGENT_START_TIME)
+            self.fail(msg='external dataset agent process did not start in %d seconds' % MAX_AGENT_START_TIME)
+        print "!!!do_read_dataset #5"
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE))
+        print "!!!do_read_dataset #6"
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE))
+        print "!!!do_read_dataset #7"
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN))
+        print "!!!do_read_dataset #8"
         self.client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE))
 
     def assert_data_received(self):

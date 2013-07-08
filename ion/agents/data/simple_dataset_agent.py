@@ -103,8 +103,10 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
     def __init__(self,*a,**b):
         super(TwoDelegateDatasetAgent,self).__init__(*a,**b)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_streaming_execute_resource)
+        log.warn("DRIVER: __init__")
 
     def _start_driver(self, dvr_config):
+        log.warn("DRIVER: _start_driver: %s", dvr_config)
         try:
             self.set_configuration(dvr_config)
         except:
@@ -135,6 +137,7 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
         return (ResourceAgentState.IDLE, None)
 
     def cmd_dvr(self, cmd, *args, **kwargs):
+        log.warn("DRIVER: cmd_dvr %s", cmd)
         if cmd == 'execute_start_autosample':
             # Delegate to BaseDataHandler.execute_start_autosample()
             self.start_sampling()
@@ -158,6 +161,7 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
         return out
 
     def set_configuration(self, config):
+        log.warn("DRIVER: set_configuration")
         """
         expect configuration to have:
         - parser module/class

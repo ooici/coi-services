@@ -242,7 +242,7 @@ class AgentConfigurationBuilder(object):
             self.RR2.find_parameter_contexts_of_parameter_dictionary_using_has_parameter_context(dict_obj._id)
         return DatasetManagementService.build_parameter_dictionary(dict_obj, parameter_contexts)
 
-    def _meet_in_the_middle(self, dp_id, pdict_id):
+    def _find_streamdef_for_dp_and_pdict(self, dp_id, pdict_id):
         # Given a pdict_id and a data_product_id find the stream def in the middle
         pdict_stream_defs = self.RR2.find_stream_definition_ids_by_parameter_dictionary_using_has_parameter_dictionary(pdict_id)
         stream_def_id = self.RR2.find_stream_definition_id_of_data_product_using_has_stream_definition(dp_id)
@@ -275,10 +275,10 @@ class AgentConfigurationBuilder(object):
         stream_config = {}
         for d in data_product_objs:
             stream_def_id = self.RR2.find_stream_definition_id_of_data_product_using_has_stream_definition(d._id)
-            for model_stream_name, stream_info_dict in streams_dict.items():
+            for stream_name, stream_info_dict in streams_dict.items():
                 # read objects from cache to be compared
                 pdict = self.RR2.find_resource_by_name(RT.ParameterDictionary, stream_info_dict.get('param_dict_name'))
-                stream_def_id = self._meet_in_the_middle(d._id, pdict._id)
+                stream_def_id = self._find_streamdef_for_dp_and_pdict(d._id, pdict._id)
 
                 if stream_def_id:
                     #model_param_dict = self.RR2.find_resources_by_name(RT.ParameterDictionary,
@@ -288,15 +288,15 @@ class AgentConfigurationBuilder(object):
                     product_stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(d._id)
                     stream_def = psm.read_stream_definition(stream_def_id)
                     stream_route = psm.read_stream_route(stream_id=product_stream_id)
-                    
+
                     from pyon.core.object import IonObjectSerializer
                     stream_def_dict = IonObjectSerializer().serialize(stream_def)
                     sdtype = stream_def_dict.pop('type_')
 
-                    if model_stream_name in stream_config:
-                        log.warn("Overwriting stream_config[%s]", model_stream_name)
+                    if stream_name in stream_config:
+                        log.warn("Overwriting stream_config[%s]", stream_name)
 
-                    stream_config[model_stream_name] = {'routing_key'           : stream_route.routing_key,
+                    stream_config[stream_name] = {'routing_key'           : stream_route.routing_key,
                                                         'stream_id'             : product_stream_id,
                                                         'stream_definition_ref' : stream_def_id,
                                                         'stream_def_dict'       : stream_def_dict,

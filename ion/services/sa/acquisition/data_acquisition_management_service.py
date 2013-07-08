@@ -720,14 +720,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # if log.isEnabledFor(logging.DEBUG):
         #     log.debug('stream def: %r', {key: getattr(stream_def_obj, key) for key in stream_def_obj._schema})
 
-        # agent_config = parse_dict(row['agent_config'])
-        # agent_config.update( {
-        #     'driver_config' : driver_config,
-        #     'stream_config' : { },
-        #     'agent'         : {'resource_id': source_id},
-        # } )
-        #
-
         # dataset_agent_instance_obj.dataset_agent_config['driver_config']['parameter_dict'] = stream_def_obj.parameter_dictionary
         # dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_id'] = stream_id
         # dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_route'] = {key: getattr(route, key) for key in route._schema}
@@ -738,6 +730,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         try:
             config_builder.set_agent_instance_object(dataset_agent_instance_obj)
             config = config_builder.prepare()
+            import pprint
+            pprint.pprint(config)
         except:
             log.error('failed to launch', exc_info=True)
             raise ServerError('failed to launch')
