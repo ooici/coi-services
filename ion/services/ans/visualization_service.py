@@ -521,6 +521,7 @@ class VisualizationService(BaseVisualizationService):
         gdt_stream_def = self.clients.pubsub_management.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
 
         gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(retrieved_granule, params=gdt_stream_def, config=visualization_parameters)
+
         if gdt_data_granule == None:
             return empty_gdt.ToJSon()
 

@@ -82,7 +82,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         stream_definition_id = params
 
         #init stuff
-        data_description = []
+        rdt_for_nones = {}
         data_table_content = []
         gdt_allowed_numerical_types = ['int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32',
                                        'uint64', 'float32', 'float64','str']
@@ -141,7 +141,6 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             if field == time_field:
                 continue
 
-            rdt_field = rdt[field]
             # If a config block was passed, consider only the params listed in it
             if config and 'parameters' in config and len(config['parameters']) > 0:
                 if not field in config['parameters']:
@@ -150,8 +149,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             # If the value is none, assign it a small one fill_value array for now to generate description,
             # Actual array of fill_values will be assigned later
+            rdt_field =rdt[field]
             if rdt_field == None:
-                rdt_field = np.array([fill_values[field]])
+                rdt_for_nones[field] = np.array([fill_values[field]] * total_num_of_records)
+                rdt_field = rdt_for_nones[field]
 
             # Check if visibility is false (system generated params) or not specified explicitly
             if hasattr(rdt.context(field),'visible') and not rdt.context(field).visible:
@@ -188,31 +189,34 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                 if field == None or field == time_field:
                     continue
 
+                """
                 rdt_field = rdt[field]
                 if rdt_field == None:
                     rdt_field = np.array([fill_values[field]] * total_num_of_records)
+                """
 
                 if re.match(r'.*\[\d+\]', field):
                     field, j = re.match(r'(.*)\[(\d+)\]', field).groups()
                     j = int(j)
-                    varTuple.append(float(rdt_field[i][j]))
-                elif rdt_field == None or rdt_field[i] == None:
-                    varTuple.append(None)
+                    varTuple.append(float(rdt[field][i][j]))
                 else:
                     if(field_type == 'number'):
-                        if rdt_field[i] == None or rdt_field[i] == fill_values[field]:
+                        if rdt[field] == None or rdt[field][i] == fill_values[field]:
                             varTuple.append(None)
                         else:
                             # Adjust float for precision
                             if (precisions[field] == None):
-                                varTuple.append(float(rdt_field[i]))
+                                varTuple.append(float(rdt[field][i]))
                             else:
-                                varTuple.append(round(float(rdt_field[i]), precisions[field]))
+                                varTuple.append(round(float(rdt[field][i]), precisions[field]))
 
                     # if field type is string, there are two possibilities. Either it really is a string or
                     # its an object that needs to be converted to string.
                     if(field_type == 'string'):
-                        varTuple.append(str(rdt_field[i]))
+                        if rdt[field] == None or rdt[field][i] == fill_values[field]:
+                            varTuple.append(None)
+                        else:
+                            varTuple.append(str(rdt[field][i]))
 
             # Append the tuples to the data table
             if len(varTuple) > 0:
@@ -225,6 +229,8 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                     "data_description" : data_description,
                     "data_content" : data_table_content}
 
+
+
         out_rdt["google_dt_components"] = np.array([out_dict])
         out_rdt["viz_timestamp"] = TimeUtils.ts_to_units(rdt.context(time_field).uom, time.time())
 
@@ -232,3 +238,4 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         out_granule = out_rdt.to_granule()
 
         return out_granule
+
