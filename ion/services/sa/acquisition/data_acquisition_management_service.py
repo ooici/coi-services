@@ -730,8 +730,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         try:
             config_builder.set_agent_instance_object(dataset_agent_instance_obj)
             config = config_builder.prepare()
-            import pprint
-            pprint.pprint(config)
+            # import pprint
+            # pprint.pprint(config)
         except:
             log.error('failed to launch', exc_info=True)
             raise ServerError('failed to launch')
@@ -745,7 +745,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         launcher.await_launch(10.0)
 
         return process_id
-
 
 
     def stop_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):

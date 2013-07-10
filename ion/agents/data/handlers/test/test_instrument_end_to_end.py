@@ -113,13 +113,9 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
                 time.sleep(2)
         if not self.client:
             self.fail(msg='external dataset agent process did not start in %d seconds' % MAX_AGENT_START_TIME)
-        print "!!!do_read_dataset #5"
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE))
-        print "!!!do_read_dataset #6"
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE))
-        print "!!!do_read_dataset #7"
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN))
-        print "!!!do_read_dataset #8"
         self.client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE))
 
     def assert_data_received(self):

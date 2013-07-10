@@ -291,23 +291,24 @@ class AgentConfigurationBuilder(object):
 
                     from pyon.core.object import IonObjectSerializer
                     stream_def_dict = IonObjectSerializer().serialize(stream_def)
-                    sdtype = stream_def_dict.pop('type_')
+                    stream_def_dict.pop('type_')
 
                     if stream_name in stream_config:
                         log.warn("Overwriting stream_config[%s]", stream_name)
 
-                    stream_config[stream_name] = {'routing_key'           : stream_route.routing_key,
-                                                        'stream_id'             : product_stream_id,
-                                                        'stream_definition_ref' : stream_def_id,
-                                                        'stream_def_dict'       : stream_def_dict,
-                                                        'exchange_point'        : stream_route.exchange_point,
-                                                        'parameter_dictionary'  : stream_def.parameter_dictionary,
-                                                        'records_per_granule'   : stream_info_dict.get('records_per_granule'),
-                                                        'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate'),
+                    stream_config[stream_name] = {  'routing_key'           : stream_route.routing_key,  # TODO: Serialize stream_route together
+                                                    'stream_id'             : product_stream_id,
+                                                    'stream_definition_ref' : stream_def_id,
+                                                    'stream_def_dict'       : stream_def_dict,
+                                                    'exchange_point'        : stream_route.exchange_point,
+                                                    # TODO: This is redundant and very large - the param dict is in the stream_def_dict ???
+                                                    'parameter_dictionary'  : stream_def.parameter_dictionary,
+                                                    'records_per_granule'   : stream_info_dict.get('records_per_granule'),
+                                                    'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate'),
                     }
 
         log.debug("Stream config generated")
-        log.trace("generate_stream_config: %s", str(stream_config) )
+        log.trace("generate_stream_config: %s", stream_config)
         return stream_config
 
     def _generate_agent_config(self):
