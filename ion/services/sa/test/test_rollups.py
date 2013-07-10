@@ -382,13 +382,18 @@ class TestRollups(IonIntegrationTestCase):
     def test_complex_rollup_structure_partially(self):
 
         o = DeviceStatusType.STATUS_OK
+        u = DeviceStatusType.STATUS_UNKNOWN
         w = DeviceStatusType.STATUS_WARNING
         c = DeviceStatusType.STATUS_CRITICAL
 
         idv_stat = ["ignore", c, o, w, o, w, c]
+        ist_stat = ["ignore", c, o, w, u, o, u]
 
         for i, id in self.idv.iteritems():
             self.assertProperRollup("InstrumentDevice %s" % i, self.IMS.get_instrument_device_extension(id), idv_stat[i])
+
+        for i, id in self.ist.iteritems():
+            self.assertProperRollup("InstrumentSite %s" % i, self.OMS.get_site_extension(id), ist_stat[i])
 
 
 
