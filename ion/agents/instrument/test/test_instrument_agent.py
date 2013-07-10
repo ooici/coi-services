@@ -2385,7 +2385,7 @@ class InstrumentAgentTest():
 
 
 @attr('HARDWARE', group='sa')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 300}}})
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 600}}})
 @unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestInstrumentAgent(IonIntegrationTestCase, InstrumentAgentTest):
 

@@ -194,6 +194,10 @@ class ZmqDriverClient(DriverClient):
             except zmq.ZMQError:
                 # Socket not ready to accept send. Sleep and retry later.
                 time.sleep(.5)
+
+            except Exception,e:
+                log.error('Driver client error writing to zmq socket: ' + str(e))
+                raise SystemError('exception reading from zmq socket')
             
         log.trace('Awaiting reply.')
         while True:
@@ -206,6 +210,7 @@ class ZmqDriverClient(DriverClient):
                 # Socket not ready with the reply. Sleep and retry later.
                 time.sleep(.5)
             except Exception,e:
+                log.error('Driver client error reading from zmq socket: ' + str(e))
                 raise SystemError('exception reading from zmq socket')
                 
         log.trace('Reply: %r', reply)

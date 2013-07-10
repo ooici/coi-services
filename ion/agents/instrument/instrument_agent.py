@@ -570,7 +570,8 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
-        
+                    break
+                
         return (next_state, None)
 
     ##############################################################
@@ -800,7 +801,8 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
-   
+                    break
+                
         if next_state == ResourceAgentState.IDLE and \
             self._state_when_lost == ResourceAgentState.COMMAND:
                 next_state = ResourceAgentState.COMMAND
@@ -825,7 +827,8 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = None
-    
+                    break
+                
     def _handler_active_unknown_go_inactive(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
         return (ResourceAgentState.INACTIVE, None)
