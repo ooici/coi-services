@@ -17,11 +17,9 @@ from pyon.public import log
 from pyon.public import CFG
 
 # Standard imports.
-import sys
 import time
 import socket
 import re
-import json
 import unittest
 import os
 
@@ -30,12 +28,10 @@ import gevent
 from gevent.event import AsyncResult
 from nose.plugins.attrib import attr
 from mock import patch
-import numpy
 
 # Pyon pubsub and event support.
 from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.stream import StandaloneStreamSubscriber
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
@@ -57,7 +53,6 @@ from pyon.agent.agent import ResourceAgentEvent
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 from ion.agents.instrument.driver_process import DriverProcessType
-from ion.agents.instrument.driver_process import ZMQEggDriverProcess
 
 # Objects and clients.
 from interface.objects import AgentCommand
@@ -72,30 +67,6 @@ from pyon.public import IonObject
 from interface.objects import StreamAlertType, AggregateStatusType
 
 from ooi.timer import Timer
-
-"""
---with-queueblame   report leftover queues
---with-pycc         run in seperate container
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_resource_states
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_errors
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_agent
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_command_errors
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_direct_access
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_streaming_memuse
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities_new
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_exit_da_timing
-"""
 
 ###############################################################################
 # Global constants.
@@ -121,7 +92,7 @@ PA_BINARY = CFG.device.sbe37.port_agent_binary
 WORK_DIR = '/tmp/'
 DELIM = ['<<','>>']
 
-from ion.agents.instrument.instrument_agent import InstrumentAgent
+#from ion.agents.instrument.instrument_agent import InstrumentAgent
 # Agent parameters.
 IA_RESOURCE_ID = '123xyz'
 IA_NAME = 'Agent007'
@@ -129,8 +100,10 @@ IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.4-py2.7.egg'
-DRV_SHA = '50de2e8383ebd801c3cd78c31f88983800e6bd0c'
+DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg'
+DRV_SHA = '28e1b59708d72e008b0aa68ea7392d3a2467f393'
+#DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.4-py2.7.egg'
+#DRV_SHA = '50de2e8383ebd801c3cd78c31f88983800e6bd0c'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -146,78 +119,23 @@ DVR_CONFIG = {
 
 # Launch from egg or a local MI repo.
 LAUNCH_FROM_EGG=True
+#LAUNCH_FROM_EGG=False
 
 if LAUNCH_FROM_EGG:
-    # Dynamically load the egg into the test path
-    launcher = ZMQEggDriverProcess(DVR_CONFIG)
-    egg = launcher._get_egg(DRV_URI)
-    from hashlib import sha1
-    with open(egg,'r') as f:
-        doc = f.read()
-        sha = sha1(doc).hexdigest()
-        if sha != DRV_SHA:
-            raise ImportError('Failed to load driver %s: incorrect checksum.  (%s!=%s)' % (DRV_URI, DRV_SHA, sha))
-    if not egg in sys.path: sys.path.insert(0, egg)
+    # tell driver process launcher to dynamically load the driver egg into the python path
     DVR_CONFIG['process_type'] = (DriverProcessType.EGG,)
 
 else:
-    mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'mi_repo'
-    if not mi_repo in sys.path: sys.path.insert(0, mi_repo)
+    # tell driver process launcher to load the driver module from 'mi_repo' 
+    #mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'mi_repo'
+    mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'egg_test'
     DVR_CONFIG['process_type'] = (DriverProcessType.PYTHON_MODULE,)
     DVR_CONFIG['mi_repo'] = mi_repo
-
-# Load MI modules from the egg
-from mi.core.instrument.instrument_driver import DriverProtocolState
-from mi.core.instrument.instrument_driver import DriverConnectionState
-from mi.core.exceptions import InstrumentParameterException
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
-
-
-PARAMS = {
-    SBE37Parameter.OUTPUTSAL : bool,
-    SBE37Parameter.OUTPUTSV : bool,
-    SBE37Parameter.NAVG : int,
-    SBE37Parameter.SAMPLENUM : int,
-    SBE37Parameter.INTERVAL : int,
-    SBE37Parameter.STORETIME : bool,
-    SBE37Parameter.TXREALTIME : bool,
-    SBE37Parameter.SYNCMODE : bool,
-    SBE37Parameter.SYNCWAIT : int,
-    SBE37Parameter.TCALDATE : tuple,
-    SBE37Parameter.TA0 : float,
-    SBE37Parameter.TA1 : float,
-    SBE37Parameter.TA2 : float,
-    SBE37Parameter.TA3 : float,
-    SBE37Parameter.CCALDATE : tuple,
-    SBE37Parameter.CG : float,
-    SBE37Parameter.CH : float,
-    SBE37Parameter.CI : float,
-    SBE37Parameter.CJ : float,
-    SBE37Parameter.WBOTC : float,
-    SBE37Parameter.CTCOR : float,
-    SBE37Parameter.CPCOR : float,
-    SBE37Parameter.PCALDATE : tuple,
-    SBE37Parameter.PA0 : float,
-    SBE37Parameter.PA1 : float,
-    SBE37Parameter.PA2 : float,
-    SBE37Parameter.PTCA0 : float,
-    SBE37Parameter.PTCA1 : float,
-    SBE37Parameter.PTCA2 : float,
-    SBE37Parameter.PTCB0 : float,
-    SBE37Parameter.PTCB1 : float,
-    SBE37Parameter.PTCB2 : float,
-    SBE37Parameter.POFFSET : float,
-    SBE37Parameter.RCALDATE : tuple,
-    SBE37Parameter.RTCA0 : float,
-    SBE37Parameter.RTCA1 : float,
-    SBE37Parameter.RTCA2 : float
-}
 
 
 class TcpClient():
     '''
-    TCP client for testing.
+    TCP client for testing DA.
     '''
 
     # 'will echo' command sequence to be sent from DA telnet server
@@ -291,7 +209,7 @@ class TcpClient():
             log.debug("TcpClient.send_data: exception caught [%s] during sending" %ex)
             return False
 
-    def expect(self, prompt, timeout=1):
+    def expect(self, prompt, timeout=2):
 
         if self.s == None:
             return False
@@ -367,12 +285,11 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
 
     return ia_client
 
-#@unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
-class InstrumentAgentTest():
+class InstrumentAgentTestDA():
     """
     Test cases for instrument agent class. Functions in this class provide
-    instrument agent integration tests and provide a tutorial on use of
-    the agent setup and interface.
+    instrument agent integration tests for Direct Access mode and provide 
+    a tutorial on use of the agent setup and interface.
     """
     
     def _setup(self):
@@ -393,6 +310,7 @@ class InstrumentAgentTest():
         log.info('device port: %s', DEV_PORT)
         log.info('log delimiter: %s', DELIM)
         log.info('work dir: %s', WORK_DIR)
+        log.info('LAUNCH_FROM_EGG: %s', LAUNCH_FROM_EGG)
         self._support = DriverIntegrationTestSupport(None,
             None,
             DEV_ADDR,
@@ -615,100 +533,8 @@ class InstrumentAgentTest():
 
     ###############################################################################
     # Assert helpers.
-    ###############################################################################
-        
-    def assertSampleDict(self, val):
-        """
-        Verify the value is a sample dictionary for the sbe37.
-        """
-        # AgentCommandResult.result['parsed']
-        """
-        {'quality_flag': 'ok', 'preferred_timestamp': 'driver_timestamp',
-        'stream_name': 'parsed', 'pkt_format_id': 'JSON_Data',
-        'pkt_version': 1, 'values':
-        [{'value_id': 'temp', 'value': 21.4894},
-        {'value_id': 'conductivity', 'value': 13.22157},
-        {'value_id': 'pressure', 'value': 146.186}],
-        'driver_timestamp': 3556901018.170206}
-        """
-        
-        self.assertIsInstance(val, dict)
-        self.assertTrue(val.has_key('values'))
-        values_list = val['values']
-        self.assertTrue(isinstance(values_list, list))
-        self.assertTrue(len(values_list)==3)
-        
-        ids = ['temp', 'conductivity', 'pressure']
-        ids_found = []
+    ###############################################################################        
 
-        for x in values_list:
-            self.assertTrue(x.has_key('value_id'))
-            self.assertTrue(x.has_key('value'))
-            ids_found.append(x['value_id'])
-            self.assertTrue(isinstance(x['value'], float))
-
-        self.assertItemsEqual(ids, ids_found)
-
-        self.assertTrue(val.has_key('driver_timestamp'))
-        time = val['driver_timestamp']
-        self.assertTrue(isinstance(time, float))
-        
-    def assertParamDict(self, pd, all_params=False):
-        """
-        Verify all device parameters exist and are correct type.
-        """
-        if all_params:
-            self.assertEqual(set(pd.keys()), set(PARAMS.keys()))
-            for (key, type_val) in PARAMS.iteritems():
-                if type_val == list or type_val == tuple:
-                    self.assertTrue(isinstance(pd[key], (list, tuple)))
-                else:
-                    self.assertTrue(isinstance(pd[key], type_val))
-
-        else:
-            for (key, val) in pd.iteritems():
-                self.assertTrue(PARAMS.has_key(key))
-                self.assertTrue(isinstance(val, PARAMS[key]))
-        
-    def assertParamVals(self, params, correct_params):
-        """
-        Verify parameters take the correct values.
-        """
-        self.assertEqual(set(params.keys()), set(correct_params.keys()))
-        for (key, val) in params.iteritems():
-            correct_val = correct_params[key]
-            if isinstance(val, float):
-                # Verify to 5% of the larger value.
-                max_val = max(abs(val), abs(correct_val))
-                self.assertAlmostEqual(val, correct_val, delta=max_val*.01)
-
-            elif isinstance(val, (list, tuple)):
-                # list of tuple.
-                self.assertEqual(list(val), list(correct_val))
-            
-            else:
-                # int, bool, str.
-                self.assertEqual(val, correct_val)
-
-    def assertGranule(self, granule):
-        rdt = RecordDictionaryTool.load_from_granule(granule)
-        self.assertIsInstance(rdt['temp'][0], numpy.float32)
-        self.assertIsInstance(rdt['conductivity'][0], numpy.float32)
-        self.assertIsInstance(rdt['pressure'][0], numpy.float32)
-        self.assertIsInstance(rdt['time'][0], numpy.float64)
-
-    def assertRawGranule(self, granule):
-        rdt = RecordDictionaryTool.load_from_granule(granule)
-        self.assertIsInstance(rdt['raw'][0], str)            
-        self.assertIsInstance(rdt['time'][0], numpy.float64)            
-
-    def assertVectorGranules(self, granule_list, field):
-        sizes = []
-        for granule in granule_list:
-            rdt = RecordDictionaryTool.load_from_granule(granule)
-            sizes.append(rdt[field].size)
-        self.assertTrue(any([x>1 for x in sizes]))
-        
     def assertInstrumentAgentState(self, expected_state, timeout=0):
         end_time = time.time() + timeout
         
@@ -766,7 +592,6 @@ class InstrumentAgentTest():
         
         host = retval.result['ip_address']
         port = retval.result['port']
-        token = retval.result['token']
         
         tcp_client = TcpClient(host, port)
         
@@ -944,7 +769,6 @@ class InstrumentAgentTest():
         
         host = retval.result['ip_address']
         port = retval.result['port']
-        token = retval.result['token']
         
         tcp_client = TcpClient(host, port)
         
@@ -1182,8 +1006,6 @@ class InstrumentAgentTest():
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
         
-        cap_list = self._ia_client.get_capabilities()
-        
         delta = time.time() - starttime
         
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
@@ -1197,7 +1019,7 @@ class InstrumentAgentTest():
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 300}}})
 @unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
-class TestInstrumentAgent(IonIntegrationTestCase, InstrumentAgentTest):
+class TestInstrumentAgent(IonIntegrationTestCase, InstrumentAgentTestDA):
 
     ############################################################################
     # Setup, teardown.
