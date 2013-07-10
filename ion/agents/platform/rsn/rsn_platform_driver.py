@@ -108,7 +108,7 @@ class RSNPlatformDriver(PlatformDriver):
         """
         """
         
-        parameters = deepcopy(self._driver_config.get('attributes',{}))
+        parameters = deepcopy(self._param_dict)
         ports_dict = self._driver_config.get('ports',{})
         ports = []
         for k,v in ports_dict.iteritems():

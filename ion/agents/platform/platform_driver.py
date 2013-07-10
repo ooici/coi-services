@@ -191,7 +191,8 @@ class PlatformDriver(object):
 
         self.validate_driver_configuration(driver_config)
         self._driver_config = driver_config
-
+        #self._param_dict = deepcopy(self._driver_config.get('attributes',{}))
+        
     def get_config_metadata(self):
         """
         """
