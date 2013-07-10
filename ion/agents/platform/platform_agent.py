@@ -124,12 +124,13 @@ class PlatformAgentCapability(BaseEnum):
     PAUSE                     = PlatformAgentEvent.PAUSE
     RESUME                    = PlatformAgentEvent.RESUME
 
-    GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
-    PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
-    GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
-    SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
-    EXECUTE_RESOURCE          = PlatformAgentEvent.EXECUTE_RESOURCE
-    GET_RESOURCE_STATE        = PlatformAgentEvent.GET_RESOURCE_STATE
+    # These are not agent capabilities but interface capabilities.
+    #GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
+    #PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
+    #GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
+    #SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
+    #EXECUTE_RESOURCE          = PlatformAgentEvent.EXECUTE_RESOURCE
+    #GET_RESOURCE_STATE        = PlatformAgentEvent.GET_RESOURCE_STATE
 
     START_MONITORING          = PlatformAgentEvent.START_MONITORING
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
@@ -268,7 +269,7 @@ class PlatformAgent(ResourceAgent):
         #
         # TODO overall synchronization is also needed in other places!
         #
-        from ion.agents.platform.node_schema import get_schema
+        from ion.agents.platform.schema import get_schema
 
         self._agent_schema = get_schema()
 

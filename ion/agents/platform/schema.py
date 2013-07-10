@@ -168,6 +168,13 @@ AGENT_SCHEMA_V1 = {
                 "description" : "TBD. TBD. TBD.",
                 "args" : [],
                 "kwargs" : {}
+            },
+        PlatformAgentCapability.RESET :
+            {
+                "display_name" : "Reset",
+                "description" : "Reset the agent to uninitialized mode.",
+                "args" : [],
+                "kwargs" : {}
             }            
         },
     "parameters" : {
@@ -214,6 +221,44 @@ AGENT_SCHEMA_V1 = {
             {
                 "display_name" : "Aggregate Status.",
                 "description" : "Aggregate status of agent functions.",
+                "visibility" : "READ_ONLY",
+                "type" : "dict",
+                "valid_values" :[{
+                    "key" : {
+                        "type" : "enum",
+                        "string_map" : AggregateStatusType._str_map,
+                        "value_map" : AggregateStatusType._value_map
+                        },
+                    "value" : {
+                        "type" : "enum",
+                        "string_map" : DeviceStatusType._str_map,
+                        "value_map" : DeviceStatusType._value_map
+                        }                    
+                    }]
+                },
+        "child_agg_status" :
+            {
+                "display_name" : "Child Aggregate Status.",
+                "description" : "Aggregate status of child agent functions.",
+                "visibility" : "READ_ONLY",
+                "type" : "dict",
+                "valid_values" :[{
+                    "key" : {
+                        "type" : "enum",
+                        "string_map" : AggregateStatusType._str_map,
+                        "value_map" : AggregateStatusType._value_map
+                        },
+                    "value" : {
+                        "type" : "enum",
+                        "string_map" : DeviceStatusType._str_map,
+                        "value_map" : DeviceStatusType._value_map
+                        }                    
+                    }]
+                },
+        "rollup_status" :
+            {
+                "display_name" : "Roll-up Status.",
+                "description" : "Roll up status of agent and children functions.",
                 "visibility" : "READ_ONLY",
                 "type" : "dict",
                 "valid_values" :[{
