@@ -7,6 +7,13 @@
 @brief Test cases for R2 instrument agent.
 """
 
+"""
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+NOTE: MANY OF THESE TESTS WON"T PASS IF USED WITH THE OLDER DRIVER EGGS (THAT INCLUDE .PYC FILES) SINCE THE DRIVERS RUN
+10 TIMES SLOWER THAN THEY SHOULD WITH THESE EGGS
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+"""
+
 __author__ = 'Bill Bollenbacher'
 __license__ = 'Apache 2.0'
 
@@ -568,6 +575,13 @@ class InstrumentAgentTestDA():
         Test agent direct_access mode for virtual serial port. This causes creation of
         driver process and transition to direct access.
         """
+        def start_and_stop_DA():
+            retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
+            host = retval.result['ip_address']
+            port = retval.result['port']
+            tcp_client = TcpClient(host, port)
+            self.assertTrue(tcp_client.send_data('ts\r\n'))
+            self.assertSetInstrumentState(ResourceAgentEvent.GO_COMMAND, ResourceAgentState.COMMAND)
 
         self.assertInstrumentAgentState(ResourceAgentState.UNINITIALIZED)
     
@@ -647,6 +661,9 @@ class InstrumentAgentTestDA():
         self.assertNotEqual(response.find('number of samples to average'), -1)
 
         self.assertSetInstrumentState(ResourceAgentEvent.GO_COMMAND, ResourceAgentState.COMMAND)
+        
+        for i in range(0, 10):
+            start_and_stop_DA()
         
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
@@ -776,7 +793,7 @@ class InstrumentAgentTestDA():
         
         tcp_client.disconnect()
 
-        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=20)        
                 
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
@@ -819,7 +836,7 @@ class InstrumentAgentTestDA():
         
         tcp_client.disconnect()
 
-        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=20)        
                 
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
@@ -850,7 +867,7 @@ class InstrumentAgentTestDA():
         # 'result': {'token': 'F2B6EED3-F926-4B3B-AE80-4F8DE79276F3', 'ip_address': 'Edwards-MacBook-Pro.local', 'port': 8000},
         # 'ts_execute': '1344889063861', 'command_id': ''}
 
-        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=30)        
         
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
@@ -889,7 +906,7 @@ class InstrumentAgentTestDA():
         
         self.assertTrue(tcp_client.start_telnet(token))
 
-        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=30)        
         
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
@@ -920,7 +937,7 @@ class InstrumentAgentTestDA():
         # 'result': {'token': 'F2B6EED3-F926-4B3B-AE80-4F8DE79276F3', 'ip_address': 'Edwards-MacBook-Pro.local', 'port': 8000},
         # 'ts_execute': '1344889063861', 'command_id': ''}
 
-        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=30)        
         
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
@@ -959,7 +976,7 @@ class InstrumentAgentTestDA():
         
         self.assertTrue(tcp_client.start_telnet(token))
 
-        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=120)        
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=30)        
         
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
