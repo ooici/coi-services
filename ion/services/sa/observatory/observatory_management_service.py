@@ -1041,10 +1041,17 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
             context["site_resources"], context["site_children"], context["device_relations"]
 
-        log.debug("Reading status for device '%s'", inst_device_id)
-        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
-                                                                                    extended_site.computed,
-                                                                                    None)
+        if inst_device_id:
+            log.debug("Reading status for device '%s'", inst_device_id)
+            self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
+                                                                                        extended_site.computed,
+                                                                                        None)
+        else:
+            log.debug("No device ID, so filling in ''Status unknown if device not present''")
+            all_unknown = dict([(k, DeviceStatusType.STATUS_UNKNOWN) for k in AggregateStatusType._str_map.keys()])
+            self.agent_status_builder.set_status_computed_attributes(extended_site.computed,
+                                                                     all_unknown,
+                                                                     ComputedValueAvailability.PROVIDED)
 
         instrument_status_list = [self.agent_status_builder.get_aggregate_status_of_device(d._id)
                                   for d in extended_site.instrument_devices]
