@@ -25,7 +25,7 @@ class DirectAccessTypes:
     (ssh, telnet, vsp) = range(2, 5)
     
 class SessionCloseReasons:
-    enum_range = range(0, 7)
+    enum_range = range(0, 8)
     
     (client_closed, 
      inactivity_timeout, 
@@ -33,6 +33,7 @@ class SessionCloseReasons:
      session_timeout, 
      login_failed,
      telnet_setup_timeout,
+     socket_error,
      unspecified_reason) = enum_range
      
     str_rep = ['client closed', 
@@ -41,6 +42,7 @@ class SessionCloseReasons:
                'session timeout', 
                'login failed',
                'telnet setup timed out',
+               'TCP socket error',
                'unspecified reason']
     
     @staticmethod
@@ -102,7 +104,6 @@ class TcpServer(object):
                 if self.port > self.PORT_RANGE_UPPER:
                     log.warning("TcpServer.__init__(): no available ports for server")
                     raise ServerError("TcpServer.__init__(): no available ports")
-                    return
 
         # create token
         self.token = str(uuid.uuid4()).upper()
@@ -125,13 +126,14 @@ class TcpServer(object):
         return False
     
     
-    def stop(self):
+    def stop(self, reason):
         if self.stop_server == True:
             log.debug("TcpServer.stop(): already stopping")
             return
         self.stop_server = True
         self.server_ready_to_send = False
-        self.close_reason = SessionCloseReasons.parent_closed
+        # set close reason in case it's not 'parent closed' so server can inform parent via callback
+        self.close_reason = reason
         log.debug("TcpServer.stop(): stopping TCP server - reason = %s", SessionCloseReasons.string(self.close_reason))     
             
 
@@ -172,12 +174,16 @@ class TcpServer(object):
             return False
     
 
+    def _indicate_server_stopping(self, reason):
+        self.stop_server = True
+        self.close_reason = reason
+        self.server_ready_to_send = False
+
+
     def _exit_handler (self, reason):
         log.debug("TcpServer._exit_handler(): stopping, reason = %s" %SessionCloseReasons.string(reason))
         if self.stop_server == False:
-            self.stop_server = True
-            self.close_reason = reason
-            self.server_ready_to_send = False
+            self._indicate_server_stopping(reason)
         raise ServerExitException("TcpServer: exiting from server, reason = %s" %SessionCloseReasons.string(reason))
     
 
@@ -188,23 +194,25 @@ class TcpServer(object):
             
 
     def _get_data(self, timeout=None):
+        log.debug("TcpServer._get_data(): timeout = %s" %str(timeout))
         start_time = time.time()
         
         while True:
             try:
+                # this call must be non-blocking to let server check the stop_server flag
                 input_data = self.connection_socket.recv(1024)
                 self.activity_seen = True;
                 return input_data
             except gevent.socket.error, error:
                 if error[0] == errno.EAGAIN:
                     if self.stop_server:
-                        self._exit_handler(SessionCloseReasons.parent_closed)
+                        self._exit_handler(self.close_reason)
                     if timeout:
                         if ((time.time() - start_time) > timeout):
                             return ''
                     gevent.sleep(.1)
                 else:
-                    log.info("TcpServer._get_data(): exception caught <%s>" %str(error))
+                    log.debug("TcpServer._get_data(): exception caught <%s>" %str(error))
                     self._exit_handler(SessionCloseReasons.client_closed)
                     return False
 
@@ -222,24 +230,46 @@ class TcpServer(object):
                 self._exit_handler(SessionCloseReasons.telnet_setup_timeout)
                 
             
+    def _notify_parent(self):
+        if self.close_reason != SessionCloseReasons.parent_closed:
+            # indicate to parent that connection has been closed since it didn't initiate it
+            log.debug("TcpServer._server_greenlet(): telling parent to close session, reason = %s"
+                      %SessionCloseReasons.string(self.close_reason))
+            self.parent_input_callback(self.close_reason)
+        log.debug("TcpServer._server_greenlet(): stopped")
+    
+
     def _server_greenlet(self):
         log.debug("TcpServer._server_greenlet(): started")
-        self.connection_socket = None
+        # set socket to timeout on blocking calls so accept() method will timeout to let server
+        # check the stop_server flag
+        self.server_socket.settimeout(1.0)
+        self.server_socket.listen(1)
+        while True:
+            try:
+                self.connection_socket, address = self.server_socket.accept()
+                log.info("TcpServer._server_greenlet(): connection accepted from <%s>" %str(address))
+                # set socket to non-blocking so recv() will not block to let server 
+                # check the stop_server flag
+                self.connection_socket.setblocking(0)
+                break
+            except Exception as ex:
+                log.info("TcpServer._server_greenlet(): exception caught while listening for connection <%s>" %str(ex))
+                if self.server_socket.timeout:
+                    if self.stop_server:
+                        self._notify_parent()
+                        return
+                else:
+                    log.info("TcpServer._server_greenlet(): exception caught while listening for connection <%s>" %str(ex))
+                    self._indicate_server_stopping(SessionCloseReasons.socket_error)
+                    self._notify_parent()
+                    return
         try:
-            self.server_socket.listen(1)
-            self.connection_socket, address = self.server_socket.accept()
-            # set socket to non-blocking
-            self.connection_socket.setblocking(0)
             self._handler()
         except Exception as ex:
-            log.info("TcpServer._server_greenlet(): exception caught <%s>" %str(ex))
+            log.info("TcpServer._server_greenlet(): exception caught from handler <%s>" %str(ex))
         finally:
-            if self.close_reason != SessionCloseReasons.parent_closed:
-                # indicate to parent that connection has been closed if it didn't initiate it
-                log.debug("TcpServer._server_greenlet(): telling parent to close session, reason = %s"
-                          %SessionCloseReasons.string(self.close_reason))
-                self.parent_input_callback(self.close_reason)
-        log.debug("TcpServer._server_greenlet(): stopped")
+            self._notify_parent()
         
 
 class TelnetServer(TcpServer):
@@ -400,7 +430,8 @@ class DirectAccessServer(object):
                   SessionCloseReasons.string(reason), reason)
         if self.server:
             log.debug("DirectAccessServer.stop(): stopping TCP server")
-            self.server.stop()
+            # pass in reason so server can tell parent via callback
+            self.server.stop(reason)
             del self.server
         if self.timer and reason == SessionCloseReasons.parent_closed:
             # timer didn't initiate the stop, so kill it

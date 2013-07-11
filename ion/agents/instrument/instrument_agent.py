@@ -1467,9 +1467,13 @@ class InstrumentAgent(ResourceAgent):
                 self._da_session_close_reason = "due to session exceeding maximum time"
             elif data == SessionCloseReasons.inactivity_timeout:
                 self._da_session_close_reason = "due to inactivity"
+            elif data == SessionCloseReasons.login_failed:
+                self._da_session_close_reason = "due to login failure"
+            elif data == SessionCloseReasons.telnet_setup_timeout:
+                self._da_session_close_reason = "due to telnet setup timeout"
             else:
                 log.error("InstAgent._da_server_input_processor: got unexpected integer " + str(data))
-                return
+                self._da_session_close_reason = "due to unrecognized reason %d" %data
             log.warning("InstAgent._da_server_input_processor: connection closed %s" %self._da_session_close_reason)
             cmd = AgentCommand(command=ResourceAgentEvent.GO_COMMAND)
             self.execute_agent(command=cmd)
@@ -1478,6 +1482,7 @@ class InstrumentAgent(ResourceAgent):
         state = self._fsm.get_current_state()
         if state == ResourceAgentState.DIRECT_ACCESS:
             # send the data to the driver using the fsm to utilize the thread safe blocking to avoid race conditions
+            # with incoming commands from ION
             cmd = AgentCommand(command=ResourceAgentEvent.EXECUTE_RESOURCE, args=[data])
             self.execute_agent(command=cmd)
         else:

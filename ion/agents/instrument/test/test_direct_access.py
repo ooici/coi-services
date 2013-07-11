@@ -673,6 +673,16 @@ class InstrumentAgentTestDA():
         driver process and transition to direct access.
         """
 
+        def start_and_stop_DA():
+            retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
+            host = retval.result['ip_address']
+            port = retval.result['port']
+            token = retval.result['token']
+            tcp_client = TcpClient(host, port)
+            self.assertTrue(tcp_client.start_telnet(token))
+            self.assertTrue(tcp_client.send_data('ts\r\n'))
+            self.assertSetInstrumentState(ResourceAgentEvent.GO_COMMAND, ResourceAgentState.COMMAND)
+
         self.assertInstrumentAgentState(ResourceAgentState.UNINITIALIZED)
     
         self.assertSetInstrumentState(ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
@@ -754,6 +764,9 @@ class InstrumentAgentTestDA():
         self.assertNotEqual(response.find('number of samples to average'), -1)
 
         self.assertSetInstrumentState(ResourceAgentEvent.GO_COMMAND, ResourceAgentState.COMMAND)
+        
+        for i in range(0, 10):
+            start_and_stop_DA()
         
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
