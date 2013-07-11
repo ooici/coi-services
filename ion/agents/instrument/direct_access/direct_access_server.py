@@ -72,7 +72,6 @@ class TcpServer(object):
     server_ready_to_send = False
     stop_server = False
 
-
     def __init__(self, input_callback=None, ip_address=None):
         log.debug("TcpServer.__init__(): IP address = %s" %ip_address)
 
@@ -196,15 +195,20 @@ class TcpServer(object):
     def _get_data(self, timeout=None):
         log.debug("TcpServer._get_data(): timeout = %s" %str(timeout))
         start_time = time.time()
+        input_data = ''
+        
+        self.connection_socket.setblocking(0)   # just to be sure!
         
         while True:
             try:
                 # this call must be non-blocking to let server check the stop_server flag
                 input_data = self.connection_socket.recv(1024)
+                if len(input_data) == 0:
+                    self._exit_handler(SessionCloseReasons.client_closed)
                 self.activity_seen = True;
                 return input_data
             except gevent.socket.error, error:
-                if error[0] == errno.EAGAIN:
+                if error.errno == errno.EAGAIN or error.errno == errno.EWOULDBLOCK:
                     if self.stop_server:
                         self._exit_handler(self.close_reason)
                     if timeout:
@@ -216,7 +220,7 @@ class TcpServer(object):
                     self._exit_handler(SessionCloseReasons.client_closed)
                     return False
 
-
+                
     def _readline(self, timeout=5):
         start_time = time.time()
         input_data = ''
@@ -228,6 +232,8 @@ class TcpServer(object):
             if ((time.time() - start_time) > timeout):
                 log.info("TcpServer._readline(): timeout, rcvd <%s>" %input_data)
                 self._exit_handler(SessionCloseReasons.telnet_setup_timeout)
+            gevent.sleep(.1)
+
                 
             
     def _notify_parent(self):
