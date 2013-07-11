@@ -109,7 +109,7 @@ IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
 DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.5-py2.7.egg'
-DRV_SHA_0_1_1 = '28e1b59708d72e008b0aa68ea7392d3a2467f393'
+DRV_SHA_0_1_1 = 'e7b8e6239cfa8a68b10fb14673b5ced461f7e484'
 DRV_SHA_0_1_5 = '51ce182316f4f9dce336a76164276cb4749b77a5'
 DRV_SHA = DRV_SHA_0_1_5
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
@@ -483,6 +483,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     self.assertItemsEqual(x.keys(), y.keys())
         self.assertEqual(count, 3)
        
+    @unittest.skip('Awaiting sbe37 driver fix.')
     def test_agent_state_persistence(self):
         """
         test_agent_state_persistence
@@ -546,7 +547,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                 else:
                     gevent.sleep(1)
         except gevent.Timeout:
-            fail("Could not restore agent state to COMMAND.")
+            self.fail("Could not restore agent state to COMMAND.")
 
         cmd = AgentCommand(command=ResourceAgentEvent.PAUSE)
         retval = self._ia_client.execute_agent(cmd)
@@ -569,7 +570,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                 else:
                     gevent.sleep(1)
         except gevent.Timeout:
-            fail("Could not restore agent state to STOPPED.")
+            self.fail("Could not restore agent state to STOPPED.")
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.
