@@ -10,7 +10,10 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.net.endpoint import Publisher
 from pyon.event.event import EventPublisher
 from ion.core.interaction_observer import InteractionObserver
+import unittest
+import os
 
+@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Does not work in launch mode as test uses a special deploy file')
 @attr('INT', group='mscweb')
 class TestMSCWebProcess(IonIntegrationTestCase):
 
