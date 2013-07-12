@@ -4,13 +4,11 @@
 
 __author__ = 'Michael Meisinger, Maurice Manning, Ian Katz'
 
-import time
 
 from pyon.core.exception import BadRequest
-from pyon.public import RT, PRED, OT, IonObject, log
+from pyon.public import RT, PRED
 
-from interface.objects import DeviceStatusType, DeviceCommsType
-from interface.objects import ComputedValueAvailability
+from interface.objects import DeviceStatusType
 
 
 class ObservatoryUtil(object):
@@ -207,22 +205,7 @@ class ObservatoryUtil(object):
                 sites[assoc.s].append((assoc.st, assoc.o, assoc.ot))
         return sites
 
-    def _get_status_events(self, device_list=None):
-        min_ts = str(int(time.time() - 3) * 1000)
-        # Events come back as 3-tuples of (id, key, obj)
-        pwr_events = self.container.event_repository.find_events(event_type=OT.DeviceStatusEvent, start_ts=min_ts, descending=True)
-        comm_events = self.container.event_repository.find_events(event_type=OT.DeviceCommsEvent, start_ts=min_ts, descending=True)
-        events = []
-        events.extend(pwr_events)
-        events.extend(comm_events)
-        device_events = {}
-        for ev_id, ev_key, event in events:
-            if device_list and event.origin not in device_list:
-                continue
-            if event.origin not in device_events:
-                device_events[event.origin] = []
-            device_events[event.origin].append(event)
-        return device_events
+
 
     def get_site_root(self, res_id, site_parents=None, ancestors=None):
         if ancestors:
@@ -240,122 +223,6 @@ class ObservatoryUtil(object):
             parent = site_parents.get(parent_id, None)
         return parent_id
 
-    # -------------------------------------------------------------------------
-    # Status roll up
-
-    def get_status_roll_ups(self, res_id, res_type=None, include_structure=False):
-        """
-        For given parent device/site/org res_id compute the status roll ups.
-        The result is a dict of id with value dict of status values.
-        Includes all parents of given site as well.
-        """
-        if not res_type:
-            res_obj = self.container.resource_registry.read(res_id)
-            res_type = res_obj._get_type()
-
-        def get_site_status(site_id, status_rollup, site_ancestors, site_devices, device_events):
-            """For one site, compute the aggregate status and recurse to child sites if necessary"""
-            if site_id in status_rollup:
-                return status_rollup[site_id]   # If known return and don't recompute
-
-            ch_stat_list = []  # Status dicts to roll up into current
-            if site_ancestors.get(site_id, None):
-                for ch_id in site_ancestors[site_id]:
-                    ch_status = get_site_status(ch_id, status_rollup, site_ancestors, site_devices, device_events)
-                    status_rollup[ch_id] = ch_status
-                    ch_stat_list.append(ch_status)
-
-            # See if there is a device deployed -  include into rollup in addition to child sites
-            # Note: Only look at this device status, not roll-up status of all child devices
-            device_info = site_devices.get(site_id, None)
-            if device_info:
-                if len(device_info) == 1:
-                    device_id = device_info[0][1]
-                    d_status = self._compute_status(device_id, device_events)
-                    status_rollup[device_id] = d_status
-                    ch_stat_list.append(d_status)
-                else:
-                    raise BadRequest("More than one device found for site %s" % site_id)
-
-            status_rollup[site_id] = self._rollup_statuses(ch_stat_list)
-            return status_rollup[site_id]
-
-        def get_device_status(device_id, status_rollup, child_devices, device_events):
-            """For one device, compute the aggregate status and recurse to child devices if necessary"""
-
-            if device_id in status_rollup:
-                return status_rollup[device_id]
-
-            ch_stat_list = []
-            if child_devices.get(device_id, None):
-                for _,ch_id,_ in child_devices[device_id]:
-                    ch_status = get_device_status(ch_id, status_rollup, child_devices, device_events)
-                    status_rollup[ch_id] = ch_status
-                    ch_stat_list.append(ch_status)
-
-            d_status = self._compute_status(device_id, device_events)
-            ch_stat_list.append(d_status)
-
-            status_rollup[device_id] = self._rollup_statuses(ch_stat_list)
-            return status_rollup[device_id]
-
-
-        # Do the status rollup work. Different modes dependent on type of resource (org, site, device)
-        if res_type in [RT.Org, RT.Observatory, RT.Subsite, RT.PlatformSite, RT.InstrumentSite]:
-            if res_type == RT.Org:
-                child_sites, site_ancestors = self.get_child_sites(org_id=res_id, id_only=not include_structure)
-            else:
-                child_sites, site_ancestors = self.get_child_sites(parent_site_id=res_id, id_only=not include_structure)
-
-            site_devices = self.get_device_relations(child_sites.keys())
-            device_events = self._get_status_events()
-
-            status_rollup = {}
-            get_site_status(res_id, status_rollup, site_ancestors, site_devices, device_events)
-            for site_id in child_sites.keys():
-                get_site_status(site_id, status_rollup, site_ancestors, site_devices, device_events)
-
-            # Stuff extra information into the result
-            if include_structure:
-                status_rollup['_system'] = dict(res_id=res_id, res_type=res_type,
-                    sites=child_sites, ancestors=site_ancestors, devices=site_devices)
-
-            return status_rollup
-
-        elif res_type in [RT.PlatformDevice, RT.InstrumentDevice]:
-            # See if current device has child devices
-            child_devices = self.get_child_devices(res_id)
-            device_events = self._get_status_events()
-
-            status_rollup = {}
-            get_device_status(res_id, status_rollup, child_devices, device_events)
-            for device_id in child_devices.keys():
-                get_device_status(device_id, status_rollup, child_devices, device_events)
-
-            # Stuff extra information into the result
-            if include_structure:
-                status_rollup['_system'] = dict(res_id=res_id, res_type=res_type,
-                    ancestors=child_devices)
-
-            return status_rollup
-
-        else:
-            raise BadRequest("Unsupported resource type: %s", res_type)
-
-    def _compute_status(self, device_id, device_events):
-        status = dict(power=DeviceStatusType.STATUS_OK, comms=DeviceStatusType.STATUS_OK,
-            data=DeviceStatusType.STATUS_OK, loc=DeviceStatusType.STATUS_OK)
-        dev_events = device_events.get(device_id, [])
-        for event in dev_events:
-            event_type = event._get_type()
-            if event_type == OT.DeviceStatusEvent and event.status == DeviceStatusType.STATUS_WARNING:
-                status['power'] = DeviceStatusType.STATUS_WARNING
-            elif event_type == OT.DeviceCommsEvent and event.state == DeviceCommsType.DATA_DELIVERY_INTERRUPTION:
-                status['comms'] = DeviceStatusType.STATUS_WARNING
-            # @TODO data, loc
-
-        status['agg'] = self._consolidate_status(status.values())
-        return status
 
     def _consolidate_status(self, statuses, warn_if_unknown=False):
         """Intelligently merge statuses with current value"""
@@ -459,7 +326,7 @@ class ObservatoryUtil(object):
         if include_data_products:
             dpid_list = [dp_id for device_id, dp_list in device_dps.iteritems() if dp_list is not None for dp_id in dp_list if dp_id is not None]
             dpo_list = self.container.resource_registry.read_mult(dpid_list)
-            dp_objs = {dpid:dpo for dpid,dpo in zip(dpid_list, dpo_list)}
+            dp_objs = dict(zip(dpid_list, dpo_list))
         else:
             dp_objs = None
 

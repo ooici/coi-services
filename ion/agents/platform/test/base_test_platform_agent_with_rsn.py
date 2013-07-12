@@ -123,7 +123,7 @@ DVR_CLS = 'RSNPlatformDriver'
 
 
 # DATA_TIMEOUT: timeout for reception of data sample
-DATA_TIMEOUT = 25
+DATA_TIMEOUT = 90
 
 # EVENT_TIMEOUT: timeout for reception of event
 EVENT_TIMEOUT = 25
@@ -358,6 +358,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                       message, stream_name, stream_id)
             self._samples_received.append(message)
             self._async_data_result.set()
+            #if len(self._samples_received) > 5:
+            #    self._async_data_result.set()
 
         log.info('_start_data_subscriber stream_name=%r stream_id=%r',
                  stream_name, stream_id)

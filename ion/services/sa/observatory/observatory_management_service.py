@@ -1041,10 +1041,17 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
             context["site_resources"], context["site_children"], context["device_relations"]
 
-        log.debug("Reading status for device '%s'", inst_device_id)
-        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
-                                                                                    extended_site.computed,
-                                                                                    None)
+        if inst_device_id:
+            log.debug("Reading status for device '%s'", inst_device_id)
+            self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
+                                                                                        extended_site.computed,
+                                                                                        None)
+        else:
+            log.debug("No device ID, so filling in ''Status unknown if device not present''")
+            all_unknown = dict([(k, DeviceStatusType.STATUS_UNKNOWN) for k in AggregateStatusType._str_map.keys()])
+            self.agent_status_builder.set_status_computed_attributes(extended_site.computed,
+                                                                     all_unknown,
+                                                                     ComputedValueAvailability.PROVIDED)
 
         instrument_status_list = [self.agent_status_builder.get_aggregate_status_of_device(d._id)
                                   for d in extended_site.instrument_devices]
@@ -1078,36 +1085,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
             user_id=user_id)
-
-        # JIRA OOIION-1110: using associations to find device and site fails
-        # so temporarily workaround by finding jira1110_{instrument/platform}_{site/device}
-        # and copying into device and site
-        # WHEN JIRA IS FIXED, REMOVE THIS BLOCK OF CODE AND THE JIRA_* ATTRIBUTES
-        #
-#        if hasattr(extended_deployment.jira1110_instrument_device, '_id'):
-#            if hasattr(extended_deployment.jira1110_platform_device, '_id'):
-#                raise Inconsistent('deployment %s associated with both instrument device %s and platform device %s' %
-#                        (deployment_id, extended_deployment.jira1110_instrument_device._id, extended_deployment.jira1110_platform_device._id))
-#            if hasattr(extended_deployment.jira1110_platform_site, '_id'):
-#                raise Inconsistent('deployment %s associated with instrument device %s but platform site %s' %
-#                    (deployment_id, extended_deployment.jira1110_instrument_device._id, extended_deployment.jira1110_platform_site._id))
-#            if not hasattr(extended_deployment.jira1110_instrument_site, '_id'):
-#                raise Inconsistent('deployment %s associated with instrument device %s but no instrument site' %
-#                    (deployment_id, extended_deployment.jira1110_instrument_device._id))
-#            extended_deployment.device = extended_deployment.jira1110_instrument_device
-#            extended_deployment.site = extended_deployment.jira1110_instrument_site
-#        else:
-#            if not hasattr(extended_deployment.jira1110_platform_device, '_id'):
-#                raise Inconsistent('deployment %s has no instrument device or platform device' % deployment_id)
-#            if hasattr(extended_deployment.jira1110_instrument_site, '_id'):
-#                raise Inconsistent('deployment %s associated with platform device %s but instrument site %s' %
-#                    (deployment_id, extended_deployment.jira1110_platform_device._id, extended_deployment.jira1110_instrument_site._id))
-#            if not hasattr(extended_deployment.jira1110_platform_site, '_id'):
-#                raise Inconsistent('deployment %s associated with platform device %s but no platform site' %
-#                    (deployment_id, extended_deployment.jira1110_platform_device._id))
-#            extended_deployment.device = extended_deployment.jira1110_platform_device
-#            extended_deployment.site = extended_deployment.jira1110_platform_site
-        # end of block REMOVE ABOVE THIS LINE WHEN JIRA IS FIXED
 
         if not extended_deployment.device or not extended_deployment.site \
             or not hasattr(extended_deployment.device, '_id') \

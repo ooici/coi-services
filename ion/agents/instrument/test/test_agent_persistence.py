@@ -108,7 +108,10 @@ IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg'
+DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.5-py2.7.egg'
+DRV_SHA_0_1_1 = 'e7b8e6239cfa8a68b10fb14673b5ced461f7e484'
+DRV_SHA_0_1_5 = '51ce182316f4f9dce336a76164276cb4749b77a5'
+DRV_SHA = DRV_SHA_0_1_5
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -125,6 +128,12 @@ DVR_CONFIG = {
 # Dynamically load the egg into the test path
 launcher = ZMQEggDriverProcess(DVR_CONFIG)
 egg = launcher._get_egg(DRV_URI)
+from hashlib import sha1
+with open(egg,'r') as f:
+    doc = f.read()
+    sha = sha1(doc).hexdigest()
+    if sha != DRV_SHA:
+        raise ImportError('Failed to load driver %s: incorrect checksum.  (%s!=%s)' % (DRV_URI, DRV_SHA, sha))
 if not egg in sys.path: sys.path.insert(0, egg)
 
 # Load MI modules from the egg
@@ -474,6 +483,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     self.assertItemsEqual(x.keys(), y.keys())
         self.assertEqual(count, 3)
        
+    @unittest.skip('Awaiting sbe37 driver fix.')
     def test_agent_state_persistence(self):
         """
         test_agent_state_persistence
@@ -537,7 +547,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                 else:
                     gevent.sleep(1)
         except gevent.Timeout:
-            fail("Could not restore agent state to COMMAND.")
+            self.fail("Could not restore agent state to COMMAND.")
 
         cmd = AgentCommand(command=ResourceAgentEvent.PAUSE)
         retval = self._ia_client.execute_agent(cmd)
@@ -560,7 +570,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                 else:
                     gevent.sleep(1)
         except gevent.Timeout:
-            fail("Could not restore agent state to STOPPED.")
+            self.fail("Could not restore agent state to STOPPED.")
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.

@@ -147,7 +147,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             ctd_sim_pid = self.start_simple_input_stream_process(ctd_stream_id)
 
         # Assert that we have received data
-        assertions(result.get(timeout=30))
+        assertions(result.get(timeout=60))
 
         # stop the flow parse the messages...
         if ctd_stream_id is not None:

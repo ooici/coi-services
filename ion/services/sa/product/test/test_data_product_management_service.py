@@ -49,14 +49,13 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.data_source.description = 'data source desc'
 
 
-    @unittest.skip('not working')
     def test_createDataProduct_and_DataProducer_success(self):
         # setup
         self.clients.resource_registry.find_resources.return_value = ([], 'do not care')
         self.clients.resource_registry.find_associations.return_value = []
         self.clients.resource_registry.create.return_value = ('SOME_RR_ID1', 'Version_1')
         self.clients.data_acquisition_management.assign_data_product.return_value = None
-        self.clients.pubsub_management.create_stream.return_value = "stream_id"
+        self.clients.pubsub_management.create_stream.return_value = "stream_id", "route_id"
 
 
         # Construct temporal and spatial Coordinate Reference System objects
@@ -70,10 +69,6 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        #@TODO: DO NOT DO THIS, WHEN THIS TEST IS REWRITTEN GET RID OF THIS, IT WILL FAIL, thanks -Luke
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-
-        parameter_dictionary = parameter_dictionary.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',

@@ -42,8 +42,6 @@ import gevent
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
 from ion.agents.instrument.common import BaseEnum
-from ion.agents.instrument.instrument_fsm import FSMStateError
-from ion.agents.instrument.instrument_fsm import FSMCommandUnknownError
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
@@ -572,7 +570,8 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
-        
+                    break
+                
         return (next_state, None)
 
     ##############################################################
@@ -713,17 +712,21 @@ class InstrumentAgent(ResourceAgent):
         return self._dvr_client.cmd_dvr('execute_direct', *args, **kwargs)
 
     def _handler_direct_access_go_command(self, *args, **kwargs):
-        log.info("Instrument agent requested to stop direct access mode - %s",
+        log.error("Instrument agent requested to stop direct access mode - %s",
                  self._da_session_close_reason)
-        # stop DA server
+
+        # Stop the DA server. This must always be done to kill its session/inactivity timeout thread
         if (self._da_server):
             self._da_server.stop()
             self._da_server = None
-        # tell driver to stop direct access mode
-        next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
-        log.info("_handler_direct_access_go_command: next_state returned from driver = %s" %next_state)
+
         # re-set the 'reason' to be the default
         self._da_session_close_reason = 'due to ION request'
+
+        # tell driver to stop direct access mode
+        next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
+        log.error("_handler_direct_access_go_command: next agent state: %s", next_state)
+
         return (next_state, None)
 
     ##############################################################
@@ -799,7 +802,8 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
-   
+                    break
+                
         if next_state == ResourceAgentState.IDLE and \
             self._state_when_lost == ResourceAgentState.COMMAND:
                 next_state = ResourceAgentState.COMMAND
@@ -824,7 +828,8 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = None
-    
+                    break
+                
     def _handler_active_unknown_go_inactive(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
         return (ResourceAgentState.INACTIVE, None)
@@ -1459,7 +1464,18 @@ class InstrumentAgent(ResourceAgent):
         """
         Callback passed to DA Server for receiving client input and status from server.
         """
-        if isinstance(data, int):
+        if self._da_server == None:
+            # This might be the case when data is sent to the DA sever right before
+            # the client is disconnected.  You will see this in the logs when the
+            # disconnect comes before the execute direct command.
+            log.warn('No DA session started. Bytes not sent to driver: "%s"', data)
+
+        elif isinstance(data, int):
+            log.warning("Stopping DA Server")
+            # stop DA server
+            self._da_server.stop()
+            self._da_server = None
+
             # not character data, so check for lost connection
             if data == SessionCloseReasons.client_closed:
                 self._da_session_close_reason = "due to client closing session"
@@ -1488,5 +1504,4 @@ class InstrumentAgent(ResourceAgent):
             self.execute_agent(command=cmd)
         else:
             log.debug("InstAgent._da_server_input_processor: IA not in DA state, data not forwarded to driver")
-            
 

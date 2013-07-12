@@ -1014,6 +1014,7 @@ pd_config = {
         'dashi_uri': "amqp://guest:guest@localhost/",
         'dashi_exchange': "%s.pdtests" % bootstrap.get_sys_name(),
         'default_engine': "engine1",
+        'dispatch_retry_seconds': 10,
         "engines": {
             "engine1": {
                 "slots": 100,
@@ -1546,4 +1547,59 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         for pid in pids:
             client = clients[pid]
             self.assertTrue(client.is_restart())
+            self.assertEqual(client.count(), 1)
+
+    def test_process_dispatch_retry(self):
+        # kill an eeagent just as a request is sent. it should be retried
+        self.waiter.start()
+
+        pids = []
+        clients = {}
+        # start 5 initial processes and wait for them to start
+        for _ in range(5):
+            pid, client = self._add_test_process(ProcessRestartMode.ALWAYS,
+                ProcessQueueingMode.ALWAYS)
+            pids.append(pid)
+            clients[pid] = client
+
+        self.waiter.await_many_state_events(pids, ProcessStateEnum.RUNNING)
+
+        for pid in pids:
+            client = clients[pid]
+            self.assertFalse(client.is_restart())
+            self.assertEqual(client.count(), 1)
+
+        # now kill the resource. this won't be immediately detected
+        resource_id = self._eea_pid_to_resource_id[self._initial_eea_pid]
+        persistence_dir = self._eea_pid_to_persistence_dir[self._initial_eea_pid]
+        self._kill_eeagent(self._initial_eea_pid)
+
+        # manually kill the processes to simulate a real container failure
+        for pid in pids:
+            self.container.terminate_process(pid)
+
+        # start 5 more processes. these should have messages sent and lost
+        lost_pids = []
+        for _ in range(5):
+            pid, client = self._add_test_process(ProcessRestartMode.ALWAYS,
+                ProcessQueueingMode.ALWAYS)
+            pids.append(pid)
+            lost_pids.append(pid)
+            clients[pid] = client
+
+        self.waiter.await_many_state_events(lost_pids, ProcessStateEnum.PENDING)
+
+        # now add the eeagent back and processes should resume
+        self._start_eeagent(self.node1_id, resource_id=resource_id,
+            persistence_dir=persistence_dir)
+
+        # wait for restartables to restart
+        self.waiter.await_many_state_events(pids, ProcessStateEnum.RUNNING)
+
+        for pid in pids:
+            client = clients[pid]
+            if pid in lost_pids:
+                assert not client.is_restart()
+            else:
+                assert client.is_restart()
             self.assertEqual(client.count(), 1)

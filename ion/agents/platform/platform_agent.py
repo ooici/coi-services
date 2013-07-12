@@ -37,6 +37,7 @@ from ion.agents.agent_alert_manager import AgentAlertManager
 
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
 
+
 from pyon.util.containers import DotDict
 
 from pyon.agent.common import BaseEnum
@@ -123,12 +124,13 @@ class PlatformAgentCapability(BaseEnum):
     PAUSE                     = PlatformAgentEvent.PAUSE
     RESUME                    = PlatformAgentEvent.RESUME
 
-    GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
-    PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
-    GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
-    SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
-    EXECUTE_RESOURCE          = PlatformAgentEvent.EXECUTE_RESOURCE
-    GET_RESOURCE_STATE        = PlatformAgentEvent.GET_RESOURCE_STATE
+    # These are not agent capabilities but interface capabilities.
+    #GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
+    #PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
+    #GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
+    #SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
+    #EXECUTE_RESOURCE          = PlatformAgentEvent.EXECUTE_RESOURCE
+    #GET_RESOURCE_STATE        = PlatformAgentEvent.GET_RESOURCE_STATE
 
     START_MONITORING          = PlatformAgentEvent.START_MONITORING
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
@@ -267,6 +269,9 @@ class PlatformAgent(ResourceAgent):
         #
         # TODO overall synchronization is also needed in other places!
         #
+        from ion.agents.platform.schema import get_schema
+
+        self._agent_schema = get_schema()
 
         #####################################
         log.info("PlatformAgent constructor complete.")
@@ -585,7 +590,7 @@ class PlatformAgent(ResourceAgent):
         """
         log.debug("%r: triggering driver event CONNECT", self._platform_id)
         self._trigger_driver_event(PlatformDriverEvent.CONNECT)
-
+        
         self._asp.reset_connection()
 
     def _go_inactive_this_platform(self):
@@ -625,7 +630,8 @@ class PlatformAgent(ResourceAgent):
             # destroy driver:
             self._plat_driver.destroy()
             self._plat_driver = None
-
+            self._resource_schema = {}
+            
         if self._asp:
             self._asp.reset()
 
@@ -853,6 +859,8 @@ class PlatformAgent(ResourceAgent):
         self._trigger_driver_event(PlatformDriverEvent.CONFIGURE, driver_config=self._driver_config)
 
         self._assert_driver_state(PlatformDriverState.DISCONNECTED)
+
+        self._resource_schema = self._plat_driver.get_config_metadata()
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: driver configured." % self._platform_id)

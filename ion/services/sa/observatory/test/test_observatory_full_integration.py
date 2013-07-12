@@ -69,6 +69,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         self.damsclient = DataAcquisitionManagementServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
         self.data_retriever = DataRetrieverServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
 
         self._load_stage = 0
         self._resources = {}
@@ -528,7 +529,10 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = [ntp_now]
-        rdt['temperature'] = [[ 25.3884 ,26.9384 ,24.3394 ,23.3401 ,22.9832 ,29.4434 ,26.9873 ,15.2883 ,16.3374 ,14.5883 ,15.7253 ,18.4383 ,15.3488 ,17.2993 ,10.2111 ,11.5993 ,10.9345 ,9.4444 ,9.9876 ,10.9834 ,11.0098 ,5.3456 ,4.2994 ,4.3009]]
+        rdt['temperature'] = [[ 25.3884, 26.9384, 24.3394, 23.3401, 22.9832,
+            29.4434, 26.9873, 15.2883, 16.3374, 14.5883, 15.7253, 18.4383,
+            15.3488, 17.2993, 10.2111, 11.5993, 10.9345, 9.4444, 9.9876,
+            10.9834, 11.0098, 5.3456, 4.2994, 4.3009]]
 
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
@@ -539,9 +543,86 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         passing &= self.assert_array_almost_equal(rdt['time'], [ntp_now])
-        passing &= self.assert_array_almost_equal(rdt['temperature'], [[ 25.3884 ,26.9384 ,24.3394 ,23.3401 ,22.9832 ,29.4434 ,26.9873 ,15.2883 ,16.3374 ,14.5883 ,15.7253 ,18.4383 ,15.3488 ,17.2993 ,10.2111 ,11.5993 ,10.9345 ,9.4444 ,9.9876 ,10.9834 ,11.0098 ,5.3456 ,4.2994 ,4.3009]])
+        passing &= self.assert_array_almost_equal(rdt['temperature'], [[
+            25.3884, 26.9384, 24.3394, 23.3401, 22.9832, 29.4434, 26.9873,
+            15.2883, 16.3374, 14.5883, 15.7253, 18.4383, 15.3488, 17.2993,
+            10.2111, 11.5993, 10.9345, 9.4444, 9.9876, 10.9834, 11.0098,
+            5.3456, 4.2994, 4.3009]])
         return passing
     
+    def check_trhph_instrument_data_products(self, reference_designator):
+        passing = True
+        info_list = []
+        passing &= self.check_data_product_reference(reference_designator, info_list)
+        if not passing:
+            return passing
+
+        data_product_id, stream_def_id, dataset_id = info_list.pop()
+
+        pdict = self.RR2.find_parameter_dictionary_of_stream_definition_using_has_parameter_dictionary(stream_def_id)
+        passing &= self.assertEquals(pdict.name, 'trhph_sample')
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+
+        # calibration constants
+        a = 1.98e-9
+        b = -2.45e-6
+        c = 9.28e-4
+        d = -0.0888
+        e = 0.731
+
+        V_s = 1.506
+        V_c = 0.
+        T = 11.8
+
+        r1 = 0.906
+        r2 = 4.095
+        r3 = 4.095
+
+        ORP_V = 1.806
+        Cl = np.nan
+
+        offset = 2008
+        gain = 4.0
+        # Normally this would be 50 per the DPS but the precision is %4.0f which truncates the values to the nearest 1...
+        ORP = ((ORP_V * 1000.) - offset) / gain
+
+        ntp_now = time.time() + 2208988800
+
+        rdt['cc_a'] = [a]
+        rdt['cc_b'] = [b]
+        rdt['cc_c'] = [c]
+        rdt['cc_d'] = [d]
+        rdt['cc_e'] = [e]
+        rdt['ref_temp_volts'] = [V_s]
+        rdt['resistivity_temp_volts'] = [V_c]
+        rdt['eh_sensor'] = [ORP_V]
+        rdt['resistivity_5'] = [r1]
+        rdt['resistivity_x1'] = [r2]
+        rdt['resistivity_x5'] = [r3]
+        rdt['cc_offset'] = [offset]
+        rdt['cc_gain'] = [gain]
+        rdt['time'] = [ntp_now]
+
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_temperaure'], [T], 2)
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_chloride_conc'], [Cl], 4)
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_orp'], [ORP], 4)
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+        passing &= self.assertTrue(dataset_monitor.event.wait(60))
+        if not passing: return passing
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_temperaure'], [T], 2)
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_chloride_conc'], [Cl], 4)
+        passing &= self.assert_array_almost_equal(rdt['vent_fluid_orp'], [ORP], 4)
+
+        return passing
+
     def check_vel3d_instrument_data_products(self, reference_designator):
         passing = True
         info_list = []
@@ -550,12 +631,44 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             return passing
         data_product_id, stream_def_id, dataset_id = info_list.pop()
 
-        now = time.time()
-        ntp_now = now + 2208988800
+        pdict = self.RR2.find_parameter_dictionary_of_stream_definition_using_has_parameter_dictionary(stream_def_id)
+        self.assertEquals(pdict.name, 'vel3d_b_sample')
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = [ntp_now]
-        #@TODO Test real data here once I get some sample data
+        lat = 14.6846
+        lon = -51.044
+        ts = np.array([3319563600, 3319567200, 3319570800, 3319574400,
+            3319578000, 3319581600, 3319585200, 3319588800, 3319592400,
+            3319596000], dtype=np.float)
+
+        ve = np.array([ -3.2,  0.1,  0. ,  2.3, -0.1,  5.6,  5.1,  5.8,
+            8.8, 10.3])
+
+        vn = np.array([ 18.2,  9.9, 12. ,  6.6, 7.4,  3.4, -2.6,  0.2,
+            -1.5,  4.1])
+        vu = np.array([-1.1, -0.6, -1.4, -2, -1.7, -2, 1.3, -1.6, -1.1, -4.5])
+        ve_expected = np.array([-0.085136, -0.028752, -0.036007, 0.002136,
+            -0.023158, 0.043218, 0.056451, 0.054727, 0.088446, 0.085952])
+        vn_expected = np.array([ 0.164012,  0.094738,  0.114471,  0.06986,  0.07029,
+                    0.049237, -0.009499,  0.019311,  0.012096,  0.070017])
+        vu_expected = np.array([-0.011, -0.006, -0.014, -0.02, -0.017, -0.02,
+            0.013, -0.016, -0.011, -0.045])
+
+        
+        rdt['time'] = ts
+        rdt['lat'] = [lat] * 10
+        rdt['lon'] = [lon] * 10
+        rdt['turbulent_velocity_east'] = ve
+        rdt['turbulent_velocity_north'] = vn
+        rdt['turbulent_velocity_up'] = vu
+
+        passing &= self.assert_array_almost_equal(rdt['eastward_turbulent_velocity'],
+                ve_expected)
+        passing &= self.assert_array_almost_equal(rdt['northward_turbulent_velocity'],
+                vn_expected)
+        passing &= self.assert_array_almost_equal(rdt['upward_turbulent_velocity'],
+                vu_expected)
+
 
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
@@ -565,7 +678,12 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
-        passing &= self.assert_array_almost_equal(rdt['time'], [ntp_now])
+        passing &= self.assert_array_almost_equal(rdt['eastward_turbulent_velocity'],
+                ve_expected)
+        passing &= self.assert_array_almost_equal(rdt['northward_turbulent_velocity'],
+                vn_expected)
+        passing &= self.assert_array_almost_equal(rdt['upward_turbulent_velocity'],
+                vu_expected)
         return passing
 
     
@@ -649,11 +767,23 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             if p.name=='time': # Ignore the domain parameter
                 continue
             passing &= self.assertTrue(p.ooi_short_name.startswith('SFLPRES'))
-        passing &= self.check_presta_instrument_data_products('RS03AXBS-MJ03A-06-PRESTA301')
         passing &= self.check_presta_instrument_data_products('RS01SLBS-MJ01A-06-PRESTA101')
-        passing &= self.check_vel3d_instrument_data_products('RS03AXBS-MJ03A-12-VEL3DB301')
-        passing &= self.check_vel3d_instrument_data_products('RS03INT2-MJ03D-12-VEL3DB304')
-        passing &= self.check_tempsf_instrument_data_product('RS03ASHS-MJ03B-07-TMPSFA301')
+        passing &= self.check_vel3d_instrument_data_products( 'RS01SLBS-MJ01A-12-VEL3DB101')
+        passing &= self.check_presta_instrument_data_products('RS03AXBS-MJ03A-06-PRESTA301')
+        passing &= self.check_vel3d_instrument_data_products( 'RS03AXBS-MJ03A-12-VEL3DB301')
+        passing &= self.check_tempsf_instrument_data_product( 'RS03ASHS-MJ03B-07-TMPSFA301')
+        passing &= self.check_vel3d_instrument_data_products( 'RS03INT2-MJ03D-12-VEL3DB304')
+        passing &= self.check_trhph_instrument_data_products( 'RS03INT1-MJ03C-10-TRHPHA301')
+
+        self.data_product_management.activate_data_product_persistence(data_product_id)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        self.assert_array_almost_equal(rdt['seafloor_pressure'], [10.2504], 4)
+        self.assert_array_almost_equal(rdt['absolute_pressure'], [14.8670], 4)
+        self.data_product_management.suspend_data_product_persistence(data_product_id) # Should do nothing and not raise anything
+
+        
         return passing
 
 

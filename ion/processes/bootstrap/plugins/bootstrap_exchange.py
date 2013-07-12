@@ -1,16 +1,15 @@
-
 #!/usr/bin/env python
 
 """Bootstrap process for exchange"""
 
-__author__ = 'Dave Foster <dfoster@asascience.com>'
+__author__ = 'Dave Foster <dfoster@asascience.com>, Michael Meisinger'
+
+from pyon.public import log, get_sys_name, RT, PRED
+from pyon.ion.exchange import ExchangeSpace, ExchangePoint, ExchangeName
 
 from ion.core.bootstrap_process import BootstrapPlugin
-from pyon.public import log
-from pyon.public import get_sys_name, RT, PRED
-from pyon.ion.exchange import ExchangeSpace, ExchangePoint, ExchangeName
+
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
-import pprint
 from interface.objects import ExchangeBroker as ResExchangeBroker
 from interface.objects import ExchangeSpace as ResExchangeSpace
 from interface.objects import ExchangePoint as ResExchangePoint
@@ -25,54 +24,58 @@ class BootstrapExchange(BootstrapPlugin):
         Bootstraps initial objects in the system from configuration (pyon.yml) via
         EMS calls.
         """
+        # Get ION Org
+        root_org_name = config.get_safe('system.root_org' , "ION")
+        org_ids, _ = process.container.resource_registry.find_resources(restype=RT.Org, name=root_org_name, id_only=True)
+        if not org_ids or len(org_ids) > 1:
+            raise StandardError("Could not determine root Org")
 
-        # get default org_id
-        # @TODO: single org assumed for now
-        org_ids = process.container.resource_registry.find_resources(RT.Org, id_only=True)
-        if not (len(org_ids) and len(org_ids[0]) == 1):
-            raise StandardError("Could not determine org_id")
-
-        org_id = org_ids[0][0]
+        org_id = org_ids[0]
 
         ems_client = ExchangeManagementServiceProcessClient(process=process)
 
-        #
-        # Create XSs and XPs
-        #
-        for xsname, xsdict in config.get_safe('exchange_spaces', {}).iteritems():
-            xso = ResExchangeSpace(name=xsname)
+
+        # Create XSs and XPs resource objects
+        xs_by_name = {}   # Name to resource ID mapping for ExchangeSpace
+        xs_defs = config.get_safe("exchange.exchange_spaces", {})
+        for xsname, xsdict in xs_defs.iteritems():
+            xso = ResExchangeSpace(name=xsname, description=xsdict.get("description", ""))
             xso_id = ems_client.create_exchange_space(xso, org_id)
+            xs_by_name[xsname] = xso_id
 
             log.info("ExchangeSpace %s, id %s", xsname, xso_id)
 
-            for xpname, xpopts in xsdict.get('exchange_points', {}).iteritems():
+            for xpname, xpopts in xsdict.get("exchange_points", {}).iteritems():
 
-                # @TODO: some translation for types CFG currentl has it as "topic_tree" and we've been using "ttree"
-                ttype = xpopts.get('type', 'topic_tree')
-                if ttype == "topic_tree":
-                    ttype = "ttree"
-
-                xpo = ResExchangePoint(name=xpname, topology_type=ttype)
+                # Translation for types. CFG currently has it as "topic_tree" and Pyon uses "ttree"
+                xpo = ResExchangePoint(name=xpname, description=xpopts.get("description", ""),
+                                       topology_type=xpopts.get('type', 'ttree'))
                 xpo_id = ems_client.create_exchange_point(xpo, xso_id)
 
                 log.info("\tExchangePoint %s, id %s", xpname, xpo_id)
 
-            #
-            # Create and associate brokers with XSs
-            #
-            for brokername in xsdict.get('brokers', []):
-                xbo = ResExchangeBroker(name=brokername)
-                xbo_id = ems_client.create_exchange_broker(xbo)
+        # Create XSs and XPs resource objects
+        for brokername, bdict in config.get_safe("exchange.exchange_brokers", {}).iteritems():
+            xbo = ResExchangeBroker(name=brokername, description=bdict.get("description", ""))
+            xbo_id = ems_client.create_exchange_broker(xbo)
 
-                log.info("\tExchangeBroker %s, id %s", brokername, xbo_id)
+            log.info("\tExchangeBroker %s, id %s", brokername, xbo_id)
 
-                # directly associate broker with XS
-                # @TODO: should EMS provide this?
-                # first find out if the assoc exists already
-                assocs = process.container.resource_registry.find_associations(xso_id, PRED.hasExchangeBroker, id_only=True)
-                if len(assocs) > 0:
-                    continue
-                process.container.resource_registry.create_association(xso_id, PRED.hasExchangeBroker, xbo_id)
+            for xs_name in bdict.get("join_xs", []):
+                if xs_name in xs_by_name:
+                    xs_id = xs_by_name[xs_name]
+                    # directly associate broker with XS
+                    # @TODO: should EMS provide this?
+                    # first find out if the assoc exists already
+                    assocs = process.container.resource_registry.find_associations(xso_id, PRED.hasExchangeBroker, id_only=True)
+                    if len(assocs) > 0:
+                        continue
+                    process.container.resource_registry.create_association(xso_id, PRED.hasExchangeBroker, xbo_id)
+                else:
+                    log.warn("ExchangeSpace %s unknown. Broker %s cannot join", xs_name, brokername)
+
+            for xp_name in bdict.get("join_xp", []):
+                pass
 
     def on_restart(self, process, config, **kwargs):
         """
@@ -88,27 +91,36 @@ class BootstrapExchange(BootstrapPlugin):
         ex_manager         = process.container.ex_manager
         old_use_ems        = ex_manager.use_ems
         ex_manager.use_ems = False
+        sys_name = get_sys_name()
 
         # get list of queues from broker with full props that have to do with our sysname
         all_queues = ex_manager._list_queues()
-        queues = {q['name']:q for q in all_queues if q['name'].startswith(get_sys_name())}
+        queues = {q['name']:q for q in all_queues if q['name'].startswith(sys_name)}
 
         # get list of exchanges from broker with full props
         all_exchanges = ex_manager._list_exchanges()
-        exchanges = {e['name']:e for e in all_exchanges if e['name'].startswith(get_sys_name())}
+        exchanges = {e['name']:e for e in all_exchanges if e['name'].startswith(sys_name)}
 
         # now get list of XOs from RR
         xs_objs, _ = process.container.resource_registry.find_resources(RT.ExchangeSpace)
         xp_objs, _ = process.container.resource_registry.find_resources(RT.ExchangePoint)
         xn_objs, _ = process.container.resource_registry.find_resources(RT.ExchangeName)
 
+        xs_by_xp = {}
+        assocs = process.container.resource_registry.find_associations(predicate=PRED.hasExchangePoint, id_only=False)
+        for assoc in assocs:
+            if assoc.st == RT.ExchangeSpace and assoc.ot == RT.ExchangePoint:
+                xs_by_xp[assoc.o] = assoc.s
+
         #
         # VERIFY XSs have a declared exchange
         #
         rem_exchanges = set(exchanges)
 
+        xs_by_id = {}
         for rrxs in xs_objs:
             xs = ExchangeSpace(ex_manager, ex_manager._priviledged_transport, rrxs.name)
+            xs_by_id[rrxs._id] = xs
 
             if xs.exchange in rem_exchanges:
                 rem_exchanges.remove(xs.exchange)
@@ -116,20 +128,26 @@ class BootstrapExchange(BootstrapPlugin):
                 log.warn("BootstrapExchange restart: RR XS %s, id: %s NOT FOUND in exchanges", rrxs.name, rrxs._id)
 
         for rrxp in xp_objs:
-            xp = ExchangePoint(ex_manager, ex_manager._priviledged_transport, rrxp.name)
+            xs_id = xs_by_xp.get(rrxp._id, None)
+            if not xs_id or xs_id not in xs_by_id:
+                log.warn("Inconsistent!! XS for XP %s not found", rrxp.name)
+                continue
+            xs = xs_by_id[xs_id]
+            xp = ExchangePoint(ex_manager, ex_manager._priviledged_transport, rrxp.name, xs)
 
             if xp.exchange in rem_exchanges:
                 rem_exchanges.remove(xp.exchange)
             else:
                 log.warn("BootstrapExchange restart: RR XP %s, id %s NOT FOUND in exchanges", rrxp.name, rrxp._id)
 
+        # TODO: WARNING this is based on hardcoded names
         # events and main service exchange should be left
-        if get_sys_name() in rem_exchanges:
-            rem_exchanges.remove(get_sys_name())
+        if sys_name in rem_exchanges:
+            rem_exchanges.remove(sys_name)
         else:
-            log.warn("BootstrapExchange restart: no main service exchange %s", get_sys_name())
+            log.warn("BootstrapExchange restart: no main service exchange %s", sys_name)
 
-        event_ex = "%s.pyon.events" % get_sys_name()
+        event_ex = "%s.pyon.events" % sys_name
         if event_ex in rem_exchanges:
             rem_exchanges.remove(event_ex)
         else:
@@ -157,7 +175,7 @@ class BootstrapExchange(BootstrapPlugin):
 
             exchange_space_list, assoc_list = process.container.resource_registry.find_subjects(RT.ExchangeSpace, PRED.hasExchangeName, rrxn._id)
             if not len(exchange_space_list) == 1:
-                raise StandardError("Associated Exchange Space to Exchange Name %s does not exist" % rrxn._id)
+                raise StandardError("Association from ExchangeSpace to ExchangeName %s does not exist" % rrxn._id)
 
             rrxs = exchange_space_list[0]
 
