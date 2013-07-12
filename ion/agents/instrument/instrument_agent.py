@@ -1457,7 +1457,7 @@ class InstrumentAgent(ResourceAgent):
     
     def _da_server_input_processor(self, data):
         """
-        Callback passed to DA Server for receiving input from server.
+        Callback passed to DA Server for receiving client input and status from server.
         """
         if isinstance(data, int):
             # not character data, so check for lost connection
@@ -1474,6 +1474,7 @@ class InstrumentAgent(ResourceAgent):
             else:
                 log.error("InstAgent._da_server_input_processor: got unexpected integer " + str(data))
                 self._da_session_close_reason = "due to unrecognized reason %d" %data
+                # something is very wrong here so kill the server and leave DA mode
             log.warning("InstAgent._da_server_input_processor: connection closed %s" %self._da_session_close_reason)
             cmd = AgentCommand(command=ResourceAgentEvent.GO_COMMAND)
             self.execute_agent(command=cmd)
@@ -1482,7 +1483,7 @@ class InstrumentAgent(ResourceAgent):
         state = self._fsm.get_current_state()
         if state == ResourceAgentState.DIRECT_ACCESS:
             # send the data to the driver using the fsm to utilize the thread safe blocking to avoid race conditions
-            # with incoming commands from ION
+            # with incoming commands from ION that could also require interaction with the instrument
             cmd = AgentCommand(command=ResourceAgentEvent.EXECUTE_RESOURCE, args=[data])
             self.execute_agent(command=cmd)
         else:

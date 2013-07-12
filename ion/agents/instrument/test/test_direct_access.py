@@ -790,12 +790,6 @@ class InstrumentAgentTestDA():
         self.assertTrue(tcp_client.start_telnet())
         self.assertSetInstrumentState(ResourceAgentEvent.GO_COMMAND, ResourceAgentState.COMMAND)
         
-        # test for starting and shutting down DA w/o ever negotiating the telnet session 
-        retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
-        tcp_client = self._start_tcp_client(retval)
-        self.assertTrue(tcp_client.start_telnet(token=retval.result['token'], handshake=False))
-        self.assertSetInstrumentState(ResourceAgentEvent.GO_COMMAND, ResourceAgentState.COMMAND)
-        
         # test for race condition in DA when shut down by IA after sending something from TCP client
         for i in range(0, 10):
             start_and_stop_DA()
