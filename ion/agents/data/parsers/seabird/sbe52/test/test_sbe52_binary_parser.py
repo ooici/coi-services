@@ -7,10 +7,15 @@
 @brief Test cases for netcdf_data_handler
 """
 
-from ooi.logging import log
-from ion.agents.data.handlers.sbe52_binary_handler import SBE52BinaryCTDParser
 from nose.plugins.attrib import attr
+
+from ooi.logging import log
+
 from pyon.util.unit_test import PyonTestCase
+
+from ion.agents.data.parsers.parser_utils import DataParticle, DataParticleKey
+from ion.agents.data.parsers.seabird.sbe52.binary_parser import SBE52BinaryCTDParser
+
 
 CTD_FILE='test_data/C0000042.DAT'
 

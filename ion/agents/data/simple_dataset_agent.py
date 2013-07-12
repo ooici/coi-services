@@ -79,6 +79,9 @@ class Parser(object):
         pass
     
     def get_records(self, max_count):
+        """
+        Returns a list of particles (following the instrument driver structure).
+        """
         pass
 
 
@@ -111,6 +114,7 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
             log.error('error in configuration', exc_info=True)
             raise
         self._dvr_client = self
+        self._asp.reset_connection()
 
     def _stop_driver(self):
         self.stop_sampling()
@@ -216,12 +220,13 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
             records = parser.get_records(max_count=self.max_records)
             log.trace('have %d records', len(records))
             while records:
-                # secretly uses pubsub client
-                rdt = RecordDictionaryTool(param_dictionary=self.parameter_dictionary)
-                for key in records[0]: #assume all dict records have same keys
-                    rdt[key] = [ record[key] for record in records ]
-                g = rdt.to_granule()
-                self.publisher.publish(g)
+                self._asp.on_sample_mult(records)
+                # # secretly uses pubsub client
+                # rdt = RecordDictionaryTool(param_dictionary=self.parameter_dictionary)
+                # for key in records[0]: #assume all dict records have same keys
+                #     rdt[key] = [ record[key] for record in records ]
+                # g = rdt.to_granule()
+                # self.publisher.publish(g)
                 records = parser.get_records(max_count=self.max_records)
             self._set_state('poller_state', state_memento)
         except Exception as ex:
