@@ -33,7 +33,7 @@ class PHSENChunkParser(object):
 
         record = {
             # TODO: Set correct params
-            'raq': data,
+            'raw': data,
         }
         ntp_timestamp = ntplib.system_to_ntp_time(self.chunk["timestamp"])
         particle = FlexDataParticle(driver_timestamp=ntp_timestamp, stream_name=STREAM_NAME)

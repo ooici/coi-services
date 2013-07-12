@@ -44,6 +44,7 @@ import time
 from ooi.logging import log
 from pyon.util.containers import named_any
 from ion.agents.data.parsers.parser_utils import FlexDataParticle, ParserException
+from ion.util.crc import crc16_iso14443b
 
 
 # 2 days @ 1 record/sec
@@ -65,6 +66,7 @@ DEVICE_TYPES = {
     "DO": "ion.agents.data.parsers.sio.controller.parser_dosta.DOSTAChunkParser",
     "PH": "ion.agents.data.parsers.sio.controller.parser_phsen.PHSENChunkParser",
 }
+
 
 class SIOControllerPackageParser(object):
     """
@@ -126,7 +128,8 @@ class SIOControllerPackageParser(object):
             processing_flag=pflag,
             timestamp=int(ts, 16),
             block_num=int(bnum, 16),
-            content_crc=int(crc, 16)
+            content_crc=int(crc, 16),
+            end=1
         ))
         content = f.read(chunk["content_length"])
         if len(content) != chunk["content_length"]:
@@ -135,27 +138,39 @@ class SIOControllerPackageParser(object):
             log.warn("Content contains ETX marker")
         # if f.read(1) != CONTENT_ETX:
         #     raise ParserException("Content ETX expected")
-        b = f.read(1)
-        extra = ""
-        while b != CONTENT_ETX and b != END_OF_FILE:
-            extra += b
-            b = f.read(1)
-        if b == END_OF_FILE:
-            raise ParserException("Unexpected EOF")
-        #if len(extra) > 0:
-        #    log.warn("Found %s extra content bytes to ETX instread of %s", len(extra), chunk["content_length"])
-        content += extra
-        chunk["content_length"] = len(content)
+
         chunk["content"] = content
 
-        #print content
+        b = f.read(1)
+        if b == CONTENT_ETX and crc16_iso14443b(content):
+            # Yay, content is good - can follow on
+            chunk["parse_status"] = "OK"
+        elif b == CONTENT_ETX:
+            chunk["parse_status"] = "bad CRC"
+            log.warn("Content length ok but bad CRC")
+        else:
+            extra = ""
+            while b != CONTENT_ETX and b != CHUNK_START and b != END_OF_FILE:
+                extra += b
+                b = f.read(1)
+            if b == END_OF_FILE:
+                raise ParserException("Unexpected EOF")
+            if b == CHUNK_START:
+                f.seek(-1, 1)
 
-        chunk["end"] = 1
+            content += extra
+
+            chunk["content_length"] = len(content)
+            chunk["content"] = content
+            chunk["parse_status"] = "content overrun"
+
+            if len(extra) > 0:
+                log.warn("Found %s extra content bytes to ETX instead of %s", len(extra), chunk["content_length"])
 
         #import pprint
         #pprint.pprint(chunk)
 
-        log.info("Chunk %(dev_type)s %(controller_id)s.%(inst_num)s f=%(processing_flag)s len=%(content_length)s ts=%(timestamp)s bn=%(block_num)s" % chunk)
+        log.info("Chunk %(dev_type)s %(controller_id)s.%(inst_num)s f=%(processing_flag)s len=%(content_length)s ts=%(timestamp)s bn=%(block_num)s stat=%(parse_status)s" % chunk)
 
         return chunk
 
