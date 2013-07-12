@@ -344,13 +344,9 @@ class InstrumentAgentTestDA():
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        log.info('building stream configuration')
-        # Setup stream config.
-        self._build_stream_config()
-
         # Start a resource agent client to talk with the instrument agent.
         log.info('starting IA process')
-        self._ia_client = start_instrument_agent_process(self.container, self._stream_config)
+        self._ia_client = start_instrument_agent_process(self.container)
         self.addCleanup(self._verify_agent_reset)
         log.info('test setup complete')
 
@@ -424,126 +420,6 @@ class InstrumentAgentTestDA():
         self._event_subscriber = None
 
     ###############################################################################
-    # Data stream helpers.
-    ###############################################################################
-
-    def _build_stream_config(self):
-        """
-        """
-        # Create a pubsub client to create streams.
-        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-        dataset_management = DatasetManagementServiceClient()
-        
-        encoder = IonObjectSerializer()
-        
-        # Create streams and subscriptions for each stream named in driver.
-        self._stream_config = {}
-
-        stream_name = 'parsed'
-        param_dict_name = 'ctd_parsed_param_dict'
-        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
-        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-        stream_def = pubsub_client.read_stream_definition(stream_def_id)
-        stream_def_dict = encoder.serialize(stream_def)        
-        pd = stream_def.parameter_dictionary
-        stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
-                                                exchange_point='science_data',
-                                                stream_definition_id=stream_def_id)
-        stream_config = dict(routing_key=stream_route.routing_key,
-                                 exchange_point=stream_route.exchange_point,
-                                 stream_id=stream_id,
-                                 parameter_dictionary=pd,
-                                 stream_def_dict=stream_def_dict)
-        self._stream_config[stream_name] = stream_config
-
-        stream_name = 'raw'
-        param_dict_name = 'ctd_raw_param_dict'
-        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
-        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-        stream_def = pubsub_client.read_stream_definition(stream_def_id)
-        stream_def_dict = encoder.serialize(stream_def)
-        pd = stream_def.parameter_dictionary
-        stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
-                                                exchange_point='science_data',
-                                                stream_definition_id=stream_def_id)
-        stream_config = dict(routing_key=stream_route.routing_key,
-                                 exchange_point=stream_route.exchange_point,
-                                 stream_id=stream_id,
-                                 parameter_dictionary=pd,
-                                 stream_def_dict=stream_def_dict)
-        self._stream_config[stream_name] = stream_config
-
-    def _start_data_subscribers(self, count, raw_count):
-        """
-        """        
-        # Create a pubsub client to create streams.
-        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-                
-        # Create streams and subscriptions for each stream named in driver.
-        self._data_subscribers = []
-        self._samples_received = []
-        self._raw_samples_received = []
-        self._async_sample_result = AsyncResult()
-        self._async_raw_sample_result = AsyncResult()
-
-        # A callback for processing subscribed-to data.
-        def recv_data(message, stream_route, stream_id):
-            log.info('Received parsed data on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
-            self._samples_received.append(message)
-            if len(self._samples_received) == count:
-                self._async_sample_result.set()
-
-        def recv_raw_data(message, stream_route, stream_id):
-            log.info('Received raw data on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
-            self._raw_samples_received.append(message)
-            if len(self._raw_samples_received) == raw_count:
-                self._async_raw_sample_result.set()
-
-        from pyon.util.containers import create_unique_identifier
-
-        stream_name = 'parsed'
-        parsed_config = self._stream_config[stream_name]
-        stream_id = parsed_config['stream_id']
-        exchange_name = create_unique_identifier("%s_queue" %
-                    stream_name)
-        self._purge_queue(exchange_name)
-        sub = StandaloneStreamSubscriber(exchange_name, recv_data)
-        sub.start()
-        self._data_subscribers.append(sub)
-        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-        pubsub_client.activate_subscription(sub_id)
-        sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
-        
-        stream_name = 'raw'
-        parsed_config = self._stream_config[stream_name]
-        stream_id = parsed_config['stream_id']
-        exchange_name = create_unique_identifier("%s_queue" %
-                    stream_name)
-        self._purge_queue(exchange_name)
-        sub = StandaloneStreamSubscriber(exchange_name, recv_raw_data)
-        sub.start()
-        self._data_subscribers.append(sub)
-        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-        pubsub_client.activate_subscription(sub_id)
-        sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
-
-    def _purge_queue(self, queue):
-        xn = self.container.ex_manager.create_xn_queue(queue)
-        xn.purge()
- 
-    def _stop_data_subscribers(self):
-        for subscriber in self._data_subscribers:
-            pubsub_client = PubsubManagementServiceClient()
-            if hasattr(subscriber,'subscription_id'):
-                try:
-                    pubsub_client.deactivate_subscription(subscriber.subscription_id)
-                except:
-                    pass
-                pubsub_client.delete_subscription(subscriber.subscription_id)
-            subscriber.stop()
-
-
-    ###############################################################################
     # tcp helpers.
     ###############################################################################        
 
@@ -591,8 +467,6 @@ class InstrumentAgentTestDA():
     # 'result': {'token': 'F2B6EED3-F926-4B3B-AE80-4F8DE79276F3', 'ip_address': 'Edwards-MacBook-Pro.local', 'port': 8000},
     # 'ts_execute': '1344889063861', 'command_id': ''}
     ###############################################################################
-        
-
     
     
     def test_direct_access_vsp_IA_shutdown(self):
