@@ -802,6 +802,64 @@ class InstrumentAgentTestDA():
         
         self.assertSetInstrumentState(ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
         
+    def test_direct_access_telnet_login_failure(self):
+        """
+        Test agent direct_access mode for telnet when login fails. 
+        """
+
+        self.assertInstrumentAgentState(ResourceAgentState.UNINITIALIZED)
+    
+        self.assertSetInstrumentState(ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
+                           kwargs={'session_type': DirectAccessTypes.telnet,
+                           'session_timeout':600,
+                           'inactivity_timeout':600})
+
+        # test that DA session quits when bad token is sent
+        retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
+
+        log.info("GO_DIRECT_ACCESS retval=" + str(retval.result))
+
+        tcp_client = self._start_tcp_client(retval)
+        
+        self.assertFalse(tcp_client.start_telnet(token='some junk'))
+
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=20)        
+
+    def test_direct_access_telnet_session_setup_failure(self):
+        """
+        Test agent direct_access mode for telnet when session setup fails. 
+        """
+
+        self.assertInstrumentAgentState(ResourceAgentState.UNINITIALIZED)
+    
+        self.assertSetInstrumentState(ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE)
+
+        self.assertSetInstrumentState(ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_DIRECT_ACCESS,
+                           kwargs={'session_type': DirectAccessTypes.telnet,
+                           'session_timeout':600,
+                           'inactivity_timeout':600})
+
+        # test that DA session quits when bad token is sent
+        retval = self.assertSetInstrumentState(cmd, ResourceAgentState.DIRECT_ACCESS)
+
+        log.info("GO_DIRECT_ACCESS retval=" + str(retval.result))
+
+        tcp_client = self._start_tcp_client(retval)
+        
+        self.assertTrue(tcp_client.start_telnet(token=retval.result['token'], handshake=False))
+
+        self.assertInstrumentAgentState(ResourceAgentState.COMMAND, timeout=20)        
+
     def test_direct_access_vsp_client_disconnect(self):
         """
         Test agent direct_access mode for virtual serial port when shutdown by tcp client disconnect. 

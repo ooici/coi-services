@@ -221,7 +221,7 @@ class TcpServer(object):
                     return False
 
                 
-    def _readline(self, timeout=5):
+    def _readline(self, timeout=None):
         start_time = time.time()
         input_data = ''
         
@@ -229,10 +229,10 @@ class TcpServer(object):
             input_data += self._get_data(1)
             if '\r\n' in input_data:
                 return input_data.split('\r\n')[0]
-            if ((time.time() - start_time) > timeout):
-                log.info("TcpServer._readline(): timeout, rcvd <%s>" %input_data)
-                self._exit_handler(SessionCloseReasons.telnet_setup_timeout)
-            gevent.sleep(.1)
+            if timeout:
+                if ((time.time() - start_time) > timeout):
+                    log.info("TcpServer._readline(): timeout, rcvd <%s>" %input_data)
+                    self._exit_handler(SessionCloseReasons.telnet_setup_timeout)
 
                 
             
@@ -295,7 +295,7 @@ class TelnetServer(TcpServer):
         start_time = time.time()
         self._write(self.WILL_ECHO_CMD)
         while True:
-            input = self._get_data()
+            input = self._get_data(1)
             if len(input) > 0:
                 response += input
             if self.DO_ECHO_CMD in response:
