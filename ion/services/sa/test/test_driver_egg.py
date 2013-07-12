@@ -54,7 +54,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-#@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestDriverEgg(IonIntegrationTestCase):
 
     def setUp(self):

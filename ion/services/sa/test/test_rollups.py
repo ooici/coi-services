@@ -363,22 +363,31 @@ class TestRollups(IonIntegrationTestCase):
         idv_stat = ["ignore", c, o, w, o, w, c]
 
         for i, id in self.idv.iteritems():
-            self.assertProperRollup("InstrumentDevice %s" % i, self.IMS.get_instrument_device_extension(id), idv_stat[i])
-
-        for i, id in self.pdv.iteritems():
-            self.assertProperRollup("PlatformDevice %s" % i, self.IMS.get_platform_device_extension(id), pdv_stat[i])
+            label = "InstrumentDevice %s" % i
+            log.info("Checking rollup of %s", label)
+            self.assertProperRollup(label, self.IMS.get_instrument_device_extension(id), idv_stat[i])
 
         for i, id in self.ist.iteritems():
-            self.assertProperRollup("InstrumentSite %s" % i, self.OMS.get_site_extension(id), ist_stat[i])
+            label = "InstrumentSite %s" % i
+            log.info("Checking rollup of %s", label)
+            self.assertProperRollup(label, self.OMS.get_site_extension(id), ist_stat[i])
+
+        for i, id in self.pdv.iteritems():
+            label = "PlatformDevice %s" % i
+            log.info("Checking rollup of %s", label)
+            self.assertProperRollup(label, self.IMS.get_platform_device_extension(id), pdv_stat[i])
 
         for i, id in self.pst.iteritems():
-            self.assertProperRollup("PlatformSite %s" % i, self.OMS.get_site_extension(id), pst_stat[i])
+            label = "PlatformSite %s" % i
+            log.info("Checking rollup of %s", label)
+            self.assertProperRollup(label, self.OMS.get_site_extension(id), pst_stat[i])
 
         #TODO: check observatory and org rollups!
 
 
 
     #TODO: REMOVE THIS TEST when test_complex_rollup_structure is fixed
+    #@unittest.skip("phasing out")
     def test_complex_rollup_structure_partially(self):
 
         o = DeviceStatusType.STATUS_OK
@@ -390,10 +399,14 @@ class TestRollups(IonIntegrationTestCase):
         ist_stat = ["ignore", c, o, w, u, o, u]
 
         for i, id in self.idv.iteritems():
-            self.assertProperRollup("InstrumentDevice %s" % i, self.IMS.get_instrument_device_extension(id), idv_stat[i])
+            label = "InstrumentDevice %s" % i
+            log.info("Checking rollup of %s", label)
+            self.assertProperRollup(label, self.IMS.get_instrument_device_extension(id), idv_stat[i])
 
         for i, id in self.ist.iteritems():
-            self.assertProperRollup("InstrumentSite %s" % i, self.OMS.get_site_extension(id), ist_stat[i])
+            label = "InstrumentSite %s" % i
+            log.info("Checking rollup of %s", label)
+            self.assertProperRollup(label % i, self.OMS.get_site_extension(id), ist_stat[i])
 
 
 
