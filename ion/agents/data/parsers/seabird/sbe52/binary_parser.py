@@ -36,7 +36,7 @@ import struct
 import time
 
 from ooi.logging import log
-from ion.agents.data.parsers.parser_utils import FlexDataParticle
+from ion.agents.data.parsers.parser_utils import FlexDataParticle, ParserException
 
 
 # 2 days @ 1 record/sec
@@ -54,19 +54,20 @@ class SBE52BinaryCTDParser(object):
     TODO: instead of reading whole file into memory, keep file open and seek/read/buffer/parse as needed
           (complicated a little b/c timestamps are at the end of each profile, and don't know # records)
     """
-    _profile_index = 0
-    _record_index = 0
-    _upload_time = time.time()
 
-    def __init__(self, url=None, open_file=None, parse_after=0, *a, **b):
+    def __init__(self, url=None, open_file=None, parse_after=0, *args, **kwargs):
         """ raise exception if file does not meet spec, or is too large to read into memory """
+        self._profile_index = 0
+        self._record_index = 0
+        self._upload_time = time.time()
+
         self._profiles = []
         self._parse_after = parse_after
         with open_file or open(url, 'rb') as f:
             f.seek(0,2)
             size = f.tell()
             if size > MAX_INMEMORY_SIZE:
-                raise Exception('file is too big')
+                raise ParserException('file is too big')
             f.seek(0)
             profile = self._read_profile(f)
             while profile:
@@ -86,7 +87,7 @@ class SBE52BinaryCTDParser(object):
                 break
             elif not line:
                 # EOF here is bad -- incomplete profile
-                raise Exception('bad file format -- EOF before reached end of profile')
+                raise ParserException('bad file format -- EOF before reached end of profile')
             out['records'].append(line)
             line = f.read(11)
         # after 'ff'*11 marker, next 8 bytes are start/end times

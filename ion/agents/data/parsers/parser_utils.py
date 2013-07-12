@@ -128,7 +128,7 @@ class FlexDataParticle(object):
         @raise InstrumentParameterException if timestamp or unix_time not supplied
         """
         if (timestamp == None and unix_time is None):
-            raise Exception("timestamp or unix_time required")
+            raise ParserException("timestamp or unix_time required")
 
         if (unix_time != None):
             timestamp = ntplib.system_to_ntp_time(unix_time)
@@ -150,7 +150,7 @@ class FlexDataParticle(object):
         if (id == DataParticleKey.INTERNAL_TIMESTAMP) and (self._check_timestamp(value)):
             self.contents[DataParticleKey.INTERNAL_TIMESTAMP] = value
         else:
-            raise Exception("Parameter %s not able to be set to %s after object creation!" %
+            raise ParserException("Parameter %s not able to be set to %s after object creation!" %
                                     (id, value))
 
     def set_data_values(self, values):
@@ -182,7 +182,7 @@ class FlexDataParticle(object):
         if DataParticleKey.has(id):
             return self.contents[id]
         else:
-            raise Exception("Value %s not available in particle!", id)
+            raise ParserException("Value %s not available in particle!", id)
 
 
     def data_particle_type(self):
@@ -191,7 +191,7 @@ class FlexDataParticle(object):
         @raise: NotImplementedException if _data_particle_type is not set
         """
         if(self._data_particle_type is None):
-            raise Exception("_data_particle_type not initialized")
+            raise ParserException("_data_particle_type not initialized")
 
         return self._data_particle_type
 
@@ -216,7 +216,7 @@ class FlexDataParticle(object):
 
         # verify preferred timestamp exists in the structure...
         if not self._check_preferred_timestamps():
-            raise Exception("Preferred timestamp not in particle!")
+            raise ParserException("Preferred timestamp not in particle!")
 
         # build response structure
         values = self._build_parsed_values()
@@ -291,7 +291,7 @@ class FlexDataParticle(object):
             timestamp in the sample.
         """
         if self.contents[DataParticleKey.PREFERRED_TIMESTAMP] is None:
-            raise Exception("Missing preferred timestamp, %s, in particle" %
+            raise ParserException("Missing preferred timestamp, %s, in particle" %
                                   self.contents[DataParticleKey.PREFERRED_TIMESTAMP])
 
         # This should be handled downstream.  Don't want to not publish data because
@@ -301,3 +301,7 @@ class FlexDataParticle(object):
         #                          self.contents[DataParticleKey.PREFERRED_TIMESTAMP])
 
         return True
+
+
+class ParserException(Exception):
+    pass

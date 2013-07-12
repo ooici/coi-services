@@ -9,18 +9,17 @@
 
 from nose.plugins.attrib import attr
 
-from ooi.logging import log
-
 from pyon.util.unit_test import PyonTestCase
 
-from ion.agents.data.parsers.parser_utils import DataParticle, DataParticleKey
 from ion.agents.data.parsers.seabird.sbe52.binary_parser import SBE52BinaryCTDParser
 
 
-CTD_FILE='test_data/C0000042.DAT'
+CTD_FILE = 'test_data/seabird/sbe52/C0000042.DAT'
+
 
 @attr('UNIT', group='eoi')
 class TestSBE52BinaryParser(PyonTestCase):
+
     def test_read_CTD(self):
         """ assert can read and parse a file """
         parser = SBE52BinaryCTDParser(CTD_FILE)  # no error? then we parsed the file into profiles and records!
