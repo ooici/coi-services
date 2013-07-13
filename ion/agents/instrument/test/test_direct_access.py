@@ -107,10 +107,12 @@ IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg'
-DRV_SHA = '28e1b59708d72e008b0aa68ea7392d3a2467f393'
+#DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg'
+#DRV_SHA = '28e1b59708d72e008b0aa68ea7392d3a2467f393'
 #DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.4-py2.7.egg'
 #DRV_SHA = '50de2e8383ebd801c3cd78c31f88983800e6bd0c'
+DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.5-py2.7.egg'
+DRV_SHA = '51ce182316f4f9dce336a76164276cb4749b77a5'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
