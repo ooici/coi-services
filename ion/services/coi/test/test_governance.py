@@ -2450,17 +2450,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
         self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED)
 
-        #Advance the Life cycle to DEVELOP - should fail since not owner or acquried resource
-        with self.assertRaises(Unauthorized) as cm:
-            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEVELOP, headers=obs_operator_actor_header)
-        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
-
-        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
-        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED)
-
-        #Have the Obs Operator acquire the resource since not the owner
-        commitment_id = self.org_client.create_resource_commitment(org2_id, obs_operator_actor_id, inst_dev_id)
-
         #Advance the Life cycle to DEVELOP - should pass governance but fail because of other hard wired preconditions.
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEVELOP, headers=obs_operator_actor_header)
@@ -2528,8 +2517,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(inst_dev_obj.lcstate, LCS.RETIRED)
 
 
-        #Clean up
-        self.org_client.release_commitment(commitment_id, headers=inst_operator_actor_header)
         self.ims_client.force_delete_instrument_device(inst_dev_id, headers=self.system_actor_header)
 
         self.id_client.delete_actor_identity(inst_operator_actor_id,headers=self.system_actor_header )
