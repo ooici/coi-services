@@ -211,6 +211,7 @@ class ZmqDriverClient(DriverClient):
                 time.sleep(.5)
             except Exception,e:
                 log.error('Driver client error reading from zmq socket: ' + str(e))
+                log.error('Driver client error type: ' + str(type(e)))
                 raise SystemError('exception reading from zmq socket: ' + str(e))
                 
         log.trace('Reply: %r', reply)
