@@ -406,7 +406,7 @@ class TestRollups(IonIntegrationTestCase):
         for i, id in self.ist.iteritems():
             label = "InstrumentSite %s" % i
             log.info("Checking rollup of %s", label)
-            self.assertProperRollup(label % i, self.OMS.get_site_extension(id), ist_stat[i])
+            self.assertProperRollup(label, self.OMS.get_site_extension(id), ist_stat[i])
 
 
 
