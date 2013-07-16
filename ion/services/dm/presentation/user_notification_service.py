@@ -15,8 +15,8 @@ from pyon.util.log import log
 from pyon.util.containers import get_ion_ts
 from pyon.public import RT, PRED, get_sys_name, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
-from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_to_human_readable
+from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_timestamp_to_human_readable
 
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -59,7 +59,7 @@ class EmailEventProcessor(object):
     def add_notification_for_user(self, new_notification=None, user_id=''):
         """
         Add a notification to the user's list of subscribed notifications
-        @param notification_request NotificationRequest
+        @param new_notification
         @param user_id str
         """
         user = self.rr.read(user_id)
@@ -110,7 +110,7 @@ class UserNotificationService(BaseUserNotificationService):
         # Event originators, types, and table
         self.notifications = {}
 
-        # Dictionaries that maintain information about users and their subscribed notifications
+        # Dictionaries that maintain information asetting_up_smtp_clientbout users and their subscribed notifications
         self.user_info = {}
 
         # The reverse_user_info is calculated from the user_info dictionary
@@ -131,9 +131,9 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
 
         def reload_user_info(event_msg, headers):
-            '''
+            """
             Callback method for the subscriber to ReloadUserInfoEvent
-            '''
+            """
 
             notification_id =  event_msg.notification_id
             log.debug("(UNS instance received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
@@ -408,7 +408,7 @@ class UserNotificationService(BaseUserNotificationService):
 #
 #        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
-    def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit= -1, descending=False):
+    def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit=-1, descending=False):
         """
         This method leverages couchdb view and simple filters. It does not use elastic search.
 
@@ -416,7 +416,6 @@ class UserNotificationService(BaseUserNotificationService):
         if no events exist for the given parameters.
 
         @param origin         str
-        @param event_type     str
         @param min_datetime   int  seconds
         @param max_datetime   int  seconds
         @param limit          int         (integer limiting the number of results (0 means unlimited))
@@ -567,7 +566,7 @@ class UserNotificationService(BaseUserNotificationService):
 
             evt_computed.event_attributes_formatted = pprint.pformat(event.__dict__)
         except Exception as ex:
-            log.exception("Error computing EventComputedAttributes for event %s" % event)
+            log.exception("Error computing EventComputedAttributes for event %s: %s", event, ex)
 
         return evt_computed
 
@@ -579,7 +578,7 @@ class UserNotificationService(BaseUserNotificationService):
         elif "ResourceModifiedEvent" in event_types:
             summary = "%s modified: %s" % (event.origin_type, event.sub_type)
         elif "ResourceIssueReportedEvent" in event_types:
-            summary = "Issue created: %s" % (event.description)
+            summary = "Issue created: %s" % event.description
 
         elif "ResourceAgentStateEvent" in event_types:
             summary = "%s agent state change: %s" % (event.origin_type, event.state)
@@ -608,9 +607,9 @@ class UserNotificationService(BaseUserNotificationService):
             summary = "Operator entered: %s" % event.description
 
         elif "OrgMembershipGrantedEvent" in event_types:
-            summary = "Joined Org '%s' as member" % (event.org_name)
+            summary = "Joined Org '%s' as member" % event.org_name
         elif "OrgMembershipCancelledEvent" in event_types:
-            summary = "Cancelled Org '%s' membership" % (event.org_name)
+            summary = "Cancelled Org '%s' membership" % event.org_name
         elif "UserRoleGrantedEvent" in event_types:
             summary = "Granted %s in Org '%s'" % (event.role_name, event.org_name)
         elif "UserRoleRevokedEvent" in event_types:
@@ -793,70 +792,41 @@ class UserNotificationService(BaseUserNotificationService):
         self.smtp_client.quit()
 
 
-    def format_and_send_email(self, events_for_message = None, user_id = None, smtp_client = None):
+    def format_and_send_email(self, events_for_message=None, user_id=None, smtp_client=None):
         """
         Format the message for a particular user containing information about the events he is to be notified about
 
         @param events_for_message list
         @param user_id str
         """
-
         message = str(events_for_message)
         log.debug("The user, %s, will get the following events in his batch notification email: %s", user_id, message)
 
-        msg_body = ''
-        count = 1
-
-        for event in events_for_message:
-
-            ts_created = _convert_to_human_readable(event.ts_created)
-
-            msg_body += string.join(("\r\n",
-                                     "Event %s: %s" %  (count, event),
-                                     "",
-                                     "Originator: %s" %  event.origin,
-                                     "",
-                                     "Description: %s" % event.description or "Not provided",
-                                     "",
-                                     "ts_created: %s" %  ts_created,
-                                     "\r\n",
-                                     "------------------------"
-                                     "\r\n"))
-            count += 1
-
-        msg_body += "You received this notification from ION because you asked to be " +\
-                    "notified about this event from this source. " +\
-                    "To modify or remove notifications about this event, " +\
-                    "please access My Notifications Settings in the ION Web UI. " +\
-                    "Do not reply to this email.  This email address is not monitored " +\
-                    "and the emails will not be read. \r\n "
+        msg = convert_events_to_email_message(events_for_message, self.clients.resource_registry)
+        msg["Subject"] = "(SysName: " + get_sys_name() + ") ION event "
+        msg["To"] = self.user_info[user_id]['user_contact'].email
+        self.send_batch_email(msg, smtp_client)
 
 
-        log.debug("The email has the following message body: %s", msg_body)
-
-        msg_subject = "(SysName: " + get_sys_name() + ") ION event "
-
-        self.send_batch_email(  msg_body = msg_body,
-            msg_subject = msg_subject,
-            msg_recipient=self.user_info[user_id]['user_contact'].email,
-            smtp_client=smtp_client )
-
-
-    def send_batch_email(self, msg_body = None, msg_subject = None, msg_recipient = None, smtp_client = None):
+    def send_batch_email(self, msg=None, smtp_client=None):
         """
         Send the email
 
-        @param msg_body str
-        @param msg_subject str
-        @param msg_recipient str
+        @param msg MIMEText object of email message
         @param smtp_client object
         """
 
-        msg = MIMEText(msg_body)
-        msg['Subject'] = msg_subject
+        if msg is None: msg = {}
+        for f in ["Subject", "To"]:
+            if not f in msg: raise BadRequest("'%s' not in msg %s" % (f, msg))
+
+        msg_subject = msg["Subject"]
+        msg_recipient = msg["To"]
+
         msg['From'] = self.ION_NOTIFICATION_EMAIL_ADDRESS
-        msg['To'] = msg_recipient
-        log.debug("UNS sending batch (digest) email from %s to %s" , self.ION_NOTIFICATION_EMAIL_ADDRESS, msg_recipient)
+        log.debug("UNS sending batch (digest) email from %s to %s",
+                  self.ION_NOTIFICATION_EMAIL_ADDRESS,
+                  msg_recipient)
 
         smtp_sender = CFG.get_safe('server.smtp.sender')
 
@@ -868,7 +838,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         @param user_id str
         @param new_notification NotificationRequest
-        @param old_notification NotificationRequest
         """
 
         #------------------------------------------------------------------------------------

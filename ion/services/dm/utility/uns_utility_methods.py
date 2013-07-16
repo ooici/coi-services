@@ -1,22 +1,19 @@
-'''
+"""
 @author Swarbhanu Chatterjee
 @file ion/services/dm/utility/uns_utility_methods.py
 @description A module containing common utility methods used by UNS and the notification workers.
-'''
+"""
 from pyon.public import get_sys_name, CFG
 from pyon.util.ion_time import IonTime
-from pyon.util.arg_check import validate_is_not_none
 from pyon.util.log import log
-from pyon.core.exception import NotFound, BadRequest
-from pyon.event.event import EventPublisher
-from interface.objects import NotificationRequest, Event, NotificationDeliveryModeEnum
+from pyon.core.exception import BadRequest, NotFound
+from interface.objects import NotificationRequest, Event
 import smtplib
 import gevent
-from gevent.timeout import Timeout
 import string
 from email.mime.text import MIMEText
 from gevent import Greenlet
-import datetime
+
 
 class fake_smtplib(object):
 
@@ -42,18 +39,18 @@ class fake_smtplib(object):
         pass
 
 def setting_up_smtp_client():
-    '''
+    """
     Sets up the smtp client
-    '''
+    """
 
     #------------------------------------------------------------------------------------
     # the default smtp server
     #------------------------------------------------------------------------------------
-    smtp_client = None
+#    smtp_client = None
     smtp_host = CFG.get_safe('server.smtp.host')
     smtp_port = CFG.get_safe('server.smtp.port', 25)
-    smtp_sender = CFG.get_safe('server.smtp.sender')
-    smtp_password = CFG.get_safe('server.smtp.password')
+#    smtp_sender = CFG.get_safe('server.smtp.sender')
+#    smtp_password = CFG.get_safe('server.smtp.password')
 
     if CFG.get_safe('system.smtp',False): #Default is False - use the fake_smtp
         log.debug('Using the real SMTP library to send email notifications! host = %s', smtp_host)
@@ -75,54 +72,85 @@ def setting_up_smtp_client():
     return smtp_client
 
 
-def _convert_to_human_readable(t = ''):
+def _convert_timestamp_to_human_readable(t = ''):
 
     it = IonTime(int(t)/1000.)
     return str(it)
 
-def send_email(message, msg_recipient, smtp_client):
-    '''
+
+def convert_events_to_email_message(events=None, rr_client=None):
+
+    if events is None: events = []
+
+    if 0 == len(events): raise BadRequest("Tried to convert events to email, but none were supplied")
+
+    msg_body = ""
+
+    resource_human_readable = "<uninitialized string>"
+    for idx, event in enumerate(events, 1):
+
+        ts_created = _convert_timestamp_to_human_readable(event.ts_created)
+
+        # build human readable resource string
+        resource_human_readable = "'%s' with ID='%s' (not found)" % (event.origin_type, event.origin)
+        try:
+            resource = rr_client.read(event.origin)
+            resource_human_readable = "%s '%s'" % (type(resource).__name__, resource.name)
+        except NotFound:
+            pass
+
+        msg_body += string.join(("\r\n",
+                                 "Event %s: %s" %  (idx, event.type_),
+                                 "",
+                                 "Resource: %s" %  resource_human_readable,
+                                 "",
+#                                 # originator is the same as the resource
+#                                 "Originator: %s" %  event.origin,
+#                                 "",
+                                 "Description: %s" % event.description or "Not provided",
+                                 "",
+                                 "ts_created: %s" %  ts_created,
+                                 "",
+                                 "Event object as a dictionary: %s," %  str(event),
+                                 "\r\n",
+                                 "------------------------"
+                                 "\r\n"))
+
+    msg_body += "You received this notification from ION because you asked to be " +\
+                "notified about this event from this source. " +\
+                "To modify or remove notifications about this event, " +\
+                "please access My Notifications Settings in the ION Web UI. " +\
+                "Do not reply to this email.  This email address is not monitored " +\
+                "and the emails will not be read. \r\n "
+
+
+    log.debug("The email has the following message body: %s", msg_body)
+
+    msg_subject = "(SysName: " + get_sys_name() + ") "
+    if 1 == len(events):
+        msg_subject += "ION event " + events[0].type_ + " from " + resource_human_readable
+    else:
+        msg_subject += "summary of %s ION events" % len(events)
+
+    msg = MIMEText(msg_body)
+    msg['Subject'] = msg_subject
+    #    msg['From'] = smtp_sender
+    #    msg['To'] = msg_recipient
+
+    return msg
+
+
+def send_email(event, msg_recipient, smtp_client, rr_client):
+    """
     A common method to send email with formatting
 
-    @param message              Event
+    @param event              Event
     @param msg_recipient        str
     @param smtp_client          fake or real smtp client object
 
-    '''
+    """
 
-    log.debug("Got type of event to notify on: %s", message.type_)
-
-    # Get the diffrent attributes from the event message
-    event = message.type_
-    origin = message.origin
-    description = message.description or "Not provided for this event"
-    event_obj_as_string = str(message)
-    ts_created = _convert_to_human_readable(message.ts_created)
-
-    #------------------------------------------------------------------------------------
-    # build the email from the event content
-    #------------------------------------------------------------------------------------
-
-    msg_body = string.join(("Event type: %s," %  event,
-                            "",
-                            "Originator: %s," %  origin,
-                            "",
-                            "Description: %s," % description,
-                            "",
-                            "ts_created: %s," %  ts_created,
-                            "",
-                            "Event object as a dictionary: %s," %  event_obj_as_string,
-                            "",
-                            "You received this notification from ION because you asked to be "\
-                            "notified about this event from this source. ",
-                            "To modify or remove notifications about this event, "\
-                            "please access My Notifications Settings in the ION Web UI.",
-                            "Do not reply to this email.  This email address is not monitored "\
-                            "and the emails will not be read."),
-        "\r\n")
-    msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event + " from " + origin
-
-    log.debug("msg_body::: %s", msg_body)
+    log.debug("Got type of event to notify on: %s", event.type_)
 
     #------------------------------------------------------------------------------------
     # the 'from' email address for notification emails
@@ -131,11 +159,10 @@ def send_email(message, msg_recipient, smtp_client):
     ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
     smtp_sender = CFG.get_safe('server.smtp.sender', ION_NOTIFICATION_EMAIL_ADDRESS)
 
-    msg = MIMEText(msg_body)
-    msg['Subject'] = msg_subject
+    msg = convert_events_to_email_message([event], rr_client)
     msg['From'] = smtp_sender
     msg['To'] = msg_recipient
-    log.debug("UNS sending email from %s to %s for event type: %s", smtp_sender,msg_recipient, message.type_)
+    log.debug("UNS sending email from %s to %s for event type: %s", smtp_sender,msg_recipient, event.type_)
     log.debug("UNS using the smtp client: %s", smtp_client)
 
     try:
@@ -147,7 +174,7 @@ def send_email(message, msg_recipient, smtp_client):
 
 
 def check_user_notification_interest(event, reverse_user_info):
-    '''
+    """
     A method to check which user is interested in a notification or an event.
     The input parameter event can be used interchangeably with notification in this method
     Returns the list of users interested in the notification
@@ -156,7 +183,7 @@ def check_user_notification_interest(event, reverse_user_info):
     @param reverse_user_info    dict
 
     @retval user_ids list
-    '''
+    """
 #    log.debug("Checking for interested users. Event type: %s, reverse_user_info: %s", event.type_, reverse_user_info)
 
     if not isinstance(event, Event):
@@ -230,7 +257,7 @@ def check_user_notification_interest(event, reverse_user_info):
     return list( users)
 
 def calculate_reverse_user_info(user_info=None):
-    '''
+    """
     Calculate a reverse user info... used by the notification workers and the UNS
 
     @param user_info            dict
@@ -249,7 +276,7 @@ def calculate_reverse_user_info(user_info=None):
 
                         'event_origin_type' : { <event_origin_type_1> : ['user_1', 'user_2'..],
                                                    <event_origin_type_2> : ['user_3'],... },
-    '''
+    """
 
     if not user_info:
         return {}
