@@ -100,7 +100,7 @@ class AgentStatusBuilder(object):
 
         except Unauthorized:
             log.warn("The requester does not have the proper role to access the status of this agent")
-            return None, "Error getting status: 'aggstatus' has been denied"
+            return None, "InstrumentDevice(get_agent) has been denied"
 
         out_status = {device_id: this_status}
 
