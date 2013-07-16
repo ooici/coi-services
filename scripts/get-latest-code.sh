@@ -56,7 +56,7 @@ ant clean
 sh scripts/cc-cleanup.sh
 
 echo -e "\n\n=== BOOTSTRAPPING ===\n"
-python bootstrap.py -v 1.7
+python bootstrap.py -v 2.2.0
 
 echo -e "\n\n=== BUILDING OUT ===\n"
 bin/buildout -c gcoverage*
