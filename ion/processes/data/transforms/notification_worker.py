@@ -137,15 +137,19 @@ class NotificationWorker(TransformEventListener):
             notifications_daily_digest = False
 
             log.debug('load_user_info: user.variables:  %s', user.variables)
+
             for variable in user.variables:
-                if variable['name'] == 'notifications':
-                    notifications = variable['value']
+                if type(variable) is dict and variable.has_key('name'):
+                    if variable['name'] == 'notifications':
+                        notifications = variable['value']
 
-                if variable['name'] == 'notifications_daily_digest':
-                    notifications_daily_digest = variable['value']
+                    if variable['name'] == 'notifications_daily_digest':
+                        notifications_daily_digest = variable['value']
 
-                if variable['name'] == 'notifications_disabled':
-                    notifications_disabled = variable['value']
+                    if variable['name'] == 'notifications_disabled':
+                        notifications_disabled = variable['value']
+                else:
+                    log.warning('Invalid variables attribute on UserInfo instance. UserInfo: %s', user)
 
             user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications,
                                     'notifications_daily_digest' : notifications_daily_digest, 'notifications_disabled' : notifications_disabled}
