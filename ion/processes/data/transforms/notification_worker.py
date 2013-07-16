@@ -113,7 +113,10 @@ class NotificationWorker(TransformEventListener):
         for user_id in user_ids:
             msg_recipient = self.user_info[user_id]['user_contact'].email
             self.smtp_client = setting_up_smtp_client()
-            send_email(event = msg, msg_recipient = msg_recipient, smtp_client = self.smtp_client )
+            send_email(event=msg,
+                       msg_recipient=msg_recipient,
+                       smtp_client=self.smtp_client,
+                       rr_client=self.resource_registry)
             self.smtp_client.quit()
 
 

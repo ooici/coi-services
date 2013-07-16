@@ -6,7 +6,7 @@
 from pyon.public import get_sys_name, CFG
 from pyon.util.ion_time import IonTime
 from pyon.util.log import log
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, NotFound
 from interface.objects import NotificationRequest, Event
 import smtplib
 import gevent
@@ -82,17 +82,31 @@ def convert_events_to_email_message(events=None, rr_client=None):
 
     if events is None: events = []
 
+    if 0 == len(events): raise BadRequest("Tried to convert events to email, but none were supplied")
+
     msg_body = ""
 
+    resource_human_readable = "<uninitialized string>"
     for idx, event in enumerate(events, 1):
 
         ts_created = _convert_timestamp_to_human_readable(event.ts_created)
 
+        # build human readable resource string
+        resource_human_readable = "'%s' with ID='%s' (not found)" % (event.origin_type, event.origin)
+        try:
+            resource = rr_client.read(event.origin)
+            resource_human_readable = "%s '%s'" % (type(resource).__name__, resource.name)
+        except NotFound:
+            pass
+
         msg_body += string.join(("\r\n",
-                                 "Event %s: %s" %  (idx, event),
+                                 "Event %s: %s" %  (idx, event.type_),
                                  "",
-                                 "Originator: %s" %  event.origin,
+                                 "Resource: %s" %  resource_human_readable,
                                  "",
+#                                 # originator is the same as the resource
+#                                 "Originator: %s" %  event.origin,
+#                                 "",
                                  "Description: %s" % event.description or "Not provided",
                                  "",
                                  "ts_created: %s" %  ts_created,
@@ -112,8 +126,11 @@ def convert_events_to_email_message(events=None, rr_client=None):
 
     log.debug("The email has the following message body: %s", msg_body)
 
-    msg_subject = "(SysName: " + get_sys_name() + ") ION event " + event.type_ + " from " + event.origin
-
+    msg_subject = "(SysName: " + get_sys_name() + ") "
+    if 1 == len(events):
+        msg_subject += "ION event " + events[0].type_ + " from " + resource_human_readable
+    else:
+        msg_subject += "summary of %s ION events" % len(events)
 
     msg = MIMEText(msg_body)
     msg['Subject'] = msg_subject
@@ -123,7 +140,7 @@ def convert_events_to_email_message(events=None, rr_client=None):
     return msg
 
 
-def send_email(event, msg_recipient, smtp_client):
+def send_email(event, msg_recipient, smtp_client, rr_client):
     """
     A common method to send email with formatting
 
@@ -142,7 +159,7 @@ def send_email(event, msg_recipient, smtp_client):
     ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
     smtp_sender = CFG.get_safe('server.smtp.sender', ION_NOTIFICATION_EMAIL_ADDRESS)
 
-    msg = convert_events_to_email_message([event], None)
+    msg = convert_events_to_email_message([event], rr_client)
     msg['From'] = smtp_sender
     msg['To'] = msg_recipient
     log.debug("UNS sending email from %s to %s for event type: %s", smtp_sender,msg_recipient, event.type_)
