@@ -1473,8 +1473,8 @@ class InstrumentAgent(ResourceAgent):
             while True:
                 gevent.sleep(15)
                 try:
-                    retval = self._fsm.on_event_if_free(ResourceAgentEvent.PING_RESOURCE)
-                    log.info('############################# Pinger: %s', str(retval))
+                    retval = self._fsm.on_event_if_free(ResourceAgentEvent.PING_RESOURCE, driver_timeout=60)
+                    log.info(str(retval))
 
                 except FSMLockedError:
                     log.warning('Pinger blocked, will try again later.')
