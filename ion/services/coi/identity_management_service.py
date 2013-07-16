@@ -272,6 +272,20 @@ class IdentityManagementService(BaseIdentityManagementService):
 
         return extended_user
 
+    def prepare_user_info_support(self, user_info_id=''):
+        """
+        Returns the object containing the data to create/update a user info resource
+        """
+
+        # TODO: Precondition or check: only the actor identity associated with this user or an ORG_MANAGER/ION_MANAGER
+        # can edit this user info resource
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_resource_support(user_info_id, OT.UserInfoPrepareSupport)
+
+        return resource_data
+
     def find_user_open_requests(self, user_info_id='', actor_id='', org_id=''):
         """
         Local function to be called by extended resource framework from get_user_info_extension operation. The first
