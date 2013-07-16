@@ -32,6 +32,8 @@ from pyon.core.exception import ServerError
 from pyon.core.exception import ResourceError
 from pyon.core.exception import InstDriverClientTimeoutError
 
+from pyon.agent.instrument_fsm import FSMLockedError
+
 # Standard imports.
 import socket
 import json
@@ -208,6 +210,9 @@ class InstrumentAgent(ResourceAgent):
         # Agent alert manager.
         self._aam = None
 
+        # Driver pinger greenlet.
+        self._pinger = None
+
         # Agent schema.
         # Loaded with driver start/stop.
         self._resource_schema = {}
@@ -243,6 +248,7 @@ class InstrumentAgent(ResourceAgent):
     def on_quit(self):
         """
         """
+
         super(InstrumentAgent, self).on_quit()
 
         self._aam.stop_all()
@@ -1413,6 +1419,7 @@ class InstrumentAgent(ResourceAgent):
             if startup_config:
                 retval = driver_client.cmd_dvr('set_init_params', startup_config)
             self._dvr_client = driver_client
+            self._start_pinger()
 
         except Exception, e:
             self._dvr_proc.stop()
@@ -1422,17 +1429,23 @@ class InstrumentAgent(ResourceAgent):
             raise ResourceError('Error starting driver client.')
 
         log.info('Instrument agent %s started its driver.', self._proc_name)
-        
+
     def _stop_driver(self):
         """
         Stop the driver process and driver client.
         """
             
+        if self._pinger:
+            self._pinger.kill()
+            self._pinger.join()
+            self._pinger = None
+
         if self._dvr_proc:
             self._dvr_proc.stop()
             self._dvr_proc = None
             self._dvr_client = None
             self._resource_schema = {}
+
             log.info('Instrument agent %s stopped its driver.', self._proc_name)
 
     def _validate_driver_config(self):
@@ -1451,7 +1464,30 @@ class InstrumentAgent(ResourceAgent):
             return False
         
         return True
-    
+
+    def _start_pinger(self):
+        """
+        """
+
+        def ping_func():
+            while True:
+                gevent.sleep(15)
+                try:
+                    retval = self._fsm.on_event_if_free(ResourceAgentEvent.PING_RESOURCE)
+                    log.info('############################# Pinger: %s', str(retval))
+
+                except FSMLockedError:
+                    log.warning('Pinger blocked, will try again later.')
+
+                except InstDriverClientTimeoutError:
+                    self._on_driver_comms_error('driver pinger')
+                    self._fsm.on_evvent(ResourceAgentEvent.RESET)
+
+                except Exception as ex:
+                    log.error('Pinger got unexpected exception: %s', str(ex))
+
+        self._pinger = gevent.spawn(ping_func)
+
     ##############################################################
     # Agent parameter functions.
     ##############################################################    
