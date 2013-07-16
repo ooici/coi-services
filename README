@@ -68,8 +68,11 @@ installation
     Note: This may require Mac's XCode (use XCode 3.3 free version)
 
 * Setup a virtualenv to run COI-services (use any name you like):
-    > mkvirtualenv --distribute --no-site-packages --python=python2.7 coi
+    > mkvirtualenv --no-site-packages --python=python2.7 coi
     Note: Do not use the pyon virtualenv if you are a pyon developer
+
+* Pin setuptools in your virtualenv
+    > pip install -U setuptools==0.8
 
 * Install numpy to the virtualenv
     > pip install numpy==1.7.1
@@ -95,7 +98,7 @@ PACKAGE DEPENDENCIES
 ====================
 
 Use Buildout to install the python package dependencies (including pyon itself) with:
-    > python bootstrap.py
+    > python bootstrap.py -v 2.2.0
     > bin/buildout
 
 ** Add following to your .bashrc profile on Macs if buildout fails to
