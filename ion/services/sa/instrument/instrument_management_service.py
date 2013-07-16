@@ -835,14 +835,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 return False, '%s(%s) has been denied since the resource id %s has not been shared with any Org' % (process.name, gov_values.op, gov_values.resource_id)
 
             #Handle these lifecycle transitions first
-            if lifecycle_event == LCE.INTEGRATE or lifecycle_event == LCE.DEPLOY or lifecycle_event == LCE.RETIRE:
-
-                #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
-                for org in orgs:
-                    if has_org_role(gov_values.actor_roles, org.org_governance_name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
-                        return True, ''
-
-            else:
+            
+            if not (lifecycle_event == LCE.INTEGRATE or lifecycle_event == LCE.DEPLOY or lifecycle_event == LCE.RETIRE):
 
                 #The owner can do any of these other lifecycle transitions
                 is_owner = is_resource_owner(gov_values.actor_id, gov_values.resource_id)
@@ -854,7 +848,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
                 #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
                 for org in orgs:
-                    if has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
+                    if has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR_ROLE] ) and is_shared:
                         return True, ''
 
             return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (process.name, gov_values.op, gov_values.actor_id, lifecycle_event)

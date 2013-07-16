@@ -14,6 +14,8 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 import logging
 
+from copy import deepcopy
+
 from ion.agents.platform.platform_driver_event import DriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
@@ -107,7 +109,8 @@ class PlatformDriver(object):
                       self._platform_attributes)
 
         self._driver_config = None
-
+        self._resource_schema = {}
+        
         # The parameter dictionary.
         self._param_dict = {}
 
@@ -188,6 +191,12 @@ class PlatformDriver(object):
 
         self.validate_driver_configuration(driver_config)
         self._driver_config = driver_config
+        #self._param_dict = deepcopy(self._driver_config.get('attributes',{}))
+        
+    def get_config_metadata(self):
+        """
+        """
+        return deepcopy(self._resource_schema)
 
     def connect(self):
         """

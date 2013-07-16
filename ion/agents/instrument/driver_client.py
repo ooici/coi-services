@@ -194,6 +194,10 @@ class ZmqDriverClient(DriverClient):
             except zmq.ZMQError:
                 # Socket not ready to accept send. Sleep and retry later.
                 time.sleep(.5)
+
+            except Exception,e:
+                log.error('Driver client error writing to zmq socket: ' + str(e))
+                raise SystemError('exception writing to zmq socket: ' + str(e))
             
         log.trace('Awaiting reply.')
         while True:
@@ -206,12 +210,15 @@ class ZmqDriverClient(DriverClient):
                 # Socket not ready with the reply. Sleep and retry later.
                 time.sleep(.5)
             except Exception,e:
-                raise SystemError('exception reading from zmq socket')
+                log.error('Driver client error reading from zmq socket: ' + str(e))
+                log.error('Driver client error type: ' + str(type(e)))
+                raise SystemError('exception reading from zmq socket: ' + str(e))
                 
         log.trace('Reply: %r', reply)
 
         ## exception information is returned as a tuple (code, message, stacks)
         if isinstance(reply, tuple) and len(reply)==3:
+            log.error('Proceeding to raise exception with these args: ' + str(reply))
             raise EXCEPTION_FACTORY.create_exception(*reply)
         else:
             return reply

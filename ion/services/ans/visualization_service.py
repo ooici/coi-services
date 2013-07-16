@@ -300,24 +300,28 @@ class VisualizationService(BaseVisualizationService):
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
 
+        try:
+            #Taking advantage of idempotency
+            xq = self.container.ex_manager.create_xn_queue(query_token)
 
-        #Taking advantage of idempotency
-        xq = self.container.ex_manager.create_xn_queue(query_token)
+            subscriber = Subscriber(from_name=xq)
+            subscriber.initialize()
 
+        except:
+            # Close the subscriber if it exists
+            if subscriber:
+                subscriber.close()
 
-        subscriber = Subscriber(from_name=xq)
-        subscriber.initialize()
+            raise BadRequest("Could not subscribe to the real-time queue")
 
         msgs = subscriber.get_all_msgs(timeout=2)
         for x in range(len(msgs)):
             msgs[x].ack()
 
+        subscriber.close()
+
         # Different messages should get processed differently. Ret val will be decided by the viz product type
         ret_val = self._process_visualization_message(msgs)
-
-
-        #TODO - replace as need be to return valid GDT data
-        #return {'viz_data': ret_val}
 
         return ret_val
 
@@ -381,7 +385,6 @@ class VisualizationService(BaseVisualizationService):
 
         if sub_stream_id != '':
             try:
-
                 #Can only clean up if we have all of the data
                 workflow_data_product_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.DataProduct, predicate=PRED.hasStream, object=sub_stream_id, id_only=True)
 
@@ -518,6 +521,7 @@ class VisualizationService(BaseVisualizationService):
         gdt_stream_def = self.clients.pubsub_management.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
 
         gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(retrieved_granule, params=gdt_stream_def, config=visualization_parameters)
+
         if gdt_data_granule == None:
             return empty_gdt.ToJSon()
 
