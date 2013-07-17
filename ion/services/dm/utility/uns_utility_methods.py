@@ -84,6 +84,8 @@ def convert_events_to_email_message(events=None, rr_client=None):
 
     if 0 == len(events): raise BadRequest("Tried to convert events to email, but none were supplied")
 
+    ION_WEBSITE_URL = "http://example.url.com"
+
     msg_body = ""
 
     resource_human_readable = "<uninitialized string>"
@@ -99,34 +101,39 @@ def convert_events_to_email_message(events=None, rr_client=None):
         except NotFound:
             pass
 
+        if 1 == len(events):
+            eventtitle = "Type"
+        else:
+            eventtitle = "%s Type" % idx
+
         msg_body += string.join(("\r\n",
-                                 "Event %s: %s" %  (idx, event.type_),
+                                 "Event %s: %s" %  (eventtitle, event.type_),
                                  "",
                                  "Resource: %s" %  resource_human_readable,
                                  "",
-#                                 # originator is the same as the resource
-#                                 "Originator: %s" %  event.origin,
-#                                 "",
+                                 "Date & Time: %s" %  ts_created,
+                                 "",
                                  "Description: %s" % event.description or "Not provided",
-                                 "",
-                                 "ts_created: %s" %  ts_created,
-                                 "",
-                                 "Event object as a dictionary: %s," %  str(event),
+#                                 "",
+#                                 "Event object as a dictionary: %s," %  str(event),
                                  "\r\n",
-                                 "------------------------"
-                                 "\r\n"))
+                                 "------------------------",
+                                 "\r\n",
+                                 ),         # necessary!
+                                 "\r\n")
 
-    msg_body += "You received this notification from ION because you asked to be " +\
-                "notified about this event from this source. " +\
-                "To modify or remove notifications about this event, " +\
-                "please access My Notifications Settings in the ION Web UI. " +\
-                "Do not reply to this email.  This email address is not monitored " +\
-                "and the emails will not be read. \r\n "
+
+    msg_body += ("\r\n\r\nAutomated alert from the OOI ION system (%s). " % get_sys_name()) +\
+                "This notification was received based on " +\
+                "your current subscription settings for this event type from this resource. To unsubscribe " +\
+                "from notifications of this event type, please access the actions menu for the resource " +\
+                ("listed above in the ION interface, %s.  \r\n\r\n" % ION_WEBSITE_URL) +\
+                "Do not reply to this email.  This email address is not monitored and the emails will not be read.\r\n"
 
 
     log.debug("The email has the following message body: %s", msg_body)
 
-    msg_subject = "(SysName: " + get_sys_name() + ") "
+    msg_subject = ""
     if 1 == len(events):
         msg_subject += "ION event " + events[0].type_ + " from " + resource_human_readable
     else:
