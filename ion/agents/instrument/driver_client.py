@@ -19,6 +19,8 @@ import zmq
 
 from ooi.logging import log
 from pyon.core.exception import ExceptionFactory
+from pyon.core.exception import InstDriverClientTimeoutError
+
 
 EXCEPTION_FACTORY = ExceptionFactory()
 class DriverClient(object):
@@ -178,9 +180,11 @@ class ZmqDriverClient(DriverClient):
         @retval Command result.
         """
         # Package command dictionary.
+        driver_timeout = kwargs.pop('driver_timeout', 600)
         msg = {'cmd':cmd,'args':args,'kwargs':kwargs}
         
         log.debug('Sending command %s.' % str(msg))
+        start_send = time.time()
         while True:
             try:
                 # Attempt command send. Retry if necessary.
@@ -194,12 +198,17 @@ class ZmqDriverClient(DriverClient):
             except zmq.ZMQError:
                 # Socket not ready to accept send. Sleep and retry later.
                 time.sleep(.5)
+                delta = time.time() - start_send
+                if delta >= driver_timeout:
+                    raise InstDriverClientTimeoutError
 
             except Exception,e:
                 log.error('Driver client error writing to zmq socket: ' + str(e))
+                log.error('Driver client error type: ' + str(type(e)))
                 raise SystemError('exception writing to zmq socket: ' + str(e))
             
         log.trace('Awaiting reply.')
+        start_reply = time.time()
         while True:
             try:
                 # Attempt reply recv. Retry if necessary.
@@ -209,6 +218,10 @@ class ZmqDriverClient(DriverClient):
             except zmq.ZMQError:
                 # Socket not ready with the reply. Sleep and retry later.
                 time.sleep(.5)
+                delta = time.time() - start_reply
+                if delta >= driver_timeout:
+                    raise InstDriverClientTimeoutError
+
             except Exception,e:
                 log.error('Driver client error reading from zmq socket: ' + str(e))
                 log.error('Driver client error type: ' + str(type(e)))

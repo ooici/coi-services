@@ -113,7 +113,10 @@ class NotificationWorker(TransformEventListener):
         for user_id in user_ids:
             msg_recipient = self.user_info[user_id]['user_contact'].email
             self.smtp_client = setting_up_smtp_client()
-            send_email(message = msg, msg_recipient = msg_recipient, smtp_client = self.smtp_client )
+            send_email(event=msg,
+                       msg_recipient=msg_recipient,
+                       smtp_client=self.smtp_client,
+                       rr_client=self.resource_registry)
             self.smtp_client.quit()
 
 
@@ -137,15 +140,19 @@ class NotificationWorker(TransformEventListener):
             notifications_daily_digest = False
 
             log.debug('load_user_info: user.variables:  %s', user.variables)
+
             for variable in user.variables:
-                if variable['name'] == 'notifications':
-                    notifications = variable['value']
+                if type(variable) is dict and variable.has_key('name'):
+                    if variable['name'] == 'notifications':
+                        notifications = variable['value']
 
-                if variable['name'] == 'notifications_daily_digest':
-                    notifications_daily_digest = variable['value']
+                    if variable['name'] == 'notifications_daily_digest':
+                        notifications_daily_digest = variable['value']
 
-                if variable['name'] == 'notifications_disabled':
-                    notifications_disabled = variable['value']
+                    if variable['name'] == 'notifications_disabled':
+                        notifications_disabled = variable['value']
+                else:
+                    log.warning('Invalid variables attribute on UserInfo instance. UserInfo: %s', user)
 
             user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications,
                                     'notifications_daily_digest' : notifications_daily_digest, 'notifications_disabled' : notifications_disabled}
