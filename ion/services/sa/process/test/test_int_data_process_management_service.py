@@ -1120,7 +1120,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.data_process_management.assign_stream_definition_to_data_process_definition(temperature_stream_def_id, data_process_definition_id, binding='temperature')
         self.data_process_management.assign_stream_definition_to_data_process_definition(pressure_stream_def_id, data_process_definition_id, binding='pressure')
 
-        data_process_id = self.data_process_management.create_data_process(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[conductivity_data_product_id, temperature_data_product_id, pressure_data_product_id])
+        data_process_id = self.data_process_management.create_data_process(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[conductivity_data_product_id, temperature_data_product_id, pressure_data_product_id], timeout=30)
         self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
         self.data_process_management.activate_data_process(data_process_id)
