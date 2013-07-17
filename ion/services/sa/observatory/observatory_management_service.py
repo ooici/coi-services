@@ -1089,7 +1089,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if not extended_deployment.device or not extended_deployment.site \
             or not hasattr(extended_deployment.device, '_id') \
             or not hasattr(extended_deployment.site, '_id'):
-            raise Inconsistent('deployment %s should be associated with a device and a site' % deployment_id)
+            return extended_deployment
+            #raise Inconsistent('deployment %s should be associated with a device and a site' % deployment_id)
 
         log.info('have device: %r\nand site: %r', extended_deployment.device.__dict__, extended_deployment.site.__dict__)
         RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
