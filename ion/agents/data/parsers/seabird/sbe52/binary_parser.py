@@ -74,7 +74,7 @@ class SBE52BinaryCTDParser(object):
                 if profile['end'] > self._parse_after:
                     self._profiles.append(profile)
                 profile = self._read_profile(f)
-        log.debug('parsed %s, found %d usable profiles', url, len(self._profiles))
+        log.info('parsed %s, found %d usable profiles', url, len(self._profiles))
 
     def _read_profile(self, f):
         line = f.read(11)
@@ -130,6 +130,8 @@ class SBE52BinaryCTDParser(object):
         if self._record_index == len(records):
             self._record_index = 0
             self._profile_index += 1
+
+        log.debug("get_records(max_count=%s) returns %s particles", max_count, len(particle_list))
 
         return particle_list
 

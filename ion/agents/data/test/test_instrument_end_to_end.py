@@ -38,7 +38,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         # Start container
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        config = dict(op="load", scenario="NOSE", attachments="res/preload/r2_ioc/attachments", path="master")
+        config = dict(op="load", scenario="NOSE", attachments="res/preload/r2_ioc/attachments")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
         self.pubsub = PubsubManagementServiceClient()
         self.dams = DataAcquisitionManagementServiceClient()
@@ -193,7 +193,7 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
             'dvr_mod': 'ion.agents.data.handlers.sbe52_binary_handler',
             'dvr_cls': 'SBE52BinaryDataHandler',
             'dh_cfg': {
-                'parser_mod': 'ion.agents.data.parsers.seabird.sbe52.binary_handler',
+                'parser_mod': 'ion.agents.data.parsers.seabird.sbe52.binary_parser',
                 'parser_cls': 'SBE52BinaryCTDParser',
                 'stream_id': self.stream_id,
                 'stream_route': self.route,

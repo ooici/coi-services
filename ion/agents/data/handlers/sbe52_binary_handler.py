@@ -36,8 +36,9 @@ import os
 
 from ooi.logging import log
 
-from pyon.util.containers import get_safe
+from pyon.util.containers import get_safe, named_any
 
+from ion.agents.populate_rdt import populate_rdt
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler
 from ion.agents.data.handlers.handler_utils import list_file_info, calculate_iteration_count, get_time_from_filename
@@ -140,6 +141,7 @@ class SBE52BinaryDataHandler(BaseDataHandler):
         new_flst = get_safe(config, 'constraints.new_files', [])
         parser_mod = get_safe(config, 'parser_mod', '')
         parser_cls = get_safe(config, 'parser_cls', '')
+
         module = __import__(parser_mod, fromlist=[parser_cls])
         classobj = getattr(module, parser_cls)
 
@@ -161,13 +163,13 @@ class SBE52BinaryDataHandler(BaseDataHandler):
                 max_rec = get_safe(config, 'max_records', 1)
                 stream_def = get_safe(config, 'stream_def')
                 while True:
-                    records = parser.get_records(max_count=max_rec)
-                    if not records:
+                    particles = parser.get_records(max_count=max_rec)
+                    if not particles:
                         break
 
                     rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-                    for key in records[0]:
-                        rdt[key] = [ record[key] for record in records ]
+
+                    populate_rdt(rdt, particles)
 
                     g = rdt.to_granule()
 
