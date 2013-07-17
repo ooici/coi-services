@@ -533,6 +533,7 @@ class IONLoader(ImmediateProcess):
             t = Timer() if stats.is_log_enabled() else None
             self.bulk_objects = {}    # This keeps objects to be bulk inserted/updated at the end of a category
             self.row_count, self.ext_count = 0, 0  # Counts all executions of row/ext for category
+            self._category = category
 
             if category in self.excludecategories and category not in DEFINITION_CATEGORIES:
                 continue
@@ -586,7 +587,7 @@ class IONLoader(ImmediateProcess):
         if self.clearcols:
             row.update({col:"" for col in self.clearcols if col in row})
         if self.idmap:
-            for key,val in row.iteritems():
+            for key, val in row.iteritems():
                 if key == COL_ID or key.endswith("_id") or key.endswith("_ids"):
                     new_val = self.idmapping.get(val, None)
                     if new_val:
@@ -739,6 +740,12 @@ class IONLoader(ImmediateProcess):
             return None
         res = self._get_resource_obj(res_id, silent=True)
         return res is not None
+
+    def _row_exists(self, row):
+        if self._resource_exists(row[COL_ID]):
+            log.debug("Resource/row %s/%s exists. Ignore with no update", self._category, row[COL_ID])
+            return True
+        return False
 
     def _get_alt_id(self, res_obj, prefix):
         alt_ids = getattr(res_obj, 'alt_ids', [])
@@ -1746,6 +1753,8 @@ Reason: %s
 -------------------------------''', row_id, name, reason)
 
     def _load_ParameterFunctions(self, row):
+        if self._row_exists(row):
+            return
         if row['SKIP']:
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
             return
@@ -1778,6 +1787,8 @@ Reason: %s
         self._register_id(row[COL_ID], func_id, func_obj)
 
     def _load_ParameterDefs(self, row):
+        if self._row_exists(row):
+            return
         if row['SKIP']:
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
             return
@@ -1928,6 +1939,8 @@ Reason: %s
         self._register_id(row[COL_ID], context_id, context_obj)
 
     def _load_ParameterDictionary(self, row):
+        if self._row_exists(row):
+            return
         dataset_management = self._get_service_client('dataset_management')
         types_manager = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
         if row['SKIP']:
@@ -1999,6 +2012,8 @@ Reason: %s
         self._register_id(row[COL_ID], pdict_id, pdict)
 
     def _load_StreamDefinition(self, row):
+        if self._row_exists(row):
+            return
         if not row['parameter_dictionary'] or row['parameter_dictionary'] not in self.resource_ids:
             log.error('Stream Definition %s refers to unknown parameter dictionary: %s', row['ID'], row['parameter_dictionary'])
             return
