@@ -10,7 +10,7 @@ from pyon.util.unit_test import PyonTestCase
 from ion.agents.data.parsers.sio.controller.parser import SIOControllerPackageParser
 
 
-DATA_FILE = 'test_data/sio/controller/siopackage_20130525.log'
+DATA_FILE = 'test_data/sio/controller/siopackage_20130525.xlog'
 
 
 @attr('UNIT', group='eoi')
