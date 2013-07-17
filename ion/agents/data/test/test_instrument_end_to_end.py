@@ -1,30 +1,36 @@
-from ion.services.sa.acquisition.test.test_bulk_data_ingestion import BulkIngestBase
-from interface.objects import ExternalDataset, AgentCommand
-from interface.objects import ContactInformation, UpdateDescription, DatasetDescription
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from pyon.event.event import EventSubscriber
-from coverage_model.parameter import ParameterContext
-from coverage_model.parameter_types import QuantityType, ArrayType
-from pyon.public import RT, log, PRED, OT
-from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+#!/usr/bin/env python
+
+import time
 import numpy as np
 from nose.plugins.attrib import attr
 from gevent.event import Event
+
+from pyon.event.event import EventSubscriber
+from pyon.public import RT, log, PRED, OT
+from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.ion.stream import StandaloneStreamSubscriber
-from ion.services.sa.acquisition.test.test_bulk_data_ingestion import FakeProcess
-from ion.core.includes.mi import DriverEvent
-from interface.services.sa.idata_acquisition_management_service import  DataAcquisitionManagementServiceClient
-import time
 from pyon.core.exception import NotFound
 
-MAX_AGENT_START_TIME=300
+from ion.services.sa.acquisition.test.test_bulk_data_ingestion import BulkIngestBase
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.sa.acquisition.test.test_bulk_data_ingestion import FakeProcess
+from ion.core.includes.mi import DriverEvent
+
+from coverage_model.parameter import ParameterContext
+from coverage_model.parameter_types import QuantityType, ArrayType
+
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.sa.idata_acquisition_management_service import  DataAcquisitionManagementServiceClient
+from interface.objects import ExternalDataset, AgentCommand
+from interface.objects import ContactInformation, UpdateDescription, DatasetDescription
+
+MAX_AGENT_START_TIME = 300
+
 
 @attr('INT', group='eoi')
 class TestPreloadThenLoadDataset(IonIntegrationTestCase):
-    """ replicates the TestHypm_WPF_CTD test (same handler/parser/data file)
-        but uses the preload system to define the ExternalDataset and related resources,
+    """ Uses the preload system to define the ExternalDataset and related resources,
         then invokes services to perform the load
     """
 
@@ -32,21 +38,10 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         # Start container
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        config = dict(op="load", scenario="BETA,NOSE", attachments="res/preload/r2_ioc/attachments")
+        config = dict(op="load", scenario="NOSE", attachments="res/preload/r2_ioc/attachments")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
         self.pubsub = PubsubManagementServiceClient()
         self.dams = DataAcquisitionManagementServiceClient()
-
-    def find_object_by_name(self, name, resource_type):
-        objects,_ = self.container.resource_registry.find_resources(resource_type)
-        self.assertTrue(len(objects) >= 1)
-#        filtered_objs = [obj for obj in objects if obj.name == name]
-        filtered_objs = []
-        for obj in objects:
-            if obj.name==name:
-                filtered_objs.append(obj)
-        self.assertEquals(len(filtered_objs), 1, msg='Found %d objects with name %s'%(len(filtered_objs),name))
-        return filtered_objs[0]
 
     def test_use_case(self):
         # setUp() has already started the container and performed the preload
@@ -58,20 +53,25 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.do_shutdown()
 
     def assert_dataset_loaded(self, name):
-#        self.external_dataset = self.find_object_by_name(name, RT.ExternalDataset)
-        self.device = self.find_object_by_name(name, RT.InstrumentDevice)
         rr = self.container.resource_registry
+#        self.external_dataset = self.find_object_by_name(name, RT.ExternalDataset)
+        devs, _ = rr.find_resources(RT.InstrumentDevice, name=name, id_only=False)
+        self.assertEquals(len(devs), 1)
+        self.device = devs[0]
         obj,_ = rr.find_objects(subject=self.device._id, predicate=PRED.hasAgentInstance, object_type=RT.ExternalDatasetAgentInstance)
         self.agent_instance = obj[0]
         obj,_ = rr.find_objects(object_type=RT.ExternalDatasetAgent, predicate=PRED.hasAgentDefinition, subject=self.agent_instance._id)
         self.agent = obj[0]
-        stream_definition_id = self.agent_instance.dataset_driver_config['dh_cfg']['stream_def'] if 'dh_cfg' in self.agent_instance.dataset_driver_config else self.agent_instance.dataset_driver_config['stream_def']
-        self.stream_definition = rr.read(stream_definition_id)
-#        data_producer_id = self.agent_instance.dataset_driver_config['dh_cfg']['data_producer_id'] if 'dh_cfg' in self.agent_instance.dataset_driver_config else self.agent_instance.dataset_driver_config['data_producer_id']
-#        self.data_producer = rr.read(data_producer_id) #subject="", predicate="", object_type="", assoc="", id_only=False)
-#        self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.external_dataset._id)
-        self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.device._id)
-        ids,_ = rr.find_objects(self.data_product._id, PRED.hasStream, RT.Stream, id_only=True)
+
+        driver_cfg = self.agent_instance.driver_config
+        #stream_definition_id = driver_cfg['dh_cfg']['stream_def'] if 'dh_cfg' in driver_cfg else driver_cfg['stream_def']
+        #self.stream_definition = rr.read(stream_definition_id)
+
+        self.data_product = rr.read_object(subject=self.device._id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct)
+
+        self.dataset_id = rr.read_object(subject=self.data_product._id, predicate=PRED.hasDataset, object_type=RT.Dataset, id_only=True)
+
+        ids,_ = rr.find_objects(subject=self.data_product._id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         self.stream_id = ids[0]
         self.route = self.pubsub.read_stream_route(self.stream_id)
 
@@ -83,7 +83,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.granule_count = 0
         def on_granule(msg, route, stream_id):
             self.granule_count += 1
-            if self.granule_count<5:
+            if self.granule_count < 5:
                 self.granule_capture.append(msg)
         validator = StandaloneStreamSubscriber('validator', callback=on_granule)
         validator.start()
@@ -96,12 +96,11 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         def cb2(*args, **kwargs):
             self.dataset_modified.set()
             # TODO: event isn't using the ExternalDataset, but a different ID for a Dataset
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb2, origin=self.device._id)
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb2, origin=self.dataset_id)
         es.start()
         self.addCleanup(es.stop)
 
     def do_read_dataset(self):
-
         self.dams.start_external_dataset_agent_instance(self.agent_instance._id)
         #
         # should i wait for process (above) to start
@@ -109,13 +108,13 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         #
         self.client = None
         end = time.time() + MAX_AGENT_START_TIME
-        while time.time()<end:
+        while not self.client and time.time() < end:
             try:
                 self.client = ResourceAgentClient(self.device._id, process=FakeProcess())
             except NotFound:
-                time.sleep(10)
+                time.sleep(2)
         if not self.client:
-            self.fail(msg='external dataset agent process did not start in %d seconds'%MAX_AGENT_START_TIME)
+            self.fail(msg='external dataset agent process did not start in %d seconds' % MAX_AGENT_START_TIME)
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE))
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE))
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN))
@@ -126,17 +125,18 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         #let it go for up to 120 seconds, then stop the agent and reset it
         if not self.dataset_modified.is_set():
             self.dataset_modified.wait(30)
-        self.assertTrue(self.granule_count>2, msg='granule count = %d'%self.granule_count)
+        self.assertTrue(self.granule_count > 2, msg='granule count = %d'%self.granule_count)
 
         rdt = RecordDictionaryTool.load_from_granule(self.granule_capture[0])
         self.assertAlmostEqual(0, rdt['oxygen'][0], delta=0.01)
         self.assertAlmostEqual(309.77, rdt['pressure'][0], delta=0.01)
         self.assertAlmostEqual(37.9848, rdt['conductivity'][0], delta=0.01)
         self.assertAlmostEqual(9.5163, rdt['temp'][0], delta=0.01)
-        self.assertAlmostEqual(1318219097, rdt['time'][0], delta=1)
+        self.assertAlmostEqual(3527207897.0, rdt['time'][0], delta=1)
 
     def do_shutdown(self):
         self.dams.stop_external_dataset_agent_instance(self.agent_instance._id)
+
 
 @attr('INT', group='eoi')
 class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
@@ -193,7 +193,7 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
             'dvr_mod': 'ion.agents.data.handlers.sbe52_binary_handler',
             'dvr_cls': 'SBE52BinaryDataHandler',
             'dh_cfg': {
-                'parser_mod': 'ion.agents.data.handlers.sbe52_binary_handler',
+                'parser_mod': 'ion.agents.data.parsers.seabird.sbe52.binary_parser',
                 'parser_cls': 'SBE52BinaryCTDParser',
                 'stream_id': self.stream_id,
                 'stream_route': self.route,
@@ -209,6 +209,7 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         self.assertIsNotNone(rdt['temp'])
+
 
 #DISABLED: attr('INT', group='eoi')
 # these tests rely on the original handler mechanism which had several shortcomings leading to the poller/parser rewrite

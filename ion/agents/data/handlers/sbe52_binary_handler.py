@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 WFP CTD profile data are in binary SBE52 format, ieee-le.
 File Names are CX######.DAT, where X is the number of the WFP, 1 or 2 at PAPA2013 and ###### is the WFP profile number of its current mission.
@@ -30,23 +32,16 @@ ffffffffffffffffffffff
 
 """
 
-from pyon.util.containers import get_safe
+import os
+
+from ooi.logging import log
+
+from pyon.util.containers import get_safe, named_any
+
+from ion.agents.populate_rdt import populate_rdt
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler
 from ion.agents.data.handlers.handler_utils import list_file_info, calculate_iteration_count, get_time_from_filename
-
-import struct
-import time
-from ooi.logging import log
-import os
-
-# 2 days @ 1 record/sec
-MAX_RECORDS_PER_GRANULE=2*24*60*60
-
-MAX_INMEMORY_SIZE=50000000
-CTD_END_PROFILE_DATA='\xff'*11
-
-
 
 
 DH_CONFIG_DETAILS = {
@@ -146,6 +141,7 @@ class SBE52BinaryDataHandler(BaseDataHandler):
         new_flst = get_safe(config, 'constraints.new_files', [])
         parser_mod = get_safe(config, 'parser_mod', '')
         parser_cls = get_safe(config, 'parser_cls', '')
+
         module = __import__(parser_mod, fromlist=[parser_cls])
         classobj = getattr(module, parser_cls)
 
@@ -167,13 +163,13 @@ class SBE52BinaryDataHandler(BaseDataHandler):
                 max_rec = get_safe(config, 'max_records', 1)
                 stream_def = get_safe(config, 'stream_def')
                 while True:
-                    records = parser.get_records(max_count=max_rec)
-                    if not records:
+                    particles = parser.get_records(max_count=max_rec)
+                    if not particles:
                         break
 
                     rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-                    for key in records[0]:
-                        rdt[key] = [ record[key] for record in records ]
+
+                    populate_rdt(rdt, particles)
 
                     g = rdt.to_granule()
 
@@ -195,115 +191,3 @@ class SBE52BinaryDataHandler(BaseDataHandler):
 
 
 
-class SBE52BinaryCTDParser(object):
-    """
-    read binary data file,
-    split into "profiles" (different periods of monitoring with start/end time),
-    loop over profiles and return groups of records from each
-    TODO: instead of reading whole file into memory, keep file open and seek/read/buffer/parse as needed
-          (complicated a little b/c timestamps are at the end of each profile, and don't know # records)
-    """
-    _profile_index = 0
-    _record_index = 0
-    _upload_time = time.time()
-
-    def __init__(self, url=None, open_file=None, parse_after=0, *a, **b):
-        """ raise exception if file does not meet spec, or is too large to read into memory """
-        self._profiles = []
-        self._parse_after = parse_after
-        with open_file or open(url, 'rb') as f:
-            f.seek(0,2)
-            size = f.tell()
-            if size>MAX_INMEMORY_SIZE:
-                raise Exception('file is too big')
-            f.seek(0)
-            profile = self._read_profile(f)
-            while profile:
-                if profile['end']>self._parse_after:
-                    self._profiles.append(profile)
-                profile = self._read_profile(f)
-        log.debug('parsed %s, found %d usable profiles', url, len(self._profiles))
-
-    def _read_profile(self, f):
-        line = f.read(11)
-        # EOF here is expected -- no more profiles
-        if not line:
-            return None
-        out = { 'records': [] }
-        while True:
-            if line==CTD_END_PROFILE_DATA:
-                break
-            elif not line:
-                # EOF here is bad -- incomplete profile
-                raise Exception('bad file format -- EOF before reached end of profile')
-            out['records'].append(line)
-            line = f.read(11)
-        # after 'ff'*11 marker, next 8 bytes are start/end times
-        out['start'],out['end'] = struct.unpack('>II',f.read(8))
-        log.trace('read profile [%d-%d] %d records',out['start'],out['end'],len(out['records']))
-        return out
-
-    def get_records(self, max_count=MAX_RECORDS_PER_GRANULE):
-        """
-        return a list of dicts, each dict describes one record in the current profile
-        or None if the last profile has been read completely
-        """
-        if self._profile_index>=len(self._profiles):
-            return None
-        profile = self._profiles[self._profile_index]
-        start = profile['start']
-        end = profile['end']
-        records = profile['records']
-
-        out = []
-        last_index = min(max_count+self._record_index,len(records))
-        while self._record_index<last_index:
-            data = records[self._record_index]
-            time = self._interpolate_time(self._record_index,start,end,len(records))
-            if time>self._parse_after:
-                record = {
-                    'upload_time': self._upload_time,
-                    'time': time,
-                    'conductivity': self._get_conductivity(data),
-                    'temp': self._get_temperature(data),
-                    'pressure': self._get_pressure(data),
-                    'oxygen': self._get_oxygen(data)
-                }
-                out.append(record)
-            self._record_index+=1
-
-        if self._record_index==len(records):
-            self._record_index=0
-            self._profile_index+=1
-        return out
-
-    def _interpolate_time(self, index, start, end, count):
-        """ WARNING: we don't really understand how to map start/end time to individual intervals
-            Assuming here that last interval ENDS at the end time.
-        """
-        delta = (end-start)/count
-        return start + index*delta
-
-    def _get_conductivity(self, data):
-        return self._get_value(data[0:3], 10000, 0.5)
-    def _get_temperature(self, data):
-        return self._get_value(data[3:6], 10000, 5)
-    def _get_pressure(self, data):
-        return self._get_value(data[6:9], 100, 10)
-    def _get_oxygen(self, data):
-        return float(self._unpack_int(data[9:11]))
-
-    def _get_value(self, data, divisor, offset):
-        raw = self._unpack_int(data)
-        if raw==0 or raw==0xFFFFF:
-            return float('nan')
-        return float(raw)/divisor - offset
-
-    def _unpack_int(self, data):
-        # can't use struct.unpack once for the whole field -- these fields are not typical 2, 4 or 8-byte widths
-        out = 0
-        for char in data[:-1]:
-            out+=struct.unpack('>B',char)[0]
-            out*=256
-        out+=struct.unpack('>B',data[-1])[0]
-        return out

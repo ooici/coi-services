@@ -111,14 +111,33 @@ class AgentStreamPublisher(object):
         
         try:
             stream_name = sample['stream_name']
-            self._stream_buffers[stream_name].insert(0,sample)
+            self._stream_buffers[stream_name].insert(0, sample)
             if not self._stream_greenlets[stream_name]:
                 self._publish_stream_buffer(stream_name)
 
         except KeyError:
             log.warning('Instrument agent %s received sample with bad stream name %s.',
                       self._agent._proc_name, stream_name)
-    
+
+    def on_sample_mult(self, sample_list):
+        """
+        Enqueues a list of granules and publishes them
+        """
+        streams = set()
+        for sample in sample_list:
+            try:
+                stream_name = sample['stream_name']
+                self._stream_buffers[stream_name].insert(0, sample)
+                streams.add(stream_name)
+            except KeyError:
+                log.warning('Instrument agent %s received sample with bad stream name %s.',
+                          self._agent._proc_name, stream_name)
+
+        for stream_name in streams:
+            if not self._stream_greenlets[stream_name]:
+                self._publish_stream_buffer(stream_name)
+
+
     def aparam_set_streams(self, params):
         return -1
     

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 TwoDelegateDatasetAgent: improved generalized implementation of external dataset agent:
 - avoids artificial agent/driver communication and state model
@@ -30,39 +32,57 @@ interrupt/resume state:
 - after successful parsing, the memento is persisted as part of the agent state
 - upon restart, the agent reads the memento and passes to the new poller
 """
+
+__author__ = 'Christopher Mueller, Jonathan Newbrough'
+
+
+import os
+
 from ooi.logging import log
 from ooi.reflection import EggCache
-from pyon.util.containers import get_safe
-from pyon.core.exception import InstDriverError
-from pyon.core.exception import InstStateError
-from pyon.public import OT
-from pyon.core.bootstrap import IonObject
-from ion.agents.instrument.exceptions import InstrumentStateException
+from ooi.poller import DirectoryPoller
 
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
+from pyon.core.exception import InstStateError
+from pyon.public import OT
+from pyon.core.bootstrap import IonObject
+from pyon.util.containers import get_safe
+from pyon.ion.stream import StandaloneStreamPublisher
+
+from ion.agents.instrument.exceptions import InstrumentStateException
 from ion.agents.instrument.instrument_agent import InstrumentAgent
 from ion.core.includes.mi import DriverEvent
-from ooi.poller import DirectoryPoller
-from pyon.agent.agent import ResourceAgentState
-from pyon.ion.stream import StandaloneStreamPublisher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+
 from coverage_model import ParameterDictionary
 
 # TODO: make unique for multiple processes on same VM
-import os
-EGG_CACHE=EggCache('/tmp/eggs%d'%os.getpid())
+EGG_CACHE=EggCache('/tmp/eggs%d' % os.getpid())
+
 
 class Poller(object):
     """ abstract class to show API needed for plugin poller objects """
-    def __init__(self, config, memento, data_callback, exception_callback):  pass
-    def start(self): pass
-    def shutdown(self): pass
+    def __init__(self, config, memento, data_callback, exception_callback):  
+        pass
+    
+    def start(self): 
+        pass
+    
+    def shutdown(self): 
+        pass
+
 
 class Parser(object):
     """ abstract class to show API needed for plugin poller objects """
-    def __init__(self, open_file, parser_after):  pass
-    def get_records(self,max_count): pass
+    def __init__(self, open_file, parser_after):  
+        pass
+    
+    def get_records(self, max_count):
+        """
+        Returns a list of particles (following the instrument driver structure).
+        """
+        pass
 
 
 class TwoDelegateDatasetAgent(InstrumentAgent):
@@ -81,19 +101,25 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
 
     ORIGIN_TYPE = "ExternalDataset"
 
-    def __init__(self,*a,**b):
-        super(TwoDelegateDatasetAgent,self).__init__(*a,**b)
+    def __init__(self, *args, **kwargs):
+        super(TwoDelegateDatasetAgent,self).__init__(*args, **kwargs)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_streaming_execute_resource)
+        log.warn("DRIVER: __init__")
+
     def _start_driver(self, dvr_config):
+        log.warn("DRIVER: _start_driver: %s", dvr_config)
         try:
             self.set_configuration(dvr_config)
         except:
             log.error('error in configuration', exc_info=True)
             raise
         self._dvr_client = self
+        self._asp.reset_connection()
+
     def _stop_driver(self):
         self.stop_sampling()
         self._dvr_client = None
+
     def _handler_streaming_execute_resource(self, command, *args, **kwargs):
         """
         Handler for execute_resource command in streaming state.
@@ -103,13 +129,17 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
             return self._handler_execute_resource(command, *args, **kwargs)
         else:
             raise InstrumentStateException('Command \'{0}\' not allowed in current state {1}'.format(command, self._fsm.get_current_state()))
+
     def _handler_active_unknown_go_inactive(self, *args, **kwargs):
         self.stop_sampling()
         return (ResourceAgentState.INACTIVE, None)
+
     def _handler_inactive_go_active(self, *args, **kwargs):
         self.start_sampling()
         return (ResourceAgentState.IDLE, None)
+
     def cmd_dvr(self, cmd, *args, **kwargs):
+        log.warn("DRIVER: cmd_dvr %s", cmd)
         if cmd == 'execute_start_autosample':
             # Delegate to BaseDataHandler.execute_start_autosample()
             self.start_sampling()
@@ -123,16 +153,21 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
 
     def _validate_driver_config(self):
         out = True
-        for key in 'stream_id', 'stream_route', 'poller', 'parser', 'parameter_dict':
+        for key in 'poller', 'parser':
             if key not in self._dvr_config:
-                log.error('missing key: %s',key)
+                log.error('missing key: %s', key)
                 out = False
-        if get_safe(self._dvr_config, 'max_records', 100)<1:
+        for key in ('stream_config', ):
+            if key not in self.CFG:
+                log.error('missing key: %s', key)
+                out = False
+        if get_safe(self._dvr_config, 'max_records', 100) < 1:
             log.error('max_records=%d, must be at least 1 or unset (default 100)', self.max_records)
             out = False
         return out
 
     def set_configuration(self, config):
+        log.warn("DRIVER: set_configuration")
         """
         expect configuration to have:
         - parser module/class
@@ -141,18 +176,26 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
         - optional poll rate
         - publish info
         """
+        log.error("Log level: %s", log.getEffectiveLevel())
         log.debug('using configuration: %s', config)
         self.config = config
         self.max_records = get_safe(config, 'max_records', 100)
-        stream_id = config['stream_id']
-        stream_route_param = config['stream_route']
-        stream_route = IonObject(OT.StreamRoute, stream_route_param)
+        self.stream_config = self.CFG.get('stream_config', {})
+        if len(self.stream_config) == 1:
+            stream_cfg = self.stream_config.values()[0]
+        elif len(self.stream_config) > 1:
+            stream_cfg = self.stream_config.values()[0]
+
+        stream_id = stream_cfg['stream_id']
+        stream_route = IonObject(OT.StreamRoute, routing_key=stream_cfg['routing_key'], exchange_point=stream_cfg['exchange_point'])
+        param_dict = stream_cfg['stream_def_dict']['parameter_dictionary']
         self.publisher = StandaloneStreamPublisher(stream_id=stream_id, stream_route=stream_route)
-        self.parameter_dictionary = ParameterDictionary.load(config['parameter_dict'])
+        self.parameter_dictionary = ParameterDictionary.load(param_dict)
         self.time_field = self.parameter_dictionary.get_temporal_context()
         self.latest_granule_time = get_safe(config, 'last_time', 0)
 
-    def _create_plugin(self, config, args=[], kwargs={}):
+    def _create_plugin(self, config, args=None, kwargs=None):
+        args, kwargs = args or [], kwargs or {}
         uri = config['uri']
         egg_name = uri.split('/')[-1] if uri.startswith('http') else uri
         egg_repo = uri[0:len(uri)-len(egg_name)-1] if uri.startswith('http') else None
@@ -177,15 +220,16 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
             records = parser.get_records(max_count=self.max_records)
             log.trace('have %d records', len(records))
             while records:
-                # secretly uses pubsub client
-                rdt = RecordDictionaryTool(param_dictionary=self.parameter_dictionary)
-                for key in records[0]: #assume all dict records have same keys
-                    rdt[key] = [ record[key] for record in records ]
-                g = rdt.to_granule()
-                self.publisher.publish(g)
+                self._asp.on_sample_mult(records)
+                # # secretly uses pubsub client
+                # rdt = RecordDictionaryTool(param_dictionary=self.parameter_dictionary)
+                # for key in records[0]: #assume all dict records have same keys
+                #     rdt[key] = [ record[key] for record in records ]
+                # g = rdt.to_granule()
+                # self.publisher.publish(g)
                 records = parser.get_records(max_count=self.max_records)
             self._set_state('poller_state', state_memento)
-        except:
+        except Exception as ex:
             log.error('error handling data', exc_info=True)
 
     def exception_callback(self, exception):
@@ -196,11 +240,12 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
         log.debug('stop_sampling')
         self._poller.shutdown()
 
+
 ## once we want to support more than one way to reach external datasets,
 ## we'll probably want to move this out into another file and add
 ## other pollers that check HTTP, FTP or other methods of finding data
 
-class AdditiveSequentialFilePoller(DirectoryPoller,Poller):
+class AdditiveSequentialFilePoller(DirectoryPoller, Poller):
     """ polls directory for files that match wildcard, in order """
     def __init__(self, config, memento, file_callback, exception_callback):
         self.callback = file_callback
