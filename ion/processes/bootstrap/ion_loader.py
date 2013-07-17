@@ -114,7 +114,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydC1mX1BmQ3dGVm1vZ21EbTI3RFhjWGc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdEUwTXlxN0pYMkF2M3F1VGpLaTMyaWc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -221,7 +221,6 @@ class IONLoader(ImmediateProcess):
         self.contact_defs = {}          # alias -> value for refs, since not stored in DB
         self.stream_config = {}         # name -> obj for StreamConfiguration objects, used by *AgentInstance
         self.alerts = {}                # id -> alert definition dict
-        self.external_dataset_producer_id = {}  # keep producer ID for later use by AgentInstance
 
         self.idmapping = {}             # Mapping of current to new preload IDs
 
@@ -990,6 +989,10 @@ class IONLoader(ImmediateProcess):
         rid = entry.get(idattr, None)
         group[rid] = entry
 
+
+    # -------------------------------------------------------------------------
+    # Org, user, role, policy
+
     def _load_Contact(self, row):
         """
         DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
@@ -1026,136 +1029,6 @@ class IONLoader(ImmediateProcess):
 
             if controw[COL_ID] not in self.contact_defs:
                 self._load_Contact(controw)
-
-    def _create_geospatial_constraint(self, row):
-        z = row['vertical_direction']
-        if z == 'depth':
-            vmin = float(row['top'])
-            vmax = float(row['bottom'])
-        elif z == 'elevation':
-            vmin = float(row['bottom'])
-            vmax = float(row['top'])
-        else:
-            raise iex.BadRequest('vertical_direction must be "depth" or "elevation", not ' + z)
-        constraint = IonObject("GeospatialBounds",
-                               geospatial_latitude_limit_north=float(row['north']),
-                               geospatial_latitude_limit_south=float(row['south']),
-                               geospatial_longitude_limit_east=float(row['east']),
-                               geospatial_longitude_limit_west=float(row['west']),
-                               geospatial_vertical_min=vmin,
-                               geospatial_vertical_max=vmax)
-        return constraint
-
-    def _create_temporal_constraint(self, row):
-        format = row['time_format'] or DEFAULT_TIME_FORMAT
-        start = str(calendar.timegm(time.strptime(row['start'], format)))
-        end = str(calendar.timegm(time.strptime(row['end'], format)))
-        return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
-
-    def _load_Constraint(self, row):
-        """
-        DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
-        Keeps geospatial/temporal constraints
-        """
-        self.row_count += 1
-        const_id = row[COL_ID]
-        if const_id in self.constraint_defs:
-            raise iex.BadRequest('constraint with ID already exists: ' + const_id)
-        const_type = row['type']
-        if const_type == 'geospatial' or const_type == 'geo' or const_type == 'space':
-            self.constraint_defs[const_id] = self._create_geospatial_constraint(row)
-        elif const_type == 'temporal' or const_type == 'temp' or const_type == 'time':
-            self.constraint_defs[const_id] = self._create_temporal_constraint(row)
-        else:
-            raise iex.BadRequest('constraint type must be either geospatial or temporal, not ' + const_type)
-
-    def _load_CoordinateSystem(self, row):
-        """
-        DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
-        Keeps coordinate system definition objects.
-        """
-        self.row_count += 1
-        gcrs = self._create_object_from_row("GeospatialCoordinateReferenceSystem", row, "m/")
-        cs_id = row[COL_ID]
-        self.resource_ids[cs_id] = gcrs
-
-    def _load_CoordinateSystem_OOI(self):
-        newrow = {}
-        newrow[COL_ID] = 'OOI_SUBMERGED_CS'
-        newrow['m/geospatial_geodetic_crs'] = 'http://www.opengis.net/def/crs/EPSG/0/4326'
-        newrow['m/geospatial_vertical_crs'] = 'http://www.opengis.net/def/cs/EPSG/0/6498'
-        newrow['m/geospatial_latitude_units'] = 'degrees_north'
-        newrow['m/geospatial_longitude_units'] = 'degrees_east'
-        newrow['m/geospatial_vertical_units'] = 'meter'
-        newrow['m/geospatial_vertical_positive'] = 'down'
-
-        if not self._resource_exists(newrow[COL_ID]):
-            self._load_CoordinateSystem(newrow)
-
-    def _load_Policy(self, row):
-        if not self.CFG.get_safe("system.load_policy", False):
-            return
-
-        policy_obj = self._create_object_from_row("Policy", row, "p/")
-
-        pms_client = self._get_service_client("policy_management")
-        #headers = self._get_op_headers(row)
-
-        policy_type	= row['policy_type']
-        preconditions = row['preconditions']
-        policy_rule	= row['policy_rule']
-        service_name = row['service_name']
-        process_name = row['process_name']
-        resource_id = row.get('resource_id', None)
-
-        # Create various types of policy
-        if policy_type == "CommonServiceAccessPolicy":
-            policy_id = pms_client.create_common_service_access_policy(
-                policy_name=policy_obj.name,
-                description=policy_obj.description,
-                policy_rule=policy_rule or policy_obj.definition,
-                headers=self._get_system_actor_headers())
-
-        elif policy_type == "ServiceAccessPolicy" and service_name:
-            policy_id = pms_client.create_service_access_policy(
-                service_name=service_name,
-                policy_name=policy_obj.name,
-                description=policy_obj.description,
-                policy_rule=policy_rule or policy_obj.definition,
-                headers=self._get_system_actor_headers())
-
-        elif policy_type == "ProcessOperationPreconditionPolicy" and process_name:
-            policy_id = pms_client.add_process_operation_precondition_policy(
-                process_name=process_name,
-                op="",
-                preconditions=preconditions,
-                headers=self._get_system_actor_headers())
-
-        elif policy_type == "OperationPreconditionPolicy":
-            policy_id = pms_client.add_operation_precondition_policy(
-                process_name=process_name,
-                op="",
-                preconditions=preconditions,
-                headers=self._get_system_actor_headers())
-
-        elif policy_type == "ResourceAccessPolicy" and resource_id:
-            policy_id = pms_client.create_resource_access_policy(
-                resource_id=resource_id,
-                policy_name=policy_obj.name,
-                description=policy_obj.description,
-                policy_rule=policy_rule or policy_obj.definition,
-                headers=self._get_system_actor_headers())
-
-        elif policy_type == "Policy":
-            policy_id = pms_client.create_policy(
-                policy=policy_obj,
-                headers=self._get_system_actor_headers())
-
-        self._register_id(row[COL_ID], policy_id, policy_obj)
-
-        # If needed for policy:
-        #self._resource_assign_org(row, policy_id)
-
 
     def _load_User(self, row):
         self.row_count += 1
@@ -1293,6 +1166,73 @@ class IONLoader(ImmediateProcess):
         if role_name != "ORG_MEMBER":
             svc_client.grant_role(org_id, user_id, role_name, headers=self._get_system_actor_headers())
 
+    def _load_Policy(self, row):
+        if not self.CFG.get_safe("system.load_policy", False):
+            return
+
+        policy_obj = self._create_object_from_row("Policy", row, "p/")
+
+        pms_client = self._get_service_client("policy_management")
+        #headers = self._get_op_headers(row)
+
+        policy_type	= row['policy_type']
+        preconditions = row['preconditions']
+        policy_rule	= row['policy_rule']
+        service_name = row['service_name']
+        process_name = row['process_name']
+        resource_id = row.get('resource_id', None)
+
+        # Create various types of policy
+        if policy_type == "CommonServiceAccessPolicy":
+            policy_id = pms_client.create_common_service_access_policy(
+                policy_name=policy_obj.name,
+                description=policy_obj.description,
+                policy_rule=policy_rule or policy_obj.definition,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "ServiceAccessPolicy" and service_name:
+            policy_id = pms_client.create_service_access_policy(
+                service_name=service_name,
+                policy_name=policy_obj.name,
+                description=policy_obj.description,
+                policy_rule=policy_rule or policy_obj.definition,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "ProcessOperationPreconditionPolicy" and process_name:
+            policy_id = pms_client.add_process_operation_precondition_policy(
+                process_name=process_name,
+                op="",
+                preconditions=preconditions,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "OperationPreconditionPolicy":
+            policy_id = pms_client.add_operation_precondition_policy(
+                process_name=process_name,
+                op="",
+                preconditions=preconditions,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "ResourceAccessPolicy" and resource_id:
+            policy_id = pms_client.create_resource_access_policy(
+                resource_id=resource_id,
+                policy_name=policy_obj.name,
+                description=policy_obj.description,
+                policy_rule=policy_rule or policy_obj.definition,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "Policy":
+            policy_id = pms_client.create_policy(
+                policy=policy_obj,
+                headers=self._get_system_actor_headers())
+
+        self._register_id(row[COL_ID], policy_id, policy_obj)
+
+        # If needed for policy:
+        #self._resource_assign_org(row, policy_id)
+
+    # -------------------------------------------------------------------------
+    # Device models
+
     def _load_PlatformModel(self, row):
         self._basic_resource_create(row, "PlatformModel", "pm/",
             "instrument_management", "create_platform_model",
@@ -1395,6 +1335,74 @@ class IONLoader(ImmediateProcess):
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentModel(newrow)
+
+    # -------------------------------------------------------------------------
+    # Sites and geospatial constraints
+
+    def _create_geospatial_constraint(self, row):
+        z = row['vertical_direction']
+        if z == 'depth':
+            vmin = float(row['top'])
+            vmax = float(row['bottom'])
+        elif z == 'elevation':
+            vmin = float(row['bottom'])
+            vmax = float(row['top'])
+        else:
+            raise iex.BadRequest('vertical_direction must be "depth" or "elevation", not ' + z)
+        constraint = IonObject("GeospatialBounds",
+                               geospatial_latitude_limit_north=float(row['north']),
+                               geospatial_latitude_limit_south=float(row['south']),
+                               geospatial_longitude_limit_east=float(row['east']),
+                               geospatial_longitude_limit_west=float(row['west']),
+                               geospatial_vertical_min=vmin,
+                               geospatial_vertical_max=vmax)
+        return constraint
+
+    def _create_temporal_constraint(self, row):
+        format = row['time_format'] or DEFAULT_TIME_FORMAT
+        start = str(calendar.timegm(time.strptime(row['start'], format)))
+        end = str(calendar.timegm(time.strptime(row['end'], format)))
+        return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
+
+    def _load_Constraint(self, row):
+        """
+        DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
+        Keeps geospatial/temporal constraints
+        """
+        self.row_count += 1
+        const_id = row[COL_ID]
+        if const_id in self.constraint_defs:
+            raise iex.BadRequest('constraint with ID already exists: ' + const_id)
+        const_type = row['type']
+        if const_type == 'geospatial' or const_type == 'geo' or const_type == 'space':
+            self.constraint_defs[const_id] = self._create_geospatial_constraint(row)
+        elif const_type == 'temporal' or const_type == 'temp' or const_type == 'time':
+            self.constraint_defs[const_id] = self._create_temporal_constraint(row)
+        else:
+            raise iex.BadRequest('constraint type must be either geospatial or temporal, not ' + const_type)
+
+    def _load_CoordinateSystem(self, row):
+        """
+        DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
+        Keeps coordinate system definition objects.
+        """
+        self.row_count += 1
+        gcrs = self._create_object_from_row("GeospatialCoordinateReferenceSystem", row, "m/")
+        cs_id = row[COL_ID]
+        self.resource_ids[cs_id] = gcrs
+
+    def _load_CoordinateSystem_OOI(self):
+        newrow = {}
+        newrow[COL_ID] = 'OOI_SUBMERGED_CS'
+        newrow['m/geospatial_geodetic_crs'] = 'http://www.opengis.net/def/crs/EPSG/0/4326'
+        newrow['m/geospatial_vertical_crs'] = 'http://www.opengis.net/def/cs/EPSG/0/6498'
+        newrow['m/geospatial_latitude_units'] = 'degrees_north'
+        newrow['m/geospatial_longitude_units'] = 'degrees_east'
+        newrow['m/geospatial_vertical_units'] = 'meter'
+        newrow['m/geospatial_vertical_positive'] = 'down'
+
+        if not self._resource_exists(newrow[COL_ID]):
+            self._load_CoordinateSystem(newrow)
 
     def _calc_geospatial_point_center(self, site):
         siteTypes = [RT.Site, RT.Subsite, RT.Observatory, RT.PlatformSite, RT.InstrumentSite, RT.Deployment]
@@ -1726,6 +1734,9 @@ class IONLoader(ImmediateProcess):
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentSite(newrow)
 
+    # -------------------------------------------------------------------------
+    # Parameters, streams, etc.
+
     def _conflict_report(self, row_id, name, reason):
         log.warn('''
 ------- Conflict Report -------
@@ -1733,77 +1744,6 @@ Conflict with %s
 Parameter Name: %s
 Reason: %s
 -------------------------------''', row_id, name, reason)
-
-    def _load_ParameterDictionary(self, row):
-        dataset_management = self._get_service_client('dataset_management')
-        types_manager = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
-        if row['SKIP']:
-            self._conflict_report(row['ID'], row['name'], row['SKIP'])
-            return
-
-        self.row_count += 1
-        name = row['name']
-        definitions = row['parameter_ids'].replace(' ','').split(',')
-        try:
-            if row['temporal_parameter']:
-                temporal_parameter_name = self.resource_objs[row['temporal_parameter']].name
-            else:
-                temporal_parameter_name = ''
-        except KeyError:
-            temporal_parameter_name = ''
-
-        context_ids = {}
-        qc_bin = []
-        for i in definitions:
-            try:
-                res_id = self.resource_ids[i]
-                if res_id not in context_ids:
-                    context_ids[res_id] = 0
-                else:
-                    log.warning('Duplicate: %s (%s)', name, i)
-                context_ids[self.resource_ids[i]] = 0
-                res = self.resource_objs[i]
-                if res.name.endswith('_qc'):
-                    qc_bin.append(res.name)
-                context = ParameterContext.load(res.parameter_context)
-                
-                lookup_values = types_manager.get_lookup_value_ids(context)
-                for val in lookup_values:
-                    context_ids[val] = 0
-                
-                coefficients = types_manager.get_cc_value_ids(context)
-                for val in coefficients:
-                    context_ids[val] = 0
-
-                if hasattr(context,'qc_contexts'):
-                    for qc in context.qc_contexts:
-                        if qc not in self.resource_ids:
-                            obj = dataset_management.read_parameter_context(qc)
-                            self._register_id(qc, qc, obj)
-                    definitions.extend(context.qc_contexts)
-            except KeyError:
-                pass
-
-        if qc_bin:
-            ctxt_id, ctxt = types_manager.make_propagate_qc(qc_bin)
-            context_ids[ctxt_id] = 0
-
-        if not context_ids:
-            log.warning('No valid parameters: %s', row['name'])
-            return
-        try:
-            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(),
-                                                                      temporal_context=temporal_parameter_name,
-                                                                      headers=self._get_system_actor_headers())
-            # Set alt_ids so that resource can be found in incremental preload runs
-            pdict = self.container.resource_registry.read(pdict_id)
-            pdict.alt_ids = ['PRE:'+row[COL_ID]]
-            self.container.resource_registry.update(pdict)
-        except Exception:
-            log.exception('%s has a problem', row['name'])
-            return
-
-        self._register_id(row[COL_ID], pdict_id, pdict)
 
     def _load_ParameterFunctions(self, row):
         if row['SKIP']:
@@ -1987,6 +1927,77 @@ Reason: %s
                 return
         self._register_id(row[COL_ID], context_id, context_obj)
 
+    def _load_ParameterDictionary(self, row):
+        dataset_management = self._get_service_client('dataset_management')
+        types_manager = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
+        if row['SKIP']:
+            self._conflict_report(row['ID'], row['name'], row['SKIP'])
+            return
+
+        self.row_count += 1
+        name = row['name']
+        definitions = row['parameter_ids'].replace(' ','').split(',')
+        try:
+            if row['temporal_parameter']:
+                temporal_parameter_name = self.resource_objs[row['temporal_parameter']].name
+            else:
+                temporal_parameter_name = ''
+        except KeyError:
+            temporal_parameter_name = ''
+
+        context_ids = {}
+        qc_bin = []
+        for i in definitions:
+            try:
+                res_id = self.resource_ids[i]
+                if res_id not in context_ids:
+                    context_ids[res_id] = 0
+                else:
+                    log.warning('Duplicate: %s (%s)', name, i)
+                context_ids[self.resource_ids[i]] = 0
+                res = self.resource_objs[i]
+                if res.name.endswith('_qc'):
+                    qc_bin.append(res.name)
+                context = ParameterContext.load(res.parameter_context)
+
+                lookup_values = types_manager.get_lookup_value_ids(context)
+                for val in lookup_values:
+                    context_ids[val] = 0
+
+                coefficients = types_manager.get_cc_value_ids(context)
+                for val in coefficients:
+                    context_ids[val] = 0
+
+                if hasattr(context,'qc_contexts'):
+                    for qc in context.qc_contexts:
+                        if qc not in self.resource_ids:
+                            obj = dataset_management.read_parameter_context(qc)
+                            self._register_id(qc, qc, obj)
+                    definitions.extend(context.qc_contexts)
+            except KeyError:
+                pass
+
+        if qc_bin:
+            ctxt_id, ctxt = types_manager.make_propagate_qc(qc_bin)
+            context_ids[ctxt_id] = 0
+
+        if not context_ids:
+            log.warning('No valid parameters: %s', row['name'])
+            return
+        try:
+            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(),
+                                                                      temporal_context=temporal_parameter_name,
+                                                                      headers=self._get_system_actor_headers())
+            # Set alt_ids so that resource can be found in incremental preload runs
+            pdict = self.container.resource_registry.read(pdict_id)
+            pdict.alt_ids = ['PRE:'+row[COL_ID]]
+            self.container.resource_registry.update(pdict)
+        except Exception:
+            log.exception('%s has a problem', row['name'])
+            return
+
+        self._register_id(row[COL_ID], pdict_id, pdict)
+
     def _load_StreamDefinition(self, row):
         if not row['parameter_dictionary'] or row['parameter_dictionary'] not in self.resource_ids:
             log.error('Stream Definition %s refers to unknown parameter dictionary: %s', row['ID'], row['parameter_dictionary'])
@@ -2025,6 +2036,9 @@ Reason: %s
         data_acquisition = self._get_service_client('data_acquisition_management')
         parser_id = data_acquisition.create_parser(parser)
         self._register_id(row[COL_ID], parser_id)
+
+    # -------------------------------------------------------------------------
+    # Devices
 
     def _load_PlatformDevice(self, row):
         contacts = self._get_contacts(row, field='contact_ids', type='PlatformDevice')
@@ -2227,6 +2241,9 @@ Reason: %s
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentDevice(newrow)
+
+    # -------------------------------------------------------------------------
+    # Agents
 
     def _parse_alert_range(self, expression):
 #        lower_bound	lower_rel_op	value_id	upper_rel_op	upper_bound
@@ -2490,106 +2507,12 @@ Reason: %s
 
                     self._load_InstrumentAgent_ext(newrow)
 
-    def _load_ExternalDataProvider(self, row):
-        contacts = self._get_contacts(row, field='contact_id')
-        if len(contacts) > 1:
-            raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
-        contact = contacts[0] if len(contacts)==1 else None
-        institution = self._create_object_from_row("Institution", row, "i/")
-
-        self._basic_resource_create(row, "ExternalDataProvider", "p/",
-            "data_acquisition_management", "create_external_data_provider",
-            set_attributes=dict(institution=institution, contact=contact))
-
-    def _load_ExternalDatasetModel(self, row):
-        # ID, lcstate, name, description, dataset_type
-        self._basic_resource_create(row, 'ExternalDatasetModel', 'edm/', 'data_acquisition_management', 'create_external_dataset_model')
-
-    def _load_ExternalDataset(self, row):
-        # ID	owner_id	lcstate	org_ids	contact_id	name	description	data_sampling	parameters
-        self.row_count += 1
-        contacts = self._get_contacts(row, field='contact_id')
-        if len(contacts) > 1:
-            raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
-        contact = contacts[0] if len(contacts)==1 else None
-
-        model = self._get_resource_id(row['model'])
-        params = parse_dict(row['parameters'])
-        sampling = getattr(objects.DatasetDescriptionDataSamplingEnum, row['data_sampling'] if row['data_sampling'] else 'NONE')
-        descriptor = objects.DatasetDescription(data_sampling=sampling, parameters=params)
-        dataset = IonObject(RT.ExternalDataset, name=row['name'], description=row['description'], dataset_description=descriptor,
-            contact=contact, alt_ids=['PRE:'+row[COL_ID]], lcstate=row[COL_LCSTATE])
-        client = self._get_service_client('data_acquisition_management')
-        id = client.create_external_dataset(external_dataset=dataset, external_dataset_model_id=model)
-        dataset._id = id
-        self._register_id(row['ID'], id, dataset)
-        producer_id = client.register_external_data_set(external_dataset_id=id)
-        self.external_dataset_producer_id[id] = producer_id
-
-    def _load_ExternalDatasetAgent(self, row):
-        self.row_count += 1
-        agent = self._create_object_from_row(RT.ExternalDatasetAgent, row, 'eda/')
-        model = self._get_resource_id(row['model'])
-        id = self._get_service_client('data_acquisition_management').create_external_dataset_agent(external_dataset_agent=agent, external_dataset_model_id=model)
-        agent._id = id
-        self._register_id(row['ID'], id, agent)
-
-    def _load_ExternalDatasetAgentInstance(self, row):
-        # FIELDS IN THE ION OBJECT:
-        # name='', description='', lcstate='DRAFT', availability='PRIVATE', ts_created='', ts_updated='', alt_ids=None, addl=None,
-        # deployment_type=DeploymentTypeEnum.PROCESS, driver_config=None, agent_config=None, agent_process_id='',
-        # alerts=None, handler_module='', handler_class='', dataset_driver_config=None, dataset_agent_config=None, dataset_agent_process_id=''):
-
-        # Generate the data product and associate it to the ExternalDataset
-        self.row_count += 1
-        name = row['name']
-        description = row['description']
-        source_id = self._get_resource_id(row['source'])
-
-        streamdef_id = self._get_resource_id(row['streamdef'])
-        agent = self._get_resource_obj(row['agent'])
-        agent_config = parse_dict(row['agent_config'])
-        driver_config = parse_dict(row['driver_config'])
-
-        # NOTE: unit tests show additional keys in this configuration
-        # but some are handler-specific, others seem just for testing
-        # TODO: come back and look again when trying to start this process
-        driver_config.update( {
-                'parser': {
-                    'uri': row['parser_uri'],
-                    'module': row['parser_module'],
-                    'class': row['parser_class'],
-                    'config': parse_dict(row['parser_config']),
-                },
-                'poller': {
-                    'uri': row['poller_uri'],
-                    'module': row['poller_module'],
-                    'class': row['poller_class'],
-                    'config': parse_dict(row['poller_config']),
-                },
-                'stream_def': streamdef_id,
-#                'data_producer_id':self.external_dataset_producer_id[dataset_id],
-                'max_records': int(row['records_per_granule']),
-            } )
-        agent_config.update( {
-            'driver_config' : driver_config,
-            'stream_config' : { },
-            'agent'         : {'resource_id': source_id},
-        } )
-
-        agent_instance = IonObject(RT.ExternalDatasetAgentInstance,  name=name, description=description,
-            dataset_driver_config=driver_config, dataset_agent_config=agent_config)
-
-        client = self._get_service_client('data_acquisition_management')
-        instance_id = client.create_external_dataset_agent_instance(external_dataset_agent_instance=agent_instance,
-            external_dataset_agent_id=agent._id, external_dataset_id=source_id)
-
     def _load_InstrumentAgentInstance(self, row):
         # TODO: Allow update via incremental preload
         startup_config = parse_dict(row['startup_config'])
         pubrate = row['publish_rate']
 
-        alerts = [ self.alerts[id.strip()] for id in row['alerts'].split(',') ] if row['alerts'].strip() else []
+        alerts = [self.alerts[id.strip()] for id in row['alerts'].split(',')] if row['alerts'].strip() else []
 
         # define complicated attributes
         agent_config = {
@@ -2629,6 +2552,146 @@ Reason: %s
     def _load_InstrumentAgentInstance_OOI(self):
         # TODO: Create these resources and associate them
         pass
+
+    def _load_ExternalDataProvider(self, row):
+        contacts = self._get_contacts(row, field='contact_id')
+        if len(contacts) > 1:
+            raise iex.BadRequest('ExternalDataProvider %s has too many contacts (should be 1)' % row[COL_ID])
+        contact = contacts[0] if len(contacts) == 1 else None
+        institution = self._create_object_from_row("Institution", row, "i/")
+
+        self._basic_resource_create(row, "ExternalDataProvider", "p/",
+                                    "data_acquisition_management", "create_external_data_provider",
+                                    set_attributes=dict(institution=institution, contact=contact),
+                                    support_bulk=True)
+
+    def _load_ExternalDatasetModel(self, row):
+        self._basic_resource_create(row, 'ExternalDatasetModel', 'edm/',
+                                    'data_acquisition_management', 'create_external_dataset_model',
+                                    support_bulk=True)
+
+    def _load_ExternalDataset(self, row):
+        contacts = self._get_contacts(row, field='contact_id')
+        if len(contacts) > 1:
+            raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
+        contact = contacts[0] if len(contacts) == 1 else None
+
+        model_id = self._get_resource_id(row['model_id'])
+        params = parse_dict(row['parameters'])
+        sampling = getattr(objects.DatasetDescriptionDataSamplingEnum, row['data_sampling'] if row['data_sampling'] else 'NONE')
+        descriptor = objects.DatasetDescription(data_sampling=sampling, parameters=params)
+
+        ed_id = self._basic_resource_create(row, "ExternalDataset", "ed/",
+                                            "data_acquisition_management", "create_external_dataset",
+                                            set_attributes=dict(dataset_description=descriptor, contact=contact),
+                                            external_dataset_model_id=model_id)
+
+        client = self._get_service_client('data_acquisition_management')
+        headers = self._get_op_headers(row)
+        producer_id = client.register_external_data_set(external_dataset_id=ed_id, headers=headers)
+
+    def _load_ExternalDatasetAgent(self, row):
+        stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
+        stream_configurations = [self.stream_config[name] for name in stream_config_names]
+
+        eda_id = self._basic_resource_create(row, "ExternalDatasetAgent", "eda/",
+                                             "data_acquisition_management", "create_external_dataset_agent",
+                                             set_attributes=dict(stream_configurations=stream_configurations),
+                                             support_bulk=True)
+
+        svc_client = self._get_service_client('data_acquisition_management')
+        headers = self._get_op_headers(row)
+        model_ids = row["model_ids"]
+        if model_ids:
+            model_ids = get_typed_value(model_ids, targettype="simplelist")
+            for mid in model_ids:
+                if self.bulk:
+                    model_obj = self._get_resource_obj(mid)
+                    agent_obj = self._get_resource_obj(row[COL_ID])
+                    self._create_association(agent_obj, PRED.hasModel, model_obj)
+                else:
+                    svc_client.assign_model_to_external_dataset_agent(self.resource_ids[mid], eda_id,
+                        headers=headers)
+
+    def _load_ExternalDatasetAgent_ext(self, row):
+        """Incremental way of adding hasModel association to ExternalDatasetAgent"""
+        self.ext_count += 1
+        eda_id = self._get_resource_id(row[COL_ID])
+
+        svc_client = self._get_service_client('data_acquisition_management')
+        headers = self._get_op_headers(row)
+        model_ids = row["model_ids"]
+        if model_ids:
+            model_ids = get_typed_value(model_ids, targettype="simplelist")
+            for mid in model_ids:
+                if self.bulk:
+                    model_obj = self._get_resource_obj(mid)
+                    agent_obj = self._get_resource_obj(row[COL_ID])
+                    self._create_association(agent_obj, PRED.hasModel, model_obj)
+                else:
+                    svc_client.assign_model_to_external_dataset_agent(self.resource_ids[mid], eda_id,
+                        headers=headers)
+
+    def _load_ExternalDatasetAgent_OOI(self):
+        # Nothing to do here. These rows are created manually
+        pass
+        # agent_objs = self.ooi_loader.get_type_assets("instagent")
+        #
+        # for ooi_id, agent_obj in agent_objs.iteritems():
+        #     if agent_obj.get('active', False):
+        #
+        #         # TODO: Filter based on model use
+        #         #if not self._match_filter(ooi_id[:2]):
+        #         #    continue
+        #
+        #         ia_id = "IA_" + ooi_id
+        #         if self._get_resource_obj(ia_id):
+        #             newrow = {}
+        #             newrow[COL_ID] = ia_id
+        #             series_list = agent_obj.get('series_list', [])
+        #             series_list = [sid for sid in series_list if self._get_resource_obj(sid)]
+        #             newrow['instrument_model_ids'] = ",".join(series_list)
+        #             #newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
+        #             newrow['org_ids'] = ""
+        #             newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+        #
+        #             self._load_InstrumentAgent_ext(newrow)
+
+    def _load_ExternalDatasetAgentInstance(self, row):
+        # Generate the data product and associate it to the ExternalDataset or device source
+        ext_dataset_id = self._get_resource_id(row['dataset_id']) if row['dataset_id'] else None
+        device_id = self._get_resource_id(row['device_id']) if row['device_id'] else None
+        agent_id = self._get_resource_id(row['agent_id'])
+
+        driver_config = parse_dict(row['driver_config'])
+        driver_config.update( {
+                'parser': {
+                    'config': parse_dict(row['parser_config']),
+                },
+                'poller': {
+                    'config': parse_dict(row['poller_config']),
+                },
+                'max_records': int(row['records_per_granule']),
+            } )
+
+        edai_id = self._basic_resource_create(row, "ExternalDatasetAgentInstance", "ai/",
+            "data_acquisition_management", "create_external_dataset_agent_instance",
+            set_attributes=dict(driver_config=driver_config),
+            external_dataset_agent_id=agent_id,
+            external_dataset_id=ext_dataset_id
+        )
+
+        if device_id:
+            svc_client = self._get_service_client('data_acquisition_management')
+            headers = self._get_op_headers(row)
+            svc_client.assign_external_dataset_agent_instance_to_device(edai_id, device_id, headers=headers)
+
+    def _load_ExternalDatasetAgentInstance_OOI(self):
+        # TBD create for dataset agent instruments
+        pass
+
+    # -------------------------------------------------------------------------
+    # Data products and processes
 
     def _load_TransformFunction(self,row):
         res_id = self._basic_resource_create(row,"TransformFunction", "tfm/",
@@ -3042,6 +3105,9 @@ Reason: %s
                 self._create_association(data_producer_obj, PRED.hasParent, parent_obj)
             else:
                 svc_client.assign_data_product(input_res_id, dp_id, headers=headers, timeout=500)
+
+    # -------------------------------------------------------------------------
+    # Attachments, workflows, deployments, misc
 
     def _load_Attachment(self, row):
         self.row_count += 1

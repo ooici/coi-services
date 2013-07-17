@@ -43,14 +43,17 @@ Go to "CI Bench Test Facility", choose "Instruments", select "CTD Simulator 1 De
 Individual preload commands:
 ============================
 
+Preload system UI only
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path='https://userexperience.oceanobservatories.org/database-exports/Candidates'
+
+Preload system resources (base setup, without OOI resources or UI)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA attachments=res/preload/r2_ioc/attachments
+
 Preload system resources (base demo setup, without OOI resources or UI)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO attachments=res/preload/r2_ioc/attachments
 
 Preload OOI assets (bulk mode)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load assets=res/preload/r2_ioc/ooi_assets loadooi=True bulk=True
-
-Preload system UI only
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path='https://userexperience.oceanobservatories.org/database-exports/Candidates'
 
 
 Variant steps:
@@ -83,14 +86,17 @@ or in the shell:
 Load OOI assets using preload scripts:
 ======================================
 
-Production OOI load:
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_load_config.yml
+Development OOI load (parse OOI assets, save and print assets report)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/dev_ooi_parse.yml
 
 Development OOI load (debug mode, bulk load)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/dev_ooi_load.yml
 
 Development OOI reload (deleteooi, debug mode, bulk load)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/dev_ooi_reload.yml
+
+Production OOI load:
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_load_config.yml
 
 
 Loading Instrument specific resources (requires BETA):
