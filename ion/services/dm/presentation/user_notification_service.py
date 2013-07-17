@@ -6,7 +6,6 @@ __author__ = 'Bill Bollenbacher, Swarbhanu Chatterjee, David Stuebe'
 
 import pprint
 import string
-from email.mime.text import MIMEText
 from datetime import datetime
 
 from pyon.core.exception import BadRequest, IonException, NotFound, Inconsistent
@@ -18,7 +17,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from pyon.core.governance import ORG_MEMBER_ROLE, GovernanceHeaderValues, has_org_role
 
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_timestamp_to_human_readable
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
 
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
