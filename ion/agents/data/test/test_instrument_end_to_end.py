@@ -30,8 +30,7 @@ MAX_AGENT_START_TIME = 300
 
 @attr('INT', group='eoi')
 class TestPreloadThenLoadDataset(IonIntegrationTestCase):
-    """ replicates the TestHypm_WPF_CTD test (same handler/parser/data file)
-        but uses the preload system to define the ExternalDataset and related resources,
+    """ Uses the preload system to define the ExternalDataset and related resources,
         then invokes services to perform the load
     """
 
@@ -69,6 +68,9 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         #self.stream_definition = rr.read(stream_definition_id)
 
         self.data_product = rr.read_object(subject=self.device._id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct)
+
+        self.dataset_id = rr.read_object(subject=self.data_product._id, predicate=PRED.hasDataset, object_type=RT.Dataset, id_only=True)
+
         ids,_ = rr.find_objects(subject=self.data_product._id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         self.stream_id = ids[0]
         self.route = self.pubsub.read_stream_route(self.stream_id)
@@ -81,7 +83,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.granule_count = 0
         def on_granule(msg, route, stream_id):
             self.granule_count += 1
-            if self.granule_count<5:
+            if self.granule_count < 5:
                 self.granule_capture.append(msg)
         validator = StandaloneStreamSubscriber('validator', callback=on_granule)
         validator.start()
@@ -94,7 +96,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         def cb2(*args, **kwargs):
             self.dataset_modified.set()
             # TODO: event isn't using the ExternalDataset, but a different ID for a Dataset
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb2, origin=self.device._id)
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb2, origin=self.dataset_id)
         es.start()
         self.addCleanup(es.stop)
 
@@ -123,17 +125,18 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         #let it go for up to 120 seconds, then stop the agent and reset it
         if not self.dataset_modified.is_set():
             self.dataset_modified.wait(30)
-        self.assertTrue(self.granule_count>2, msg='granule count = %d'%self.granule_count)
+        self.assertTrue(self.granule_count > 2, msg='granule count = %d'%self.granule_count)
 
         rdt = RecordDictionaryTool.load_from_granule(self.granule_capture[0])
         self.assertAlmostEqual(0, rdt['oxygen'][0], delta=0.01)
         self.assertAlmostEqual(309.77, rdt['pressure'][0], delta=0.01)
         self.assertAlmostEqual(37.9848, rdt['conductivity'][0], delta=0.01)
         self.assertAlmostEqual(9.5163, rdt['temp'][0], delta=0.01)
-        self.assertAlmostEqual(1318219097, rdt['time'][0], delta=1)
+        self.assertAlmostEqual(3527207897.0, rdt['time'][0], delta=1)
 
     def do_shutdown(self):
         self.dams.stop_external_dataset_agent_instance(self.agent_instance._id)
+
 
 @attr('INT', group='eoi')
 class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
@@ -190,7 +193,7 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
             'dvr_mod': 'ion.agents.data.handlers.sbe52_binary_handler',
             'dvr_cls': 'SBE52BinaryDataHandler',
             'dh_cfg': {
-                'parser_mod': 'ion.agents.data.handlers.sbe52_binary_handler',
+                'parser_mod': 'ion.agents.data.parsers.seabird.sbe52.binary_handler',
                 'parser_cls': 'SBE52BinaryCTDParser',
                 'stream_id': self.stream_id,
                 'stream_route': self.route,
@@ -206,6 +209,7 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         self.assertIsNotNone(rdt['temp'])
+
 
 #DISABLED: attr('INT', group='eoi')
 # these tests rely on the original handler mechanism which had several shortcomings leading to the poller/parser rewrite
