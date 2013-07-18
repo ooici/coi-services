@@ -84,7 +84,12 @@ def convert_events_to_email_message(events=None, rr_client=None):
 
     if 0 == len(events): raise BadRequest("Tried to convert events to email, but none were supplied")
 
-    ION_WEBSITE_URL = "http://example.url.com"
+    web_ui_url = CFG.get_safe('system.web_ui_url', None)
+    log.debug("found CFG.system.web_ui_url = %s" % web_ui_url)
+    if web_ui_url is None:
+        web_ui_txt = ""
+    else:
+        web_uri_txt = ": %s" % web_ui_url
 
     msg_body = ""
 
@@ -127,7 +132,7 @@ def convert_events_to_email_message(events=None, rr_client=None):
                 "This notification was received based on " +\
                 "your current subscription settings for this event type from this resource. To unsubscribe " +\
                 "from notifications of this event type, please access the actions menu for the resource " +\
-                ("listed above in the ION interface, %s.  \r\n\r\n" % ION_WEBSITE_URL) +\
+                ("listed above in the ION interface%s.  \r\n\r\n" % web_uri_txt) +\
                 "Do not reply to this email.  This email address is not monitored and the emails will not be read.\r\n"
 
 
