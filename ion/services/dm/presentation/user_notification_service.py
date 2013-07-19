@@ -9,12 +9,14 @@ import string
 from email.mime.text import MIMEText
 from datetime import datetime
 
-from pyon.core.exception import BadRequest, IonException, NotFound
+from pyon.core.exception import BadRequest, IonException, NotFound, Inconsistent
 from pyon.core.bootstrap import CFG
 from pyon.util.log import log
 from pyon.util.containers import get_ion_ts
 from pyon.public import RT, PRED, get_sys_name, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
+from pyon.core.governance import ORG_MEMBER_ROLE, GovernanceHeaderValues, has_org_role
+
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_timestamp_to_human_readable
 
@@ -961,3 +963,37 @@ class UserNotificationService(BaseUserNotificationService):
                                     'notifications_daily_digest' : notifications_daily_digest, 'notifications_disabled' : notifications_disabled}
 
         return user_info
+
+
+    ##
+    ##
+    ##  GOVERNANCE FUNCTIONS
+    ##
+    ##
+
+
+    def check_subscription_policy(self, process, message, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process, resource_id_required=False)
+
+        except Inconsistent, ex:
+            return False, ex.message
+
+        if gov_values.op == 'delete_notification':
+            return True, ''
+
+        notification = message['notification']
+        resource_id = notification.origin
+
+        if notification.origin_type == RT.Org:
+            org = self.clients.resource_registry.read(resource_id)
+            if (has_org_role(gov_values.actor_roles, org.org_governance_name, [ORG_MEMBER_ROLE])):
+                    return True, ''
+        else:
+            orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
+            for org in orgs:
+                if (has_org_role(gov_values.actor_roles, org.org_governance_name, [ORG_MEMBER_ROLE])):
+                    return True, ''
+
+        return False, '%s(%s) has been denied since the user is not a member in any org to which the resource id %s belongs ' % (process.name, gov_values.op, resource_id)
