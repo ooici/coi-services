@@ -89,7 +89,7 @@ def convert_events_to_email_message(events=None, rr_client=None):
     if web_ui_url is None:
         web_ui_txt = ""
     else:
-        web_uri_txt = ": %s" % web_ui_url
+        web_ui_txt = ": %s" % web_ui_url
 
     msg_body = ""
 
@@ -132,7 +132,7 @@ def convert_events_to_email_message(events=None, rr_client=None):
                 "This notification was received based on " +\
                 "your current subscription settings for this event type from this resource. To unsubscribe " +\
                 "from notifications of this event type, please access the actions menu for the resource " +\
-                ("listed above in the ION interface%s.  \r\n\r\n" % web_uri_txt) +\
+                ("listed above in the ION interface%s.  \r\n\r\n" % web_ui_txt) +\
                 "Do not reply to this email.  This email address is not monitored and the emails will not be read.\r\n"
 
 
