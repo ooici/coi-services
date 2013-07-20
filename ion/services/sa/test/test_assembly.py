@@ -29,7 +29,7 @@ from ion.services.sa.instrument.flag import KeywordFlag
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.agents.port.port_agent_process import PortAgentType
-
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 import string
@@ -198,7 +198,7 @@ class TestAssembly(GenericIntHelperTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
-                                  driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
+                                  driver_uri=DRV_URI_GOOD)
         instrument_agent_id = self.perform_fcruf_script(RT.InstrumentAgent,
                                                         "instrument_agent", 
                                                         self.client.IMS,

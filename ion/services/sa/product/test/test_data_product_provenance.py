@@ -25,6 +25,7 @@ from nose.plugins.attrib import attr
 
 from interface.objects import StreamConfiguration
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 from ion.services.dm.utility.granule_utils import time_series_domain
 import base64
 import unittest
@@ -177,7 +178,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                 name='agent007',
                                 description="SBE37IMAgent",
-                                driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg",
+                                driver_uri=DRV_URI_GOOD,
                                 stream_configurations = [parsed_config] )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)

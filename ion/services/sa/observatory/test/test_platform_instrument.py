@@ -43,16 +43,16 @@ from pyon.public import CFG
 
 import sys
 from ion.agents.instrument.driver_process import ZMQEggDriverProcess
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.0-py2.7.egg'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
 WORK_DIR = '/tmp/'
 
 DVR_CONFIG = {
-    'dvr_egg' : DRV_URI,
+    'dvr_egg' : DRV_URI_GOOD,
     'dvr_mod' : DRV_MOD,
     'dvr_cls' : DRV_CLS,
     'workdir' : WORK_DIR,
@@ -61,7 +61,7 @@ DVR_CONFIG = {
 
 # Dynamically load the egg into the test path
 launcher = ZMQEggDriverProcess(DVR_CONFIG)
-egg = launcher._get_egg(DRV_URI)
+egg = launcher._get_egg(DRV_URI_GOOD)
 if not egg in sys.path:
     sys.path.insert(0, egg)
 

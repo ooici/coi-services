@@ -1,19 +1,17 @@
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.icontainer_agent import ContainerAgentClient
 
 #from pyon.ion.endpoint import ProcessRPCClient
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder, InstrumentAgentConfigurationBuilder
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
-from pyon.core.exception import BadRequest
 
 from pyon.datastore.datastore import DataStore
-from pyon.public import Container, IonObject
+from pyon.public import IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
-from ion.util.parameter_yaml_IO import get_param_dict
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 
@@ -24,13 +22,13 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
-from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StreamConfiguration
+from interface.objects import ComputedValueAvailability, ProcessStateEnum, StreamConfiguration
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
 
 from pyon.public import RT, PRED, CFG, OT, LCE
 from nose.plugins.attrib import attr
 from ooi.logging import log
-import unittest, simplejson
+import unittest
 
 
 from ion.services.sa.test.helpers import any_old
@@ -47,6 +45,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #print 'starting container'
         #container.start()
         #print 'started container'
+        unittest # suppress an pycharm inspector error if all unittest.skip references are commented out
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.RR   = ResourceRegistryServiceClient(node=self.container.node)
@@ -328,7 +327,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
-                                  driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg",
+                                  driver_uri=DRV_URI_GOOD,
                                   stream_configurations = [raw_config, parsed_config] )
         instAgent_id = self.IMS.create_instrument_agent(instAgent_obj)
         log.debug( 'new InstrumentAgent id = %s', instAgent_id)

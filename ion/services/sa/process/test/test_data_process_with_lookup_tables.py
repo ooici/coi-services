@@ -23,7 +23,7 @@ from pyon.public import RT, PRED
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.utility.granule_utils import time_series_domain
-
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 
 import base64
 
@@ -73,7 +73,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_uri=DRV_URI_GOOD)
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
