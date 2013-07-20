@@ -4,9 +4,6 @@
 
 __author__ = 'Bill Bollenbacher, Swarbhanu Chatterjee, David Stuebe'
 
-import pprint
-import string
-from datetime import datetime
 
 from pyon.core.exception import BadRequest, IonException, NotFound, Inconsistent
 from pyon.core.bootstrap import CFG
@@ -16,13 +13,13 @@ from pyon.public import RT, PRED, get_sys_name, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
 from pyon.core.governance import ORG_MEMBER_ROLE, GovernanceHeaderValues, has_org_role
 
-from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message
+from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message, get_event_computed_attributes
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
 
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability, ComputedListValue, DeviceStatusType
+from interface.objects import ComputedValueAvailability, ComputedListValue
 from interface.objects import ProcessDefinition, TemporalBounds
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 
@@ -528,7 +525,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         return event
 
-    def get_recent_events(self, resource_id='', limit = 100):
+    def get_recent_events(self, resource_id='', limit=100):
         """
         Get recent events for use in extended resource computed attribute
         @param resource_id str
@@ -542,96 +539,13 @@ class UserNotificationService(BaseUserNotificationService):
         ret = IonObject(OT.ComputedEventListValue)
         if events:
             ret.value = events
-            ret.computed_list = [self._get_event_computed_attributes(event) for event in events]
+            ret.computed_list = [get_event_computed_attributes(event) for event in events]
             ret.status = ComputedValueAvailability.PROVIDED
         else:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
 
         return ret
 
-    def _get_event_computed_attributes(self, event):
-        """
-        @param event any Event to compute attributes for
-        @retval an EventComputedAttributes object for given event
-        """
-        evt_computed = IonObject(OT.EventComputedAttributes)
-        evt_computed.event_id = event._id
-        evt_computed.ts_computed = get_ion_ts()
-
-        try:
-            summary = self._get_event_summary(event)
-            evt_computed.event_summary = summary
-
-            spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'type_', 'origin', 'origin_type', 'ts_created', 'base_types']]
-            evt_computed.special_attributes = ", ".join(spc_attrs)
-
-            evt_computed.event_attributes_formatted = pprint.pformat(event.__dict__)
-        except Exception as ex:
-            log.exception("Error computing EventComputedAttributes for event %s: %s", event, ex)
-
-        return evt_computed
-
-    def _get_event_summary(self, event):
-        event_types = [event.type_] + event.base_types
-        summary = ""
-        if "ResourceLifecycleEvent" in event_types:
-            summary = "%s lifecycle state change: %s_%s" % (event.origin_type, event.lcstate, event.availability)
-        elif "ResourceModifiedEvent" in event_types:
-            summary = "%s modified: %s" % (event.origin_type, event.sub_type)
-        elif "ResourceIssueReportedEvent" in event_types:
-            summary = "Issue created: %s" % event.description
-
-        elif "ResourceAgentStateEvent" in event_types:
-            summary = "%s agent state change: %s" % (event.origin_type, event.state)
-        elif "ResourceAgentResourceStateEvent" in event_types:
-            summary = "%s agent resource state change: %s" % (event.origin_type, event.state)
-        elif "ResourceAgentConfigEvent" in event_types:
-            summary = "%s agent config set: %s" % (event.origin_type, event.config)
-        elif "ResourceAgentResourceConfigEvent" in event_types:
-            summary = "%s agent resource config set: %s" % (event.origin_type, event.config)
-        elif "ResourceAgentCommandEvent" in event_types:
-            summary = "%s agent command '%s(%s)' succeeded: %s" % (event.origin_type, event.command, event.execute_command, "" if event.result is None else event.result)
-        elif "ResourceAgentErrorEvent" in event_types:
-            summary = "%s agent command '%s(%s)' failed: %s:%s (%s)" % (event.origin_type, event.command, event.execute_command, event.error_type, event.error_msg, event.error_code)
-        elif "ResourceAgentAsyncResultEvent" in event_types:
-            summary = "%s agent async command '%s(%s)' succeeded: %s" % (event.origin_type, event.command, event.desc, "" if event.result is None else event.result)
-        elif "ResourceAgentConnectionLostErrorEvent" in event_types:
-            summary = "%s agent: %s (%s)" % (event.origin_type, event.error_msg, event.error_code)
-        elif "ResourceAgentEvent" in event_types:
-            summary = "%s agent: %s" % (event.origin_type, event.type_)
-
-        elif "ResourceAgentResourceCommandEvent" in event_types:
-            summary = "%s agent resource command '%s(%s)' executed: %s" % (event.origin_type, event.command, event.execute_command, "OK" if event.result is None else event.result)
-        elif "DeviceStatusEvent" in event_types:
-            summary = "%s '%s' status change: %s" % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.status,"???"))
-        elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
-            summary = "Operator entered: %s" % event.description
-
-        elif "OrgMembershipGrantedEvent" in event_types:
-            summary = "Joined Org '%s' as member" % event.org_name
-        elif "OrgMembershipCancelledEvent" in event_types:
-            summary = "Cancelled Org '%s' membership" % event.org_name
-        elif "UserRoleGrantedEvent" in event_types:
-            summary = "Granted %s in Org '%s'" % (event.role_name, event.org_name)
-        elif "UserRoleRevokedEvent" in event_types:
-            summary = "Revoked %s in Org '%s'" % (event.role_name, event.org_name)
-        elif "ResourceSharedEvent" in event_types:
-            summary = "%s shared in Org: '%s'" % (event.sub_type, event.org_name)
-        elif "ResourceUnsharedEvent" in event_types:
-            summary = "%s unshared in Org: '%s'" % (event.sub_type, event.org_name)
-        elif "ResourceCommitmentCreatedEvent" in event_types:
-            summary = "%s commitment created in Org: '%s'" % (event.commitment_type, event.org_name)
-        elif "ResourceCommitmentReleasedEvent" in event_types:
-            summary = "%s commitment released in Org: '%s'" % (event.commitment_type, event.org_name)
-        elif "ParameterQCEvent" in event_types:
-            summary = "%s" % event.description
-
-
-#        if event.description and summary:
-#            summary = summary + ". " + event.description
-#        elif event.description:
-#            summary = event.description
-        return summary
 
     def get_user_notifications(self, user_info_id=''):
         """
