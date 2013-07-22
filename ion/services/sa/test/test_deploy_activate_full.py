@@ -24,7 +24,7 @@ from interface.objects import AgentCommand, StreamConfiguration, ProcessStateEnu
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
@@ -145,7 +145,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
             name='agent007',
             description="SBE37IMAgent",
-            driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
+            driver_uri=DRV_URI_GOOD)
             
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)

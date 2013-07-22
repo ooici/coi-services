@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
-'''
+"""
 @file ion/services/sa/process/test/test_int_data_process_management_service.py
 @author Maurice Manning
 @test ion.services.sa.process.DataProcessManagementService integration test
-'''
+"""
 
 import time
 import numpy as np
@@ -51,7 +51,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
-
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 
 class FakeProcess(LocalContextMixin):
     """
@@ -251,7 +251,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_uri=DRV_URI_GOOD)
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
@@ -733,7 +733,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         return verifier(rdt)
 
-    def make_data_product(self, pdict_name, dp_name, available_fields=[]):
+    def make_data_product(self, pdict_name, dp_name, available_fields=None):
+        if available_fields is None: available_fields = []
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name(pdict_name, id_only=True)
         stream_def_id = self.pubsub_management.create_stream_definition('%s stream_def' % dp_name, parameter_dictionary_id=pdict_id, available_fields=available_fields or None)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
@@ -930,7 +931,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
                 self.fail("Active subscription found. Deactivate did not succeed")
 
 
-    def attach_qc_document(self, data_product_id, document_keys=[]):
+    def attach_qc_document(self, data_product_id, document_keys=None):
+        if document_keys is None: document_keys = []
         producers, _ = self.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, id_only=False)
         if producers:
             producer = producers[0]
