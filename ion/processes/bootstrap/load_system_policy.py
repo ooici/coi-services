@@ -396,7 +396,6 @@ class LoadSystemPolicy(ImmediateProcess):
 
         ##############
 
-
         policy_text = '''
             <Rule RuleId="%s" Effect="Permit">
             <Description>
@@ -493,6 +492,12 @@ class LoadSystemPolicy(ImmediateProcess):
                 </Resources>
 
                 <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">prepare_user_info_support</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">signon</AttributeValue>
