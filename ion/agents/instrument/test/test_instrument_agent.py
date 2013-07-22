@@ -136,6 +136,12 @@ DRV_SHA = DRV_SHA_0_1_5
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
+# these defintions will be referenced by other tests
+#  404: bad URI; BAD: driver will launch but commands will fail; GOOD: launch and commanding will succeed
+DRV_URI_GOOD = DRV_URI
+DRV_URI_BAD  = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1a-py2.7.egg"
+DRV_URI_404  = "http://sddevrepo.oceanobservatories.org/releases/completely_made_up_404.egg"
+
 # Driver config.
 # DVR_CONFIG['comms_config']['port'] is set by the setup.
 DVR_CONFIG = {

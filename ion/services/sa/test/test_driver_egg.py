@@ -37,6 +37,7 @@ from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum,
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD, DRV_URI_BAD, DRV_URI_404
 
 import unittest
 
@@ -82,10 +83,6 @@ class TestDriverEgg(IonIntegrationTestCase):
         self._samples_received = []
 
         self.event_publisher = EventPublisher()
-
-        self.egg_url_good = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1a-py2.7.egg"
-        self.egg_url_bad  = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1a-py2.7.egg"
-        self.egg_url_404  = "http://sddevrepo.oceanobservatories.org/releases/completely_made_up_404.egg"
 
 
 
@@ -135,7 +132,7 @@ class TestDriverEgg(IonIntegrationTestCase):
                                   description="SBE37IMAgent",
                                   driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
                                   driver_class="SBE37Driver",
-                                  driver_uri=self.egg_url_good,
+                                  driver_uri=DRV_URI_GOOD,
                                   stream_configurations = [raw_config, parsed_config])
 
         self.base_activateInstrumentSample(instAgent_obj)
@@ -148,7 +145,7 @@ class TestDriverEgg(IonIntegrationTestCase):
                                   description="SBE37IMAgent",
                                   #driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
                                   #driver_class="SBE37Driver",
-                                  driver_uri=self.egg_url_good,
+                                  driver_uri=DRV_URI_GOOD,
                                   stream_configurations = [raw_config, parsed_config])
 
         self.base_activateInstrumentSample(instAgent_obj)
@@ -161,7 +158,7 @@ class TestDriverEgg(IonIntegrationTestCase):
                                   description="SBE37IMAgent",
                                   driver_module="bogus",
                                   driver_class="Bogus",
-                                  driver_uri=self.egg_url_good,
+                                  driver_uri=DRV_URI_GOOD,
                                   stream_configurations = [raw_config, parsed_config])
 
         self.base_activateInstrumentSample(instAgent_obj)
@@ -175,20 +172,19 @@ class TestDriverEgg(IonIntegrationTestCase):
                                   description="SBE37IMAgent",
                                   #driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
                                   #driver_class="SBE37Driver",
-                                  driver_uri=self.egg_url_404,
+                                  driver_uri=DRV_URI_404,
                                   stream_configurations = [raw_config, parsed_config])
 
         self.base_activateInstrumentSample(instAgent_obj, False)
 
     def test_driverLaunchNoModuleBadEggURI(self):
         raw_config, parsed_config = self.get_streamConfigs()
-
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
                                   #driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
                                   #driver_class="SBE37Driver",
-                                  driver_uri=self.egg_url_bad,
+                                  driver_uri=DRV_URI_BAD,
                                   stream_configurations = [raw_config, parsed_config])
 
         self.base_activateInstrumentSample(instAgent_obj, True, False)

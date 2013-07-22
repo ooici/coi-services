@@ -18,6 +18,7 @@ from interface.services.dm.iuser_notification_service import UserNotificationSer
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -266,7 +267,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
-                                  driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1a-py2.7.egg",
+                                  driver_uri=DRV_URI_GOOD,
                                   stream_configurations = [raw_config, parsed_config])
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         log.debug('new InstrumentAgent id = %s', instAgent_id)
