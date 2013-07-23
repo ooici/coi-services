@@ -482,8 +482,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     count += 1
                     self.assertItemsEqual(x.keys(), y.keys())
         self.assertEqual(count, 3)
-       
-    @unittest.skip('Awaiting sbe37 driver fix.')
+
     def test_agent_state_persistence(self):
         """
         test_agent_state_persistence
@@ -579,7 +578,6 @@ class TestAgentPersistence(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-    @unittest.skip('Awaiting sbe37 driver fix.')
     def test_agent_rparam_persistence(self):
         """
         test_agent_rparam_persistence

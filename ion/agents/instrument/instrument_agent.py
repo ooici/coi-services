@@ -600,20 +600,11 @@ class InstrumentAgent(ResourceAgent):
         try:
             self._dvr_client.cmd_dvr('configure', dvr_comms)
             self._dvr_client.cmd_dvr('connect')
-            resource_schema = self._dvr_client.cmd_dvr('get_config_metadata')
+
         except InstDriverClientTimeoutError:
             self._stop_driver()
             self._on_driver_comms_error('_handler_inactive_go_active')
             return (ResourceAgentState.UNINITIALIZED, None)
-
-        if isinstance(resource_schema, str):
-            resource_schema = json.loads(resource_schema)
-            if isinstance(resource_schema, dict):
-                self._resource_schema = resource_schema
-            else:
-                self._resource_schema = {}                    
-        else:
-            self._resource_schema = {}
 
         # Reset the connection id and index.
         self._asp.reset_connection()
@@ -1415,7 +1406,28 @@ class InstrumentAgent(ResourceAgent):
             driver_client = self._dvr_proc.get_client()
             driver_client.start_messaging(self.evt_recv)
             retval = driver_client.cmd_dvr('process_echo', 'Test.')
+
+            resource_schema = driver_client.cmd_dvr('get_config_metadata')
+            if isinstance(resource_schema, str):
+                resource_schema = json.loads(resource_schema)
+                if isinstance(resource_schema, dict):
+                    self._resource_schema = resource_schema
+                else:
+                    self._resource_schema = {}
+            else:
+                self._resource_schema = {}
+
             startup_config = dvr_config.get('startup_config',None)
+
+            # filter parameters in the schema, remove READ_ONLY
+            parameters = self._resource_schema.get('parameters', None)
+            if parameters and startup_config:
+                for (k,v) in parameters.iteritems():
+                    if 'visibility' in v and v['visibility'] == 'READ_ONLY':
+                        if 'parameters' in startup_config and k in startup_config['parameters']:
+                            del startup_config['parameters'][k]
+
+
             if startup_config:
                 retval = driver_client.cmd_dvr('set_init_params', startup_config)
             self._dvr_client = driver_client
