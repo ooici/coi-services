@@ -1332,7 +1332,8 @@ class InstrumentAgentTest():
                         'alerts',
                         'streams',
                         'pubrate',
-                        'aggstatus'
+                        'aggstatus',
+                        'driver_pid'
                         ]
         
         res_cmds_all =[
@@ -2256,7 +2257,8 @@ class InstrumentAgentTest():
                         'alerts',
                         'streams',
                         'pubrate',
-                        'aggstatus'
+                        'aggstatus',
+                        'driver_pid'
                         ]
         
         res_cmds_all =[

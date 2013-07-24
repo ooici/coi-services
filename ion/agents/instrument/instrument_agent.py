@@ -215,7 +215,7 @@ class InstrumentAgent(ResourceAgent):
 
         # Driver pinger greenlet.
         self._pinger = None
-        self._stop_pinger = False
+        #self._stop_pinger = False
 
         # Agent schema.
         # Loaded with driver start/stop.
@@ -254,7 +254,6 @@ class InstrumentAgent(ResourceAgent):
         """
 
         super(InstrumentAgent, self).on_quit()
-
         self._stop_pinger()
 
         self._aam.stop_all()
@@ -541,13 +540,10 @@ class InstrumentAgent(ResourceAgent):
                                   get_ion_ts())
             next_state = None
         except InstDriverClientTimeoutError:
-            print '## ping handler got timeout'
             self._stop_driver(True)
             next_state = ResourceAgentState.UNINITIALIZED
             result = None
             self._on_driver_comms_error('_handler_ping_resource')
-
-        print '### ping handler: transitioning to state: ' + str(next_state)
 
         return (next_state, result)
 
@@ -621,6 +617,7 @@ class InstrumentAgent(ResourceAgent):
             self._on_driver_comms_error('_handler_inactive_go_active')
             return (ResourceAgentState.UNINITIALIZED, None)
 
+        """
         if isinstance(resource_schema, str):
             resource_schema = json.loads(resource_schema)
             if isinstance(resource_schema, dict):
@@ -629,6 +626,7 @@ class InstrumentAgent(ResourceAgent):
                 self._resource_schema = {}
         else:
             self._resource_schema = {}
+        """
 
         # Reset the connection id and index.
         self._asp.reset_connection()
@@ -1507,7 +1505,6 @@ class InstrumentAgent(ResourceAgent):
         """
 
         if self._dvr_proc:
-            print '### stopping driver'
             self._dvr_proc.stop(force)
             self._dvr_proc = None
             self._dvr_client = None
@@ -1547,9 +1544,7 @@ class InstrumentAgent(ResourceAgent):
                         self._pinger = None
                         break
 
-                    print '## pinging agent'
                     retval = self._fsm.on_event_if_free(ResourceAgentEvent.PING_RESOURCE, driver_timeout=60)
-                    print '## ping retval: ' + str(retval)
                     log.info(str(retval))
 
                     # If we have reset, then kill the greenlet automatically.
@@ -1561,10 +1556,8 @@ class InstrumentAgent(ResourceAgent):
 
                 except FSMLockedError:
                     log.warning('Pinger blocked, will try again later.')
-                    print '## pinger blocked...'
 
                 except Exception as ex:
-                    print '## pinger got exception: ' + str(ex)
                     log.error('Pinger got unexpected exception: %s', str(ex))
 
         self._pinger = gevent.spawn(ping_func)
@@ -1584,7 +1577,6 @@ class InstrumentAgent(ResourceAgent):
 
         # If specified and configed, build the alerts aparam.                
         aparam_alerts_config = self.CFG.get('aparam_alerts_config', None)
-        print str(aparam_alerts_config)
         if aparam_alerts_config and 'alerts' in aparams:
             self.aparam_set_alerts(aparam_alerts_config)
                 

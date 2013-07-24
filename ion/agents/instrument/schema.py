@@ -265,7 +265,14 @@ AGENT_SCHEMA_V1 = {
                         "value_map" : DeviceStatusType._value_map
                         }                    
                     }]
-                }
+                },
+        "driver_pid" :
+            {
+                "display_name" : "Driver PID.",
+                "description" : "Process ID of the driver.",
+                "visibility" : "READ_ONLY",
+                "type" : "str",
+            }
         },
     "states" : {
         InstrumentAgentState.UNINITIALIZED : {
