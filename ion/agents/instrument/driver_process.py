@@ -126,27 +126,41 @@ class DriverProcess(object):
 
         return True
 
-    def stop(self):
+    def stop(self, force=False):
         """
         Stop the driver process.  We try to stop gracefully using the driver client if we can, otherwise a simple kill
         does the job.
         """
+
         if self._driver_process:
-            if self._driver_client:
-                self._driver_client.done()
-                self._driver_process.wait()
-                self._driver_process = None
-                self._driver_client = None
-                log.debug("driver process stopped")
+
+            if not force and self._driver_client:
+                try:
+                    self._driver_client.done()
+                    self._driver_process.wait()
+                    log.info('Driver process stopped.')
+                except:
+                    try:
+                        self._driver_process.kill()
+                        self._driver_process.wait()
+                        log.error('Driver process killed.')
+                    except:
+                        log.error('Exception killing driver process')
+                        log.error(type(ex))
+                        log.error(ex)
+
             else:
                 try:
                     self._driver_process.kill()
                     self._driver_process.wait()
-                    self._driver_process = None
-                    log.debug("driver process killed")
+                    log.error('Driver process killed.')
+                except Exception as ex:
+                    log.error('Exception killing driver process')
+                    log.error(type(ex))
+                    log.error(ex)
 
-                except OSError:
-                    pass
+        self._driver_process = None
+        self._driver_client = None
 
     def getpid(self):
         """

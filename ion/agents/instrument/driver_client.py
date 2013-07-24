@@ -181,8 +181,10 @@ class ZmqDriverClient(DriverClient):
         """
         # Package command dictionary.
         driver_timeout = kwargs.pop('driver_timeout', 600)
+        print '## driver timeout is: ' + str(driver_timeout)
         msg = {'cmd':cmd,'args':args,'kwargs':kwargs}
-        
+        print '## driver command is: ' + str(msg)
+
         log.debug('Sending command %s.' % str(msg))
         start_send = time.time()
         while True:
@@ -199,8 +201,9 @@ class ZmqDriverClient(DriverClient):
                 # Socket not ready to accept send. Sleep and retry later.
                 time.sleep(.5)
                 delta = time.time() - start_send
+                print 'send time: ' + str(delta)
                 if delta >= driver_timeout:
-                    raise InstDriverClientTimeoutError
+                    raise InstDriverClientTimeoutError()
 
             except Exception,e:
                 log.error('Driver client error writing to zmq socket: ' + str(e))
@@ -208,6 +211,7 @@ class ZmqDriverClient(DriverClient):
                 raise SystemError('exception writing to zmq socket: ' + str(e))
             
         log.trace('Awaiting reply.')
+        print '## awaiting reply'
         start_reply = time.time()
         while True:
             try:
@@ -219,10 +223,12 @@ class ZmqDriverClient(DriverClient):
                 # Socket not ready with the reply. Sleep and retry later.
                 time.sleep(.5)
                 delta = time.time() - start_reply
+                print 'recv time: ' + str(delta)
                 if delta >= driver_timeout:
-                    raise InstDriverClientTimeoutError
+                    raise InstDriverClientTimeoutError()
 
             except Exception,e:
+                print '### driver client recv exception: ' + str(e)
                 log.error('Driver client error reading from zmq socket: ' + str(e))
                 log.error('Driver client error type: ' + str(type(e)))
                 raise SystemError('exception reading from zmq socket: ' + str(e))

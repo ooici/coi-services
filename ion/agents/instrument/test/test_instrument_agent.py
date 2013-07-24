@@ -24,6 +24,8 @@ import re
 import json
 import unittest
 import os
+import signal
+import subprocess
 
 # 3rd party imports.
 import gevent
@@ -95,6 +97,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_streaming_memuse
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities_new
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_exit_da_timing
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_driver_crash
 """
 
 ###############################################################################
@@ -2402,6 +2405,53 @@ class InstrumentAgentTest():
 
         print '######## exiting direct access takes: %f seconds' % delta
 
+    def test_driver_crash(self):
+        """
+        Test detection of killed/crashed driver, or loss of driver comms.
+        """
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        dvr_pid = self._ia_client.get_agent(['driver_pid'])['driver_pid']
+        print '#############'
+        print str(dvr_pid)
+        gevent.sleep(15)
+
+        # Kill driver.
+        print '### sending signal'
+        #retval = os.kill(int(dvr_pid), signal.SIGKILL)
+        args = ['kill', '-9', str(dvr_pid)]
+        retval = subprocess.check_output(args)
+        print '### retval: ' + str(retval)
+        ### retval: <MagicMock name='kill()' id='4569776080'>
+
+        start = time.time()
+        elapsed = 0
+        while elapsed < 300:
+            gevent.sleep(5)
+            state = self._ia_client.get_agent_state()
+            print '##### agent state: ' + state
+            if state == ResourceAgentState.UNINITIALIZED:
+                break
+            elapsed = time.time() - start
+
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 600}}})
