@@ -2430,24 +2430,21 @@ class InstrumentAgentTest():
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         dvr_pid = self._ia_client.get_agent(['driver_pid'])['driver_pid']
-        print '#############'
-        print str(dvr_pid)
         gevent.sleep(15)
 
         # Kill driver.
-        print '### sending signal'
+        log.info('Sending kill signal to driver.')
         #retval = os.kill(int(dvr_pid), signal.SIGKILL)
         args = ['kill', '-9', str(dvr_pid)]
         retval = subprocess.check_output(args)
-        print '### retval: ' + str(retval)
-        ### retval: <MagicMock name='kill()' id='4569776080'>
+        log.info('Kill signal output: %s', str(retval))
 
         start = time.time()
         elapsed = 0
         while elapsed < 300:
             gevent.sleep(5)
             state = self._ia_client.get_agent_state()
-            print '##### agent state: ' + state
+            log.info('Insturment agent state is %s.', state)
             if state == ResourceAgentState.UNINITIALIZED:
                 break
             elapsed = time.time() - start
