@@ -259,8 +259,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
 
-        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='raw', records_per_granule=2, granule_publish_rate=5 )
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5)
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='raw')
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict')
 
 
         # Create InstrumentAgent
@@ -404,7 +404,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
                                         inst_agent_instance_obj.agent_process_id)
 
-        log.debug('Instrument agent instance obj: = %s' , str(inst_agent_instance_obj))
+        #log.trace('Instrument agent instance obj: = %s' , str(inst_agent_instance_obj))
 
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = ResourceAgentClient(instDevice_id,
@@ -472,23 +472,31 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Now get the data in one chunk using an RPC Call to start_retreive
         #--------------------------------------------------------------------------------
 
-        replay_data = self.dataretrieverclient.retrieve(self.parsed_dataset)
-        self.assertIsInstance(replay_data, Granule)
-        rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        log.debug("test_activateInstrumentSample: RDT parsed: %s", str(rdt.pretty_print()) )
-        self.assertIn('temp', rdt)
-        temp_vals = rdt['temp']
-        pressure_vals  = rdt['pressure']
-        self.assertEquals(10, len(temp_vals))
+        replay_data_raw = self.dataretrieverclient.retrieve(self.raw_dataset)
+        self.assertIsInstance(replay_data_raw, Granule)
+        rdt_raw = RecordDictionaryTool.load_from_granule(replay_data_raw)
+        log.debug("RDT raw: %s", str(rdt_raw.pretty_print()) )
 
-        replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
-        self.assertIsInstance(replay_data, Granule)
-        rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        log.debug("RDT raw: %s", str(rdt.pretty_print()) )
+        self.assertIn('raw', rdt_raw)
+        raw_vals = rdt_raw['raw']
+        if 10 != len([v for v in raw_vals if v == 't']):
+            log.error("%s raw_vals: ", len(raw_vals))
+            for i, r in enumerate(raw_vals): log.error("raw val %s: %s", i, [r])
+            self.fail("Expected 10 't' strings in raw_vals, got %s" % len(raw_vals))
+        else:
+            log.debug("%s raw_vals: ", len(raw_vals))
+            for i, r in enumerate(raw_vals): log.debug("raw val %s: %s", i, [r])
 
-        self.assertIn('raw', rdt)
-        raw_vals = rdt['raw']
-        self.assertEquals(10, len(raw_vals))
+        replay_data_parsed = self.dataretrieverclient.retrieve(self.parsed_dataset)
+        self.assertIsInstance(replay_data_parsed, Granule)
+        rdt_parsed = RecordDictionaryTool.load_from_granule(replay_data_parsed)
+        log.debug("test_activateInstrumentSample: RDT parsed: %s", str(rdt_parsed.pretty_print()) )
+        self.assertIn('temp', rdt_parsed)
+        temp_vals = rdt_parsed['temp']
+        pressure_vals  = rdt_parsed['pressure']
+        if 10 != len(temp_vals):
+            log.error("%s temp_vals: %s", len(temp_vals), temp_vals)
+            self.fail("Expected 10 temp_vals, got %s" % len(temp_vals))
 
 
         log.debug("l4-ci-sa-rq-138")

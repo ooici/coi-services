@@ -94,14 +94,10 @@ class TestDriverEgg(IonIntegrationTestCase):
 
     def get_streamConfigs(self):
         raw_config = StreamConfiguration(stream_name='raw',
-                                         parameter_dictionary_name='ctd_raw_param_dict',
-                                         records_per_granule=2,
-                                         granule_publish_rate=5 )
+                                         parameter_dictionary_name='ctd_raw_param_dict')
 
         parsed_config = StreamConfiguration(stream_name='parsed',
-                                            parameter_dictionary_name='ctd_parsed_param_dict',
-                                            records_per_granule=2,
-                                            granule_publish_rate=5 )
+                                            parameter_dictionary_name='ctd_parsed_param_dict')
 
         return raw_config, parsed_config
 
