@@ -21,11 +21,16 @@ from interface.services.sa.idata_product_management_service import BaseDataProdu
 from interface.objects import DataProduct, DataProductVersion
 from interface.objects import ComputedValueAvailability
 
+from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+
 from lxml import etree
 from datetime import datetime
 
 import numpy as np
-import string
+import string, StringIO
+import networkx as nx
+import matplotlib.pyplot as plt
 from collections import deque
 
 import functools
@@ -446,6 +451,34 @@ class DataProductManagementService(BaseDataProductManagementService):
         return result
 
 
+    def get_data_product_parameter_provenance(self, data_product_id='', parameter_name=''):
+        # Provides an audit trail for modifications to the original data
+        provenance_image = StringIO.StringIO()
+
+        #first get the assoc stream definition
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition, object_type=RT.StreamDefinition)
+        if not stream_def_ids:
+            raise BadRequest('No stream definitions found for this data product: %s', data_product_id)
+        else:
+            param_dict_ids, _ = self.clients.resource_registry.find_objects(subject=stream_def_ids[0], predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionary)
+            if not param_dict_ids:
+                raise BadRequest('No parameter dictionary found for this data product: %s', data_product_id)
+            else:
+                #context = self.clients.dataset_management.read_parameter_context_by_name(parameter_context_id)
+                pdict = DatasetManagementService.get_parameter_dictionary(param_dict_ids[0]._id)
+                context = pdict.get_context(parameter_name)
+                #log.debug('get_data_product_parameter_provenance  context: %s ', context)
+                if hasattr(context, 'param_type'):
+                    graph = context.param_type.get_dependency_graph()
+                    pos=nx.spring_layout(graph)
+                    nx.draw(graph, pos, font_size=10)
+
+                    plt.savefig(provenance_image)
+                    provenance_image.seek(0)
+                else:
+                    raise BadRequest('Invalid paramter context found for this data product: %s', data_product_id)
+
+        return provenance_image.getvalue()
 
 
 

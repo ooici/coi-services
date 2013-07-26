@@ -20,6 +20,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.ans.ivisualization_service import VisualizationServiceProcessClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from pyon.util.log import log
 from pyon.util.lru_cache import LRUCache
 from pyon.util.containers import current_time_millis
@@ -704,6 +705,31 @@ def get_visualization_image():
     image_info = vs_cli.get_visualization_image(data_product_id, visualization_parameters)
 
     return service_gateway_app.response_class(image_info['image_obj'],mimetype=image_info['content_type'])
+
+# Get a visualization image for the provenance of a specific data product paramter
+@service_gateway_app.route('/ion-service/get_parameter_provenance_visualization_image', methods=['GET','POST'])
+def get_parameter_provenance_visualization_image():
+
+    payload = request.form['payload']
+    json_params = simplejson.loads(str(payload))
+    #log.debug('get_parameter_provenance_visualization_image  json_params:  %s', json_params)
+
+    # Create client to interface with the viz service
+    data_product_cli = DataProductManagementServiceClient(node=Container.instance.node)   #, process=service_gateway_instance)
+
+    if not json_params.has_key('serviceRequest') or not json_params['serviceRequest'].has_key('params'):
+        raise  BadRequest("The JSON request is not properly formed")
+    params =  json_params['serviceRequest']['params']
+    if  not params.has_key('data_product_id') or not params.has_key('parameter_name'):
+        raise  BadRequest("The JSON request is not properly formed")
+
+    data_product_id = params["data_product_id"]
+    parameter_name = params["parameter_name"]
+
+    image_info = data_product_cli.get_data_product_parameter_provenance(data_product_id, parameter_name)
+
+    return service_gateway_app.response_class(image_info,mimetype='image/png')
+
 
 # Get version information about this copy of coi-services
 @service_gateway_app.route('/ion-service/version')

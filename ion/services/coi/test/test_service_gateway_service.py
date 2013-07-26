@@ -23,7 +23,7 @@ from pyon.util.log import log
 from pyon.public import OT
 
 import unittest
-import os
+import os, io
 import gevent
 
 USER1_CERTIFICATE =  """-----BEGIN CERTIFICATE-----
@@ -155,6 +155,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn('MyFakeResource', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
         self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
+
     def create_data_product_resource(self):
 
         geospatial_bounds = {
@@ -187,6 +188,65 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         response_data = response.json['data'][GATEWAY_RESPONSE]
         self.assertEqual(len(response_data), 2 )
         data_product_id = convert_unicode(response_data[0])
+        return data_product_id
+
+
+    def create_data_product_resource_full(self):
+
+        geospatial_bounds = {
+            "geospatial_latitude_limit_north": 1.0,
+            "geospatial_latitude_limit_south": 1.0,
+            "geospatial_longitude_limit_east": 1.0,
+            "geospatial_longitude_limit_west": 1.0,
+            "geospatial_vertical_min": 1.0,
+            "geospatial_vertical_max": 1.0
+        }
+
+        #create a paramter dictionary the a stream definition for this data product
+        DICTIONARY_NAME='ctd_parsed_param_dict'
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=' + convert_unicode(DICTIONARY_NAME) + '&id_only=True&user_id=123abc456')
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        param_dictionary_id = convert_unicode(response_data[0])
+        test = str(param_dictionary_id[0])
+        log.debug('create_data_product_resource_full  param_dictionary_id:  %s', param_dictionary_id)
+        log.debug('create_data_product_resource_full  test:  %s', test)
+
+
+        response = self.test_app.get('/ion-service/pubsub_management/create_stream_definition?name=CTDData&parameter_dictionary_id='+ convert_unicode(param_dictionary_id[0]))
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        log.debug('create_data_product_resource_full   response_data:  %s', response_data)
+        stream_definition_id = convert_unicode(response_data)
+        log.debug('create_data_product_resource_full  stream_definition_id:  %s', stream_definition_id)
+
+
+        data_product_create_request = {  "serviceRequest": {
+            "serviceName": "data_product_management",
+            "serviceOp": "create_data_product",
+            "params": {
+                "data_product": {
+                    "type_": "DataProduct",
+                    "lcstate": "DRAFT",
+                    "description": DATA_PRODUCT_DESCRIPTION,
+                    "name": DATA_PRODUCT_NAME,
+                    'geospatial_bounds': geospatial_bounds,
+                    'temporal_domain': TEMPORAL_DOMAIN
+                },
+                "stream_definition_id": stream_definition_id
+            }
+        }
+        }
+
+        response = self.test_app.post('/ion-service/data_product_management/create_data_product', {'payload': simplejson.dumps(data_product_create_request) })
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        log.debug('create_data_product_resource_full  create_data_product response_data:  %s', response_data)
+        #self.assertEqual(len(response_data), 2 )
+        data_product_id = convert_unicode(response_data)
         return data_product_id
 
 
@@ -597,4 +657,24 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn('ORG_MEMBER', role_header['ION'])
 
         id_client.delete_actor_identity(actor_id)
+
+
+    def test_data_provenance_retrieve(self):
+
+        data_product_id = self.create_data_product_resource_full()
+        get_parameter_provenance_visualization_image_request = {  "serviceRequest": {
+            "serviceName": "service_gateway",
+            "serviceOp": "get_parameter_provenance_visualization_image",
+            "params": {
+                "data_product_id": data_product_id,
+                "parameter_name" : "temp"
+            }
+        }
+        }
+
+        #call the gateway service intermeditary operation to get the image from the data product mgmt svc
+        response = self.test_app.post('/ion-service/get_parameter_provenance_visualization_image', {'payload': simplejson.dumps(get_parameter_provenance_visualization_image_request) })
+        #log.debug('test_data_provenance_retrieve  response:  %s', response)
+
+        self.assertIsNotNone(response)
 
