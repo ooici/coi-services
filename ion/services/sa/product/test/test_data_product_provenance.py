@@ -174,7 +174,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
 
         # Create InstrumentAgent
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict' )
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                 name='agent007',
                                 description="SBE37IMAgent",
