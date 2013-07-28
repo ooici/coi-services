@@ -322,8 +322,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         log.debug( 'new InstrumentModel id = %s ', instModel_id)
 
         # Create InstrumentAgent
-        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict' )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict')
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
@@ -632,7 +632,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
 
             # agent creation
-            raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+            raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict' )
             platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":[raw_config]})
             platform_agent_id = self.IMS.create_platform_agent(platform_agent_obj)
 
@@ -665,9 +665,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
             # agent creation
             raw_config = StreamConfiguration(stream_name='raw',
-                                             parameter_dictionary_name='ctd_raw_param_dict',
-                                             records_per_granule=2,
-                                             granule_publish_rate=5 )
+                                             parameter_dictionary_name='ctd_raw_param_dict' )
             instrument_agent_obj = any_old(RT.InstrumentAgent, {"stream_configurations":[raw_config]})
             instrument_agent_id = self.IMS.create_instrument_agent(instrument_agent_obj)
 

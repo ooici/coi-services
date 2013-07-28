@@ -125,8 +125,8 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
 
     def _create_instrument_agent(self, instModel_id):
 
-        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict')
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict')
 
         instAgent_obj = IonObject(RT.InstrumentAgent,
             name='agent007',
