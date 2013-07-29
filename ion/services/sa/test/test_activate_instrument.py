@@ -479,10 +479,16 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.assertIn('raw', rdt_raw)
         raw_vals = rdt_raw['raw']
-        if 10 != len([v for v in raw_vals if v == 't']):
+
+        all_raw = "".join(raw_vals)
+
+        # look for 't' entered after a prompt -- ">t"
+        t_commands = all_raw.count(">t")
+
+        if 10 != t_commands:
             log.error("%s raw_vals: ", len(raw_vals))
             for i, r in enumerate(raw_vals): log.error("raw val %s: %s", i, [r])
-            self.fail("Expected 10 't' strings in raw_vals, got %s" % len(raw_vals))
+            self.fail("Expected 10 't' strings in raw_vals, got %s" % t_commands)
         else:
             log.debug("%s raw_vals: ", len(raw_vals))
             for i, r in enumerate(raw_vals): log.debug("raw val %s: %s", i, [r])
