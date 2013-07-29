@@ -2336,9 +2336,15 @@ Reason: %s
         stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
         stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
+        agent_default_config = {}
+        raw_agent_default_config = row.get('agent_default_config', None)
+        if raw_agent_default_config:
+            agent_default_config = parse_dict(raw_agent_default_config)
+
         res_id = self._basic_resource_create(row, "PlatformAgent", "pa/",
                                              "instrument_management", "create_platform_agent",
-                                             set_attributes=dict(stream_configurations=stream_configurations),
+                                             set_attributes=dict(stream_configurations=stream_configurations,
+                                                                  agent_default_config=agent_default_config),
                                              support_bulk=True)
 
         if self.bulk:
@@ -2419,11 +2425,14 @@ Reason: %s
         driver_config = parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
 
+        agent_config = {}
+        raw_agent_config = row.get('agent_config', None)
+        if raw_agent_config:
+            agent_config = parse_dict(raw_agent_config)
+
         # Note: platform_id currently expected by PlatformAgent as follows:
-        agent_config = {
-            'platform_config': {'platform_id': platform_id},
-            'aparam_pubrate_config' : pubrate
-        }
+        agent_config['platform_config'] = { 'platform_id': platform_id }
+
         # TODO determine how to finally indicate this platform_id.)
 
         res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
@@ -2446,9 +2455,15 @@ Reason: %s
         stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
         stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
+        agent_default_config = {}
+        raw_agent_default_config = row.get('agent_default_config', None)
+        if raw_agent_default_config:
+            agent_default_config = parse_dict(raw_agent_default_config)
+
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
             "instrument_management", "create_instrument_agent",
-            set_attributes=dict(stream_configurations=stream_configurations),
+            set_attributes=dict(stream_configurations=stream_configurations,
+                                 agent_default_config=agent_default_config),
             support_bulk=True)
 
         if self.bulk:
@@ -2529,10 +2544,10 @@ Reason: %s
 
         alerts = [self.alerts[id.strip()] for id in row['alerts'].split(',')] if row['alerts'].strip() else []
 
-        # define complicated attributes
-        agent_config = {
-            'aparam_pubrate_config' : pubrate
-        }
+        agent_config = {}
+        raw_agent_config = row.get('agent_config', None)
+        if raw_agent_config:
+            agent_config = parse_dict(raw_agent_config)
 
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
                                                     'port':  int(row['comms_server_port']),

@@ -15,7 +15,6 @@ from pyon.ion.resource import PRED, RT
 from pyon.util.containers import get_ion_ts, dict_merge
 
 from ion.agents.instrument.driver_process import DriverProcessType
-from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
@@ -261,11 +260,7 @@ class AgentConfigurationBuilder(object):
         streams_dict = {}
         for stream_cfg in agent_obj.stream_configurations:
             #create a stream def for each param dict to match against the existing data products
-            streams_dict[stream_cfg.stream_name] = {'param_dict_name':stream_cfg.parameter_dictionary_name,
-                                                    #'stream_def_id':stream_def_id,
-                                                    'records_per_granule': stream_cfg.records_per_granule,
-                                                    'granule_publish_rate':stream_cfg.granule_publish_rate,
-                                                     }
+            streams_dict[stream_cfg.stream_name] = {'param_dict_name':stream_cfg.parameter_dictionary_name}
 
         #retrieve the output products
         # TODO: What about platforms? other things?
@@ -303,8 +298,7 @@ class AgentConfigurationBuilder(object):
                                                     'exchange_point'        : stream_route.exchange_point,
                                                     # TODO: This is redundant and very large - the param dict is in the stream_def_dict ???
                                                     'parameter_dictionary'  : stream_def.parameter_dictionary,
-                                                    'records_per_granule'   : stream_info_dict.get('records_per_granule'),
-                                                    'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate'),
+
                     }
 
         log.debug("Stream config generated")
@@ -334,19 +328,19 @@ class AgentConfigurationBuilder(object):
     def _generate_skeleton_config_block(self):
         log.info("Generating skeleton config block for %s", self.agent_instance_obj.name)
 
-        # should override this
-        agent_config = self.agent_instance_obj.agent_config
+        # merge the agent config into the default config
+        agent_config = dict_merge(self._get_agent().agent_default_config, self.agent_instance_obj.agent_config, True)
 
-        # Create agent_ config.
-        agent_config['instance_name']       = self.agent_instance_obj.name
-        agent_config['org_governance_name'] = self._generate_org_governance_name()
-        agent_config['device_type']         = self._generate_device_type()
-        agent_config['driver_config']       = self._generate_driver_config()
-        agent_config['stream_config']       = self._generate_stream_config()
-        agent_config['agent']               = self._generate_agent_config()
+        # Create agent_config.
+        agent_config['instance_name']        = self.agent_instance_obj.name
+        agent_config['org_governance_name']  = self._generate_org_governance_name()
+        agent_config['device_type']          = self._generate_device_type()
+        agent_config['driver_config']        = self._generate_driver_config()
+        agent_config['stream_config']        = self._generate_stream_config()
+        agent_config['agent']                = self._generate_agent_config()
         agent_config['aparam_alerts_config'] = self._generate_alerts_config()
-        agent_config['startup_config']      = self._generate_startup_config()
-        agent_config['children']            = self._generate_children()
+        agent_config['startup_config']       = self._generate_startup_config()
+        agent_config['children']             = self._generate_children()
 
         log.info("DONE generating skeleton config block for %s", self.agent_instance_obj.name)
 
@@ -402,9 +396,9 @@ class AgentConfigurationBuilder(object):
         """
         record process id of the launch
         """
-
-        log.debug("add the process id and update the resource")
+        log.debug("add the process id, the generated config, and update the resource")
         self.agent_instance_obj.agent_config = agent_config
+        self.agent_instance_obj.agent_spawn_config = agent_config
         self.agent_instance_obj.agent_process_id = process_id
         self.RR2.update(self.agent_instance_obj)
 

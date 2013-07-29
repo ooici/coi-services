@@ -112,6 +112,9 @@ from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestS
 # already running as an external process, locally) and others. See oms_uri_aliases.yml.
 oms_uri = os.getenv('OMS', "launchsimulator")
 
+
+#oms_uri = 'http://alice:1234@10.180.80.10:9021/'
+
 # initialization of the driver configuration. See setUp for possible update
 # of the 'oms_uri' entry related with the special value "launchsimulator".
 DVR_CONFIG = {
@@ -510,9 +513,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         """
         return [
             StreamConfiguration(stream_name='parsed',
-                                parameter_dictionary_name='platform_eng_parsed',
-                                records_per_granule=2,
-                                granule_publish_rate=5)
+                                parameter_dictionary_name='platform_eng_parsed')
 
             # TODO include a "raw" stream?
         ]
@@ -523,13 +524,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         """
         return [
             StreamConfiguration(stream_name='raw',
-                                parameter_dictionary_name='ctd_raw_param_dict',
-                                records_per_granule=2,
-                                granule_publish_rate=5),
+                                parameter_dictionary_name='ctd_raw_param_dict'),
 
             StreamConfiguration(stream_name='parsed',
-                                parameter_dictionary_name='ctd_parsed_param_dict',
-                                records_per_granule=2, granule_publish_rate=5)
+                                parameter_dictionary_name='ctd_parsed_param_dict')
         ]
 
     def _verify_child_config(self, config, device_id, is_platform):

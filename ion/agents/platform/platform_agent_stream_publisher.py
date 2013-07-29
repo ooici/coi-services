@@ -79,9 +79,6 @@ class PlatformAgentStreamPublisher(object):
 
     def _construct_stream_and_publisher(self, stream_name, stream_config):
 
-        # granule_publish_rate
-        # records_per_granule
-
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r: _construct_stream_and_publisher: "
                       "stream_name:%r, stream_config:\n%s",
