@@ -1711,7 +1711,8 @@ class InstrumentAgent(ResourceAgent):
         except Exception as ex:
             log.error('Instrument agent %s error restoring state %s, current state %s, exception %s.',
                     self.id, state, cur_state, str(ex))
-            
+            log.exception('###### Agent restore stack trace:')
+
         else:
             log.info('Instrument agent %s restored state %s = %s.',
                      self.id, state, cur_state)
