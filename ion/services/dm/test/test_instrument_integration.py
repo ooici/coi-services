@@ -33,8 +33,8 @@ class TestInstrumentIntegration(DMTestCase):
         return instrument_model_id
 
     def create_instrument_agent(self, instrument_model_id):
-        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='raw', records_per_granule=2, granule_publish_rate=5 )
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5)
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='raw')
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict')
         # Create InstrumentAgent
         instagent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
