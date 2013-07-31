@@ -1139,8 +1139,13 @@ class InstrumentAgent(ResourceAgent):
         """
         Publsih resource config change event and update persisted info.
         """
-        self._set_state('rparams', val)
-        self._flush_state()
+        try:
+            self._set_state('rparams', val)
+            self._flush_state()
+        except Exceptio as ex:
+            log.error('Error setting rparams state in _async_driver_event_config_change: %s', str(ex))
+            log.exception('Error setting rparams state in _async_driver_event_config_change.')
+
         try:
             event_data = {
                 'config' : val
@@ -1591,8 +1596,14 @@ class InstrumentAgent(ResourceAgent):
                 
         # Get resource parameters and agent state from persistence.
         # Enable this when new eggs have read-only startup parameters ready.
-        
-        rparams = self._get_state('rparams')
+
+        try:
+            rparams = self._get_state('rparams')
+        except Exception as ex:
+            log.error('Error retrieving rparams in _restore_resource: %s', str(ex))
+            log.exception('Error retrieving rparams in _restore_resource.')
+            rparams = None
+
         log.info('restoring rparams: %s', str(rparams))
         if rparams:
             startup_config = self._dvr_config.get('startup_config', None)
