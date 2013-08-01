@@ -397,7 +397,7 @@ class OmsTestMixin(HelperTestMixin):
     def test_bi_unregister_event_listener_not_registered_url(self):
         url = "http://_never_registered_url"
         res = self._unregister_event_listener(url)
-        self.assertEquals(InvalidResponse.EVENT_LISTENER_URL, res)
+        self.assertEquals(0, res)
 
     def test_get_checksum(self):
         platform_id = self.PLATFORM_ID
