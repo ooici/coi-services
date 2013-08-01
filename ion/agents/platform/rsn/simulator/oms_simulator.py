@@ -391,7 +391,7 @@ class CIOMSSimulator(CIOMSClient):
         log.debug("unregister_event_listener called: url=%r", url)
 
         if not url in self._reg_event_listeners:
-            return {url: InvalidResponse.EVENT_LISTENER_URL}
+            return {url: 0}
 
         #
         # registered, so remove it
