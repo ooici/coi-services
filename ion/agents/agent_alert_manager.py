@@ -14,6 +14,7 @@ __license__ = 'Apache 2.0'
 # Pyon imports
 from pyon.public import log
 
+import copy
 
 from interface.objects import StreamAlertType
 from interface.objects import DeviceStatusType
@@ -128,7 +129,9 @@ class AgentAlertManager(object):
         """
         if not isinstance(params, (list,tuple)) or len(params)==0:
             return -1
-        
+
+        params = copy.deepcopy(params)
+
         if isinstance(params[0], str):
             action = params[0]
             params = params[1:]

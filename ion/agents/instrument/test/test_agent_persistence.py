@@ -79,6 +79,7 @@ from pyon.core.bootstrap import IonObject
 --with-queueblame
 bin/nosetests -s -v --nologcapture --with-queueblame --with-pycc ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence
+bin/nosetests --with-pycc -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_config_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_config_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_state_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_rparam_persistence
@@ -500,6 +501,24 @@ class TestAgentPersistence(IonIntegrationTestCase):
         retval = self._ia_client.ping_agent()
         log.info(retval)
 
+
+        alert_def3 = {
+            'name' : 'late_data_warning',
+            'stream_name' : 'parsed',
+            'description' : 'Expected data has not arrived.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
+            'time_delta' : 180,
+            'alert_class' : 'LateDataAlert'
+        }
+
+        params = {
+            'alerts' : [alert_def3]
+        }
+
+        # Set the new agent params and confirm.
+        self._ia_client.set_agent(params)
+
         # Initialize the agent.
         # The agent is spawned with a driver config, but you can pass one in
         # optinally with the initialize command. This validates the driver
@@ -548,6 +567,13 @@ class TestAgentPersistence(IonIntegrationTestCase):
         except gevent.Timeout:
             self.fail("Could not restore agent state to COMMAND.")
 
+        params = [
+            'alerts'
+        ]
+        alerts = self._ia_client.get_agent(params)['alerts']
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alert_def3['name'], alerts[0]['name'])
+
         cmd = AgentCommand(command=ResourceAgentEvent.PAUSE)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
@@ -570,6 +596,10 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     gevent.sleep(1)
         except gevent.Timeout:
             self.fail("Could not restore agent state to STOPPED.")
+
+        alerts = self._ia_client.get_agent(params)['alerts']
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alert_def3['name'], alerts[0]['name'])
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.
