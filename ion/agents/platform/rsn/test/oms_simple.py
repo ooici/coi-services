@@ -229,10 +229,11 @@ if __name__ == "__main__":  # pragma: no cover
     if reterr is None:
         full_method_name = "port.get_platform_ports"
         retval, reterr = run(full_method_name, "dummy_platform_id")
+        orig_retval = retval
         retval, reterr = verify_entry_in_dict(retval, reterr, "dummy_platform_id")
-        if retval is not INVALID_PLATFORM_ID:
+        if retval != INVALID_PLATFORM_ID:
             reterr = "expecting dict {%r: %r}. got: %r" % (
-                "dummy_platform_id", INVALID_PLATFORM_ID, retval)
+                "dummy_platform_id", INVALID_PLATFORM_ID, orig_retval)
             tried[full_method_name] = reterr
             format_err(reterr)
 
@@ -245,12 +246,17 @@ if __name__ == "__main__":  # pragma: no cover
     retval, reterr = verify_entry_in_dict(retval, reterr, port_id)
     retval, reterr = verify_entry_in_dict(retval, reterr, instrument_id)
 
+    connect_instrument_error = reterr
+
     #----------------------------------------------------------------------
     full_method_name = "instr.get_connected_instruments"
     retval, reterr = run(full_method_name, platform_id, port_id)
     retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
     retval, reterr = verify_entry_in_dict(retval, reterr, port_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, instrument_id)
+    # note, in case of error in instr.connect_instrument, don't expect the
+    # instrument_id to be reported:
+    if connect_instrument_error is None:
+        retval, reterr = verify_entry_in_dict(retval, reterr, instrument_id)
 
     #----------------------------------------------------------------------
     full_method_name = "instr.disconnect_instrument"
