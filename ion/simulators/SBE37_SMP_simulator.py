@@ -90,7 +90,9 @@ class SBE37(asyncore.dispatcher_with_send):
         self.socket.settimeout(0.0)
         self.thread = thread
         self.streaming_rate = streaming_rate
-        self.max_sleep = streaming_rate/2. if streaming_rate<4 else 2.
+        # causes error in  ion.agents.instrument.test.test_gateway_to_instrument_agent:TestInstrumentAgentViaGateway.test_autosample
+        #self.max_sleep = streaming_rate/2. if streaming_rate<4 else 2.
+        self.max_sleep = 0.1
         self.connection_id = connection_id
         self.handle_read()
 
