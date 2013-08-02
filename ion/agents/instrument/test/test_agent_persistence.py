@@ -212,7 +212,12 @@ class TestAgentPersistence(IonIntegrationTestCase):
             'agent'         : {'resource_id': IA_RESOURCE_ID},
             'test_mode' : True,
             'forget_past' : False,
-            'enable_persistence' : True
+            'enable_persistence' : True,
+            'aparam_pubrate_config' :
+                {
+                    'raw' : 2,
+                    'parsed' : 2
+                }
         }
 
         self._ia_client = None
@@ -366,8 +371,8 @@ class TestAgentPersistence(IonIntegrationTestCase):
         retval = self._ia_client.get_agent(['pubrate'])['pubrate']
         self.assertIn('raw', retval.keys())
         self.assertIn('parsed', retval.keys())
-        self.assertEqual(retval['raw'], 0)
-        self.assertEqual(retval['parsed'], 0)
+        self.assertEqual(retval['raw'], 2)
+        self.assertEqual(retval['parsed'], 2)
         
         #{'alerts': []}
         retval = self._ia_client.get_agent(['alerts'])['alerts']
@@ -512,8 +517,13 @@ class TestAgentPersistence(IonIntegrationTestCase):
             'alert_class' : 'LateDataAlert'
         }
 
+        orig_pubrate = {
+            'parsed' : 10,
+            'raw' : 20
+        }
         params = {
-            'alerts' : [alert_def3]
+            'alerts' : [alert_def3],
+            'pubrate' : orig_pubrate
         }
 
         # Set the new agent params and confirm.
@@ -568,11 +578,16 @@ class TestAgentPersistence(IonIntegrationTestCase):
             self.fail("Could not restore agent state to COMMAND.")
 
         params = [
-            'alerts'
+            'alerts',
+            'pubrate'
         ]
-        alerts = self._ia_client.get_agent(params)['alerts']
+        retval = self._ia_client.get_agent(params)
+        alerts = retval['alerts']
+        pubrate = retval['pubrate']
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alert_def3['name'], alerts[0]['name'])
+        self.assertEqual(pubrate['raw'], 20)
+        self.assertEqual(pubrate['parsed'], 10)
 
         cmd = AgentCommand(command=ResourceAgentEvent.PAUSE)
         retval = self._ia_client.execute_agent(cmd)
@@ -597,9 +612,13 @@ class TestAgentPersistence(IonIntegrationTestCase):
         except gevent.Timeout:
             self.fail("Could not restore agent state to STOPPED.")
 
-        alerts = self._ia_client.get_agent(params)['alerts']
+        retval = self._ia_client.get_agent(params)
+        alerts = retval['alerts']
+        pubrate = retval['pubrate']
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alert_def3['name'], alerts[0]['name'])
+        self.assertEqual(pubrate['raw'], 20)
+        self.assertEqual(pubrate['parsed'], 10)
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.
