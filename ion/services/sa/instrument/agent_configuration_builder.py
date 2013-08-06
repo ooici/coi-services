@@ -329,7 +329,7 @@ class AgentConfigurationBuilder(object):
         log.info("Generating skeleton config block for %s", self.agent_instance_obj.name)
 
         # merge the agent config into the default config
-        agent_config = dict_merge(self._get_agent().agent_init_config, self.agent_instance_obj.agent_config, True)
+        agent_config = dict_merge(self._get_agent().agent_default_config, self.agent_instance_obj.agent_config, True)
 
         # Create agent_config.
         agent_config['instance_name']        = self.agent_instance_obj.name
