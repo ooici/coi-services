@@ -114,7 +114,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdEUwTXlxN0pYMkF2M3F1VGpLaTMyaWc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dFBsQ3dFSU00TXBrWjR4TzNXcEJlZUE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -2336,15 +2336,15 @@ Reason: %s
         stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
         stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
-        agent_default_config = {}
-        raw_agent_default_config = row.get('agent_default_config', None)
-        if raw_agent_default_config:
-            agent_default_config = parse_dict(raw_agent_default_config)
+        agent_init_config = {}
+        raw_agent_init_config = row.get('agent_init_config', None)
+        if raw_agent_init_config:
+            agent_init_config = parse_dict(raw_agent_init_config)
 
         res_id = self._basic_resource_create(row, "PlatformAgent", "pa/",
                                              "instrument_management", "create_platform_agent",
                                              set_attributes=dict(stream_configurations=stream_configurations,
-                                                                  agent_default_config=agent_default_config),
+                                                                 agent_init_config=agent_init_config),
                                              support_bulk=True)
 
         if self.bulk:
@@ -2420,7 +2420,6 @@ Reason: %s
         platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
-        pubrate = row['publish_rate']
 
         driver_config = parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
@@ -2455,15 +2454,15 @@ Reason: %s
         stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
         stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
-        agent_default_config = {}
-        raw_agent_default_config = row.get('agent_default_config', None)
-        if raw_agent_default_config:
-            agent_default_config = parse_dict(raw_agent_default_config)
+        agent_init_config = {}
+        raw_agent_init_config = row.get('agent_init_config', None)
+        if raw_agent_init_config:
+            agent_init_config = parse_dict(raw_agent_init_config)
 
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
             "instrument_management", "create_instrument_agent",
             set_attributes=dict(stream_configurations=stream_configurations,
-                                 agent_default_config=agent_default_config),
+                                agent_init_config=agent_init_config),
             support_bulk=True)
 
         if self.bulk:
@@ -2540,7 +2539,6 @@ Reason: %s
     def _load_InstrumentAgentInstance(self, row):
         # TODO: Allow update via incremental preload
         startup_config = parse_dict(row['startup_config'])
-        pubrate = row['publish_rate']
 
         alerts = [self.alerts[id.strip()] for id in row['alerts'].split(',')] if row['alerts'].strip() else []
 
