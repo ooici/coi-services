@@ -31,7 +31,7 @@ class DirectAccessTypes:
     (ssh, telnet, vsp) = range(2, 5)
     
 class SessionCloseReasons:
-    enum_range = range(0, 8)
+    enum_range = range(0, 9)
     
     (client_closed, 
      inactivity_timeout, 
@@ -40,6 +40,7 @@ class SessionCloseReasons:
      login_failed,
      telnet_setup_timeout,
      socket_error,
+     instrument_agent_exception,
      unspecified_reason) = enum_range
      
     str_rep = ['client closed', 
@@ -49,6 +50,7 @@ class SessionCloseReasons:
                'login failed',
                'telnet setup timed out',
                'TCP socket error',
+               'instrument agent exception',
                'unspecified reason']
     
     @staticmethod
@@ -238,7 +240,6 @@ class TcpServer(object):
                     # some socket error condition other than 'nothing to read' so shut down server
                     log.debug("TcpServer._get_data(): exception caught <%s>" %str(error))
                     self._exit_handler(SessionCloseReasons.client_closed)
-                    return False
 
                 
     def _readline(self, timeout=None):
@@ -258,7 +259,18 @@ class TcpServer(object):
                     log.info("TcpServer._readline(): timeout, rcvd <%s>" %input_data)
                     self._exit_handler(SessionCloseReasons.telnet_setup_timeout)
 
-                         
+    
+    def _forward_data_to_parent(self, data):
+        if self.stop_server:
+            self._exit_handler(self.close_reason)
+        try:
+            self.parent_input_callback(data)
+        except Exception as ex:
+            log.debug("TcpServer._forward_data_to_parent(): exception caught while trying to forward data to IA, exception = <%s>" 
+                      %str(ex))
+            self._exit_handler(SessionCloseReasons.instrument_agent_exception)
+
+    
     def _notify_parent(self):
         # used by server greenlet to inform DA server parent that shut down is occurring if the parent
         # didn't request it
@@ -268,7 +280,11 @@ class TcpServer(object):
             # indicate to parent that the server is shutting down since it didn't initiate it
             log.debug("TcpServer._server_greenlet(): telling parent to close session, reason = %s"
                       %SessionCloseReasons.string(self.close_reason))
-            self.parent_input_callback(self.close_reason)
+            try:
+                self.parent_input_callback(self.close_reason)
+            except Exception as ex:
+                log.debug("TcpServer._notify_parent(): exception caught while trying to tell parent to close session, close reason = %s, exception = <%s>" 
+                          %(SessionCloseReasons.string(self.close_reason), str(ex)))
         log.debug("TcpServer._server_greenlet(): stopped")
     
 
@@ -379,7 +395,7 @@ class TelnetServer(TcpServer):
             for i in range(len(input_data)):
                 log.debug("%d - %x", i, ord(input_data[i])) 
             # ship the data read from tcp client up to parent to forward on to instrument
-            self.parent_input_callback(input_data)
+            self._forward_data_to_parent(input_data)
             
 
 class SerialServer(TcpServer):
@@ -398,7 +414,7 @@ class SerialServer(TcpServer):
             for i in range(len(input_data)):
                 log.debug("SerialServer._handler: char @ %d = %x", i, ord(input_data[i])) 
             # ship the data read from virtual serial port client up to parent to forward on to instrument
-            self.parent_input_callback(input_data)
+            self._forward_data_to_parent(input_data)
             
 
 class DirectAccessServer(object):

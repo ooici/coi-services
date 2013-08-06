@@ -31,6 +31,7 @@ from pyon.core.exception import NotFound
 from pyon.core.exception import ServerError
 from pyon.core.exception import ResourceError
 from pyon.core.exception import InstDriverClientTimeoutError
+from pyon.core.exception import InstStateError
 
 from pyon.agent.instrument_fsm import FSMLockedError
 
@@ -845,7 +846,7 @@ class InstrumentAgent(ResourceAgent):
     # DIRECT_ACCESS event handlers.
     ##############################################################
 
-    def _handler_direct_access_execute_resource(self, *args, **kwargs):
+    def _handler_direct_access_execute_direct_access(self, *args, **kwargs):
         try:
             (next_state, result) = self._dvr_client.cmd_dvr('execute_direct', *args, **kwargs)
         except InstDriverClientTimeoutError:
@@ -1409,7 +1410,7 @@ class InstrumentAgent(ResourceAgent):
         # DIRECT_ACCESS state event handlers.
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GO_COMMAND, self._handler_direct_access_go_command)
-        self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.EXECUTE_RESOURCE, self._handler_direct_access_execute_resource)
+        self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.EXECUTE_DIRECT_ACCESS, self._handler_direct_access_execute_direct_access)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
@@ -1750,20 +1751,16 @@ class InstrumentAgent(ResourceAgent):
     def _da_server_input_processor(self, data):
         """
         Callback passed to DA Server for receiving client input and status from server.
+        Server catches exceptions raised during processing of this method.
         """
-        if self._da_server == None:
-            # This might be the case when data is sent to the DA sever right before
-            # the client is disconnected.  You will see this in the logs when the
-            # disconnect comes before the execute direct command.
-            log.warn('No DA session started. Bytes not sent to driver: "%s"', data)
-
-        elif isinstance(data, int):
+        if isinstance(data, int):
+            # DA server is indicating that the session needs to be closed
             log.warning("Stopping DA Server")
             # stop DA server
             self._da_server.stop()
             self._da_server = None
 
-            # not character data, so check for lost connection
+            # not character data, so check for close reason
             if data == SessionCloseReasons.client_closed:
                 self._da_session_close_reason = "due to client closing session"
             elif data == SessionCloseReasons.session_timeout:
@@ -1774,6 +1771,8 @@ class InstrumentAgent(ResourceAgent):
                 self._da_session_close_reason = "due to login failure"
             elif data == SessionCloseReasons.telnet_setup_timeout:
                 self._da_session_close_reason = "due to telnet setup timeout"
+            elif data == SessionCloseReasons.instrument_agent_exception:
+                self._da_session_close_reason = "due to instrument agent exception"
             else:
                 log.error("InstAgent._da_server_input_processor: got unexpected integer " + str(data))
                 self._da_session_close_reason = "due to unrecognized reason %d" %data
@@ -1786,9 +1785,11 @@ class InstrumentAgent(ResourceAgent):
         state = self._fsm.get_current_state()
         if state == ResourceAgentState.DIRECT_ACCESS:
             # send the data to the driver using the fsm to utilize the thread safe blocking to avoid race conditions
-            # with incoming commands from ION that could also require interaction with the instrument
-            cmd = AgentCommand(command=ResourceAgentEvent.EXECUTE_RESOURCE, args=[data])
+            # with incoming commands from ION that could also require interaction with the instrument and could
+            # also change the state before this event gets processed
+            cmd = AgentCommand(command=ResourceAgentEvent.EXECUTE_DIRECT_ACCESS, args=[data])
             self.execute_agent(command=cmd)
         else:
             log.debug("InstAgent._da_server_input_processor: IA not in DA state, data not forwarded to driver")
+            raise InstStateError("InstAgent._da_server_input_processor: instrument not in direct access state")
 
