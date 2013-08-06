@@ -314,30 +314,31 @@ class TestDriverEgg(IonIntegrationTestCase):
                         instrument_agent_instance_id=instAgentInstance_id)
 
         #wait for start
-        instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
-        print "Agent process id is '%s'" % str(instance_obj.agent_process_id)
-        self.assertTrue(instance_obj.agent_process_id)
+        inst_agent_instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+        agent_process_id = ResourceAgentClient._get_agent_process_id(instDevice_id)
+
+        print "Agent process id is '%s'" % str(agent_process_id)
+        self.assertTrue(agent_process_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
-                                instance_obj.agent_process_id,
+                                agent_process_id,
                                 ProcessStateEnum.RUNNING)
 
         if not expect_launch:
             self.assertFalse(gate.await(30), "The instance (%s) of bogus instrument agent spawned in 30 seconds ?!?" %
-                                             instance_obj.agent_process_id)
+                                             agent_process_id)
             return
 
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
-                                        instance_obj.agent_process_id)
+                                        agent_process_id)
 
 
         print "Instrument Agent Instance successfully triggered ProcessStateGate as RUNNING"
 
-        inst_agent_instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         #print  'Instrument agent instance obj: = %s' % str(inst_agent_instance_obj)
 
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = ResourceAgentClient(instDevice_id,
-                                              to_name=inst_agent_instance_obj.agent_process_id,
+                                              to_name=agent_process_id,
                                               process=FakeProcess())
 
         print "ResourceAgentClient created: %s" % str(self._ia_client)

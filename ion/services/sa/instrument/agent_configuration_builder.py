@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 """Builds spawn configurations for agent processes"""
+from pyon.agent.agent import ResourceAgentClient
 
 __author__ = 'Ian Katz, Michael Meisinger'
 
@@ -182,13 +183,6 @@ class AgentConfigurationBuilder(object):
         """
         assert self.agent_instance_obj
 
-        if will_launch:
-            # TODO: Better check in the directory, because process_id may be outdated for whatever reason
-            # if there is an agent pid then assume that a drive is already started
-            if self.agent_instance_obj.agent_process_id:
-                raise BadRequest("Agent Instance already running for this device pid: %s" %
-                                 str(self.agent_instance_obj.agent_process_id))
-
         # fetch caches just in time
         if any([not self.RR2.has_cached_predicate(x) for x in self._predicates_to_cache()]):
             self._update_cached_predicates()
@@ -198,6 +192,14 @@ class AgentConfigurationBuilder(object):
 
         # validate the associations, then pick things up
         self._collect_agent_instance_associations()
+
+        if will_launch:
+            # if there is an agent pid then assume that a drive is already started
+            agent_process_id = ResourceAgentClient._get_agent_process_id(self._get_device()._id)
+            if agent_process_id:
+                raise BadRequest("Agent Instance already running for this device pid: %s" %
+                                 str(agent_process_id))
+
         self.will_launch = will_launch
         return self.generate_config()
 
@@ -392,20 +394,16 @@ class AgentConfigurationBuilder(object):
 
 
 
-    def record_launch_parameters(self, agent_config, process_id):
+    def record_launch_parameters(self, agent_config):
         """
         record process id of the launch
         """
         log.debug("add the process id, the generated config, and update the resource")
         self.agent_instance_obj.agent_config = agent_config
         self.agent_instance_obj.agent_spawn_config = agent_config
-        self.agent_instance_obj.agent_process_id = process_id
         self.RR2.update(self.agent_instance_obj)
 
         log.debug('completed agent start')
-
-        return process_id
-
 
 
     def _collect_agent_instance_associations(self):

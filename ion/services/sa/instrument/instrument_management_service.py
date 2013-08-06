@@ -231,7 +231,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #todo
         # Start a resource agent client to talk with the instrument agent.
 #        self._ia_client = ResourceAgentClient(instrument_device_id,
-#                                              to_name=inst_agent_instance_obj.agent_process_id,
+#                                              to_name=ResourceAgentClient._get_agent_process_id(instrument_device_id),
 #                                              process=FakeProcess())
         snapshot["running_config"] = {} #agent.get_config()
 
@@ -382,7 +382,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         process_id = launcher.launch(config, config_builder._get_process_definition()._id)
         if not process_id:
             raise ServerError("Launched instrument agent instance but no process_id")
-        config_builder.record_launch_parameters(config, process_id)
+        config_builder.record_launch_parameters(config)
 
         self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_id)
 
@@ -549,8 +549,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             log.debug("Success cancelling agent process")
 
 
-        #reset the process ids.
-        agent_instance_obj.agent_process_id = None
         if "pagent_pid" in agent_instance_obj.driver_config:
             agent_instance_obj.driver_config['pagent_pid'] = None
         self.RR2.update(agent_instance_obj)
@@ -948,7 +946,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         process_id = launcher.launch(config, configuration_builder._get_process_definition()._id)
-        configuration_builder.record_launch_parameters(config, process_id)
+        configuration_builder.record_launch_parameters(config)
 
         launcher.await_launch(self._agent_launch_timeout("start_platform_agent_instance"))
 

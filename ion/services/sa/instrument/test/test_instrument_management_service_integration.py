@@ -7,6 +7,7 @@ from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentTy
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder, InstrumentAgentConfigurationBuilder
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from pyon.agent.agent import ResourceAgentClient
 
 from pyon.datastore.datastore import DataStore
 from pyon.public import IonObject
@@ -436,9 +437,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                         instrument_agent_instance_id=instAgentInstance_id)
 
         #wait for start
+        agent_process_id = ResourceAgentClient._get_agent_process_id(instDevice_id)
         instance_obj = self.IMS.read_instrument_agent_instance(instAgentInstance_id)
         gate = ProcessStateGate(self.PDC.read_process,
-                                instance_obj.agent_process_id,
+                                agent_process_id,
                                 ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
                                         instance_obj.agent_process_id)
