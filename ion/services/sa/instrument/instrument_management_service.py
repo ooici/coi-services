@@ -12,7 +12,7 @@ from collections import defaultdict
 from ooi.logging import log
 from ooi.timer import Timer, Accumulator
 
-from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentState, ResourceAgentClient
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent, BadRequest, NotFound, ServerError, Unauthorized
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role
@@ -532,13 +532,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                           object=agent_instance_id,
                                           id_only=True)
 
+        agent_process_id = ResourceAgentClient._get_agent_process_id(device_id)
 
         log.debug("Canceling the execution of agent's process ID")
-        if None is agent_instance_obj.agent_process_id:
+        if None is agent_process_id:
             raise BadRequest("Agent Instance '%s' does not have an agent_process_id.  Stopped already?"
             % agent_instance_id)
         try:
-            self.clients.process_dispatcher.cancel_process(process_id=agent_instance_obj.agent_process_id)
+            self.clients.process_dispatcher.cancel_process(process_id=agent_process_id)
         except NotFound:
             log.debug("No agent process found")
             pass
@@ -546,8 +547,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise e
         else:
             log.debug("Success cancelling agent process")
-
-
 
 
         #reset the process ids.

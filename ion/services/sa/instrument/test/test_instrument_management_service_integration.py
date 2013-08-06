@@ -447,8 +447,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         # take snapshot of config
         snap_id = self.IMS.save_resource_state(instDevice_id, "xyzzy snapshot")
         snap_obj = self.RR.read_attachment(snap_id, include_content=True)
-        print "Saved config:"
-        print snap_obj.content
+
 
         #modify config
         instance_obj.driver_config["comms_config"] = "BAD_DATA"
@@ -457,6 +456,12 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #restore config
         self.IMS.restore_resource_state(instDevice_id, snap_id)
         instance_obj = self.RR.read(instAgentInstance_id)
+
+        if "BAD_DATA" == instance_obj.driver_config["comms_config"]:
+            print "Saved config:"
+            print snap_obj.content
+            self.fail("Saved config was not properly restored")
+
         self.assertNotEqual("BAD_DATA", instance_obj.driver_config["comms_config"])
 
         
