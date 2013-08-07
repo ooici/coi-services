@@ -51,7 +51,11 @@ class QCPostProcessing(SimpleProcess):
         dataset_ids, _ = self.resource_registry.find_resources(restype=RT.Dataset, id_only=True)
         for dataset_id in dataset_ids:
             log.info('QC Post Processing for dataset %s', dataset_id)
-            self.process(dataset_id)
+            try:
+                self.process(dataset_id)
+            except BadRequest as e:
+                if 'Problems reading from the coverage' in e.message:
+                    log.error('Failed to read from dataset')
 
     def process(self, dataset_id, start_time=0, end_time=0):
         if not dataset_id:
