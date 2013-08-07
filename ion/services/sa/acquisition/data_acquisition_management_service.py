@@ -740,7 +740,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         process_id = launcher.launch(config, config_builder._get_process_definition()._id)
         if not process_id:
             raise ServerError("Launched external dataset agent instance but no process_id")
-        config_builder.record_launch_parameters(config, process_id)
+        config_builder.record_launch_parameters(config)
 
         launcher.await_launch(10.0)
 
