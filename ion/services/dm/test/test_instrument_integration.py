@@ -8,7 +8,7 @@
 
 from ion.services.dm.test.dm_test_case import DMTestCase, FakeProcess
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
+from ion.services.sa.test.helpers import AgentProcessStateGate
 from pyon.public import RT, IonObject, CFG
 from interface.objects import StreamConfiguration, ProcessStateEnum, AgentCommand
 from nose.plugins.attrib import attr
@@ -97,14 +97,15 @@ class TestInstrumentIntegration(DMTestCase):
         self.data_acquisition_management.assign_data_product(input_resource_id=instrument_device_id, data_product_id=parsed_dp_id)
         return raw_dp_id, parsed_dp_id
 
-    def poll_instrument_agent_instance(self,instrument_agent_instance_id):
+    def poll_instrument_agent_instance(self, instrument_agent_instance_id, instrument_device_id):
         inst_agent_instance_obj = self.instrument_management.read_instrument_agent_instance(instrument_agent_instance_id)
-        gate = ProcessStateGate(self.process_dispatcher.read_process,
-                                inst_agent_instance_obj.agent_process_id,
-                                ProcessStateEnum.RUNNING)
+
+        gate = AgentProcessStateGate(self.process_dispatcher.read_process,
+                                     instrument_device_id,
+                                     ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
-                                        inst_agent_instance_obj.agent_process_id)
-        return inst_agent_instance_obj.agent_process_id
+                                        gate.process_id)
+        return gate.process_id
 
     def agent_state_transition(self, agent_client, agent_event, expected_state):
         cmd = AgentCommand(command=agent_event)
@@ -123,7 +124,7 @@ class TestInstrumentIntegration(DMTestCase):
 
         self.start_instrument_agent_instance(instrument_agent_instance_id)
 
-        agent_process_id = self.poll_instrument_agent_instance(instrument_agent_instance_id)
+        agent_process_id = self.poll_instrument_agent_instance(instrument_agent_instance_id, instrument_device_id)
 
         agent_client = ResourceAgentClient(instrument_device_id,
                                               to_name=agent_process_id,
