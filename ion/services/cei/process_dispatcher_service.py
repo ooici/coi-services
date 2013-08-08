@@ -67,6 +67,9 @@ class ProcessStateGate(EventSubscriber):
     """
     def __init__(self, read_process_fn=None, process_id='', desired_state=None, *args, **kwargs):
 
+        if not process_id:
+            raise BadRequest("ProcessStateGate trying to wait on invalid process (id = '%s')" % process_id)
+
         EventSubscriber.__init__(self, *args,
                                  callback=self.trigger_cb,
                                  event_type="ProcessLifecycleEvent",

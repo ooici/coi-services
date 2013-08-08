@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from ion.services.sa.test.helpers import AgentProcessStateGate
 
 from pyon.util.containers import DotDict
 from pyon.util.poller import poll
@@ -397,19 +398,18 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
         #wait for start
-        agent_process_id = ResourceAgentClient._get_agent_process_id(instDevice_id)
         inst_agent_instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
-        gate = ProcessStateGate(self.processdispatchclient.read_process,
-                                agent_process_id,
-                                ProcessStateEnum.RUNNING)
+        gate = AgentProcessStateGate(self.processdispatchclient.read_process,
+                                     instDevice_id,
+                                     ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
-                                        inst_agent_instance_obj.agent_process_id)
+                                        gate.process_id)
 
         #log.trace('Instrument agent instance obj: = %s' , str(inst_agent_instance_obj))
 
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = ResourceAgentClient(instDevice_id,
-                                              to_name=inst_agent_instance_obj.agent_process_id,
+                                              to_name=gate.process_id,
                                               process=FakeProcess())
 
         log.debug("test_activateInstrumentSample: got ia client %s" , str(self._ia_client))

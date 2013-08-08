@@ -28,7 +28,7 @@ from pyon.agent.agent import ResourceAgentState
 from pyon.event.event import EventSubscriber
 
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.sa.test.helpers import any_old
+from ion.services.sa.test.helpers import any_old, AgentProcessStateGate
 from pyon.public import RT, PRED, IonObject
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -529,14 +529,14 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
         #wait for start
         agent_instance_obj = self.imsclient.read_platform_agent_instance(agent_instance_id)
-        gate = ProcessStateGate(self.processdispatchclient.read_process,
-                                agent_instance_obj.agent_process_id,
-                                ProcessStateEnum.RUNNING)
+        gate = AgentProcessStateGate(self.processdispatchclient.read_process,
+                                     self.platform_device._id,
+                                     ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(90), "The platform agent instance did not spawn in 90 seconds")
 
         # Start a resource agent client to talk with the agent.
         self._pa_client = ResourceAgentClient(self.platform_device,
-                                              name=agent_instance_obj.agent_process_id,
+                                              name=gate.process_id,
                                               process=FakeProcess())
         log.debug("got platform agent client %s", str(self._pa_client))
 

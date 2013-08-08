@@ -32,7 +32,7 @@ from ooi.logging import log
 import unittest
 
 
-from ion.services.sa.test.helpers import any_old
+from ion.services.sa.test.helpers import any_old, AgentProcessStateGate
 
 
 @attr('INT', group='sa')
@@ -437,13 +437,12 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                         instrument_agent_instance_id=instAgentInstance_id)
 
         #wait for start
-        agent_process_id = ResourceAgentClient._get_agent_process_id(instDevice_id)
         instance_obj = self.IMS.read_instrument_agent_instance(instAgentInstance_id)
-        gate = ProcessStateGate(self.PDC.read_process,
-                                agent_process_id,
-                                ProcessStateEnum.RUNNING)
+        gate = AgentProcessStateGate(self.PDC.read_process,
+                                     instDevice_id,
+                                     ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
-                                        instance_obj.agent_process_id)
+                                        gate.process_id)
 
 
         # take snapshot of config

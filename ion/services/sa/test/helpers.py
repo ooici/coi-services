@@ -1,8 +1,10 @@
 import hashlib
 from unittest.case import SkipTest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from mock import Mock
+from pyon.agent.agent import ResourceAgentClient
 from pyon.core.exception import Unauthorized, Inconsistent, NotFound, BadRequest
 from pyon.public import IonObject
 from pyon.public import RT
@@ -72,6 +74,20 @@ def add_keyworded_attachment(resource_registry_client, resource_id, keywords, ex
     resource_registry_client.create_attachment(resource_id, ret)
 
     return ret
+
+
+class AgentProcessStateGate(ProcessStateGate):
+    """
+    This class is a thin wrapper around ProcessStateGate to handle agent processes
+    """
+    def __init__(self, read_process_fn=None, resource_id='', desired_state=None, *args, **kwargs):
+
+        agent_process_id = ResourceAgentClient._get_agent_process_id(resource_id)
+
+        super(AgentProcessStateGate, self).__init__(read_process_fn,
+                                                    agent_process_id,
+                                                    desired_state,
+                                                    *args, **kwargs)
 
 
 class UnitTestGenerator(object):

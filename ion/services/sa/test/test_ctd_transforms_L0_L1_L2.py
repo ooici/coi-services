@@ -1,3 +1,4 @@
+from ion.services.sa.test.helpers import AgentProcessStateGate
 from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -624,14 +625,13 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         inst_agent_instance_obj= self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         
         # Wait for instrument agent to spawn
-        gate = ProcessStateGate(self.processdispatchclient.read_process,
-            inst_agent_instance_obj.agent_process_id, ProcessStateEnum.RUNNING)
+        gate = AgentProcessStateGate(self.processdispatchclient.read_process,
+                                     instDevice_id,
+                                     ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(15), "The instrument agent instance did not spawn in 15 seconds")
 
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client = ResourceAgentClient(instDevice_id,
-            to_name=inst_agent_instance_obj.agent_process_id,
-            process=FakeProcess())
+        self._ia_client = ResourceAgentClient(instDevice_id, to_name=gate.process_id, process=FakeProcess())
 
         #-------------------------------------------------------------------------------------
         # Streaming

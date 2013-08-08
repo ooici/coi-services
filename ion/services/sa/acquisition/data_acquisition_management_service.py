@@ -2,6 +2,7 @@
 
 """Data Acquisition Management service to keep track of Data Producers, Data Sources and external data agents
 and the relationships between them"""
+from pyon.agent.agent import ResourceAgentClient
 
 __author__ = 'Maurice Manning, Michael Meisinger'
 
@@ -751,14 +752,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         """
         Deactivate the agent instance process
         """
-        external_dataset_agent_instance_obj = self.clients.resource_registry.read(external_dataset_agent_instance_id)
+        external_dataset_id = self.RR2.find_external_dataset_id_by_external_dataset_agent_instance(external_dataset_agent_instance_id)
+
+        agent_process_id = ResourceAgentClient._get_agent_process_id(external_dataset_id)
 
         # Cancels the execution of the given process id.
-        self.clients.process_dispatcher.cancel_process(external_dataset_agent_instance_obj.agent_process_id)
+        self.clients.process_dispatcher.cancel_process(agent_process_id)
 
-        external_dataset_agent_instance_obj.agent_process_id = ''
-
-        self.clients.resource_registry.update(external_dataset_agent_instance_obj)
 
 
     def retrieve_external_dataset_agent_instance(self, external_dataset_id=''):
@@ -776,9 +776,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if ai_ids is None:
             return None, None
         else:
-            dataset_agent_instance_obj = self.clients.resource_registry.read(ai_ids[0])
-
-            if not dataset_agent_instance_obj.agent_process_id:
+            if not ResourceAgentClient._get_agent_process_id(external_dataset_id):
                 active = False
             else:
                 active = True
