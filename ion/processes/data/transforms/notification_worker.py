@@ -7,7 +7,7 @@
 @brief NotificationWorker Class. An instance of this class acts as an notification worker.
 '''
 
-from pyon.public import log, RT
+from pyon.public import log, RT, OT, PRED
 from pyon.util.async import spawn
 from pyon.core.exception import BadRequest, NotFound
 from ion.core.process.transform import TransformEventListener
@@ -84,7 +84,7 @@ class NotificationWorker(TransformEventListener):
 
         # the subscriber for the ReloadUSerInfoEvent
         self.reload_user_info_subscriber = EventSubscriber(
-            event_type="ReloadUserInfoEvent",
+            event_type=OT.ReloadUserInfoEvent,
             origin='UserNotificationService',
             callback=reload_user_info
         )
@@ -104,7 +104,7 @@ class NotificationWorker(TransformEventListener):
         if self.reverse_user_info:
             user_ids = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
 
-            log.debug("Notification worker found interested users %s" % user_ids)
+            #log.debug("Notification worker found interested users %s" % user_ids)
 
         #------------------------------------------------------------------------------------
         # Send email to the users
@@ -119,6 +119,26 @@ class NotificationWorker(TransformEventListener):
                        rr_client=self.resource_registry)
             self.smtp_client.quit()
 
+    def get_user_notifications(self, user_info_id=''):
+        """
+        Get the notification request objects that are subscribed to by the user
+
+        @param user_info_id str
+
+        @retval notifications list of NotificationRequest objects
+        """
+        notifications = []
+        user_notif_req_objs, _ = self.resource_registry.find_objects(
+            subject=user_info_id, predicate=PRED.hasNotification, object_type=RT.NotificationRequest, id_only=False)
+
+        #log.debug("Got %s notifications, for the user: %s", len(user_notif_req_objs), user_info_id)
+
+        for notif in user_notif_req_objs:
+            # do not include notifications that have expired
+            if notif.temporal_bounds.end_datetime == '':
+                notifications.append(notif)
+
+        return notifications
 
     def load_user_info(self):
         '''
@@ -135,16 +155,13 @@ class NotificationWorker(TransformEventListener):
             return {}
 
         for user in users:
-            notifications = []
             notifications_disabled = False
             notifications_daily_digest = False
 
-            log.debug('load_user_info: user.variables:  %s', user.variables)
+            notifications = self.get_user_notifications(user_info_id=user)
 
             for variable in user.variables:
                 if type(variable) is dict and variable.has_key('name'):
-                    if variable['name'] == 'notifications':
-                        notifications = variable['value']
 
                     if variable['name'] == 'notifications_daily_digest':
                         notifications_daily_digest = variable['value']
