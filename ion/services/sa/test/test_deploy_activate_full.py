@@ -1,3 +1,4 @@
+from ion.services.sa.test.helpers import AgentProcessStateGate
 from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -492,17 +493,19 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(oldInstAgentInstance_id)
-        gate = ProcessStateGate(self.processdispatchclient.read_process,
-            instance_obj.agent_process_id,
-            ProcessStateEnum.RUNNING)
+        gate = AgentProcessStateGate(self.processdispatchclient.read_process,
+                                     oldInstDevice_id,
+                                     ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
-                                        instance_obj.agent_process_id)
+                                        gate.process_id)
 
         inst_agent1_instance_obj= self.imsclient.read_instrument_agent_instance(oldInstAgentInstance_id)
         print 'test_deployAsPrimaryDevice: Instrument agent instance obj: = ', inst_agent1_instance_obj
 
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client_sim1 = ResourceAgentClient('iaclient Sim1', name=inst_agent1_instance_obj.agent_process_id,  process=FakeProcess())
+        self._ia_client_sim1 = ResourceAgentClient('iaclient Sim1',
+                                                   name=gate.process_id,
+                                                   process=FakeProcess())
         print 'activate_instrument: got _ia_client_sim1 %s', self._ia_client_sim1
         log.debug(" test_deployAsPrimaryDevice:: got _ia_client_sim1 %s", str(self._ia_client_sim1))
 
@@ -516,17 +519,19 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(newInstAgentInstance_id)
-        gate = ProcessStateGate(self.processdispatchclient.read_process,
-            instance_obj.agent_process_id,
-            ProcessStateEnum.RUNNING)
+        gate = AgentProcessStateGate(self.processdispatchclient.read_process,
+                                     oldInstDevice_id,
+                                     ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
-                                        instance_obj.agent_process_id)
+                                        gate.process_id)
 
         inst_agent2_instance_obj= self.imsclient.read_instrument_agent_instance(newInstAgentInstance_id)
         print 'test_deployAsPrimaryDevice: Instrument agent instance obj: = ', inst_agent2_instance_obj
 
         # Start a resource agent client to talk with the instrument agent.
-        self._ia_client_sim2 = ResourceAgentClient('iaclient Sim2', name=inst_agent2_instance_obj.agent_process_id,  process=FakeProcess())
+        self._ia_client_sim2 = ResourceAgentClient('iaclient Sim2',
+                                                   name=gate.process_id,
+                                                   process=FakeProcess())
         print 'activate_instrument: got _ia_client_sim2 %s', self._ia_client_sim2
         log.debug(" test_deployAsPrimaryDevice:: got _ia_client_sim2 %s", str(self._ia_client_sim2))
 

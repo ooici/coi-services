@@ -83,7 +83,6 @@ from ion.agents.platform.util.network_util import NetworkUtil
 
 from ion.agents.platform.platform_agent import PlatformAgentState
 
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
 
 import os
 import time
@@ -96,7 +95,7 @@ from pyon.util.containers import DotDict
 
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 
-from ion.services.sa.test.helpers import any_old
+from ion.services.sa.test.helpers import any_old, AgentProcessStateGate
 
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 
@@ -1233,15 +1232,14 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         log.debug("start_platform_agent_instance returned pid=%s", p_obj.pid)
 
         #wait for start
-        agent_instance_obj = self.IMS.read_platform_agent_instance(agent_instance_id)
-        gate = ProcessStateGate(self.PDC.read_process,
-                                agent_instance_obj.agent_process_id,
-                                ProcessStateEnum.RUNNING)
+        gate = AgentProcessStateGate(self.PDC.read_process,
+                                     p_obj.platform_device_id,
+                                     ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(90), "The platform agent instance did not spawn in 90 seconds")
 
         # Start a resource agent client to talk with the agent.
         self._pa_client = ResourceAgentClient(p_obj.platform_device_id,
-                                              name=agent_instance_obj.agent_process_id,
+                                              name=gate.process_id,
                                               process=FakeProcess())
         log.debug("got platform agent client %s", str(self._pa_client))
 
@@ -1354,13 +1352,13 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         log.debug("[,]start_instrument_agent_instance returned pid=%s", i_obj.pid)
 
         agent_instance_obj = self.IMS.read_instrument_agent_instance(agent_instance_id)
-
-        log.debug("[,]agent_instance_obj.agent_process_id=%s",
-                  agent_instance_obj.agent_process_id)
+        agent_process_id = ResourceAgentClient._get_agent_process_id(i_obj.instrument_device_id)
+        log.debug("[,]agent_process_id=%s",
+                  agent_process_id)
 
         # Start a resource agent client to talk with the agent.
         ia_client = ResourceAgentClient(i_obj.instrument_device_id,
-                                        name=agent_instance_obj.agent_process_id,
+                                        name=agent_process_id,
                                         process=FakeProcess())
         log.debug("got instrument agent client %s", str(ia_client))
 
