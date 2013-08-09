@@ -21,7 +21,7 @@ Prepare for start:
 Start the services container with Container UI:
 > bin/pycc -fc -r res/deploy/r2deploy.yml --mx
 
-Preload ALPHA setup (with UI, OOI assets, demo resources):
+Preload ALPHA setup (with UI, OOI assets, demo resources); this can take many minutes to complete before executing the next cmd:
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_alpha.yml
 
 Start the UI (in ion-ux, virtualenv prepared as documented):
