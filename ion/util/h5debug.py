@@ -4,11 +4,12 @@
 @file ion/util/h5_graph.py
 '''
 
-import sys
 from struct import unpack
-import numpy as np
 from StringIO import StringIO
+import os
 
+import logging
+logger = logging.getLogger('h5debug')
 
 
 def read_num(buf):
@@ -29,8 +30,8 @@ class StringBuffer(StringIO):
 class HDFFile:
     superblock = None
     def __init__(self, path):
-        f = open(path)
-        self.superblock = SuperBlock(f)
+        self.f = open(path)
+        self.superblock = SuperBlock(self.f)
 
     def __enter__(self):
         return self
@@ -39,13 +40,15 @@ class HDFFile:
         self.close()
 
     def close(self):
-        f.close()
+        self.close()
 
 def out(context,s):
+    buf = ''
     for i in xrange(context.indent_guide):
-        sys.stdout.write('    ')
-    sys.stdout.write(s)
-    sys.stdout.write('\n')
+        buf += '    '
+    buf += s
+    if logger.isEnabledFor(logging.INFO):
+        logger.info(buf)
 
 class HDFContext:
     indent_guide = 0
@@ -56,6 +59,7 @@ class HDFContext:
     length_size=8
     file_object=None
     name_heaps=[]
+    object_eof=[]
     def __init__(self, file_object, offset_size, length_size, K):
         self.indent_guide = 0
         self.btrees_loaded = {}
@@ -65,6 +69,7 @@ class HDFContext:
         self.length_size = length_size
         self.K = K
         self.name_heaps = []
+        self.object_eof = []
     def indent(self):
         out(self, '{')
         self.indent_guide += 1
@@ -121,7 +126,23 @@ class SuperBlock:
         self.file_consistency_flags = read_num(file_object.read(4))
 
         assert self.format_signature == '\x89HDF\x0d\x0a\x1a\x0a'
+        if self.superblock_version not in (0x01, 0x00):
+            raise IOError("Unsupported HDF5 Superblock Version: %s" % self.superblock_version)
 
+        if self.file_free_space_version != 0x00:
+            raise IOError("File Free-Space information version is incorrect: %s" % self.file_free_space_version)
+
+        if self.root_group_symbol_tree_version != 0x00:
+            raise IOError("Root Group Symbol Table Version is incorrect: %s" % self.root_group_symbol_tree_version)
+
+        if self.shared_header_message_format_version != 0x00:
+            raise IOError("Shared Header Message Format Version is incorrect: %s" % self.shared_header_message_format_version)
+
+        if self.offset_size % 2:
+            raise IOError("Impossible offset size: %s" % self.offset_size)
+
+        if self.length_size % 2:
+            raise IOError("Impossible length size: %s" % self.length_size)
 
         if self.superblock_version == 0x01:
             self.indexed_storage_internal_node_k = read_num(file_object.read(2))
@@ -132,6 +153,13 @@ class SuperBlock:
         self.address_of_file_free_space = read_num(file_object.read(self.offset_size))
         self.eof_address = read_num(file_object.read(self.offset_size))
         self.driver_info_block_address = read_num(file_object.read(self.offset_size))
+
+        st = os.lstat(file_object.name)
+        if st.st_size < self.eof_address:
+            raise IOError("EOF exceeds actual file address space: %s" % self.eof_address)
+
+        if st.st_size-1 != self.eof_address:
+            logger.warning("Superblock EOF != File EOF (%s != %s)" % (hex(self.eof_address), hex(st.st_size)))
 
 
         if self.address_of_file_free_space == 0xFFFFFFFFFFFFFFFFL:
@@ -148,8 +176,8 @@ class SuperBlock:
         context.indent()
         out(context,'Signature Matches HDF5')
         out(context,'Superblock Version: %s' % self.superblock_version)
-        out(context,'Offset Size: %s' % self.offset_size)
-        out(context,'Length Size: %s' % self.length_size)
+        out(context,'Offset Size (haddr_t): %s' % self.offset_size)
+        out(context,'Length Size (hsize_t): %s' % self.length_size)
 
         out(context,'Group Leaf Node K: %s' % self.group_leaf_node_k)
         out(context,'Group Internal Node K: %s' % self.group_internal_node_k)
@@ -197,10 +225,28 @@ class SymbolTableEntry:
 
         self.scratch_pad = StringBuffer(file_object.read(16))
         end_of_entry = file_object.tell()
+            
+        # Get the name from the previous named heap since this symbol belongs to its parent not itself
+        self.link_name = ''
+        if context.name_heaps:
+            file_object.seek(context.name_heaps[-1].data_segment_addr + self.link_name_offset)
+            done=False
+            while not done:
+                buf = file_object.read(8)
+                for i in buf:
+                    if i == '\0':
+                        done=True
+                        break
+                    self.link_name += i
+
+        if self.link_name == '':
+            out(context,'Link Name: /')
+        else:
+            out(context,'Link Name: %s' % self.link_name)
         
         if self.cache_type == 0x0:
             file_object.seek(self.object_header_address)
-            self.object_header = DataObjectHeader(context)
+            self.object_header = ObjectHeader(context)
         
         if self.cache_type == 0x01:
             out(context,'Cache Type: Group Objects Head')
@@ -215,30 +261,13 @@ class SymbolTableEntry:
             self.local_heap = LocalHeap(context)
 
 
-            # Get the name from the previous named heap since this symbol belongs to its parent not itself
-            self.link_name = ''
-            if context.name_heaps:
-                file_object.seek(context.name_heaps[-1].data_segment_addr + self.link_name_offset)
-                done=False
-                while not done:
-                    buf = file_object.read(8)
-                    for i in buf:
-                        if i == '\0':
-                            done=True
-                            break
-                        self.link_name += i
-
-            if self.link_name == '':
-                out(context,'Link Name: /')
-            else:
-                out(context,'Link Name: %s' % self.link_name)
             
             # Push the heap onto the context queue
             context.name_heaps.append(self.local_heap)
 
 
             file_object.seek(self.object_header_address)
-            self.object_header = DataObjectHeader(context)
+            self.object_header = ObjectHeader(context)
             
             file_object.seek(self.b_tree_addr)
             if self.b_tree_addr not in context.btrees_loaded:
@@ -255,7 +284,7 @@ class SymbolTableEntry:
 
 
 
-class DataObjectHeader:
+class ObjectHeader:
     version=None
     number_of_header_message=None
     reference_count=None
@@ -277,12 +306,18 @@ class DataObjectHeader:
         self.reference_count = read_num(file_object.read(4))
         out(context,'Reference count: %s' % self.reference_count)
         self.header_size = read_num(file_object.read(4))
+        out(context,'Header Size: %s' % self.header_size)
+        context.object_eof.append(self.header_size + file_object.tell())
 
         for i in xrange(self.number_of_header_message):
-            m = HeaderMessage(context)
-            self.messages.append(m)
+            if file_object.tell() < context.object_eof[-1]:
+                m = HeaderMessage(context)
+                self.messages.append(m)
+            else:
+                out(context, "Message # > Header Size")
 
         context.unindent()
+        context.object_eof.pop()
 
 
 class HeaderMessage:
@@ -323,6 +358,7 @@ class HeaderMessage:
 
         elif self.mtype == 0x0010: # Continuation block
             self.continuation = ContinuationMessage(context)
+            context.object_eof[-1] = self.continuation.continuation_length + self.continuation.continuation_offset
 
             # Go to the offset
             file_object.seek(self.continuation.continuation_offset)
