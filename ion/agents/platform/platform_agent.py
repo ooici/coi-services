@@ -362,7 +362,19 @@ class PlatformAgent(ResourceAgent):
             # nothing else to do here
             return
 
-        log.debug("verifying/processing _plat_config ...")
+        log.debug("verifying/processing platform config configuration ...")
+
+        stream_info = self.CFG.get('stream_config', None)
+        if stream_info is None:
+            msg = "'stream_config' key not in configuration"
+            log.error(msg)
+            raise PlatformException(msg)
+        for stream_name, stream_config in stream_info.iteritems():
+            if 'stream_def_dict' not in stream_config:
+                msg = "'stream_def_dict' key not in configuration for stream %r" % stream_name
+                log.error(msg)
+                raise PlatformException(msg)
+
 
         self._driver_config = self.CFG.get('driver_config', None)
         if None is self._driver_config:

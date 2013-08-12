@@ -69,6 +69,7 @@ class PlatformAgentStreamPublisher(object):
 
         stream_info = self.CFG.get('stream_config', None)
         if stream_info is None:
+            # should not happen: PlatformAgent._validate_configuration validates this.
             log.error("%r: No stream_config given in CFG", self._platform_id)
             return
 
@@ -87,22 +88,21 @@ class PlatformAgentStreamPublisher(object):
 
         decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
 
-        if 'stream_def_dict' in stream_config:
-            stream_def_dict = stream_config['stream_def_dict']
-            stream_def_dict['type_'] = 'StreamDefinition'
-            stream_def_obj = decoder.deserialize(stream_def_dict)
-            self._stream_defs[stream_name] = stream_def_obj
-            log.debug("%r: using stream_def_dict", self._platform_id)
+        if 'stream_def_dict' not in stream_config:
+            # should not happen: PlatformAgent._validate_configuration validates this.
+            log.error("'stream_def_dict' key not in configuration for stream %r" % stream_name)
+            return
 
-        else:  # TODO this case to be removed.
-            stream_definition_ref = stream_config['stream_definition_ref']
-            self._stream_defs[stream_name] = stream_definition_ref
-            log.debug("%r: using stream_definition_ref", self._platform_id)
+        stream_def_dict = stream_config['stream_def_dict']
+        stream_def_dict['type_'] = 'StreamDefinition'
+        stream_def_obj = decoder.deserialize(stream_def_dict)
+        self._stream_defs[stream_name] = stream_def_obj
 
         routing_key           = stream_config['routing_key']
         stream_id             = stream_config['stream_id']
         exchange_point        = stream_config['exchange_point']
-        parameter_dictionary  = stream_config['parameter_dictionary']
+        parameter_dictionary  = stream_def_dict['parameter_dictionary']
+        log.debug("%r: got parameter_dictionary from stream_def_dict", self._platform_id)
 
         self._data_streams[stream_name] = stream_id
         self._param_dicts[stream_name] = ParameterDictionary.load(parameter_dictionary)
