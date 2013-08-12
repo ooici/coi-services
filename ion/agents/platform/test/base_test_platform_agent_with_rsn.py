@@ -98,6 +98,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from ion.services.sa.test.helpers import any_old, AgentProcessStateGate
 
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 
 
 ###############################################################################
@@ -211,9 +212,8 @@ instruments_dict = {
     },
 }
 
-# The value should probably be defined in pyon.yml or some common place so
-# clients don't have to do updates upon new versions of the egg.
-SBE37_EGG = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg"
+SBE37_EGG = DRV_URI_GOOD
+
 
 class FakeProcess(LocalContextMixin):
     """
@@ -1384,9 +1384,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                 self.IMS.stop_instrument_agent_instance(i_obj.instrument_agent_instance_id)
             except:
                 log.exception(
-                    "instrument_id=%r: Exception in IMS.stop_instrument_agent_instance with "
+                    "Exception in IMS.stop_instrument_agent_instance with "
                     "instrument_agent_instance_id = %r",
-                    i_obj.instrument_id, i_obj.instrument_agent_instance_id)
+                    i_obj.instrument_agent_instance_id)
 
         else:
             try:
