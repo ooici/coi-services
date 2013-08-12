@@ -1384,9 +1384,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                 self.IMS.stop_instrument_agent_instance(i_obj.instrument_agent_instance_id)
             except:
                 log.exception(
-                    "instrument_id=%r: Exception in IMS.stop_instrument_agent_instance with "
+                    "Exception in IMS.stop_instrument_agent_instance with "
                     "instrument_agent_instance_id = %r",
-                    i_obj.instrument_id, i_obj.instrument_agent_instance_id)
+                    i_obj.instrument_agent_instance_id)
 
         else:
             try:
