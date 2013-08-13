@@ -379,10 +379,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             log.error('failed to launch', exc_info=True)
             raise ServerError('failed to launch')
 
-        process_id = launcher.launch(config, config_builder._get_process_definition()._id)
+        #save the config into spawn_config which will be passed to the agent by the container.
+        config_builder.record_launch_parameters(config)
+
+        config_ref = "resources:%s/agent_spawn_config" % instrument_agent_instance_id
+        launch_config = {'process':{'config_ref':config_ref}}
+
+        process_id = launcher.launch(launch_config, config_builder._get_process_definition()._id)
         if not process_id:
             raise ServerError("Launched instrument agent instance but no process_id")
-        config_builder.record_launch_parameters(config)
 
         self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_id)
 
@@ -944,9 +949,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #        if not streams_dict:
         #            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(platform_models_objs[0]) )
 
-
-        process_id = launcher.launch(config, configuration_builder._get_process_definition()._id)
+        #save the config into spawn_config which will be passed to the agent by the container.
         configuration_builder.record_launch_parameters(config)
+
+        config_ref = "resources:%s/agent_spawn_config" % platform_agent_instance_id
+        launch_config = {'process':{'config_ref':config_ref}}
+
+        process_id = launcher.launch(launch_config, configuration_builder._get_process_definition()._id)
 
         launcher.await_launch(self._agent_launch_timeout("start_platform_agent_instance"))
 
