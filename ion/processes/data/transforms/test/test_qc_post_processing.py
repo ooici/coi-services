@@ -130,7 +130,6 @@ class TestQCPostProcessing(DMTestCase):
         # So now the process is started, time to throw an event at it
         ep = EventPublisher(event_type='TimerEvent')
         ep.publish_event(origin=interval_key)
-        breakpoint(locals())
 
         try:
             async_queue.get(timeout=120)
