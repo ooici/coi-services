@@ -118,25 +118,24 @@ class TestQCPostProcessing(DMTestCase):
             self.assertEquals(len(times), bad_times)
             async_queue.put(1)
 
+
         es = EventSubscriber(event_type=OT.ParameterQCEvent, origin=data_product_id, callback=cb, auto_delete=True)
         es.start()
         self.addCleanup(es.stop)
         config = DotDict()
         config.process.interval_key = interval_key
         config.process.qc_params = qc_params
-        self.process_dispatcher.schedule_process(self.process_definition_id, process_id=self.process_id, configuration=config) # The process is now up and running maybe?
-
         self.sync_launch(config)
 
         # So now the process is started, time to throw an event at it
         ep = EventPublisher(event_type='TimerEvent')
         ep.publish_event(origin=interval_key)
+        breakpoint(locals())
 
         try:
-            for i in xrange(2):
-                async_queue.get(timeout=120)
+            async_queue.get(timeout=120)
         except Empty:
-            raise AssertionError('QC was not flagged in time: %d'% i)
+            raise AssertionError('QC was not flagged in time')
 
     def test_glblrng_qc_processing(self):
         def temp_vector(size):
