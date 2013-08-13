@@ -13,6 +13,7 @@ from pyon.util.containers import DotDict
 from interface.objects import ProcessDefinition
 from uuid import uuid4
 from pyon.core.bootstrap import testing, get_sys_name
+from pyon.util.log import log
 import time
 import os
 
@@ -23,8 +24,10 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
     '''
 
     def on_initial_bootstrap(self, process, config, **kwargs):
-        if 'test' in get_sys_name():
-            # If this is a launch designed for tests, don't launch the QC Post Processor
+
+        if os.environ.get('PYCC_MODE'):
+            # This environment is an ion integration test
+            log.info('PYCC_MODE: skipping qc_post_processor launch')
             return
         if self.process_exists(process, 'qc_post_processor'):
             # Short circuit the bootstrap to make sure not more than one is ever started
