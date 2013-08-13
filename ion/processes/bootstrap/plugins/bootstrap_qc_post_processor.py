@@ -25,7 +25,7 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
 
     def on_initial_bootstrap(self, process, config, **kwargs):
 
-        if os.environ['PYCC_MODE']:
+        if os.environ.get('PYCC_MODE'):
             # This environment is an ion integration test
             log.info('PYCC_MODE: skipping qc_post_processor launch')
             return
