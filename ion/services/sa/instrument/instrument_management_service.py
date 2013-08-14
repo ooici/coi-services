@@ -509,7 +509,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         Deactivate the instrument agent instance
         """
-        instance_obj, device_id = self.stop_agent_instance(instrument_agent_instance_id, RT.InstrumentDevice)
+        try:
+            instance_obj, device_id = self.stop_agent_instance(instrument_agent_instance_id, RT.InstrumentDevice)
+
+        except BadRequest as e:
+            #
+            # stopping the instrument agent instance failed, but try at least
+            # to stop the port agent:
+            #
+            log.error("Exception in stop_agent_instance: %s", e)
+            log.debug("Trying to stop the port agent anyway ...")
+            instance_obj = self.RR2.read(instrument_agent_instance_id)
+            self._stop_port_agent(instance_obj.port_agent_config)
+
+            # raise the exception anyway:
+            raise e
 
         self._stop_port_agent(instance_obj.port_agent_config)
 
