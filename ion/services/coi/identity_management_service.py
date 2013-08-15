@@ -269,6 +269,10 @@ class IdentityManagementService(BaseIdentityManagementService):
             except Exception, e:
                 raise NotFound('Could not retrieve UserRoles for User Info id: %s - %s' % (user_info_id, e.message))
 
+            #filter notification requests that are retired
+            extended_user.subscriptions = [nr for nr in extended_user.subscriptions if nr.temporal_bounds.end_datetime == '']
+            #filter owned resources that are retired
+            extended_user.owned_resources = [rsrc for rsrc in extended_user.owned_resources if rsrc.lcstate != 'RETIRED' ]
 
         return extended_user
 
