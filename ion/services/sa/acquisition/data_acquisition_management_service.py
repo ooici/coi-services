@@ -752,9 +752,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         """
         Deactivate the agent instance process
         """
-        external_dataset_id = self.RR2.find_external_dataset_id_by_external_dataset_agent_instance(external_dataset_agent_instance_id)
+        # this dataset agent instance could be link to a external dataset or a instrument device. Retrieve whatever is the data producer.
+        external_dataset_device_ids, _ = self.clients.resource_registry.find_subjects( predicate=PRED.hasAgentInstance, object=external_dataset_agent_instance_id, id_only=True)
+        if len(external_dataset_device_ids) != 1:
+            raise NotFound("ExternalDatasetAgentInstance resource is not correctly associated with an ExternalDataset or InstrumentDevice" )
 
-        agent_process_id = ResourceAgentClient._get_agent_process_id(external_dataset_id)
+        agent_process_id = ResourceAgentClient._get_agent_process_id(external_dataset_device_ids[0])
 
         # Cancels the execution of the given process id.
         self.clients.process_dispatcher.cancel_process(agent_process_id)
