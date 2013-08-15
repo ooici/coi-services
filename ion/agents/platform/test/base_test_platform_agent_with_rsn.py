@@ -1349,12 +1349,15 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             log.debug("calling IMS_start_instrument_agent_instance with id=%s", agent_instance_id)
             i_obj.pid = self.IMS_start_instrument_agent_instance(instrument_agent_instance_id=agent_instance_id)
 
-        log.debug("[,]start_instrument_agent_instance returned pid=%s", i_obj.pid)
+        log.debug("[,]start_instrument_agent_instance returned pid=%s for instrument_agent_instance_id=%s",
+                  i_obj.pid, agent_instance_id)
 
         agent_instance_obj = self.IMS.read_instrument_agent_instance(agent_instance_id)
         agent_process_id = ResourceAgentClient._get_agent_process_id(i_obj.instrument_device_id)
         log.debug("[,]agent_process_id=%s",
                   agent_process_id)
+
+        # so, here, i_obj.pid must be equal to agent_process_id.
 
         # Start a resource agent client to talk with the agent.
         ia_client = ResourceAgentClient(i_obj.instrument_device_id,
@@ -1371,7 +1374,16 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
     def _stop_instrument(self, i_obj, use_ims=True):
         """
-        Stops the given instrument
+        Stops the given instrument.
+
+        If IMS.stop_instrument_agent_instance is used, any exception there is
+        logged out simply at the DUBUG level because, in general, the most
+        probably cause is that the instrument would have already been
+        terminated by its parent platform.
+
+        (Note that IMS.stop_instrument_agent_instance stops the associated
+        port agent even if the termination of the instrument agent itself
+        fails for any reason.)
 
         @param i_obj     instrument
         @param use_ims   True (the default) to use IMS.stop_instrument_agent_instance;
@@ -1382,11 +1394,12 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         if use_ims:
             try:
                 self.IMS.stop_instrument_agent_instance(i_obj.instrument_agent_instance_id)
-            except:
-                log.exception(
-                    "Exception in IMS.stop_instrument_agent_instance with "
-                    "instrument_agent_instance_id = %r",
-                    i_obj.instrument_agent_instance_id)
+            except Exception as e:
+                log.debug("Exception in IMS.stop_instrument_agent_instance with "
+                          "instrument_agent_instance_id = %r (the instrument "
+                          "agent instance has probably already been terminated by its "
+                          "parent platform): %s",
+                          i_obj.instrument_agent_instance_id, e)
 
         else:
             try:
