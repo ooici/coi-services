@@ -488,7 +488,8 @@ class AgentConfigurationBuilder(object):
         #retrieve the streams assoc with each defined output product
         for product_id in data_product_ids:
             self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)  # check one stream per product
-            self.RR2.find_dataset_id_of_data_product_using_has_dataset(product_id) # check one dataset per product
+            #disable this check as some products may not be persisted
+            #self.RR2.find_dataset_id_of_data_product_using_has_dataset(product_id) # check one dataset per product
 
         self.associated_objects = ret
 
