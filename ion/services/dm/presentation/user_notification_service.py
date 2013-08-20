@@ -864,3 +864,16 @@ class UserNotificationService(BaseUserNotificationService):
                     return True, ''
 
         return False, '%s(%s) has been denied since the user is not a member in any org to which the resource id %s belongs ' % (process.name, gov_values.op, resource_id)
+
+    def check_publish_event_policy(self, process, message, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process, resource_id_required=False)
+
+        except Inconsistent, ex:
+            return False, ex.message
+
+        if message['event_type'] == 'ResourceIssueReportedEvent' and (has_org_role(gov_values.actor_roles, 'ION', [ORG_MEMBER_ROLE])):
+                    return True, ''
+
+        return False, 'user_notification_service(publish_event) has been denied '
