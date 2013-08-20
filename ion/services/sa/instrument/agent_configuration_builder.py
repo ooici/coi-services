@@ -498,8 +498,14 @@ class AgentConfigurationBuilder(object):
                      data_product_obj.name,
                      product_id)
                 raise NotFound(errmsg)
-            #disable this check as some products may not be persisted
-            #self.RR2.find_dataset_id_of_data_product_using_has_dataset(product_id) # check one dataset per product
+
+            # some products may not be persisted
+            try:
+                # check one dataset per product
+                self.RR2.find_dataset_id_of_data_product_using_has_dataset(product_id)
+            except NotFound:
+                log.warn("Data product '%s' of device %s ('%s') does not appear to be persisted -- no dataset",
+                         product_id, device_obj.name, device_obj._id)
 
         self.associated_objects = ret
 
