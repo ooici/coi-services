@@ -480,14 +480,24 @@ class AgentConfigurationBuilder(object):
         ret[RT.ProcessDefinition] = process_def_obj
 
         #retrieve the output products
-        data_product_ids = self.RR2.find_objects(device_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
+        data_product_objs = self.RR2.find_objects(device_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
 
-        if not data_product_ids:
+        if not data_product_objs:
             raise NotFound("No output Data Products attached to this Device " + str(device_id))
 
         #retrieve the streams assoc with each defined output product
-        for product_id in data_product_ids:
-            self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)  # check one stream per product
+        for data_product_obj in data_product_objs:
+            product_id = data_product_obj._id
+            try:
+                self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)  # check one stream per product
+            except NotFound:
+                errmsg = "Device '%s' (%s) has data products %s.  Data product '%s' (%s) has no stream ID." % \
+                    (device_obj.name,
+                     device_obj._id,
+                     [dp._id for dp in data_product_objs],
+                     data_product_obj.name,
+                     product_id)
+                raise NotFound(errmsg)
             #disable this check as some products may not be persisted
             #self.RR2.find_dataset_id_of_data_product_using_has_dataset(product_id) # check one dataset per product
 
