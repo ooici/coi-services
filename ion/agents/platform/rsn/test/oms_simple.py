@@ -6,9 +6,12 @@
 @author  Carlos Rueda
 @brief   Program that connects to the real RSN OMS enpoint to do basic
          verification of the operations. Note that VPN is required.
+         Also, port 12021 on the localhost (via corresponding fully-qualified
+         domain name as returned by socket.getfqdn()) needs to be accessible
+         from OMS for the event notification to be received here.
 
-         USAGE: python ion/agents/platform/rsn/test/oms_simple.py [uri]
-         default uri: 'http://alice:1234@10.180.80.10:9021/'
+         For usage, call:
+           bin/python ion/agents/platform/rsn/test/oms_simple.py --help
 
 @see     https://confluence.oceanobservatories.org/display/CIDev/RSN+OMS+endpoint+implementation+verification
 @see     https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
@@ -18,31 +21,62 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
+from ion.agents.platform.rsn.oms_event_listener import OmsEventListener
+from ion.agents.platform.responses import InvalidResponse
+
 import xmlrpclib
 import sys
 import pprint
-
-# Not importing ion.agents.platform.responses.InvalidResponse.PLATFORM_ID
-# to keep this program standalone, so just copy definition:
-INVALID_PLATFORM_ID = 'INVALID_PLATFORM_ID'
+import socket
 
 
-# Main program
-if __name__ == "__main__":  # pragma: no cover
+DEFAULT_RSN_OMS_URI = "http://alice:1234@10.180.80.10:9021/"
+DEFAULT_MAX_WAIT    = 70
 
-    uri = "http://alice:1234@10.180.80.10:9021/"
-    if len(sys.argv) == 2:
-        uri = sys.argv[1]
-    elif len(sys.argv) > 2:
-        print "USAGE: %s [uri]" % sys.argv[0]
-        print "default uri: %r" % uri
-        exit()
+INVALID_PLATFORM_ID = InvalidResponse.PLATFORM_ID
+
+# use full-qualified domain name as the external host for the registration
+HTTP_SERVER_HOST = socket.getfqdn()
+HTTP_SERVER_PORT = 12021
+
+EVENT_LISTENER_URL = "http://%s:%d/oms" % (HTTP_SERVER_HOST, HTTP_SERVER_PORT)
+
+# max time to wait to receive the test event
+max_wait = 0
+
+tried = {}
+
+
+def launch_listener():  # pragma: no cover
+    def notify_driver_event(evt):
+        print("notify_driver_event received: %s" % str(evt.event_instance))
+
+    print 'launching listener, port=%d ...' % HTTP_SERVER_PORT
+    oms_event_listener = OmsEventListener("dummy_plat_id", notify_driver_event)
+    oms_event_listener.keep_notifications()
+    oms_event_listener.start_http_server(host='', port=HTTP_SERVER_PORT)
+    print 'listener launched'
+    return oms_event_listener
+
+
+def main(uri):  # pragma: no cover
+    oms_event_listener = launch_listener()
 
     print '\nconnecting to %r ...' % uri
     proxy = xmlrpclib.ServerProxy(uri, allow_none=True)
     print 'connection established.'
 
     pp = pprint.PrettyPrinter()
+
+    def show_listeners():
+        from datetime import datetime
+        from ion.agents.platform.util import ntp_2_ion_ts
+
+        print("Event listeners:")
+        for a, b in sorted(proxy.event.get_registered_event_listeners().iteritems(),
+                           lambda a, b: int(a[1] - b[1])):
+            time = datetime.fromtimestamp(float(ntp_2_ion_ts(b)) / 1000)
+            print("   %s  %s" % (time, a))
 
     def format_val(value):
         prefix = "\t\t"
@@ -51,8 +85,6 @@ if __name__ == "__main__":  # pragma: no cover
     def format_err(msg):
         prefix = "\t\t"
         print "\n%s%s" % (prefix, msg.replace("\n", "\n" + prefix))
-
-    tried = {}
 
     def get_method(handler_name, method_name):
         """
@@ -142,11 +174,40 @@ if __name__ == "__main__":  # pragma: no cover
         else:
             retval = retval[entry]
 
+        print("full_method_name = %s" % full_method_name)
         if reterr:
             tried[full_method_name] = reterr
             format_err(reterr)
 
         return retval, reterr
+
+    def verify_test_event_notified(retval, reterr, event):
+        print("waiting for a max of %d secs for test event to be notified..." % max_wait)
+        import time
+
+        wait_until = time.time() + max_wait
+        got_it = False
+        while not got_it and time.time() <= wait_until:
+            time.sleep(1)
+            for evt in oms_event_listener.notifications:
+                if event['message'] == evt['message']:
+                    got_it = True
+                    break
+
+        # print("Received external events: %s" % oms_event_listener.notifications)
+        if not got_it:
+            reterr = "error: didn't get expected test event notification within %d " \
+                     "secs. (Got %d event notifications.)" % (
+                     max_wait, len(oms_event_listener.notifications))
+
+        print("full_method_name = %s" % full_method_name)
+        if reterr:
+            tried[full_method_name] = reterr
+            format_err(reterr)
+
+        return retval, reterr
+
+    show_listeners()
 
     print "Basic verification of the operations:\n"
 
@@ -274,8 +335,7 @@ if __name__ == "__main__":  # pragma: no cover
     retval, reterr = run(full_method_name, platform_id, port_id)
 
     #----------------------------------------------------------------------
-    import socket
-    url = "http://%s:12345/fake.ci.oms.event.listener.net" % socket.getfqdn()
+    url = EVENT_LISTENER_URL
 
     #----------------------------------------------------------------------
     full_method_name = "event.register_event_listener"
@@ -308,7 +368,12 @@ if __name__ == "__main__":  # pragma: no cover
     full_method_name = "config.get_checksum"
     retval, reterr = run(full_method_name, platform_id)
 
-    #----------------------------------------------------------------------
+    # the following to specifically verify reception of test event
+    if max_wait:
+        full_method_name = "event.register_event_listener"
+        retval, reterr = run(full_method_name, EVENT_LISTENER_URL)
+        retval, reterr = verify_entry_in_dict(retval, reterr, EVENT_LISTENER_URL)
+
     full_method_name = "event.generate_test_event"
     event = {
         'message'      : "fake event triggered from CI using OMS' generate_test_event",
@@ -318,6 +383,15 @@ if __name__ == "__main__":  # pragma: no cover
     }
     retval, reterr = run(full_method_name, event)
 
+    if max_wait:
+        verify_test_event_notified(retval, reterr, event)
+
+        full_method_name = "event.unregister_event_listener"
+        retval, reterr = run(full_method_name, EVENT_LISTENER_URL)
+        retval, reterr = verify_entry_in_dict(retval, reterr, EVENT_LISTENER_URL)
+
+    show_listeners()
+
     #######################################################################
     print("\nSummary of basic verification:")
     okeys = 0
@@ -326,3 +400,23 @@ if __name__ == "__main__":  # pragma: no cover
         if result == "OK":
             okeys += 1
     print("OK methods %d out of %s" % (okeys, len(tried)))
+
+
+if __name__ == "__main__":  # pragma: no cover
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Basic CI-OMS verification program")
+    parser.add_argument("-u", "--uri",
+                        help="RSN OMS URI (default: %s)" % DEFAULT_RSN_OMS_URI,
+                        default=DEFAULT_RSN_OMS_URI)
+    parser.add_argument("-w", "--wait",
+                        help="Max wait time for test event (default: %d)" % DEFAULT_MAX_WAIT,
+                        default=DEFAULT_MAX_WAIT)
+
+    opts = parser.parse_args()
+
+    uri = opts.uri
+    max_wait = int(opts.wait)
+
+    main(uri)
