@@ -364,7 +364,7 @@ class UserNotificationEventsTest(PyonTestCase):
         #pprint.pprint([eca.__dict__ for eca in res_list.computed_list])
 
 
-@attr('INT', group='dm')
+@attr('SKIP_UNTIL_UPDATED', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(UserNotificationIntTest, self).setUp()

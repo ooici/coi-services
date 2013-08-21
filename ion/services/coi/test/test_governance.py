@@ -2728,7 +2728,7 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
             DENY_PARAM_50_RULE, headers=self.system_actor_header)
 
 
-        gevent.sleep(5)  # Wait for events to be published and policy updated
+        gevent.sleep(15)  # Wait for events to be published and policy updated
 
         #The policy should now deny the same command as above since the SBE37Parameter.INTERVAL value is greater than 50
         with self.assertRaises(Unauthorized) as cm:
