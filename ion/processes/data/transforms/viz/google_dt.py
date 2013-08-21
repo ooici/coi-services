@@ -91,7 +91,6 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
         rdt = RecordDictionaryTool.load_from_granule(input)
 
-
         data_description = []
         # Buid a local precisions and fill value dictionary to use for parsing data correctly
 

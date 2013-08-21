@@ -17,13 +17,14 @@ from pyon.util.containers import create_unique_identifier, get_safe
 from pyon.core.exception import Inconsistent, BadRequest, NotFound
 from datetime import datetime
 
-import simplejson
+import simplejson, json
 import gevent
 import base64
-import sys
+import sys, traceback
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
-from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
+#from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
+from ion.processes.data.transforms.viz.highcharts import VizTransformHighChartsAlgorithm
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphsAlgorithm
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
@@ -31,6 +32,7 @@ from interface.objects import Granule
 from pyon.util.containers import get_safe
 # for direct hdf access
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
 # PIL
 #import Image
@@ -38,7 +40,7 @@ from ion.services.dm.inventory.data_retriever_service import DataRetrieverServic
 
 
 # Google viz library for google charts
-import ion.services.ans.gviz_api as gviz_api
+#import ion.services.ans.gviz_api as gviz_api
 
 USER_VISUALIZATION_QUEUE = 'UserVisQueue'
 PERSIST_REALTIME_DATA_PRODUCTS = False
@@ -65,48 +67,6 @@ class VisualizationService(BaseVisualizationService):
 #        self.monitor_event.set()
         return
 
-
-#    def user_vis_queue_monitor(self, **kwargs):
-#
-#        log.debug("Starting Monitor Loop worker: %s timeout=%s" , self.id,  self.monitor_timeout)
-#
-#        while not self.monitor_event.wait(timeout=self.monitor_timeout):
-#
-#            if self.container.is_terminating():
-#                break
-#
-#            #get the list of queues and message counts on the broker for the user vis queues
-#            queues = []
-#            try:
-#                queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'], use_ems=False)
-#            except Exception, e:
-#                log.warn('Unable to get queue information from broker management plugin: ' + e.message)
-#                pass
-#
-#            log.debug( "In Monitor Loop worker: %s", self.id)
-#            for queue in queues:
-#
-#                log.debug('queue name: %s, messages: %d', queue['name'], queue['messages'])
-#
-#                #Check for queues which are getting too large and clean them up if need be.
-#                if queue['messages'] > self.monitor_queue_size:
-#                    vis_token = queue['name'][queue['name'].index('UserVisQueue'):]
-#
-#                    try:
-#                        log.warn("Real-time visualization queue %s had too many messages %d, so terminating this queue and associated resources.", queue['name'], queue['messages'] )
-#
-#                        #Clear out the queue
-#                        msgs = self.get_realtime_visualization_data(query_token=vis_token)
-#
-#                        #Now terminate it
-#                        self.terminate_realtime_visualization_data(query_token=vis_token)
-#                    except NotFound, e:
-#                        log.warn("The token %s could not not be found by the terminate_realtime_visualization_data operation; another worked may have cleaned it up already", vis_token)
-#                    except Exception, e1:
-#                        #Log errors and keep going!
-#                        log.exception(e1)
-#
-#        log.debug('Exiting user_vis_queue_monitor')
 
 
     def initiate_realtime_visualization_data(self, data_product_id='', visualization_parameters=None):
@@ -146,14 +106,14 @@ class VisualizationService(BaseVisualizationService):
         if len(workflow_ids) == 0:
             #TODO - Add this workflow definition to preload data
             # Check to see if the workflow defnition already exist
-            workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+            workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_HighCharts', id_only=True)
 
             if len(workflow_def_ids) > 0:
                 workflow_def_id = workflow_def_ids[0]
             else:
-                raise NotFound(" Workflow definition named 'Realtime_Google_DT' does not exist")
+                raise NotFound(" Workflow definition named 'Realtime_HighCharts' does not exist")
 
-            #Create and start the workflow. Take about 4 secs .. wtf
+            #Create and start the workflow
             workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_definition_id=workflow_def_id,
                 input_data_product_id=data_product_id, persist_workflow_data_product=PERSIST_REALTIME_DATA_PRODUCTS, timeout=self.create_workflow_timeout)
         else:
@@ -189,9 +149,8 @@ class VisualizationService(BaseVisualizationService):
 
     def _process_visualization_message(self, messages):
 
-        gdt_description = []
-        gdt_content = []
-        viz_product_type = 'google_dt'  # defaults to google_dt unless overridden by the message
+        final_hc_data = []
+        final_hc_data_no_numpy = []
 
         for message in messages:
 
@@ -203,87 +162,45 @@ class VisualizationService(BaseVisualizationService):
             if isinstance(message_data,Granule):
 
                 rdt = RecordDictionaryTool.load_from_granule(message_data)
-                gdt_components = get_safe(rdt, 'google_dt_components')
+                hc_data_arr = get_safe(rdt, 'hc_data')
 
                 # IF this granule does not contain google dt, skip
-                if gdt_components is None:
+                if hc_data_arr is None:
                     continue
 
-                gdt_component = gdt_components[0]
-                viz_product_type = gdt_component['viz_product_type']
+                hc_data = hc_data_arr[0]
 
-                # Process Google DataTable messages
-                if viz_product_type == 'google_dt':
+                for series in hc_data:
+                    if not series.has_key("name"):
+                        continue
+                    series_name = series["name"]
 
-                    # If the data description is being put together for the first time,
-                    # switch the time format from float to datetime
-                    if (gdt_description == []):
-                        temp_gdt_description = gdt_component['data_description']
-                        gdt_description = [('time', 'datetime', 'time')]
-
-                        for idx in range(1,len(temp_gdt_description)):
-                            # for some weird reason need to force convert to tuples
-                            temp_arr = temp_gdt_description[idx]
-                            if temp_arr != None and temp_arr[0] != 'time':
-                                gdt_description.append((temp_arr[0], temp_arr[1], temp_arr[2]))
-
-                    # append all content to one big array
-                    temp_gdt_content = gdt_component['data_content']
-                    for tempTuple in temp_gdt_content:
-                        # sometimes there are inexplicable empty tuples in the content. Drop them
-                        if tempTuple == [] or len(tempTuple) == 0:
-                            continue
-
-                        varTuple = []
-
-                        #varTuple.append(datetime.fromtimestamp(tempTuple[0]))
-                        varTuple.append(datetime.fromtimestamp(tempTuple[0]))
-
-                        for idx in range(1,len(tempTuple)):
-                            varTuple.append(tempTuple[idx])
-
-                        gdt_content.append(varTuple)
-
-                #TODO - what to do if this is not a valid visualization message?
+                    # find index in final data. If it does not exist, create it
+                    final_hc_data_idx = -1
+                    idx = 0
+                    for _s in final_hc_data:
+                        if _s["name"] == series_name:
+                            final_hc_data_idx = idx
+                            break
+                        idx += 1
 
 
-        # Now that all the messages have been parsed, any last processing should be done here
-        if viz_product_type == "google_dt":
-            # Using the description and content, build the google data table
-            if (gdt_description):
+                    # create an entry in the final hc structure if there's none for this series
+                    if final_hc_data_idx == -1:
+                        final_hc_data.append({})
+                        final_hc_data_idx = len(final_hc_data) - 1
+                        final_hc_data[final_hc_data_idx]["name"] = series_name
+                        final_hc_data[final_hc_data_idx]["data"] = []
 
-                try:
-                    gdt = gviz_api.DataTable(gdt_description)
-                    gdt.LoadData(gdt_content)
-                except:
-                    log.error("Exception while forming Google Datatable : ", sys.exc_info()[0])
-                    log.error("\nData table description : ", gdt_description)
-                    log.error("\nData content : ", gdt_content)
+                        if series.has_key("visible"):
+                            final_hc_data[final_hc_data_idx]["visible"] = series["visible"]
+                        if series.has_key("tooltip"):
+                            final_hc_data[final_hc_data_idx]["tooltip"] = series["tooltip"]
 
-                    """
-                    print "Error forming Google Datatable. Dumping content and description <<<<<<<<<<<<< \n"
-                    for var_field in gdt_description:
-                        print var_field[0], "\t",
-                    print "\n"
-                    for row in gdt_content:
-                        for val in row:
-                            if isinstance(val,datetime):
-                                print " <timestamp> ",
-                                continue
-                            print val, "\t",
-                        print "\n"
-                    """
+                    # Append the series data to the final hc structure
+                    final_hc_data[final_hc_data_idx]["data"] += series["data"].tolist()
 
-                    raise
-
-                # return the json version of the table
-                return gdt.ToJSon()
-
-            # Handle case where there is no data for constructing a GDT
-            else:
-                return None  #  <<=========
-
-        return None
+        return json.dumps(final_hc_data)
 
 
     def get_realtime_visualization_data(self, query_token=''):
@@ -427,8 +344,8 @@ class VisualizationService(BaseVisualizationService):
         if (vp_dict['query_type'] == 'metadata'):
             return self._get_data_product_metadata(data_product_id)
 
-        if (vp_dict['query_type'] == 'google_dt'):
-            return self._get_google_dt(data_product_id, vp_dict)
+        if (vp_dict['query_type'] == 'highcharts_data'):
+            return self._get_highcharts_data(data_product_id, vp_dict)
 
         if (vp_dict['query_type'] == 'mpl_image'):
             image_info = self.get_visualization_image(data_product_id, vp_dict)
@@ -438,7 +355,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def _get_google_dt(self, data_product_id='', visualization_parameters=None):
+    def _get_highcharts_data(self, data_product_id='', visualization_parameters=None):
         """Retrieves the data for the specified DP
 
         @param data_product_id    str
@@ -448,7 +365,7 @@ class VisualizationService(BaseVisualizationService):
         """
 
         # An empty dict is returned in case there is no data in coverage
-        empty_gdt = gviz_api.DataTable([('time', 'datetime', 'time')])
+        empty_hc = []
 
         # error check
         if not data_product_id:
@@ -514,53 +431,33 @@ class VisualizationService(BaseVisualizationService):
 
         # If thereis no data, return an empty dict
         if retrieved_granule is None:
-            return empty_gdt.ToJSon()
+            return simplejson.dumps(empty_hc)
 
         # send the granule through the transform to get the google datatable
-        gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
-        gdt_stream_def = self.clients.pubsub_management.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
+        hc_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('highcharts',id_only=True)
+        hc_stream_def = self.clients.pubsub_management.create_stream_definition('HighCharts_out', parameter_dictionary_id=hc_pdict_id)
 
-        gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(retrieved_granule, params=gdt_stream_def, config=visualization_parameters)
+        hc_data_granule = VizTransformHighChartsAlgorithm.execute(retrieved_granule, params=hc_stream_def, config=visualization_parameters)
 
-        if gdt_data_granule == None:
-            return empty_gdt.ToJSon()
+        if hc_data_granule == None:
+            return simplejson.dumps(empty_hc)
 
-        gdt_rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
-        gdt_components = get_safe(gdt_rdt, 'google_dt_components')
-        gdt_component = gdt_components[0]
-        temp_gdt_description = gdt_component["data_description"]
-        temp_gdt_content = gdt_component["data_content"]
+        hc_rdt = RecordDictionaryTool.load_from_granule(hc_data_granule)
+        # Now go through this redundant step of converting the hc_data into a non numpy version
+        hc_data_np = (get_safe(hc_rdt, "hc_data"))[0]
+        hc_data = []
 
-        # adjust the 'float' time to datetime in the content
-        gdt_description = [('time', 'datetime', 'time')]
-        gdt_content = []
-        for idx in range(1,len(temp_gdt_description)):
-            temp_arr = temp_gdt_description[idx]
-            if temp_arr != None and temp_arr[0] != 'time':
-                if len(temp_arr) == 3:
-                    gdt_description.append((temp_arr[0], temp_arr[1], temp_arr[2]))
-                if len(temp_arr) == 4:
-                    gdt_description.append((temp_arr[0], temp_arr[1], temp_arr[2], temp_arr[3]))
-
-
-        for tempTuple in temp_gdt_content:
-            # sometimes there are inexplicable empty tuples in the content. Drop them
-            if tempTuple == [] or len(tempTuple) == 0:
-                continue
-
-            varTuple = []
-            varTuple.append(datetime.fromtimestamp(tempTuple[0]))
-            for idx in range(1,len(tempTuple)):
-                varTuple.append(tempTuple[idx])
-
-            gdt_content.append(varTuple)
-
-        # now generate the Google datatable out of the description and content
-        gdt = gviz_api.DataTable(gdt_description)
-        gdt.LoadData(gdt_content)
+        for series in hc_data_np:
+            s = {}
+            for key in series:
+                if key == "data":
+                    s["data"] = series["data"].tolist()
+                    continue
+                s[key] = series[key]
+            hc_data.append(s)
 
         # return the json version of the table
-        return gdt.ToJSon()
+        return json.dumps(hc_data)
 
 
     def get_visualization_image(self, data_product_id='', visualization_parameters=None):

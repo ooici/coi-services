@@ -25,11 +25,8 @@ from interface.services.ans.ivisualization_service import VisualizationServicePr
 from ion.services.ans.visualization_service import USER_VISUALIZATION_QUEUE
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
-
 from pyon.public import log, IonObject, RT, PRED, CFG
-
-
-from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
+from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper, preload_ion_params
 
 from nose.plugins.attrib import attr
 
@@ -55,6 +52,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         logging.disable(logging.ERROR)
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+        # simulate preloading
+        preload_ion_params(self.container)
         logging.disable(logging.NOTSET)
 
         #Instantiate a process to represent the test
@@ -301,8 +300,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 #            vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
 #            self.addCleanup(self.container.terminate_process, vpid2)
 
-        # Create the google_dt workflow definition since there is no preload for the test
-        workflow_def_id = self.create_google_dt_workflow_def()
+        # Create the Highcharts workflow definition since there is no preload for the test
+        workflow_def_id = self.create_highcharts_workflow_def()
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
@@ -322,7 +321,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
                 vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
                 if (vis_data):
-                    self.validate_google_dt_transform_results(vis_data)
+                    self.validate_highcharts_transform_results(vis_data)
 
                 get_cnt += 1
                 gevent.sleep(5) # simulates the polling from UI
@@ -366,8 +365,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
             log.warn('Unable to get queue information from broker management plugin: ' + e.message)
             pass
 
-        # Create the google_dt workflow definition since there is no preload for the test
-        workflow_def_id = self.create_google_dt_workflow_def()
+        # Create the highcharts workflow definition since there is no preload for the test
+        workflow_def_id = self.create_highcharts_workflow_def()
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
@@ -416,7 +415,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
                 vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
                 if (vis_data):
-                    self.validate_google_dt_transform_results(vis_data)
+                    self.validate_highcharts_transform_results(vis_data)
 
                 get_cnt += 1
                 gevent.sleep(5) # simulates the polling from UI
@@ -459,7 +458,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
     #@unittest.skip('Skipped because of broken record dictionary work-around')
-    def test_google_dt_overview_visualization(self):
+    def test_highcharts_overview_visualization(self):
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
@@ -473,12 +472,16 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Turning off after everything - since it is more representative of an always on stream of data!
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
-        viz_params={'query_type': 'google_dt'}
-        # Use the data product to test the data retrieval and google dt generation capability of the vis service
-        vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id, simplejson.dumps(viz_params))
+        viz_params={'query_type': 'highcharts_data'}
+        # Use the data product to test the data retrieval and highcharts generation capability of the vis service
+        try:
+            vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id, simplejson.dumps(viz_params))
+        except:
+            log.exception("Error while executing get_visualization_data():")
+            raise
 
         # validate the returned data
-        self.validate_vis_service_google_dt_results(vis_data)
+        self.validate_vis_service_highcharts_results(vis_data)
 
 
     #@unittest.skip('Skipped because of broken record dictionary work-around')
@@ -495,7 +498,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
         viz_params={'query_type': 'mpl_image'}
-        # Use the data product to test the data retrieval and google dt generation capability of the vis service
+        # Use the data product to test the data retrieval and image generation capability of the vis service
         vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id, simplejson.dumps(viz_params))
 
         # validate the returned data

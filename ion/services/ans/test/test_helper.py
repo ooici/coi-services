@@ -23,7 +23,6 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from pyon.util.containers import get_safe
 from seawater.gibbs import SP_from_cndr
 from seawater.gibbs import cte
-import ion.services.ans.gviz_api as gviz_api
 
 
 class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
@@ -299,11 +298,11 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
 
-    def create_google_dt_data_process_definition(self):
-        return helper_create_google_dt_data_process_definition(self.container)
+    def create_highcharts_data_process_definition(self):
+        return helper_create_highcharts_data_process_definition(self.container)
 
 
-    def validate_google_dt_transform_results(self, results):
+    def validate_highcharts_transform_results(self, results):
 
         assertions = self.assertTrue
 
@@ -315,16 +314,20 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
             if isinstance(g,Granule):
 
-                gdt = RecordDictionaryTool.load_from_granule(g)
+                rdt = RecordDictionaryTool.load_from_granule(g)
+                hc_data_arr = get_safe(rdt, 'hc_data')
 
-                viz_product_type = get_safe(gdt, "viz_product_type")
-
-                if not viz_product_type:
+                if hc_data_arr == None:
+                    log.debug("hc_data in granule is None")
                     continue
 
-                assertions( viz_product_type == 'google_dt' )
-                assertions(len(gdt['data_description'][0]) >= 0) # Need to come up with a better check
-                assertions(len(gdt['data_content'][0]) >= 0)
+                assertions(len(hc_data_arr) >= 0) # Need to come up with a better check
+
+                hc_data = hc_data_arr[0]
+                assertions(len(hc_data) >= 0)
+
+                assertions(len(hc_data[0]["name"]) >= 0)
+                assertions(len(hc_data[0]["data"]) >= 0)
 
 
 
@@ -389,11 +392,16 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
 
 
-    def validate_vis_service_google_dt_results(self, results):
-        assertions = self.assertTrue
+    def validate_vis_service_highcharts_results(self, results):
 
+        assertions = self.assertTrue
         assertions(results)
-        assertions(gviz_api.DataTable(results))
+
+        hc_data = simplejson.loads(results)
+
+        for series in hc_data:
+            assertions(series["name"])
+            assertions(series["data"])
 
         return
 
@@ -438,29 +446,29 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         return
 
-    def create_google_dt_workflow_def(self):
+    def create_highcharts_workflow_def(self):
 
-        return helper_create_google_dt_workflow_def(self.container)
+        return helper_create_highcharts_workflow_def(self.container)
 
 
 
-def helper_create_google_dt_data_process_definition(container):
+def helper_create_highcharts_data_process_definition(container):
 
     from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
     rrclient = ResourceRegistryServiceClient(node=container.node)
 
     #First look to see if it exists and if not, then create it
-    dpd,_ = rrclient.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
+    dpd,_ = rrclient.find_resources(restype=RT.DataProcessDefinition, name='highcharts_transform')
     if len(dpd) > 0:
         return dpd[0]
 
     # Data Process Definition
-    log.debug("Create data process definition GoogleDtTransform")
+    log.debug("Create data process definition for highcharts transform")
     dpd_obj = IonObject(RT.DataProcessDefinition,
-        name='google_dt_transform',
-        description='Convert data streams to Google DataTables',
-        module='ion.processes.data.transforms.viz.google_dt',
-        class_name='VizTransformGoogleDT')
+        name='highcharts_transform',
+        description='Convert data streams to Highcharts data',
+        module='ion.processes.data.transforms.viz.highcharts',
+        class_name='VizTransformHighCharts')
 
     from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
     dataprocessclient = DataProcessManagementServiceClient(node=container.node)
@@ -470,35 +478,35 @@ def helper_create_google_dt_data_process_definition(container):
     from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
     datasetclient = DatasetManagementServiceClient(node=container.node)
 
-    pdict_id = datasetclient.read_parameter_dictionary_by_name('google_dt', id_only=True)
+    pdict_id = datasetclient.read_parameter_dictionary_by_name('highcharts', id_only=True)
 
     from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
     pubsubclient = PubsubManagementServiceClient(node=container.node)
 
     # create a stream definition for the data from the
-    stream_def_id = pubsubclient.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
-    dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
+    stream_def_id = pubsubclient.create_stream_definition(name='VizTransformHighCharts', parameter_dictionary_id=pdict_id)
+    dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='highcharts' )
 
     return procdef_id
 
 
-def helper_create_google_dt_workflow_def(container):
+def helper_create_highcharts_workflow_def(container):
 
     from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
     rrclient = ResourceRegistryServiceClient(node=container.node)
 
     # Check to see if the workflow defnition already exist
-    workflow_def_ids,_ = rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+    workflow_def_ids,_ = rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_HighCharts', id_only=True)
 
     if len(workflow_def_ids) > 0:
         workflow_def_id = workflow_def_ids[0]
     else:
         # Build the workflow definition
-        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_Google_DT',description='Convert stream data to Google Datatable')
+        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_HighCharts',description='Convert stream data to HighCharts data')
 
         #Add a transformation process definition
-        google_dt_procdef_id = helper_create_google_dt_data_process_definition(container)
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id)
+        procdef_id = helper_create_highcharts_data_process_definition(container)
+        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=procdef_id)
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #Create it in the resource registry
@@ -510,3 +518,17 @@ def helper_create_google_dt_workflow_def(container):
     return workflow_def_id
 
 
+def preload_ion_params(container):
+
+    log.info("Preloading ...")
+    # load_parameter_scenarios
+    container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
+        op="load",
+        scenario="BETA",
+        #path="master",
+        path="https://docs.google.com/spreadsheet/pub?key=0ArYknstLVPe7dDZleTRRZzVfaFowSEpzaGVLTU9hUnc&output=xls",
+        categories="ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProcessDefinition,WorkflowDefinition",
+        clearcols="owner_id,org_ids",
+        #assets="res/preload/r2_ioc/ooi_assets",
+        parseooi="True",
+    ))
