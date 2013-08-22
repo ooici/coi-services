@@ -43,8 +43,6 @@ from interface.objects import AttachmentType, ComputedValueAvailability, Process
 from interface.objects import AggregateStatusType, DeviceStatusType
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
-# Causes MI drivers and eggs to load
-import ion.agents.instrument.test.test_instrument_agent
 
 stats = Accumulator(persist=True)
 
