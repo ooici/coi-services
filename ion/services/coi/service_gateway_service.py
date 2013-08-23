@@ -311,9 +311,6 @@ def process_gateway_agent_request(resource_id, operation):
                 raise Inconsistent("Target agent operation in the JSON request (%s) does not match agent operation in URL (%s)" % ( str(json_params['agentRequest']['agentOp']), operation ) )
 
         resource_agent = ResourceAgentClient(resource_id, node=Container.instance.node, process=service_gateway_instance)
-        if resource_agent is None:
-            raise NotFound('The agent instance for id %s is not found.' % resource_id)
-
 
         param_list = create_parameter_list('agentRequest', 'resource_agent', ResourceAgentProcessClient, operation, json_params)
 
@@ -328,6 +325,8 @@ def process_gateway_agent_request(resource_id, operation):
         return gateway_json_response(result)
 
     except Exception, e:
+        if e is NotFound:
+            log.warning('The agent instance for id %s is not found.' % resource_id)
         return build_error_response(e)
 
 #This service method is used to provide the RSN OMS with a means of sending events to the CI system using HTTP requests.
