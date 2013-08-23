@@ -2695,10 +2695,10 @@ Reason: %s
         driver_config = parse_dict(row['driver_config'])
         driver_config.update( {
                 'parser': {
-                    'config': parse_dict(row.get(['parser_config'])),
+                    'config': parse_dict(row.get(['parser_config')),
                 },
                 'harvester': {
-                    'config': parse_dict(row.get('harvester_config'])),
+                    'config': parse_dict(row.get('harvester_config')),
                 },
                 'max_records': int(row.get('records_per_granule')),
             } )
