@@ -2,6 +2,7 @@
 
 import time
 import numpy as np
+import unittest
 from nose.plugins.attrib import attr
 from gevent.event import Event
 
@@ -43,6 +44,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.pubsub = PubsubManagementServiceClient()
         self.dams = DataAcquisitionManagementServiceClient()
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_use_case(self):
         # setUp() has already started the container and performed the preload
 #        self.assert_dataset_loaded('Test External CTD Dataset') # make sure we have the ExternalDataset resources
