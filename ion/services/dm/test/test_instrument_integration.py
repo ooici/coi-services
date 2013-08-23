@@ -14,6 +14,7 @@ from interface.objects import StreamConfiguration, ProcessStateEnum, AgentComman
 from nose.plugins.attrib import attr
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState, ResourceAgentEvent
 import ion.agents.instrument.test.test_instrument_agent
+from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.services.dm.utility.granule import RecordDictionaryTool
@@ -39,7 +40,7 @@ class TestInstrumentIntegration(DMTestCase):
         instagent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
-                                  driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1a-py2.7.egg",
+                                  driver_uri=DRV_URI_GOOD,
                                   stream_configurations = [raw_config, parsed_config])
         instrument_agent_id = self.instrument_management.create_instrument_agent(instagent_obj)
         self.addCleanup(self.instrument_management.delete_instrument_agent, instrument_agent_id)

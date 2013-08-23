@@ -349,20 +349,26 @@ class TestActivateRSNVel3DInstrument(IonIntegrationTestCase):
             process=FakeProcess())
 
 
+        def check_state(label, desired_state):
+            actual_state = self._ia_client.get_agent_state()
+            log.debug("%s instrument agent is in state '%s'", label, actual_state)
+            self.assertEqual(desired_state, actual_state)
+
         log.debug("test_activate_rsn_vel3d: got ia client %s" , str(self._ia_client))
+
+        check_state("just-spawned", ResourceAgentState.UNINITIALIZED)
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
         log.debug("test_activate_rsn_vel3d: initialize %s" , str(retval))
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(ResourceAgentState.INACTIVE, state)
+        check_state("initialized", ResourceAgentState.INACTIVE)
 
         log.debug("test_activate_rsn_vel3d Sending go_active command ")
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activate_rsn_vel3d: return value from go_active %s" , str(reply))
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(ResourceAgentState.IDLE, state)
+        check_state("activated", ResourceAgentState.IDLE)
+
 
         cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
         retval = self._ia_client.execute_agent(cmd)
@@ -372,8 +378,8 @@ class TestActivateRSNVel3DInstrument(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activate_rsn_vel3d: run %s" , str(reply))
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(ResourceAgentState.COMMAND, state)
+        check_state("commanded", ResourceAgentState.COMMAND)
+
 
 
         cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)

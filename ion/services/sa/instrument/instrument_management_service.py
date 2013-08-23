@@ -15,7 +15,7 @@ from ooi.timer import Timer, Accumulator
 from pyon.agent.agent import ResourceAgentState, ResourceAgentClient
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent, BadRequest, NotFound, ServerError, Unauthorized
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role
+from pyon.core.governance import GovernanceHeaderValues, has_org_role
 from pyon.core.governance import has_valid_shared_resource_commitment, is_resource_owner
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.public import LCE, RT, PRED, OT
@@ -30,7 +30,7 @@ from ion.services.sa.instrument.agent_configuration_builder import InstrumentAge
     PlatformAgentConfigurationBuilder
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.sa.instrument.flag import KeywordFlag
-from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.services.sa.observatory.deployment_util import describe_deployments
 from ion.util.agent_launcher import AgentLauncher
@@ -39,12 +39,10 @@ from ion.util.qa_doc_parser import QADocParser
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.util.resource_lcs_policy import AgentPolicy, ResourceLCSPolicy, ModelPolicy, DevicePolicy
 
-from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedDictValue, ComputedListValue
+from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedDictValue
 from interface.objects import AggregateStatusType, DeviceStatusType
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
-# Causes MI drivers and eggs to load
-import ion.agents.instrument.test.test_instrument_agent
 
 stats = Accumulator(persist=True)
 
@@ -324,18 +322,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-    def record_instrument_producer_activation(self, instrument_device_id, instrument_agent_instance_id):
+    def record_instrument_producer_activation(self, instrument_device_id, instrument_agent_config):
 
         log.debug("update the producer context for provenance")
         #todo: should get the time from process dispatcher
         producer_obj = self._get_instrument_producer(instrument_device_id)
         if OT.InstrumentProducerContext == producer_obj.producer_context.type_:
 
-            # reload resource as it has been updated by the launch function
-            instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
-
             producer_obj.producer_context.activation_time =  IonTime().to_string()
-            producer_obj.producer_context.configuration = instrument_agent_instance_obj.agent_config
+            producer_obj.producer_context.configuration = instrument_agent_config
 
             # get the site where this device is currently deploy instrument_device_id
             try:
@@ -389,7 +384,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not process_id:
             raise ServerError("Launched instrument agent instance but no process_id")
 
-        self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_id)
+
+        # reload resource as it has been updated by the launch function
+        instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
+
+
+        self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_obj.agent_config)
 
 
         launcher.await_launch(self._agent_launch_timeout("start_instrument_agent_instance"))
