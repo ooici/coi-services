@@ -154,7 +154,7 @@ class TestActivateRSNVel3DInstrument(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
-    #@unittest.skip('under construction')
+    @unittest.skip('under construction')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 180}}})
     def test_activate_rsn_vel3d(self):
