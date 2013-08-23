@@ -15,11 +15,9 @@ from mock import patch
 
 from pyon.public import log, CFG
 from nose.plugins.attrib import attr
-from pyon.util.int_test import IonIntegrationTestCase
 
 import pyon.core.exception as pyex
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import BadRequest
 from pyon.core.object import IonObjectSerializer
 from pyon.agent.agent import ResourceAgentClient
 from ion.agents.instrument.test.test_instrument_agent import InstrumentAgentTest, IA_RESOURCE_ID
@@ -32,7 +30,7 @@ from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_E
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-class TestInstrumentAgentViaGateway(IonIntegrationTestCase, InstrumentAgentTest):
+class TestInstrumentAgentViaGateway(InstrumentAgentTest):
     """
     Test cases for accessing the instrument agent class through the service gateway. This class is an extension of the
     class which tests the instrument agent in general. Essentially uses everything in the parent class, except accesses
@@ -122,10 +120,12 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
         return self._gw_execute( 'execute_agent', resource_id, command, requester, timeout)
     
     # XXX    
-    def gw_get_agent(self, resource_id='', params=[], requester=None):
+    def gw_get_agent(self, resource_id='', params=None, requester=None):
+        if params is None: params = []
         return self._gw_get('get_agent', resource_id, params, requester)
     
-    def gw_set_agent(self, resource_id='', params={}, requester=None):
+    def gw_set_agent(self, resource_id='', params=None, requester=None):
+        if params is None: params = {}
         return self._gw_set('set_agent', resource_id, params, requester)
     
     def gw_get_agent_state(self, resource_id='', requester=None):
@@ -137,10 +137,12 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
     def gw_execute_resource(self, resource_id='', command=None, requester=None, timeout=300):
         return self._gw_execute('execute_resource', resource_id, command, requester, timeout)
     
-    def gw_get_resource(self, resource_id='', params=[], requester=None):
+    def gw_get_resource(self, resource_id='', params=None, requester=None):
+        if params is None: params = []
         return self._gw_get('get_resource', resource_id, params, requester)
     
-    def gw_set_resource(self, resource_id='', params={}, requester=None):
+    def gw_set_resource(self, resource_id='', params=None, requester=None):
+        if params is None: params = {}
         return self._gw_set('set_resource', resource_id, params, requester)
     
     def gw_get_resource_state(self, resource_id='', requester=None):
@@ -232,10 +234,10 @@ def _agent_gateway_request(uri, payload):
 
     server_hostname = 'localhost'
     server_port = 5000
-    web_server_cfg = None
+
     try:
         web_server_cfg = CFG['container']['service_gateway']['web_server']
-    except Exception, e:
+    except:
         web_server_cfg = None
 
     if web_server_cfg is not None:
@@ -262,7 +264,7 @@ def _agent_gateway_request(uri, payload):
 
     result = simplejson.load(urllib.urlopen(url, 'payload=' + str(payload ) ))
     if not result.has_key('data'):
-        log.error('Not a correct JSON response: %s' & result)
+        log.error('Not a correct JSON response: %s' % result)
 
     log.info("Service Gateway Response: %s" % result)
 
