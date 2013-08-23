@@ -943,8 +943,8 @@ class DiscoveryService(BaseDiscoveryService):
         if id_only:
             return resource_ids
 
-            if not isinstance(resource_ids, list):
-                resource_ids = list(resource_ids)
+        if not isinstance(resource_ids, list):
+            resource_ids = list(resource_ids)
         resources = self.clients.resource_registry.read_mult(resource_ids)
 
         return resources
@@ -958,8 +958,8 @@ class DiscoveryService(BaseDiscoveryService):
         if id_only:
             return resource_ids
 
-            if not isinstance(resource_ids, list):
-                resource_ids = list(resource_ids)
+        if not isinstance(resource_ids, list):
+            resource_ids = list(resource_ids)
         resources = self.clients.resource_registry.read_mult(resource_ids)
 
         return resources
