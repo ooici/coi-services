@@ -1143,7 +1143,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             self._set_state('rparams', val)
             self._flush_state()
-        except Exceptio as ex:
+        except Exception as ex:
             log.error('Error setting rparams state in _async_driver_event_config_change: %s', str(ex))
             log.exception('Error setting rparams state in _async_driver_event_config_change.')
 
