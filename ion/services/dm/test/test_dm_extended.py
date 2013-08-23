@@ -285,3 +285,29 @@ class TestDMExtended(DMTestCase):
         np.testing.assert_array_equal(rdt['time'], np.array([0,1,2,3]))
         np.testing.assert_array_equal(rdt['temp_sample'], np.array([[0,1,2,3,4],[0,1,2,3,4],[1,m,m,m,m],[5,5,5,5,5]]))
         
+    @attr('UTIL')
+    def test_creation_args(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+        breakpoint(locals())
+
+        rdt = self.ph.get_rdt(stream_def_id)
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = np.arange(20)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        self.ph.publish_rdt_to_data_product(data_product_id,rdt)
+        dataset_monitor.event.wait(10)
+
+        breakpoint(locals())
+
+        granule = self.data_retriever.retrieve(dataset_id)
+
+        breakpoint(locals())
+
+
