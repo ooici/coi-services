@@ -11,7 +11,7 @@ ES_ROOT=$INSTALL_DIR/$ES
 
 JS_LANG_PLUGIN="elasticsearch/elasticsearch-lang-javascript/1.1.0"
 COUCHDB_RIVER_PLUGIN="elasticsearch/elasticsearch-river-couchdb/1.1.0"
-HEAD_PLUGIN="Aconex/elasticsearch-head"
+HEAD_PLUGIN="mobz/elasticsearch-head"
 BIGDESK_PLUGIN="lukas-vlcek/bigdesk"
 
 USAGE=" bash install_es.sh [-h] [-b] [-u] \
