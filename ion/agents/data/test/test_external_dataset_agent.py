@@ -294,6 +294,7 @@ class ExternalDatasetAgentTestBase(object):
     ########################################
     # Test functions
     ########################################
+    @unittest.skip("depricated test, now in mi repo")
     def test_acquire_data_while_streaming(self):
         # Test instrument driver execute interface to start and stop streaming mode.
         state = self._ia_client.get_agent_state()
@@ -346,6 +347,7 @@ class ExternalDatasetAgentTestBase(object):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_acquire_data(self):
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
@@ -398,6 +400,7 @@ class ExternalDatasetAgentTestBase(object):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_streaming(self):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
@@ -443,6 +446,7 @@ class ExternalDatasetAgentTestBase(object):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_command(self):
         # Test instrument driver get and set interface.
 
@@ -489,6 +493,7 @@ class ExternalDatasetAgentTestBase(object):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_get_set_resource(self):
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         self._ia_client.execute_agent(cmd)
@@ -537,6 +542,7 @@ class ExternalDatasetAgentTestBase(object):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_initialize(self):
         # Test agent initialize command. This causes creation of driver process and transition to inactive.
 
@@ -562,6 +568,7 @@ class ExternalDatasetAgentTestBase(object):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_states(self):
         # Test agent state transitions.
 
@@ -633,6 +640,7 @@ class ExternalDatasetAgentTestBase(object):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_capabilities(self):
         """
         Test the ability to retrieve agent and resource parameter and command
@@ -670,6 +678,7 @@ class ExternalDatasetAgentTestBase(object):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_errors(self):
         # Test illegal behavior and replies.
 
@@ -979,6 +988,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         except Exception as e:
             log.debug('_setup_resources error: {0}'.format(e))
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_new_data_available_at_end(self):
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         self._ia_client.execute_agent(cmd)
@@ -1020,6 +1030,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         self.clean_up('test_data/dummy/test2012-02-01-16.dum')
         self.clean_up('test_data/dummy/test2012-02-01-17.dum')
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_new_data_available_at_beginning(self):
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         self._ia_client.execute_agent(cmd)
@@ -1061,6 +1072,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         self.clean_up('test_data/dummy/test2012-02-01-10.dum')
         self.clean_up('test_data/dummy/test2012-02-01-11.dum')
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_new_data_available_at_beginning_and_end(self):
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         self._ia_client.execute_agent(cmd)
@@ -1106,6 +1118,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         self.clean_up('test_data/dummy/test2012-02-01-16.dum')
         self.clean_up('test_data/dummy/test2012-02-01-17.dum')
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_data_removed_from_beginning(self):
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         self._ia_client.execute_agent(cmd)
@@ -1147,6 +1160,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         self.clean_up('test_data/dummy/test2012-02-01-12.dum')
         self.clean_up('test_data/dummy/test2012-02-01-13.dum')
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_data_removed_from_end(self):
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         self._ia_client.execute_agent(cmd)
@@ -1188,29 +1202,38 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         self.clean_up('test_data/dummy/test2012-02-01-14.dum')
         self.clean_up('test_data/dummy/test2012-02-01-15.dum')
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_acquire_data(self):
         pass
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_acquire_data_while_streaming(self):
         pass
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_streaming(self):
         pass
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_observatory(self):
         pass
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_get_set_param(self):
         pass
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_initialize(self):
         pass
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_states(self):
         pass
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_capabilities(self):
         pass
 
+    @unittest.skip("depricated test, now in mi repo")
     def test_errors(self):
         pass
