@@ -141,6 +141,9 @@ class ZmqDriverClient(DriverClient):
                         driver_client.evt_callback(evt)
                 except zmq.ZMQError:
                     time.sleep(.5)
+                except Exception, e:
+                    log.error('Driver client error reading from zmq event socket: ' + str(e))
+                    log.error('Driver client error type: ' + str(type(e)))                    
                 #cur_time = time.time()
                 #if cur_time - last_time > 5:
                 #    log.info('event thread listening')
