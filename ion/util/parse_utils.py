@@ -120,6 +120,9 @@ def parse_dict(text):
 
 
     out = { }
+    if text is None:
+        return out
+
     pairs = text.split(',') # pairs separated by commas
     for pair in pairs:
         if 0 == pair.count(':'):
