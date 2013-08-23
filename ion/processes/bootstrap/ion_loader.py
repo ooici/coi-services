@@ -2697,8 +2697,8 @@ Reason: %s
                 'parser': {
                     'config': parse_dict(row['parser_config']),
                 },
-                'poller': {
-                    'config': parse_dict(row['poller_config']),
+                'harvester': {
+                    'config': parse_dict(row['harvester_config']),
                 },
                 'max_records': int(row['records_per_granule']),
             } )
