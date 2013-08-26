@@ -602,7 +602,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         @poll_wrapper(20)
         def pollcheck(ss):
             results = self.discovery.parse(search_string)
-            if len(results) < 10:
+            if len(results) < 50:
                 return False
             return True
 
