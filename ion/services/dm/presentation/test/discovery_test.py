@@ -29,6 +29,7 @@ from mock import Mock, patch, sentinel
 from datetime import date, timedelta
 from pyon.util.ion_time import IonTime
 from pyon.util.containers import get_ion_ts
+from pyon.util.poller import poll_wrapper
 
 import gevent
 import elasticpy as ep
@@ -590,6 +591,28 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         results = self.poll(5, self.discovery.parse,search_string)
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(ds_id in results)
+    
+
+
+    def test_limit_search(self):
+        dp = DataProduct(name='example')
+        dp_ids = [self.rr.create(dp)[0] for i in xrange(100)]
+
+        search_string = "search 'name' is 'example' from 'resources_index' limit 50" 
+        @poll_wrapper(20)
+        def pollcheck(ss):
+            results = self.discovery.parse(search_string)
+            if len(results) < 50:
+                return False
+            return True
+
+        self.assertTrue(pollcheck(search_string))
+
+
+
+
+
+
 
     def test_iterative_associative_searching(self):
         #--------------------------------------------------------------------------------

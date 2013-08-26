@@ -13,7 +13,7 @@ from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
 from pyon.core.registry import getextends, is_ion_object_dict, issubtype
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
 from pyon.core.governance.negotiation import Negotiation
-from pyon.event.event import EventSubscriber
+from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.resource import get_object_schema
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
@@ -45,6 +45,10 @@ GATEWAY_ERROR = 'GatewayError'
 GATEWAY_ERROR_EXCEPTION = 'Exception'
 GATEWAY_ERROR_MESSAGE = 'Message'
 GATEWAY_ERROR_TRACE = 'Trace'
+
+OMS_ACCEPTED_RESPONSE = '202 Accepted'
+OMS_BAD_REQUEST_RESPONSE = '400 Bad Request'
+
 
 
 DEFAULT_EXPIRY = '0'
@@ -307,9 +311,6 @@ def process_gateway_agent_request(resource_id, operation):
                 raise Inconsistent("Target agent operation in the JSON request (%s) does not match agent operation in URL (%s)" % ( str(json_params['agentRequest']['agentOp']), operation ) )
 
         resource_agent = ResourceAgentClient(resource_id, node=Container.instance.node, process=service_gateway_instance)
-        if resource_agent is None:
-            raise NotFound('The agent instance for id %s is not found.' % resource_id)
-
 
         param_list = create_parameter_list('agentRequest', 'resource_agent', ResourceAgentProcessClient, operation, json_params)
 
@@ -324,7 +325,49 @@ def process_gateway_agent_request(resource_id, operation):
         return gateway_json_response(result)
 
     except Exception, e:
+        if e is NotFound:
+            log.warning('The agent instance for id %s is not found.' % resource_id)
         return build_error_response(e)
+
+#This service method is used to provide the RSN OMS with a means of sending events to the CI system using HTTP requests.
+
+#test this method with curl:
+# curl -H "Content-type: application/json" --data "{\"summary\": \"fake event triggered from CI using OMS generate_test_event\",
+#     \"severity\": 3, \"class\": \"/Test\", \"platform_id\":\"test_platform_123\" , \"timestamp\":\"timestamp\" , \"message\":
+#     \"fake event triggered from CI using OMS generate_test_event\", \"test_event\": True}" http://localhost:5000/ion-service/oms_event
+
+@service_gateway_app.route('/ion-service/oms_event', methods=['GET','POST'])
+def process_oms_event():
+
+    json_params = {}
+
+    # oms direct request
+    if request.data:
+        json_params  = simplejson.loads(str(request.data))
+        log.debug('ServiceGatewayService:process_oms_event request.data:  %s', json_params)
+
+    #validate payload
+    if 'platform_id' not in json_params or 'message' not in json_params:
+        log.warning('Invalid OMS event format. payload_data: %s', json_params)
+        #return gateway_json_response(OMS_BAD_REQUEST_RESPONSE)
+
+    #prepare the event information
+    try:
+        #create a publisher to relay OMS events into the system as DeviceEvents
+        event_publisher = EventPublisher()
+
+        event_publisher.publish_event(
+            event_type='OMSDeviceStatusEvent',
+            origin_type='OMS Platform',
+            origin=json_params.get('platform_id', 'NOT PROVIDED'),
+            sub_type='',
+            description = json_params.get('message', ''),
+            status_details = json_params)
+    except Exception, e:
+        log.error('Could not publish OMS  event: %s. Event data: %s', e.message, json_params)
+
+
+    return gateway_json_response(OMS_ACCEPTED_RESPONSE)
 
 
 #Private implementation of standard flask jsonify to specify the use of an encoder to walk ION objects

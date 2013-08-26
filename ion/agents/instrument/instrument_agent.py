@@ -1143,7 +1143,7 @@ class InstrumentAgent(ResourceAgent):
         try:
             self._set_state('rparams', val)
             self._flush_state()
-        except Exceptio as ex:
+        except Exception as ex:
             log.error('Error setting rparams state in _async_driver_event_config_change: %s', str(ex))
             log.exception('Error setting rparams state in _async_driver_event_config_change.')
 
@@ -1292,6 +1292,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Driver initiated agent FSM event.
         """
+        #{'args': ['RESOURCE_AGENT_STATE_STREAMING'], 'event': 'RESOURCE_AGENT_EVENT_CHANGE_STATE_ASYNC'}
         try:
             if isinstance(val,str):
                 agt_evt = val
@@ -1306,7 +1307,8 @@ class InstrumentAgent(ResourceAgent):
                 
             self._fsm.on_event(agt_evt, *args, **kwargs)
             
-        except:
+        except Exception as ex:
+            #print '################## exception: str(ex)'
             log.warning('Instrument agent %s error processing asynchronous agent event %s', self.id, str(val))
 
 
