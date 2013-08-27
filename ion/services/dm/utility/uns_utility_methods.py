@@ -7,7 +7,7 @@ from pyon.public import get_sys_name, OT, IonObject, CFG
 from pyon.util.ion_time import IonTime
 from pyon.util.log import log
 from pyon.core.exception import BadRequest, NotFound
-from interface.objects import NotificationRequest, Event, DeviceStatusType
+from interface.objects import NotificationRequest, Event, DeviceStatusType, AggregateStatusType
 from pyon.util.containers import get_ion_ts
 import smtplib
 import gevent
@@ -235,7 +235,7 @@ def check_user_notification_interest(event, reverse_user_info):
 #            log.debug("After checking event_type = %s, UNS got no interested users here", event.type_)
             return []
 
-    if event.origin is not None: # for an incoming event that has origin specified (this should be true for almost all events)
+    if event.origin: # for an incoming event that has origin specified (this should be true for almost all events)
         if reverse_user_info['event_origin'].has_key(event.origin):
             user_list_2 = set(reverse_user_info['event_origin'][event.origin])
             if reverse_user_info['event_origin'].has_key(''): # for users who subscribe to any event origins
@@ -246,29 +246,27 @@ def check_user_notification_interest(event, reverse_user_info):
 #            log.debug("After checking  event origin = %s, UNS got no interested users here", event.origin)
             return []
 
-    if event.sub_type is not None: # for an incoming event with the sub type specified
+    if event.sub_type:  # for an incoming event with the sub type specified
         if reverse_user_info['event_subtype'].has_key(event.sub_type):
             user_list_3 = reverse_user_info['event_subtype'][event.sub_type]
             if reverse_user_info['event_subtype'].has_key(''): # for users who subscribe to any event subtypes
                 user_list_3.extend(reverse_user_info['event_subtype'][''])
             users = set.intersection(users, user_list_3)
-#            log.debug("For event_subtype = %s too, UNS got interested users here  %s", event.sub_type, users)
 #        else:
 #            log.debug("After checking event_subtype = %s, UNS got no interested users here", event.sub_type)
 #            return []
 
-    if event.origin_type is not None: # for an incoming event with origin type specified
+    if event.origin_type:  # for an incoming event with origin type specified
         if reverse_user_info['event_origin_type'].has_key(event.origin_type):
             user_list_4 = reverse_user_info['event_origin_type'][event.origin_type]
             if reverse_user_info['event_origin_type'].has_key(''): # for users who subscribe to any event origin types
                 user_list_4.extend(reverse_user_info['event_origin_type'][''])
             users = set.intersection(users, user_list_4)
-#            log.debug("For event_origin_type = %s too, UNS got interested users here  %s", event.origin_type, users)
         else:
 #            log.debug("After checking event_origin_type = %s, UNS got no interested users here", event.origin_type)
             return []
 
-#    log.debug("The interested users found here are: %s, for event: %s", users, event)
+#    log.debug("The interested users found here are: %s, for event: %s", list(users), event)
     return list( users)
 
 def calculate_reverse_user_info(user_info=None):
@@ -416,6 +414,8 @@ def get_event_summary(event):
 
     elif "ResourceAgentResourceCommandEvent" in event_types:
         summary = "%s agent resource command '%s(%s)' executed: %s" % (event.origin_type, event.command, event.execute_command, "OK" if event.result is None else event.result)
+    elif "DeviceAggregateStatusEvent" in event_types:
+        summary = "%s status change: %s  previous status: %s" % (AggregateStatusType._str_map.get(event.status_name,"???"), DeviceStatusType._str_map.get(event.status,"???"), DeviceStatusType._str_map.get(event.prev_status,"???"))
     elif "DeviceStatusEvent" in event_types:
         summary = "%s '%s' status change: %s" % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.status,"???"))
     elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
@@ -439,7 +439,6 @@ def get_event_summary(event):
         summary = "%s commitment released in Org: '%s'" % (event.commitment_type, event.org_name)
     elif "ParameterQCEvent" in event_types:
         summary = "%s" % event.description
-
 
     #        if event.description and summary:
     #            summary = summary + ". " + event.description
