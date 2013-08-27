@@ -439,6 +439,8 @@ def get_event_summary(event):
         summary = "%s commitment released in Org: '%s'" % (event.commitment_type, event.org_name)
     elif "ParameterQCEvent" in event_types:
         summary = "%s" % event.description
+    elif "OrgNegotiationInitiatedEvent" in event_types:
+        summary = "Negotiation %s initiated in Org '%s' of type %s and description: %s" % (event.negotiation_id, event.org_name, event.sub_type, event.description )
 
     #        if event.description and summary:
     #            summary = summary + ". " + event.description
