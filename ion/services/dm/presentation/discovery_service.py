@@ -167,10 +167,10 @@ class DiscoveryService(BaseDiscoveryService):
     #===================================================================
 
 
-    def query(self, query=None, id_only=True):
+    def query(self, query=None, limit=10, id_only=True):
         validate_true(query,'Invalid query')
 
-        return self.request(query, id_only)
+        return self.request(query=query, limit=limit, id_only=id_only)
 
 
     def query_couch(self, index_id='', key='', limit=0, offset=0, id_only=True):
@@ -539,7 +539,8 @@ class DiscoveryService(BaseDiscoveryService):
                 origin    = [query['lon'], query['lat']],
                 distance  = query['dist'],
                 units     = query['units'],
-                id_only   = id_only
+                id_only   = id_only,
+                limit      = limit,
             )
             if query.get('limit'):
                 kwargs['limit'] = query['limit']
@@ -560,6 +561,7 @@ class DiscoveryService(BaseDiscoveryService):
                 top_left     = query['top_left'],
                 bottom_right = query['bottom_right'],
                 id_only      = id_only,
+                limit        = limit,
             )
             if query.get('limit'):
                 kwargs['limit'] = query['limit']
@@ -793,6 +795,8 @@ class DiscoveryService(BaseDiscoveryService):
             to_value = calendar.timegm(dateutil.parser.parse(to_value).timetuple()) * 1000
 
         query = {
+          "from": offset,
+          "size": limit,
           "query": {
             "match_all": {}
           },
@@ -883,6 +887,8 @@ class DiscoveryService(BaseDiscoveryService):
 
 
         query = {
+          "from": offset,
+          "size": limit,
           "query": {
             "match_all": {}
           },
@@ -1098,7 +1104,7 @@ class DiscoveryService(BaseDiscoveryService):
             )
         
 
-    def request(self, query=None, id_only=True):
+    def request(self, query=None, limit=10, id_only=True):
         if not query:
             raise BadRequest('No request query provided')
         if not query.has_key('query'):
@@ -1119,7 +1125,7 @@ class DiscoveryService(BaseDiscoveryService):
         #================================================
 
         if not (query['or'] or query['and']): # Tier-1
-            return self.query_request(query.query)
+            return self.query_request(query=query.query, limit=limit)
 
         #@todo: bulk requests against ES
         #@todo: filters
