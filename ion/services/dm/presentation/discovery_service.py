@@ -776,9 +776,6 @@ class DiscoveryService(BaseDiscoveryService):
             validate_is_instance(order,dict,'Order is incorrect.')
             es.sort(**order)
 
-        if limit:
-            es.size(limit)
-
         if field == '*':
             field = '_all'
             start_time = 'start_datetime'
@@ -840,6 +837,10 @@ class DiscoveryService(BaseDiscoveryService):
             ]
           }
         }
+        if limit:
+            query['size'] = limit
+        if offset:
+            query['from'] = offset
 
         
         response = IndexManagementService._es_call(es.raw_query,'%s/_search' % index.index_name,method='POST', data=query, host=self.elasticsearch_host, port=self.elasticsearch_port)
@@ -871,8 +872,6 @@ class DiscoveryService(BaseDiscoveryService):
             validate_is_instance(order,dict,'Order is incorrect.')
             es.sort(**order)
 
-        if limit:
-            es.size(limit)
 
         if field == '*':
             field = '_all'
@@ -928,10 +927,15 @@ class DiscoveryService(BaseDiscoveryService):
             ]
           }
         }
+        if limit:
+            query['size'] = limit
+        if offset:
+            query['from'] = offset
 
         response = IndexManagementService._es_call(es.raw_query,'%s/_search' % index.index_name,method='POST', data=query, host=self.elasticsearch_host, port=self.elasticsearch_port)
         IndexManagementService._check_response(response)
-        return self._results_from_response(response, id_only)
+        retval= self._results_from_response(response, id_only)
+        return retval
 
 
     def query_association(self,resource_id='', depth=0, id_only=False):
