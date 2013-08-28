@@ -594,6 +594,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
     
 
 
+    @skipIf(not use_es, 'No ElasticSearch')
     def test_limit_search(self):
         dp = DataProduct(name='example')
         dp_ids = [self.rr.create(dp)[0] for i in xrange(100)]
@@ -607,11 +608,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
             return True
 
         self.assertTrue(pollcheck(search_string))
-
-
-
-
-
 
 
     def test_iterative_associative_searching(self):
@@ -750,6 +746,27 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_vertical_bounds_limits(self):
+        dp = DataProduct(name='blah')
+        dp.geospatial_bounds.geospatial_vertical_min = 20
+        dp.geospatial_bounds.geospatial_vertical_max = 50
+        for i in xrange(100):
+            dp_id, rev = self.rr.create(dp)
+            self.addCleanup(self.rr.delete, dp_id)
+
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index' limit 50" % (10,30)
+
+        @poll_wrapper(20)
+        def pollcheck(ss):
+            results = self.discovery.parse(search_string)
+            if len(results) < 50:
+                return False
+            print len(results)
+            return True
+
+        self.assertTrue(pollcheck(search_string))
 
     @skipIf(not use_es, 'No ElasticSearch')
     def test_vertical_bounds_searching(self):
