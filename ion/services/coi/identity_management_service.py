@@ -271,8 +271,16 @@ class IdentityManagementService(BaseIdentityManagementService):
 
             #filter notification requests that are retired
             extended_user.subscriptions = [nr for nr in extended_user.subscriptions if nr.temporal_bounds.end_datetime == '']
+
             #filter owned resources that are retired
-            extended_user.owned_resources = [rsrc for rsrc in extended_user.owned_resources if rsrc.lcstate != 'RETIRED' ]
+            nr_removed = []
+            for rsrc in extended_user.owned_resources:
+                #remove all the Notifications
+                if rsrc.type_ != OT.NotificationRequest:
+                    nr_removed.append(rsrc)
+            extended_user.owned_resources = [rsrc for rsrc in nr_removed if rsrc.lcstate != 'RETIRED' ]
+            #now append the active NotificationRequests
+            extended_user.owned_resources.extend(extended_user.subscriptions)
 
         return extended_user
 
