@@ -111,7 +111,79 @@ class TestDeployment(IonIntegrationTestCase):
         else:
             self.fail("deleted deployment was found during read")
 
+    #@unittest.skip("targeting")
+    def test_prepare_deployment_support(self):
 
+        deploy_sup = self.omsclient.prepare_deployment_support()
+        self.assertTrue(deploy_sup)
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentDevice'].type_, "AssocDeploymentInstDevice")
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentDevice'].resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentDevice'].associated_resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasPlatformDevice'].type_, "AssocDeploymentPlatDevice")
+        self.assertEquals(deploy_sup.associations['DeploymentHasPlatformDevice'].resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasPlatformDevice'].associated_resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentSite'].type_, "AssocDeploymentInstSite")
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentSite'].resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentSite'].associated_resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasPlatformSite'].type_, "AssocDeploymentPlatSite")
+        self.assertEquals(deploy_sup.associations['DeploymentHasPlatformSite'].resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasPlatformSite'].associated_resources, [])
+
+        #create a deployment with metadata and an initial site and device
+        platform_site__obj = IonObject(RT.PlatformSite,
+                                        name='PlatformSite1',
+                                        description='test platform site')
+        site_id = self.omsclient.create_platform_site(platform_site__obj)
+
+        platform_device__obj = IonObject(RT.PlatformDevice,
+                                        name='PlatformDevice1',
+                                        description='test platform device')
+        device_id = self.imsclient.create_platform_device(platform_device__obj)
+
+        start = IonTime(datetime.datetime(2013,1,1))
+        end = IonTime(datetime.datetime(2014,1,1))
+        temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=start.to_string(), end_datetime=end.to_string())
+        deployment_obj = IonObject(RT.Deployment,
+                                        name='TestDeployment',
+                                        description='some new deployment',
+                                        constraint_list=[temporal_bounds])
+        deployment_id = self.omsclient.create_deployment(deployment_obj)
+
+        deploy_sup = self.omsclient.prepare_deployment_support(deployment_id)
+
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentDevice'].resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentDevice'].associated_resources, [])
+        self.assertEquals(len(deploy_sup.associations['DeploymentHasPlatformDevice'].resources), 1)
+        self.assertEquals(deploy_sup.associations['DeploymentHasPlatformDevice'].associated_resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentSite'].resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentSite'].associated_resources, [])
+        self.assertEquals(len(deploy_sup.associations['DeploymentHasPlatformSite'].resources), 1)
+        self.assertEquals(deploy_sup.associations['DeploymentHasPlatformSite'].associated_resources, [])
+
+        self.omsclient.assign_site_to_deployment(site_id, deployment_id)
+        self.omsclient.assign_device_to_deployment(device_id, deployment_id)
+
+        deploy_sup = self.omsclient.prepare_deployment_support(deployment_id)
+
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentDevice'].resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentDevice'].associated_resources, [])
+        self.assertEquals(len(deploy_sup.associations['DeploymentHasPlatformDevice'].resources), 1)
+        self.assertEquals(len(deploy_sup.associations['DeploymentHasPlatformDevice'].associated_resources), 1)
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentSite'].resources, [])
+        self.assertEquals(deploy_sup.associations['DeploymentHasInstrumentSite'].associated_resources, [])
+        self.assertEquals(len(deploy_sup.associations['DeploymentHasPlatformSite'].resources), 1)
+        self.assertEquals(len(deploy_sup.associations['DeploymentHasPlatformSite'].associated_resources), 1)
+
+        #delete the deployment
+        self.RR2.pluck(deployment_id)
+        self.omsclient.force_delete_deployment(deployment_id)
+        # now try to get the deleted dp object
+        try:
+            self.omsclient.read_deployment(deployment_id)
+        except NotFound:
+            pass
+        else:
+            self.fail("deleted deployment was found during read")
 
 
     #@unittest.skip("targeting")
