@@ -1424,10 +1424,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def find_instrument_agent_instance_by_instrument_device(self, instrument_device_id=''):
         instrument_agent_instance_objs = \
             self.RR2.find_instrument_agent_instances_of_instrument_device_using_has_agent_instance(instrument_device_id)
-        if 0 < len(instrument_agent_instance_objs):
+        if instrument_agent_instance_objs:
             log.debug("L4-CI-SA-RQ-363: device %s is connected to instrument agent instance %s",
                       str(instrument_device_id),
                       str(instrument_agent_instance_objs[0]._id))
+        else:
+            instrument_agent_instance_objs = \
+                self.RR2.find_external_dataset_agent_instances_of_instrument_device_using_has_agent_instance(instrument_device_id)
+            log.debug("Found ExternalDatasetAgentInstance %s for InstrumentDevice %s" % (instrument_agent_instance_objs, instrument_device_id))
+
         return instrument_agent_instance_objs
 
     def find_instrument_device_by_platform_device(self, platform_device_id=''):
