@@ -1373,56 +1373,23 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def deploy_instrument_device(self, instrument_device_id='', deployment_id=''):
-        #def link_deployment(self, instrument_device_id='', deployment_id=''):
-        #    # make sure that only 1 site-device-deployment triangle exists at one time
-        #    sites, _ = self.RR.find_subjects(RT.InstrumentSite, PRED.hasDevice, instrument_device_id, False)
-        #    if 1 < len(sites):
-        #        raise Inconsistent("Device is assigned to more than one site")
-        #    if 1 == len(sites):
-        #        site_deployments = self._find_stemming(sites[0]._id, PRED.hasDeployment, RT.Deployment)
-        #        if 1 < len(site_deployments):
-        #            raise Inconsistent("Site has more than one deployment")
-        #        if 1 == len(site_deployments):
-        #            if site_deployments[0]._id != deployment_id:
-        #                raise BadRequest("Site to which this device is assigned has a different deployment")
-        #
-        #        for dev in self._find_stemming(sites[0]._id, PRED.hasDevice, RT.InstrumentDevice):
-        #            if 0 < len(self._find_stemming(dev, PRED.hasDeployment, RT.Deployment)):
-        #                raise BadRequest("Site already has a device with a deployment")
-        #
-        #    return self._link_resources_single_object(instrument_device_id, PRED.hasDeployment, deployment_id)
+        # OBSOLETE - Move calls to assign/unassign in observatory_management
         self.RR2.assign_deployment_to_instrument_device_with_has_deployment(deployment_id, instrument_device_id)
 
 
     def undeploy_instrument_device(self, instrument_device_id='', deployment_id=''):
+        # OBSOLETE - Move calls to assign/unassign in observatory_management
         self.RR2.unassign_deployment_from_instrument_device_with_has_deployment(deployment_id, instrument_device_id)
 
 
     def deploy_platform_device(self, platform_device_id='', deployment_id=''):
-        #def link_deployment(self, platform_device_id='', deployment_id=''):
-        #    # make sure that only 1 site-device-deployment triangle exists at one time
-        #    sites, _ = self.RR.find_subjects(RT.PlatformSite, PRED.hasDevice, platform_device_id, False)
-        #    if 1 < len(sites):
-        #        raise Inconsistent("Device is assigned to more than one site")
-        #    if 1 == len(sites):
-        #        site_deployments = self._find_stemming(sites[0]._id, PRED.hasDeployment, RT.Deployment)
-        #        if 1 < len(site_deployments):
-        #            raise Inconsistent("Site has more than one deployment")
-        #        if 1 == len(site_deployments):
-        #            if site_deployments[0]._id != deployment_id:
-        #                raise BadRequest("Site to which this device is assigned has a different deployment")
-        #
-        #        for dev in self._find_stemming(sites[0]._id, PRED.hasDevice, RT.PlatformDevice):
-        #            if 0 < len(self._find_stemming(dev, PRED.hasDeployment, RT.Deployment)):
-        #                raise BadRequest("Site already has a device with a deployment")
-        #
-        #    return self._link_resources_single_object(platform_device_id, PRED.hasDeployment, deployment_id)
+        # OBSOLETE - Move calls to assign/unassign in observatory_management
         self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id)
 
 
     def undeploy_platform_device(self, platform_device_id='', deployment_id=''):
-        self.RR2.unassign_deployent_from_platform_device_with_has_deployment(deployment_id, platform_device_id)
-
+        # OBSOLETE - Move calls to assign/unassign in observatory_management
+        self.RR2.unassign_deployment_from_platform_device_with_has_deployment(deployment_id, platform_device_id)
 
 
 
@@ -1457,10 +1424,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def find_instrument_agent_instance_by_instrument_device(self, instrument_device_id=''):
         instrument_agent_instance_objs = \
             self.RR2.find_instrument_agent_instances_of_instrument_device_using_has_agent_instance(instrument_device_id)
-        if 0 < len(instrument_agent_instance_objs):
+        if instrument_agent_instance_objs:
             log.debug("L4-CI-SA-RQ-363: device %s is connected to instrument agent instance %s",
                       str(instrument_device_id),
                       str(instrument_agent_instance_objs[0]._id))
+        else:
+            instrument_agent_instance_objs = \
+                self.RR2.find_external_dataset_agent_instances_of_instrument_device_using_has_agent_instance(instrument_device_id)
+            log.debug("Found ExternalDatasetAgentInstance %s for InstrumentDevice %s" % (instrument_agent_instance_objs, instrument_device_id))
+
         return instrument_agent_instance_objs
 
     def find_instrument_device_by_platform_device(self, platform_device_id=''):

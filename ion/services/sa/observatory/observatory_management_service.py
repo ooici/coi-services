@@ -525,16 +525,87 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
     def deploy_instrument_site(self, instrument_site_id='', deployment_id=''):
+        # OBSOLETE - Move calls to assign/unassign
         self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, instrument_site_id)
 
     def undeploy_instrument_site(self, instrument_site_id='', deployment_id=''):
+        # OBSOLETE - Move calls to assign/unassign
         self.RR2.unassign_deployment_from_instrument_site_with_has_deployment(deployment_id, instrument_site_id)
 
     def deploy_platform_site(self, platform_site_id='', deployment_id=''):
+        # OBSOLETE - Move calls to assign/unassign
         self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id)
 
     def undeploy_platform_site(self, platform_site_id='', deployment_id=''):
+        # OBSOLETE - Move calls to assign/unassign
         self.RR2.unassign_deployment_from_platform_site_with_has_deployment(deployment_id, platform_site_id)
+
+    def _get_deployment_assocs(self, deployment_id):
+        res_ids, assocs = self.RR.find_subjects(predicate=PRED.hasDeployment, object=deployment_id, id_only=True)
+        assoc_by_type = dict(Site=[], Device=[])
+        for a in assocs:
+            if a.st not in assoc_by_type:
+                assoc_by_type[a.st] = []
+            assoc_by_type[a.st].append(a)
+            if a.st.endswith("Device"):
+                assoc_by_type["Device"].append(a)
+            if a.st.endswith("Site"):
+                assoc_by_type["Site"].append(a)
+        return assoc_by_type
+
+    def assign_device_to_deployment(self, device_id='', deployment_id=''):
+        device = self.RR.read(device_id)
+        dep_assocs = self._get_deployment_assocs(deployment_id)
+        if dep_assocs["Device"]:
+            raise BadRequest("Deployment %s - Cannot have more than 1 Device" % deployment_id)
+        if device.type_ == RT.InstrumentDevice:
+            self.RR2.assign_deployment_to_instrument_device_with_has_deployment(deployment_id, device_id)
+            if dep_assocs["Site"] and dep_assocs["Site"][0].st != RT.InstrumentSite:
+                raise BadRequest("Deployment %s - Device %s (%s) incompatible with associated Site %s (%s)" % (
+                    deployment_id, device_id, device.type_, dep_assocs["Site"][0].s, dep_assocs["Site"][0].st))
+        elif device.type_ == RT.PlatformDevice:
+            self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, device_id)
+            if dep_assocs["Site"] and dep_assocs["Site"][0].st != RT.PlatformSite:
+                raise BadRequest("Deployment %s - Device %s (%s) incompatible with associated Site %s (%s)" % (
+                    deployment_id, device_id, device.type_, dep_assocs["Site"][0].s, dep_assocs["Site"][0].st))
+        else:
+            raise BadRequest("Illegal resource type to assign to Deployment: %s" % device.type_)
+
+    def unassign_device_from_deployment(self, device_id='', deployment_id=''):
+        device = self.RR.read(device_id)
+        if device.type_ == RT.InstrumentDevice:
+            self.RR2.unassign_deployment_from_instrument_device_with_has_deployment(deployment_id, device_id)
+        elif device.type_ == RT.PlatformDevice:
+            self.RR2.unassign_deployment_from_platform_device_with_has_deployment(deployment_id, device_id)
+        else:
+            raise BadRequest("Illegal resource type to assign to Deployment: %s" % device.type_)
+
+    def assign_site_to_deployment(self, site_id='', deployment_id=''):
+        site = self.RR.read(site_id)
+        dep_assocs = self._get_deployment_assocs(deployment_id)
+        if dep_assocs["Site"]:
+            raise BadRequest("Deployment %s - Cannot have more than 1 Site" % deployment_id)
+        if site.type_ == RT.InstrumentSite:
+            self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, site_id)
+            if dep_assocs["Device"] and dep_assocs["Device"][0].st != RT.InstrumentDevice:
+                raise BadRequest("Deployment %s - Site %s (%s) incompatible with associated Device %s (%s)" % (
+                    deployment_id, site_id, site.type_, dep_assocs["Device"][0].s, dep_assocs["Device"][0].st))
+        elif site.type_ == RT.PlatformSite:
+            self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, site_id)
+            if dep_assocs["Device"] and dep_assocs["Device"][0].st != RT.PlatformDevice:
+                raise BadRequest("Deployment %s - Site %s (%s) incompatible with associated Device %s (%s)" % (
+                    deployment_id, site_id, site.type_, dep_assocs["Device"][0].s, dep_assocs["Device"][0].st))
+        else:
+            raise BadRequest("Illegal resource type to assign to Deployment: %s" % site.type_)
+
+    def unassign_site_from_deployment(self, site_id='', deployment_id=''):
+        site = self.RR.read(site_id)
+        if site.type_ == RT.InstrumentSite:
+            self.RR2.unassign_deployment_from_instrument_site_with_has_deployment(deployment_id, site_id)
+        elif site.type_ == RT.PlatformSite:
+            self.RR2.unassign_deployment_from_platform_site_with_has_deployment(deployment_id, site_id)
+        else:
+            raise BadRequest("Illegal resource type to assign to Deployment: %s" % site.type_)
 
 
 
@@ -612,7 +683,60 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 #        # mark deployment as not deployed (developed seems appropriate)
 #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
 
+    def prepare_deployment_support(self, deployment_id=''):
+        extended_resource_handler = ExtendedResourceContainer(self)
 
+        resource_data = extended_resource_handler.create_prepare_resource_support(deployment_id, OT.DeploymentPrepareSupport)
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.create_request, 'observatory_management',
+            'create_deployment', { "deployment":  "$(deployment)" })
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.update_request, 'observatory_management',
+            'update_deployment', { "deployment":  "$(deployment)" })
+
+        #Fill out service request information for assigning a InstrumentDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['DeploymentHasInstrumentDevice'].assign_request, 'observatory_management',
+            'assign_device_to_deployment', {"device_id":  "$(instrument_device_id)",
+                                            "deployment_id":  deployment_id })
+
+        #Fill out service request information for assigning a PlatformDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['DeploymentHasPlatformDevice'].assign_request, 'observatory_management',
+            'assign_device_to_deployment', {"device_id":  "$(platform_device_id)",
+                                            "deployment_id":  deployment_id })
+
+        #Fill out service request information for unassigning a InstrumentDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['DeploymentHasInstrumentDevice'].unassign_request, 'observatory_management',
+            'unassign_device_from_deployment', {"device_id":  "$(instrument_device_id)",
+                                                "deployment_id":  deployment_id })
+
+        #Fill out service request information for unassigning a PlatformDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['DeploymentHasPlatformDevice'].unassign_request, 'observatory_management',
+            'unassign_device_from_deployment', {"device_id":  "$(platform_device_id)",
+                                                "deployment_id":  deployment_id })
+
+        #Fill out service request information for assigning a InstrumentSite
+        extended_resource_handler.set_service_requests(resource_data.associations['DeploymentHasInstrumentSite'].assign_request, 'observatory_management',
+            'assign_site_to_deployment', {"site_id":  "$(instrument_site_id)",
+                                          "deployment_id":  deployment_id })
+
+        #Fill out service request information for assigning a PlatformSite
+        extended_resource_handler.set_service_requests(resource_data.associations['DeploymentHasPlatformSite'].assign_request, 'observatory_management',
+            'assign_site_to_deployment', {"site_id":  "$(platform_site_id)",
+                                          "deployment_id":  deployment_id })
+
+        #Fill out service request information for unassigning a InstrumentSite
+        extended_resource_handler.set_service_requests(resource_data.associations['DeploymentHasInstrumentSite'].unassign_request, 'observatory_management',
+            'unassign_site_from_deployment', {"site_id":  "$(instrument_site_id)",
+                                              "deployment_id":  deployment_id })
+
+        #Fill out service request information for unassigning a PlatformSite
+        extended_resource_handler.set_service_requests(resource_data.associations['DeploymentHasPlatformSite'].unassign_request, 'observatory_management',
+            'unassign_site_from_deployment', {"site_id":  "$(platform_site_id)",
+                                              "deployment_id":  deployment_id })
+
+        return resource_data
 
 
     ##########################################################################
