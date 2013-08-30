@@ -196,7 +196,6 @@ class VizTransformHighChartsAlgorithm(SimpleGranuleTransformFunction):
                     series["name"] = field
                     series["visible"] = False
                     series["data"] = VizTransformHighChartsAlgorithm.form_series_data_str(normalized_ts, rdt_field, None, time_fill_value, fill_values[field])
-                    hc_data.append(series)
 
                 else:
                     series = {}
