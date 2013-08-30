@@ -1476,6 +1476,8 @@ class PlatformAgent(ResourceAgent):
         """
         Initializes all my sub-platforms.
 
+        Note that invalidated children are ignored.
+
         @return dict with failing children. Empty if all ok.
         """
         log.debug("%r: _subplatforms_initialize. _pa_clients=%s",
@@ -1483,15 +1485,29 @@ class PlatformAgent(ResourceAgent):
 
         subplatform_ids = self._get_subplatform_ids()
         children_with_errors = {}
-        if len(subplatform_ids):
-            log.debug("%r: initializing subplatforms %s", self._platform_id, subplatform_ids)
-            for subplatform_id in subplatform_ids:
-                err_msg = self._initialize_subplatform(subplatform_id)
-                if err_msg is not None:
-                    children_with_errors[subplatform_id] = err_msg
 
-            log.debug("%r: _subplatforms_initialize completed. children_with_errors=%s",
-                      self._platform_id, children_with_errors)
+        if not len(subplatform_ids):
+            return children_with_errors
+
+        # act only on the children that are not invalidated:
+        valid_clients = dict((k, v) for k, v in self._pa_clients.iteritems()
+                             if v != _INVALIDATED_CHILD)
+
+        if not len(valid_clients):
+            log.warn("%r: OOIION-1077 all sub-platforms (%s) are "
+                     "invalidated or could not be re-validated. Not executing "
+                     "initialize on them.",
+                     self._platform_id, subplatform_ids)
+            return children_with_errors   # that is, none.
+
+        log.debug("%r: initializing subplatforms %s", self._platform_id, valid_clients)
+        for subplatform_id in valid_clients:
+            err_msg = self._initialize_subplatform(subplatform_id)
+            if err_msg is not None:
+                children_with_errors[subplatform_id] = err_msg
+
+        log.debug("%r: _subplatforms_initialize completed. children_with_errors=%s",
+                  self._platform_id, children_with_errors)
 
         return children_with_errors
 
@@ -1499,6 +1515,8 @@ class PlatformAgent(ResourceAgent):
                                     expected_state=None):
         """
         Supporting routine for various commands sent to sub-platforms.
+
+        Note that invalidated children are ignored.
 
         @param command        Can be a AgentCommand, and string, or None.
 
@@ -1520,8 +1538,19 @@ class PlatformAgent(ResourceAgent):
         if not len(subplatform_ids):
             return children_with_errors
 
+        # act only on the children that are not invalidated:
+        valid_clients = dict((k, v) for k, v in self._pa_clients.iteritems()
+                             if v != _INVALIDATED_CHILD)
+
+        if not len(valid_clients):
+            log.warn("%r: OOIION-1077 all sub-platforms (%s) are "
+                     "invalidated or could not be re-validated. Not executing"
+                     " command. command=%r, create_command=%r",
+                     self._platform_id, subplatform_ids, command, create_command)
+            return children_with_errors   # that is, none.
+
         def execute_cmd(subplatform_id, cmd):
-            pa_client = self._pa_clients[subplatform_id].pa_client
+            pa_client = valid_clients[subplatform_id].pa_client
 
             try:
                 self._execute_platform_agent(pa_client, cmd, subplatform_id)
@@ -1556,14 +1585,14 @@ class PlatformAgent(ResourceAgent):
 
         if command:
             log.debug("%r: executing command %r on my sub-platforms: %s",
-                      self._platform_id, command, str(subplatform_ids))
+                      self._platform_id, command, valid_clients.keys())
         else:
             log.debug("%r: executing command on my sub-platforms: %s",
-                      self._platform_id, str(subplatform_ids))
+                      self._platform_id, valid_clients.keys())
 
-        for subplatform_id in self._pa_clients:
+        for subplatform_id in valid_clients:
             if expected_state:
-                pa_client = self._pa_clients[subplatform_id].pa_client
+                pa_client = valid_clients[subplatform_id].pa_client
                 sub_state = pa_client.get_agent_state()
                 if expected_state == sub_state:
                     #
@@ -1585,7 +1614,7 @@ class PlatformAgent(ResourceAgent):
             if err_msg is not None:
                 # some error happened; publish event:
                 children_with_errors[subplatform_id] = err_msg
-                dd = self._pa_clients[subplatform_id]
+                dd = valid_clients[subplatform_id]
                 self._status_manager.publish_device_failed_command_event(dd.resource_id,
                                                                          cmd,
                                                                          err_msg)
@@ -1660,9 +1689,19 @@ class PlatformAgent(ResourceAgent):
         Executes SHUTDOWN with recursion=True on the given sub-platform and
         then terminates that sub-platform process.
 
-        @return None if the shutdown and termination completed without errors.
+        Note that only a warning is logged out if the child is invalidated.
+
+        @return None if the shutdown and termination completed without errors
+                or the child is marked invalidated.
                 Otherwise a string with an error message.
         """
+
+        if self._pa_clients[subplatform_id] == _INVALIDATED_CHILD:
+            log.warn("%r: OOIION-1077 sub-platform has been invalidated or "
+                     "could not be re-validated: %r",
+                     self._platform_id, subplatform_id)
+            # consider this no error to continue shutdown sequence:
+            return None
 
         dd = self._pa_clients[subplatform_id]
         cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=dict(recursion=True))
@@ -1987,19 +2026,35 @@ class PlatformAgent(ResourceAgent):
         """
         Initializes all my instruments.
 
+        Note that invalidated children are ignored.
+
         @return dict with failing children. Empty if all ok.
         """
         instrument_ids = self._get_instrument_ids()
         children_with_errors = {}
-        if len(instrument_ids):
-            log.debug("%r: initializing instruments %s", self._platform_id, instrument_ids)
-            for instrument_id in instrument_ids:
-                err_msg = self._initialize_instrument(instrument_id)
-                if err_msg is not None:
-                    children_with_errors[instrument_id] = err_msg
 
-            log.debug("%r: _instruments_initialize completed. children_with_errors=%s",
-                      self._platform_id, children_with_errors)
+        if not len(instrument_ids):
+            return children_with_errors
+
+        # act only on the children that are not invalidated:
+        valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
+                             if v != _INVALIDATED_CHILD)
+
+        if not len(valid_clients):
+            log.warn("%r: OOIION-1077 all instrument children (%s) are "
+                     "invalidated or could not be re-validated. Not executing "
+                     "initialize on them.",
+                     self._platform_id, instrument_ids)
+            return children_with_errors   # that is, none.
+
+        log.debug("%r: initializing instruments %s", self._platform_id, valid_clients)
+        for instrument_id in valid_clients:
+            err_msg = self._initialize_instrument(instrument_id)
+            if err_msg is not None:
+                children_with_errors[instrument_id] = err_msg
+
+        log.debug("%r: _instruments_initialize completed. children_with_errors=%s",
+                  self._platform_id, children_with_errors)
 
         return children_with_errors
 
@@ -2075,10 +2130,10 @@ class PlatformAgent(ResourceAgent):
 
         if command:
             log.debug("%r: executing command %r on my instruments: %s",
-                      self._platform_id, command, str(instrument_ids))
+                      self._platform_id, command, valid_clients.keys())
         else:
             log.debug("%r: executing command on my instruments: %s",
-                      self._platform_id, str(instrument_ids))
+                      self._platform_id, valid_clients.keys())
 
         for instrument_id in valid_clients:
             if expected_state:
@@ -2165,9 +2220,11 @@ class PlatformAgent(ResourceAgent):
         ("shutting down" an instrument is just resetting it if not already in
         UNINITIALIZED state).
 
-        Note that invalidated children are ignored.
+        Note that only a warning is logged out if the child is invalidated.
 
-        @return None if all OK; otherwise an error message.
+        @return None if the shutdown and termination completed without errors
+                or the child is marked invalidated.
+                Otherwise a string with an error message.
         """
 
         if self._ia_clients[instrument_id] == _INVALIDATED_CHILD:
