@@ -1609,29 +1609,30 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         }
 
         retval = IonObject(OT.ComputedStringValue)
-        ia_client, _ = self.agent_status_builder.get_device_agent(taskable_resource_id)
-        if ia_client:
-            try:
-                state = ia_client.get_agent_state()
-                if resource_agent_state_labels.has_key(state):
-                    retval.value = resource_agent_state_labels[ state ]
-                    retval.status = ComputedValueAvailability.PROVIDED
-                else:
-                    retval.value = 'UNKNOWN'
-                    retval.status = ComputedValueAvailability.NOTAVAILABLE
-                    retval.reason = "State not returned in agent response"
+        ia_client, reason = self.agent_status_builder.get_device_agent(taskable_resource_id)
 
-            except Unauthorized:
-                retval.value = 'UNKNOWN'
-                retval.status = ComputedValueAvailability.NOTAVAILABLE
-                retval.reason = "The requester does not have the proper role to access the status of this agent"
-
-            except Exception as e:
-                raise e
-
-        else:
+        # early exit for no client
+        if ia_client is None:
             retval.value = 'UNKNOWN'
             retval.status = ComputedValueAvailability.NOTAVAILABLE
+            retval.reason = reason
+            return retval
+
+        try:
+            state = ia_client.get_agent_state()
+            if resource_agent_state_labels.has_key(state):
+                retval.value = resource_agent_state_labels[ state ]
+                retval.status = ComputedValueAvailability.PROVIDED
+            else:
+                retval.value = 'UNKNOWN'
+                retval.status = ComputedValueAvailability.NOTAVAILABLE
+                retval.reason = "State not returned in agent response"
+
+        except Unauthorized:
+            retval.value = 'UNKNOWN'
+            retval.status = ComputedValueAvailability.NOTAVAILABLE
+            retval.reason = "The requester does not have the proper role to access the status of this agent"
+
 
         return retval
 
