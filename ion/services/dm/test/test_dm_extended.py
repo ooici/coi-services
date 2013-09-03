@@ -10,6 +10,8 @@ from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgo
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
+from ion.services.dm.utility.tmpsf_simulator import TMPSFSimulator
+from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.public import IonObject, RT, PRED, CFG
@@ -68,6 +70,16 @@ class TestDMExtended(DMTestCase):
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
     
+    def preload_tmpsf(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,TMPSF'
+        #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+    
     def create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
         workflow_def_ids,_ = self.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
@@ -113,6 +125,53 @@ class TestDMExtended(DMTestCase):
         self.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
 
         return procdef_id
+
+    @attr('UTIL')
+    def test_tmpsf_arrays(self):
+        self.preload_tmpsf()
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('tmpsf_sample', id_only=True)
+        stream_def_id = self.create_stream_definition('tmpsf', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('tmpsf', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+
+        rdt = ParameterHelper.rdt_for_data_product(data_product_id)
+        tomato = {'quality_flag': 'ok', 'preferred_timestamp':
+                'port_timestamp', 'internal_timestamp': 3223662780.0,
+                'stream_name': 'tmpsf_sample', 'values': [{'value_id':
+                    'timestamp', 'value': 3223662780.0}, {'value_id':
+                        'temperature', 'value': [21.4548, 21.0132, 20.9255,
+                            21.1266, 21.1341, 21.5606, 21.2156, 21.4749,
+                            21.3044, 21.132, 21.1798, 21.2352, 21.3488,
+                            21.1214, 21.6426, 21.1479, 21.0069, 21.5426,
+                            21.3204, 21.2402, 21.3968, 21.4371, 21.0411,
+                            21.4361]}, {'value_id': 'battery_voltage', 'value':
+                                11.5916}, {'value_id': 'serial_number',
+                                    'value': '021964'}], 'port_timestamp':
+                                1378230448.439269, 'driver_timestamp':
+                                3587219248.444593, 'pkt_format_id':
+                                'JSON_Data', 'pkt_version': 1}
+        from ion.agents.populate_rdt import populate_rdt
+        rdt = populate_rdt(rdt, [tomato])
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+
+        breakpoint(locals())
+
+
+    @attr('UTIL')
+    def test_hydrophone_simulator(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.crete_simple_array_pdict()
+        stream_def_id = self.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd hydrophone', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+
+        s = HydrophoneSimulator(data_product_id, interval=4)
+        breakpoint(locals())
+
+        s.stop()
+
 
     @attr('UTIL')
     def test_dm_realtime_visualization(self):
