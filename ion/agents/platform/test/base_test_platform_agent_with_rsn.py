@@ -326,6 +326,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         # instruments that have been set up: instr_key: i_obj
         self._setup_instruments = {}
 
+        # see _set_additional_extra_fields_for_platform_configuration
+        self._additional_extra_fields = {}
+
         # see _set_receive_timeout
         self._receive_timeout = 177
 
@@ -565,6 +568,24 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._verify_child_config(config['children'][child_device_id],
                                   child_device_id, is_platform)
 
+    def _set_additional_extra_fields_for_platform_configuration(self, platform_id,
+                                                                extra_fields):
+        """
+        Allows to indicate extra fields (which are used only once) for the
+        creation of the very next RT.PlatformAgentInstance corresponding to
+        the given platform_id.
+
+        (This convenience method was introduced to include testing for
+        https://jira.oceanobservatories.org/tasks/browse/OOIION-1268.
+        See test_alerts in test_platform_agent_with_rsn.py.)
+
+        @param platform_id   The ID of the platform to which the
+                             additional extra fields will be used.
+
+        @param extra_fields  the extra fields.
+        """
+        self._additional_extra_fields[platform_id] = extra_fields
+
     def _create_platform_configuration(self, platform_id, parent_platform_id=None):
         """
         This method is an adaptation of test_agent_instance_config in
@@ -600,8 +621,16 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             log.debug("driver_config: %s", driver_config)
 
             # instance creation
-            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance, {
-                'driver_config': driver_config})
+            extra_fields = {'driver_config': driver_config}
+
+            # any additional extra fields?
+            if platform_id in self._additional_extra_fields:
+                add_fields = self._additional_extra_fields[platform_id]
+                log.debug("adding extra fields for platform_id=%r: %s", platform_id, add_fields)
+                extra_fields.update(add_fields)
+                del self._additional_extra_fields[platform_id]
+
+            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance, extra_fields)
             platform_agent_instance_obj.agent_config = agent_config
             platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
 
