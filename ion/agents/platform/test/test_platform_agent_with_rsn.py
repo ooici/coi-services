@@ -844,6 +844,12 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._stop_resource_monitoring()
 
     def test_alerts(self):
+        #
+        # Tests alert processing/publication from the platform agent. Both
+        # alert definitions passed via configuration and alert definitions
+        # passed via the agent's set_agent({'alerts' : alert_defs}) method
+        # are tested.
+        #
 
         def start_DeviceStatusAlertEvent_subscriber(value_id, sub_type):
             """
@@ -876,36 +882,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
             return async_event_result
 
-        self._create_network_and_start_root_platform()
-
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
-        self._ping_agent()
-
-        self._initialize()
-
-        retval = self._pa_client.get_agent(['alerts'])['alerts']
-        self.assertEquals([], retval, "No alerts must have been defined here")
-
-        # define some alerts:
-        # NOTE: see ion/agents/platform/rsn/simulator/oms_values.py for the
-        # sinusoidal waveforms that are generated; here we depend on those
-        # ranges to indicate the upper_bounds for these alarms; for example,
-        # input_voltage fluctuates within -500.0 to +500, so we specify
-        # upper_bound = 400.0 to see the alert being published.
-        alert_defs = [
+        # before the creation of the network, set some alert defs for the
+        # configuration of the root platform we are testing:
+        alerts_for_config = [
             {
-                'name'           : 'input_voltage_warning_interval',
-                'stream_name'    : 'parsed',
-                'value_id'       : 'input_voltage',
-                'description'    : 'input_voltage is above normal range.',
-                'alert_type'     : StreamAlertType.WARNING,
-                'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-                'lower_bound'    : None,
-                'lower_rel_op'   : None,
-                'upper_bound'    : 400.0,
-                'upper_rel_op'   : '<',
-                'alert_class'    : 'IntervalAlert'
-            }, {
                 'name'           : 'input_bus_current_warning_interval',
                 'stream_name'    : 'parsed',
                 'value_id'       : 'input_bus_current',
@@ -918,12 +898,53 @@ class TestPlatformAgent(BaseIntTestPlatform):
                 'upper_rel_op'   : '<',
                 'alert_class'    : 'IntervalAlert'
             }]
+        self._set_additional_extra_fields_for_platform_configuration(
+            self.PLATFORM_ID, {'alerts': alerts_for_config})
+
+        self._create_network_and_start_root_platform()
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+
+        # verify we get reported the configured alerts:
+        configed_alerts = self._pa_client.get_agent(['alerts'])['alerts']
+        self.assertEquals(len(alerts_for_config), len(configed_alerts),
+                          "must have %d alerts defined from configuration but got %d" % (
+                          len(alerts_for_config), len(configed_alerts)))
+
+        # define some additional alerts:
+        # NOTE: see ion/agents/platform/rsn/simulator/oms_values.py for the
+        # sinusoidal waveforms that are generated; here we depend on those
+        # ranges to indicate the upper_bounds for these alarms; for example,
+        # input_voltage fluctuates within -500.0 to +500, so we specify
+        # upper_bound = 400.0 to see the alert being published.
+        new_alert_defs = [
+            {
+                'name'           : 'input_voltage_warning_interval',
+                'stream_name'    : 'parsed',
+                'value_id'       : 'input_voltage',
+                'description'    : 'input_voltage is above normal range.',
+                'alert_type'     : StreamAlertType.WARNING,
+                'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+                'lower_bound'    : None,
+                'lower_rel_op'   : None,
+                'upper_bound'    : 400.0,
+                'upper_rel_op'   : '<',
+                'alert_class'    : 'IntervalAlert'
+            }]
+
+        # All the alerts to be set: the configured ones plus the new ones above:
+        alert_defs = configed_alerts + new_alert_defs
 
         self._pa_client.set_agent({'alerts' : alert_defs})
 
         retval = self._pa_client.get_agent(['alerts'])['alerts']
         log.debug('alerts: %s', self._pp.pformat(retval))
-        self.assertEquals(2, len(retval), "must have 2 alerts defined here")
+        self.assertEquals(len(alert_defs), len(retval),
+                          "must have %d alerts defined here but got %d" % (
+                          len(alert_defs), len(retval)))
 
         self._go_active()
         self._run()
@@ -932,6 +953,9 @@ class TestPlatformAgent(BaseIntTestPlatform):
         # prepare to receive alert publications:
         # note: as the values for the above streams fluctuate we should get
         # both WARNING and ALL_CLEAR events:
+
+        # NOTE that the verifications below are for both the configured
+        # alerts and the additional alerts set via set_agent.
 
         async_event_result1 = start_DeviceStatusAlertEvent_subscriber(
             value_id="input_voltage",
@@ -952,9 +976,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._start_resource_monitoring()
 
         # wait for the expected DeviceStatusAlertEvent events:
-        async_event_result1.get(timeout=30)
-        async_event_result2.get(timeout=30)
-        async_event_result3.get(timeout=30)
-        async_event_result4.get(timeout=30)
+        # (60sec timeout enough for the sine periods associated to the streams)
+        async_event_result1.get(timeout=60)
+        async_event_result2.get(timeout=60)
+        async_event_result3.get(timeout=60)
+        async_event_result4.get(timeout=60)
 
         self._stop_resource_monitoring()
