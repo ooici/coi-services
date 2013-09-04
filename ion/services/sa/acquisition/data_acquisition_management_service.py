@@ -610,8 +610,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         process_definition = ProcessDefinition()
         process_definition.name = "ProcessDefinition for ExternalDatasetAgent %s" % external_dataset_agent.name
         process_definition.executable['url'] = external_dataset_agent.agent_uri
-        process_definition.executable['module'] = external_dataset_agent.agent_module or 'ion.agents.data.simple_dataset_agent'
-        process_definition.executable['class'] = external_dataset_agent.agent_class or 'TwoDelegateDatasetAgent'
+        process_definition.executable['module'] = external_dataset_agent.agent_module or 'ion.agents.data.dataset_agent'
+        process_definition.executable['class'] = external_dataset_agent.agent_class or 'DataSetAgent'
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
         log.debug("external_dataset_agent has process definition id %s", process_definition_id)
 
@@ -686,7 +686,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #todo: may want to call retrieve_external_dataset_agent_instance here
         #todo: if instance running, then return or throw
         #todo: if instance exists and dataset_agent_instance_obj.dataset_agent_config is completd then just schedule_process
-
         dataset_agent_instance_obj = self.clients.resource_registry.read(external_dataset_agent_instance_id)
 
         # can be a Device or ExternalDataset
@@ -731,6 +730,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         try:
             config_builder.set_agent_instance_object(dataset_agent_instance_obj)
             config = config_builder.prepare()
+            log.trace("Using dataset agent configuration: %s", config)
             # import pprint
             # pprint.pprint(config)
         except:
