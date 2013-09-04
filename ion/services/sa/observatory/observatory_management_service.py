@@ -1006,7 +1006,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             extended_site.sites_devices = []
             for ch_site in extended_site.sites:
                 device_id = self._get_site_device(ch_site._id, device_relations)
-                extended_site.sites_devices.append(devices_by_id.get(device_id, None))
+                next_device = devices_by_id.get(device_id, None)
+                if next_device is not None and next_device in extended_site.sites_devices:
+                    log.warn("Device '%s' (%s) is already in extended_site.sites_devices; adding duplicate entry",
+                             next_device.name, next_device._id)
+                extended_site.sites_devices.append(next_device)
             extended_site.portal_instruments = extended_site.sites_devices   # ALIAS
 
             # Set deployments
@@ -1093,8 +1097,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         log.debug("Found all device statuses: %s", all_device_statuses)
 
         # portal status rollup
-        portal_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k._id, {})) if k else DeviceStatusType.STATUS_UNKNOWN for k in extended_site.portal_instruments]
-        extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=portal_status)
+        portal_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k._id, {}))
+                         if k else DeviceStatusType.STATUS_UNKNOWN for k in extended_site.portal_instruments]
+        extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED,
+                                                                 value=portal_status)
 
         log.debug("generating site status rollup")
         site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s._id for s in extended_site.sites])
@@ -1282,8 +1288,23 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         models = self.RR.read_mult( list(model_ids) )
         model_by_id = { o._id: o for o in models }
 
-        extended_deployment.instrument_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.instrument_devices ]
-        extended_deployment.platform_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.platform_devices ]
+        extended_deployment.instrument_models = [ model_by_id[model_id_by_device[d._id]]
+                                                  for d in extended_deployment.instrument_devices ]
+        extended_deployment.platform_models = [ model_by_id[model_id_by_device[d._id]]
+                                                for d in extended_deployment.platform_devices ]
+
+        extended_deployment.portal_instruments = []
+        for p in extended_deployment.computed.portals.value:
+            # TODO: as defined above, device_by_id has only one entry.  Is this correct?
+            if p._id not in device_by_site or device_by_site[p._id] not in device_by_id:
+                extended_deployment.portal_instruments.append(None)
+            else:
+                new_entry = device_by_id[device_by_site[p._id]]
+                if new_entry in extended_deployment.portal_instruments:
+                    log.warn("Device '%s' (%s) is already in extended_deployment.portal_instruments; adding duplicate")
+                    
+
+
         extended_deployment.portal_instruments = [ device_by_id[device_by_site[p._id]]
                                                    if p._id in device_by_site and device_by_site[p._id] in device_by_id
                                                    else None
