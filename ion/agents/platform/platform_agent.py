@@ -3237,6 +3237,12 @@ class PlatformAgent(ResourceAgent):
         if aparam_alerts_config and 'alerts' in aparams:
             self.aparam_set_alerts(aparam_alerts_config)
 
+    def _restore_resource(self, state, prev_state):
+        """
+        Restore agent/resource configuration and state.
+        """
+        log.warn("%r: PlatformAgent._restore_resource not implemented yet" % self._platform_id)
+
     ##############################################################
     # Base class overrides for state and cmd error alerts.
     ##############################################################
