@@ -51,6 +51,7 @@ from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
+from pyon.public import IonObject
 
 from gevent import sleep
 from gevent.event import AsyncResult
