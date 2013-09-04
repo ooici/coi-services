@@ -53,6 +53,7 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 
 from ion.agents.platform.rsn.test.oms_test_mixin import OmsTestMixin
 
+import unittest
 import pprint
 
 import gevent
@@ -180,7 +181,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 #            pnode.add_attribute(attr)
         return attr_infos
 
-    # @unittest.skip('Still in construction...')
+    @unittest.skip('Still in construction...')
     def test_platform_with_instrument_streaming(self):
         #
         # The following is with just a single platform and the single
