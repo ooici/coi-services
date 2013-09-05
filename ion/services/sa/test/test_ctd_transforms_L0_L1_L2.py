@@ -16,7 +16,6 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 import ion.agents.instrument.test.test_instrument_agent
 from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from nose.plugins.attrib import attr
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -37,46 +36,6 @@ from interface.objects import ProcessStateEnum, StreamConfiguration, AgentComman
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
-# Used to validate param config retrieved from driver.
-PARAMS = {
-    SBE37Parameter.OUTPUTSAL : bool,
-    SBE37Parameter.OUTPUTSV : bool,
-    SBE37Parameter.NAVG : int,
-    SBE37Parameter.SAMPLENUM : int,
-    SBE37Parameter.INTERVAL : int,
-    SBE37Parameter.STORETIME : bool,
-    SBE37Parameter.TXREALTIME : bool,
-    SBE37Parameter.SYNCMODE : bool,
-    SBE37Parameter.SYNCWAIT : int,
-    SBE37Parameter.TCALDATE : tuple,
-    SBE37Parameter.TA0 : float,
-    SBE37Parameter.TA1 : float,
-    SBE37Parameter.TA2 : float,
-    SBE37Parameter.TA3 : float,
-    SBE37Parameter.CCALDATE : tuple,
-    SBE37Parameter.CG : float,
-    SBE37Parameter.CH : float,
-    SBE37Parameter.CI : float,
-    SBE37Parameter.CJ : float,
-    SBE37Parameter.WBOTC : float,
-    SBE37Parameter.CTCOR : float,
-    SBE37Parameter.CPCOR : float,
-    SBE37Parameter.PCALDATE : tuple,
-    SBE37Parameter.PA0 : float,
-    SBE37Parameter.PA1 : float,
-    SBE37Parameter.PA2 : float,
-    SBE37Parameter.PTCA0 : float,
-    SBE37Parameter.PTCA1 : float,
-    SBE37Parameter.PTCA2 : float,
-    SBE37Parameter.PTCB0 : float,
-    SBE37Parameter.PTCB1 : float,
-    SBE37Parameter.PTCB2 : float,
-    SBE37Parameter.POFFSET : float,
-    SBE37Parameter.RCALDATE : tuple,
-    SBE37Parameter.RTCA0 : float,
-    SBE37Parameter.RTCA1 : float,
-    SBE37Parameter.RTCA2 : float
-}
 
 class FakeProcess(LocalContextMixin):
     """
@@ -99,7 +58,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #container = Container()
         #print 'starting container'
         #container.start()
-        #print 'started container'
+        #print 'started container
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 

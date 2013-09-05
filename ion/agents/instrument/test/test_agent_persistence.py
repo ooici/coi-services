@@ -138,9 +138,6 @@ with open(egg,'r') as f:
 if not egg in sys.path: sys.path.insert(0, egg)
 
 # Load MI modules from the egg
-from mi.core.instrument.instrument_driver import DriverProtocolState
-from mi.core.instrument.instrument_driver import DriverConnectionState
-from mi.core.exceptions import InstrumentParameterException
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 

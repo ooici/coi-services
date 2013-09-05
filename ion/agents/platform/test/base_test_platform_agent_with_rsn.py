@@ -1616,7 +1616,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
     def _stream_instruments(self):
         from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
         for instrument in  self._setup_instruments.itervalues():
             # instruments that have been set up: instr_key: i_obj
@@ -1632,7 +1631,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
     def _idle_instruments(self):
         from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
         for instrument in  self._setup_instruments.itervalues():
             # instruments that have been set up: instr_key: i_obj
