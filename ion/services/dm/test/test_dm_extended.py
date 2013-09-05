@@ -11,13 +11,14 @@ from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.services.dm.utility.tmpsf_simulator import TMPSFSimulator
+from ion.util.direct_coverage_utils import DirectCoverageAccess
 from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
-from pyon.public import IonObject, RT, PRED, CFG
+from pyon.public import IonObject, RT, CFG
 from pyon.util.containers import DotDict
 import numpy as np
-import unittest
+import time
 
 class TestDMExtended(DMTestCase):
     '''
@@ -78,6 +79,17 @@ class TestDMExtended(DMTestCase):
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA,TMPSF'
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+    
+    def preload_example1(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,EXAMPLE1'
+        config.path = 'master'
+        #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
     
     def create_google_dt_workflow_def(self):
@@ -369,4 +381,32 @@ class TestDMExtended(DMTestCase):
 
         breakpoint(locals())
 
+    @attr("UTIL")
+    def test_example_preload(self):
+        print 'preloading...'
+        self.preload_example1()
+
+        data_product_ids, _ = self.container.resource_registry.find_resources_ext(alt_id='DPROD102', alt_id_ns='PRE')
+        data_product_id = data_product_ids[0]
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+
+        with DirectCoverageAccess() as dca:
+            dca.upload_calibration_coefficients(dataset_id, 'test_data/sbe16coeffs.csv', 'test_data/sbe16coeffs.yml')
+
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        rdt = ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = [time.time() + 2208988800]
+        rdt['temperature'] = [248471]
+        rdt['pressure'] = [528418]
+        rdt['conductivity'] = [1673175]
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ph.publish_rdt_to_data_product(data_product_id, rdt)
+        dataset_monitor.event.wait(10)
+        g = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(g)
+
+        breakpoint(locals())
 

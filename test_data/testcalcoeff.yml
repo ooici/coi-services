@@ -29,3 +29,4 @@ header_size: 9 # Defaults to 0 if not specified
 #####################################################################################
 column_map: # Defaults to None, meaning no per-column overriding is applied
   0: {dtype: S9, fill_val: ''}
+
