@@ -316,6 +316,7 @@ class IntervalAlert(StreamValueAlert):
         self._upper_bound = None
         self._upper_rel_op = None
         self._lower_rel_op = None
+        self._current_value_id = None
 
         assert (isinstance(lower_bound, (int, float)) \
                 or isinstance(upper_bound, (int, float)))
@@ -338,6 +339,12 @@ class IntervalAlert(StreamValueAlert):
         status['upper_rel_op'] = self._upper_rel_op
         return status
 
+    def make_event_data(self):
+        event_data = super(IntervalAlert, self).make_event_data()
+        event_data['description'] =  "Alert triggered by out of range data values: %s " % self._current_value_id
+        event_data['values'] = [self._current_value]
+        return event_data
+
     def eval_alert(self, stream_name=None, value=None, value_id=None, **kwargs):
 
         if stream_name != self._stream_name or value_id != self._value_id \
@@ -346,6 +353,7 @@ class IntervalAlert(StreamValueAlert):
 
         self._current_value = value
         self._prev_status = self._status
+        self._current_value_id = value_id
         
         if self._lower_bound and self._upper_bound:
             if self._lower_rel_op == '<=':
@@ -411,7 +419,6 @@ class RSNEventAlert(BaseAlert):
 
         self._name = name
         self._stream_name = stream_name
-        self._message = message
         self._alert_type = alert_type
         self._aggregate_type = aggregate_type
         self._value_id = value_id
@@ -519,6 +526,11 @@ class LateDataAlert(StreamAlert):
         status = super(LateDataAlert, self).get_status()
         status['time_delta'] = self._time_delta
         return status
+
+    def make_event_data(self):
+        event_data = super(LateDataAlert, self).make_event_data()
+        event_data['values'] = None
+        return event_data
 
     def eval_alert(self, stream_name=None, **kwargs):
         if stream_name != self._stream_name:

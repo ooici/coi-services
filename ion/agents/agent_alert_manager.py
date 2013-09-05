@@ -46,7 +46,7 @@ class AgentAlertManager(object):
         # update the aggreate status for this device
         self._process_aggregate_alerts()
         
-    def _update_aggstatus(self, aggregate_type, new_status):
+    def _update_aggstatus(self, aggregate_type, new_status, alerts_list):
         """
         Called by this manager to set a new status value for an aggstatus type.
 
@@ -65,7 +65,7 @@ class AgentAlertManager(object):
 
         old_status = self._agent.aparam_aggstatus[aggregate_type]
         self._agent.aparam_aggstatus[aggregate_type] = new_status
-        self._publish_agg_status_event(aggregate_type, new_status, old_status)
+        self._publish_agg_status_event(aggregate_type, new_status, old_status, alerts_list )
 
     def _process_aggregate_alerts(self):
         """
@@ -73,6 +73,7 @@ class AgentAlertManager(object):
         """
         #init working status
         updated_status = {}
+        agg_alerts = {}
         for aggregate_type in AggregateStatusType._str_map.keys():
             updated_status[aggregate_type] = DeviceStatusType.STATUS_OK
 
@@ -84,6 +85,15 @@ class AgentAlertManager(object):
 
                 #get the current value for this aggregate status
                 current_agg_state = updated_status[ a._aggregate_type ]
+
+                #check if the status of this alert has changed, if so save for event description
+                if a._prev_status != a._status:
+
+                    if a._aggregate_type in agg_alerts:
+                        agg_alerts[a._aggregate_type].append(a._name)
+                    else:
+                        agg_alerts[a._aggregate_type]= [a._name]
+
                 if a._status is not None:
                     if a._status is True:
                         # this alert is not 'tripped' so the status is OK
@@ -101,9 +111,12 @@ class AgentAlertManager(object):
         #compare old state with new state and publish alerts for any agg status that has changed.
         for aggregate_type in AggregateStatusType._str_map.keys():
             if updated_status[aggregate_type] != self._agent.aparam_aggstatus[aggregate_type]:
-                self._update_aggstatus(aggregate_type, updated_status[aggregate_type])
+                alerts_list = None
+                if aggregate_type in agg_alerts:
+                    alerts_list =  agg_alerts[aggregate_type]
+                self._update_aggstatus(aggregate_type, updated_status[aggregate_type], alerts_list)
 
-    def _publish_agg_status_event(self, status_type, new_status, old_status):
+    def _publish_agg_status_event(self, status_type, new_status, old_status, alerts_list):
         """
         Publish resource config change event.
         """
@@ -111,6 +124,7 @@ class AgentAlertManager(object):
         evt_out = dict(event_type='DeviceAggregateStatusEvent',
                        origin_type=self._agent.__class__.ORIGIN_TYPE,
                        origin=self._agent.resource_id,
+                       values = alerts_list,
                        status_name=status_type,
                        status=new_status,
                        prev_status=old_status)
