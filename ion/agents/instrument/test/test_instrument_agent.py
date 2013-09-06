@@ -105,8 +105,6 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 ###############################################################################
 
 # Real and simulated devcies we test against.
-DEV_ADDR = CFG.device.sbe37.host
-DEV_PORT = CFG.device.sbe37.port
 #DEV_ADDR = 'localhost'
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
@@ -120,62 +118,24 @@ DATA_PORT = CFG.device.sbe37.port_agent_data_port
 CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
 PA_BINARY = CFG.device.sbe37.port_agent_binary
 
-# Work dir and logger delimiter.
-WORK_DIR = '/tmp/'
-DELIM = ['<<','>>']
-
-from ion.agents.instrument.instrument_agent import InstrumentAgent
-# Agent parameters.
-IA_RESOURCE_ID = '123xyz'
-IA_NAME = 'Agent007'
-IA_MOD = 'ion.agents.instrument.instrument_agent'
-IA_CLS = 'InstrumentAgent'
-
-# A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.5-py2.7.egg'
-DRV_SHA_0_1_1 = '28e1b59708d72e008b0aa68ea7392d3a2467f393'
-DRV_SHA_0_1_5 = '51ce182316f4f9dce336a76164276cb4749b77a5'
-DRV_SHA = DRV_SHA_0_1_5
-DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
-DRV_CLS = 'SBE37Driver'
-
-# these defintions will be referenced by other tests
-#  404: bad URI; BAD: driver will launch but commands will fail; GOOD: launch and commanding will succeed
-DRV_URI_GOOD = DRV_URI
-DRV_URI_BAD  = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1a-py2.7.egg"
-DRV_URI_404  = "http://sddevrepo.oceanobservatories.org/releases/completely_made_up_404.egg"
-
-# Driver config.
-# DVR_CONFIG['comms_config']['port'] is set by the setup.
-DVR_CONFIG = {
-    'dvr_egg' : DRV_URI,
-    'dvr_mod' : DRV_MOD,
-    'dvr_cls' : DRV_CLS,
-    'workdir' : WORK_DIR,
-    'process_type' : None
-}
+from ion.agents.instrument.test.agent_test_constants import WORK_DIR
+from ion.agents.instrument.test.agent_test_constants import DELIM
+from ion.agents.instrument.test.agent_test_constants import IA_RESOURCE_ID
+from ion.agents.instrument.test.agent_test_constants import IA_NAME
+from ion.agents.instrument.test.agent_test_constants import IA_MOD
+from ion.agents.instrument.test.agent_test_constants import IA_CLS
+from ion.agents.instrument.test.agent_test_constants import DRV_URI
 
 # Launch from egg or a local MI repo.
 LAUNCH_FROM_EGG=True
-
 if LAUNCH_FROM_EGG:
-    # Dynamically load the egg into the test path
-    launcher = ZMQEggDriverProcess(DVR_CONFIG)
-    egg = launcher._get_egg(DRV_URI)
-    from hashlib import sha1
-    with open(egg,'r') as f:
-        doc = f.read()
-        sha = sha1(doc).hexdigest()
-        if sha != DRV_SHA:
-            raise ImportError('Failed to load driver %s: incorrect checksum.  (%s!=%s)' % (DRV_URI, DRV_SHA, sha))
-    if not egg in sys.path: sys.path.insert(0, egg)
-    DVR_CONFIG['process_type'] = (DriverProcessType.EGG,)
+    from ion.agents.instrument.test.load_test_driver_egg import load_egg
+    DVR_CONFIG = load_egg()
 
 else:
-    mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'mi_repo'
-    if not mi_repo in sys.path: sys.path.insert(0, mi_repo)
-    DVR_CONFIG['process_type'] = (DriverProcessType.PYTHON_MODULE,)
-    DVR_CONFIG['mi_repo'] = mi_repo
+    mi_repo = '/path/to/your/local/mi/repo'
+    from ion.agents.instrument.test.load_test_driver_egg import load_repo
+    DVR_CONFIG = load_repo(mi_repo)
 
 # Load MI modules from the egg
 from mi.core.instrument.instrument_driver import DriverProtocolState

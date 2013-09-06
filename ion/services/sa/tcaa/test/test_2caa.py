@@ -56,23 +56,23 @@ from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 
 # IA config imports.
-from ion.agents.instrument.test.test_instrument_agent import DRV_MOD
-from ion.agents.instrument.test.test_instrument_agent import DRV_CLS
-from ion.agents.instrument.test.test_instrument_agent import DVR_CONFIG
-from ion.agents.instrument.test.test_instrument_agent import DEV_ADDR
-from ion.agents.instrument.test.test_instrument_agent import DEV_PORT
-from ion.agents.instrument.test.test_instrument_agent import DATA_PORT
-from ion.agents.instrument.test.test_instrument_agent import CMD_PORT
-from ion.agents.instrument.test.test_instrument_agent import PA_BINARY
-from ion.agents.instrument.test.test_instrument_agent import DELIM
-from ion.agents.instrument.test.test_instrument_agent import WORK_DIR
-from ion.agents.instrument.test.test_instrument_agent import IA_RESOURCE_ID
-from ion.agents.instrument.test.test_instrument_agent import IA_NAME
-from ion.agents.instrument.test.test_instrument_agent import IA_MOD
-from ion.agents.instrument.test.test_instrument_agent import IA_CLS
+DEV_ADDR = CFG.device.sbe37.host
+DEV_PORT = CFG.device.sbe37.port
+DATA_PORT = CFG.device.sbe37.port_agent_data_port
+CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
+PA_BINARY = CFG.device.sbe37.port_agent_binary
+from ion.agents.instrument.test.agent_test_constants import DRV_MOD
+from ion.agents.instrument.test.agent_test_constants import DRV_CLS
+from ion.agents.instrument.test.agent_test_constants import DVR_CONFIG
+from ion.agents.instrument.test.agent_test_constants import DELIM
+from ion.agents.instrument.test.agent_test_constants import WORK_DIR
+from ion.agents.instrument.test.agent_test_constants import IA_RESOURCE_ID
+from ion.agents.instrument.test.agent_test_constants import IA_NAME
+from ion.agents.instrument.test.agent_test_constants import IA_MOD
+from ion.agents.instrument.test.agent_test_constants import IA_CLS
+
 
 # IA launch imports.
-from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 
 # bin/nosetests -s -v --nologcapture ion/services/sa/tcaa/test/test_2caa.py:Test2CAA

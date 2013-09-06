@@ -20,7 +20,8 @@ import pyon.core.exception as pyex
 from pyon.core.bootstrap import IonObject
 from pyon.core.object import IonObjectSerializer
 from pyon.agent.agent import ResourceAgentClient
-from ion.agents.instrument.test.test_instrument_agent import InstrumentAgentTest, IA_RESOURCE_ID
+from ion.agents.instrument.test.test_instrument_agent import InstrumentAgentTest
+from ion.agents.instrument.test.agent_test_constants import IA_RESOURCE_ID
 
 from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
 

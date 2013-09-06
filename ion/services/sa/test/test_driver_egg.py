@@ -33,11 +33,14 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum, ComputedStringValue
 
+# Load current seabird egg.
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+load_egg()
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD, DRV_URI_BAD, DRV_URI_404
+from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD, DRV_URI_BAD, DRV_URI_404
 
 import unittest
 

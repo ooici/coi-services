@@ -25,7 +25,7 @@ from nose.plugins.attrib import attr
 
 from interface.objects import StreamConfiguration
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
+from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
 from ion.services.dm.utility.granule_utils import time_series_domain
 import base64
 import unittest

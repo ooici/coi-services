@@ -12,9 +12,14 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
+
+# Load current seabird egg.
+
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+DRV_URI_GOOD = load_egg()['dvr_egg']
+
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 from nose.plugins.attrib import attr

@@ -15,7 +15,6 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 
 from ion.services.dm.utility.granule_utils import time_series_domain
 

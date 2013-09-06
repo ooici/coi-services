@@ -43,7 +43,7 @@ from pyon.public import CFG
 
 import sys
 from ion.agents.instrument.driver_process import ZMQEggDriverProcess
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
+from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
 
 # A seabird driver.
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'

@@ -14,12 +14,18 @@ from interface.objects import StreamConfiguration, ProcessStateEnum, AgentComman
 from nose.plugins.attrib import attr
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState, ResourceAgentEvent
 import ion.agents.instrument.test.test_instrument_agent
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
+from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.services.dm.utility.granule import RecordDictionaryTool
+
 import unittest
 import os
+
+# This will load the current seabird egg into the path to make mi imports available.
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+load_egg()
+
 
 @attr('INT', group='dm')
 class TestInstrumentIntegration(DMTestCase):

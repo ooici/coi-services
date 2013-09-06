@@ -51,7 +51,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
+from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
 
 class FakeProcess(LocalContextMixin):
     """

@@ -25,7 +25,11 @@ from interface.objects import AgentCommand, StreamConfiguration, ProcessStateEnu
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
+
+# Load current seabird egg.
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+DRV_URI_GOOD = load_egg()['dvr_egg']
+
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent

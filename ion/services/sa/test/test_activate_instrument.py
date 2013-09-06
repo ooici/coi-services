@@ -18,8 +18,8 @@ from interface.services.dm.idata_retriever_service import DataRetrieverServiceCl
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
-import ion.agents.instrument.test.test_instrument_agent
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+DRV_URI_GOOD = load_egg()['dvr_egg']
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -58,6 +58,7 @@ from mock import patch
 import time
 
 use_es = CFG.get_safe('system.elasticsearch',False)
+
 
 class FakeProcess(LocalContextMixin):
     """

@@ -28,15 +28,18 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
+
 from interface.objects import ProcessStateEnum, StreamConfiguration, AgentCommand, ProcessDefinition, ComputedStringValue, DataProduct
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
-import ion.agents.instrument.test.test_instrument_agent
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+DRV_URI_GOOD = load_egg()['dvr_egg']
+
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+
 #from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from mock import patch

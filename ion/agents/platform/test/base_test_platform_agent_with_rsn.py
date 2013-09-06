@@ -98,7 +98,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from ion.services.sa.test.helpers import any_old, AgentProcessStateGate
 
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
-from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
+from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
 
 
 ###############################################################################
