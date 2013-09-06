@@ -54,6 +54,7 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.platform.rsn.test.oms_test_mixin import OmsTestMixin
 
 import unittest
+import pprint
 
 import gevent
 from gevent.event import AsyncResult
@@ -123,6 +124,22 @@ class TestPlatformInstrument(BaseIntTestPlatform):
     def setUp(self):
         self._start_container()
 
+        self._pp = pprint.PrettyPrinter()
+
+        log.debug("oms_uri = %s", OMS_URI)
+        self.oms = CIOMSClientFactory.create_instance(OMS_URI)
+
+        self._get_platform_attributes()
+
+        url = OmsTestMixin.start_http_server()
+        log.info("TestPlatformInstrument:setup http url %s", url)
+
+        result = self.oms.event.register_event_listener(url)
+        log.info("TestPlatformInstrument:setup register_event_listener result %s", result)
+
+#        response = self.oms.port.get_platform_ports('LPJBox_CI_Ben_Hall')
+#        log.info("TestPlatformInstrument:setup get_platform_ports %s", response)
+
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Now create client to DataProductManagementService
@@ -147,18 +164,6 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         self.platform_agent_instance_id = ''
         self._pa_client = ''
 
-        log.debug("oms_uri = %s", OMS_URI)
-        self.oms = CIOMSClientFactory.create_instance(OMS_URI)
-        url = OmsTestMixin.start_http_server()
-        log.info("TestPlatformInstrument:setup http url %s", url)
-
-        result = self.oms.event.register_event_listener(url)
-        log.info("TestPlatformInstrument:setup register_event_listener result %s", result)
-
-
-#        response = self.oms.port.get_platform_ports('LPJBox_CI_Ben_Hall')
-#        log.info("TestPlatformInstrument:setup get_platform_ports %s", response)
-
         def done():
             CIOMSClientFactory.destroy_instance(self.oms)
             event_notifications = OmsTestMixin.stop_http_server()
@@ -166,6 +171,15 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
         self.addCleanup(done)
 
+    def _get_platform_attributes(self):
+        attr_infos = self.oms.attr.get_platform_attributes('LPJBox_CI_Ben_Hall')
+        log.debug('_get_platform_attributes: %s', self._pp.pformat(attr_infos))
+
+#        ret_infos = attr_infos['LPJBox_CI_Ben_Hall']
+#        for attrName, attr_defn in ret_infos.iteritems():
+#            attr = AttrNode(attrName, attr_defn)
+#            pnode.add_attribute(attr)
+        return attr_infos
 
     @unittest.skip('Still in construction...')
     def test_platform_with_instrument_streaming(self):
@@ -474,20 +488,6 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
 
 
-
-
-    def _get_platform_attributes(self):
-        # Use the network definition provided by RSN OMS directly.
-        rsn_oms = CIOMSClientFactory.create_instance('http://alice:1234@10.180.80.10:9021/')
-        attr_infos = rsn_oms.attr.get_platform_attributes('LPJBox_CI_Ben_Hall')
-
-        log.debug('_get_platform_attributes: %s', attr_infos)
-
-#        ret_infos = attr_infos['LPJBox_CI_Ben_Hall']
-#        for attrName, attr_defn in ret_infos.iteritems():
-#            attr = AttrNode(attrName, attr_defn)
-#            pnode.add_attribute(attr)
-        return attr_infos
 
 
     def _start_platform(self):

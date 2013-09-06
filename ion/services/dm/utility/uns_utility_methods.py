@@ -415,9 +415,11 @@ def get_event_summary(event):
     elif "ResourceAgentResourceCommandEvent" in event_types:
         summary = "%s agent resource command '%s(%s)' executed: %s" % (event.origin_type, event.command, event.execute_command, "OK" if event.result is None else event.result)
     elif "DeviceAggregateStatusEvent" in event_types:
-        summary = "%s status change: %s  previous status: %s" % (AggregateStatusType._str_map.get(event.status_name,"???"), DeviceStatusType._str_map.get(event.status,"???"), DeviceStatusType._str_map.get(event.prev_status,"???"))
+        summary = "%s status change: %s  previous status: %s related alerts: %s" % (AggregateStatusType._str_map.get(event.status_name,"???"), DeviceStatusType._str_map.get(event.status,"???"), DeviceStatusType._str_map.get(event.prev_status,"???"), event.values)
     elif "DeviceStatusEvent" in event_types:
-        summary = "%s '%s' status change: %s" % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.status,"???"))
+        summary = "%s '%s' status change: %s   %s " % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.status,"???"), event.description)
+        if hasattr(event, 'values') and event.values:
+            summary  +=  " values: %s" % event.values
     elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
         summary = "Operator entered: %s" % event.description
 

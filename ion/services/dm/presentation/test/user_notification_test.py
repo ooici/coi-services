@@ -43,7 +43,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, ComputedValueAvailability
 from interface.objects import DeviceEvent, NotificationPreferences, NotificationDeliveryModeEnum
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
-from interface.objects import NotificationRequest, TemporalBounds, DeviceStatusType
+from interface.objects import NotificationRequest, TemporalBounds, DeviceStatusType, AggregateStatusType
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client
 
 use_es = CFG.get_safe('system.elasticsearch',False)
@@ -347,7 +347,15 @@ class UserNotificationEventsTest(PyonTestCase):
 
         dict(et='DeviceStatusEvent', o='ID_1', ot='PlatformDevice', st='input_voltage',
             attr=dict(status=DeviceStatusType.STATUS_OK,
-                description="Event to deliver the status of instrument.")),
+                description="Alert triggered by out of range data values: temp",
+                values=[15])),
+
+        dict(et='DeviceAggregateStatusEvent', o='ID_1', ot='PlatformDevice', st='',
+            attr=dict(status=DeviceStatusType.STATUS_WARNING,
+                prev_status=DeviceStatusType.STATUS_OK,
+                status_name=AggregateStatusType.AGGREGATE_DATA,
+                values=['TemperatureIntervalAlert'])),
+
     ]
 
     def test_get_recent_events(self):

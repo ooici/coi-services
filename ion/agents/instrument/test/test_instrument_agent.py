@@ -180,7 +180,6 @@ else:
 # Load MI modules from the egg
 from mi.core.instrument.instrument_driver import DriverProtocolState
 from mi.core.instrument.instrument_driver import DriverConnectionState
-from mi.core.exceptions import InstrumentParameterException
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 

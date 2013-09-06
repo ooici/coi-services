@@ -37,13 +37,14 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 import ion.agents.instrument.test.test_instrument_agent
 from ion.agents.instrument.test.test_instrument_agent import DRV_URI_GOOD
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+#from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from mock import patch
 import gevent
 from gevent import queue
 from nose.plugins.attrib import attr
 
+"""
 # Used to validate param config retrieved from driver.
 PARAMS = {
     SBE37Parameter.OUTPUTSAL : bool,
@@ -84,6 +85,7 @@ PARAMS = {
     SBE37Parameter.RTCA1 : float,
     SBE37Parameter.RTCA2 : float
 }
+"""
 
 class FakeProcess(LocalContextMixin):
     """

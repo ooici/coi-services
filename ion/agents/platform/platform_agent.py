@@ -324,6 +324,7 @@ class PlatformAgent(ResourceAgent):
         """
         - Validates the given configuration and does related preparations.
         - creates AgentAlertManager and StatusManager
+        - configures aparams if not already config'ed (see _configure_aparams)
         - Children agents (platforms and instruments) are launched here (in a
           separate greenlet).
         """
@@ -337,6 +338,11 @@ class PlatformAgent(ResourceAgent):
 
         # create StatusManager now that we have all needed elements:
         self._status_manager = StatusManager(self)
+
+        if self._configure_aparams_arg:
+            # see explanation in _configure_aparams
+            self._do_configure_aparams(self._configure_aparams_arg)
+            self._configure_aparams_arg = None
 
         self._async_children_launched = AsyncResult()
 
@@ -3185,6 +3191,57 @@ class PlatformAgent(ResourceAgent):
         result = self._shutdown(recursion)
 
         return next_state, result
+
+    ##############################################################
+    # Agent parameter functions.
+    ##############################################################
+
+    def _configure_aparams(self, aparams=None):
+        """
+        Configure aparams from agent config values.
+
+        **NOTE**:
+        the base class calls this as part of on_init, but the PlatforAgent
+        currently does much of its preparations in on_start, including the
+        set-up of the alert manager and the status manager. So, as a mechanism
+        to handle this, here we basically save the argument `aparams` for
+        actual processing during on_start.
+        """
+
+        log.debug("%r: _configure_aparams: aparams=%s" % (self._platform_id, aparams))
+
+        self._configure_aparams_arg = None
+
+        if self._aam:
+            # if we already have an alert manager, do the thing right away (but
+            # this is not the case at time of writing).
+            self._do_configure_aparams(aparams)
+        else:
+            # save the argument for subsequent processing in on_start:
+            self._configure_aparams_arg = aparams
+
+    def _do_configure_aparams(self, aparams):
+
+        aparams = aparams or []
+
+        # TODO: pubrate
+        # # If specified and configed, build the pubrate aparam.
+        # aparam_pubrate_config = self.CFG.get('aparam_pubrate_config', None)
+        # if aparam_pubrate_config and 'pubrate' in aparams:
+        #     self.aparam_set_pubrate(aparam_pubrate_config)
+
+        # If specified and configed, build the alerts aparam.
+        aparam_alerts_config = self.CFG.get('aparam_alerts_config', None)
+        log.debug("%r: _configure_aparams: aparam_alerts_config=%s" % (
+                  self._platform_id, aparam_alerts_config))
+        if aparam_alerts_config and 'alerts' in aparams:
+            self.aparam_set_alerts(aparam_alerts_config)
+
+    def _restore_resource(self, state, prev_state):
+        """
+        Restore agent/resource configuration and state.
+        """
+        log.warn("%r: PlatformAgent._restore_resource not implemented yet" % self._platform_id)
 
     ##############################################################
     # Base class overrides for state and cmd error alerts.

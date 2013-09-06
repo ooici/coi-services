@@ -2694,15 +2694,13 @@ Reason: %s
 
         driver_config = parse_dict(row['driver_config'])
         driver_config.update( {
-                'parser': {
-                    'config': parse_dict(row.get('parser_config')),
-                },
-                'harvester': {
-                    'config': parse_dict(row.get('harvester_config')),
-                },
+                'startup_config': {
+                    'parser': parse_dict(row.get('parser_config')),
+                    'harvester': parse_dict(row.get('harvester_config')),
+                    },
                 'max_records': int(row.get('records_per_granule')),
             } )
-
+        
         edai_id = self._basic_resource_create(row, "ExternalDatasetAgentInstance", "ai/",
             "data_acquisition_management", "create_external_dataset_agent_instance",
             set_attributes=dict(driver_config=driver_config),
