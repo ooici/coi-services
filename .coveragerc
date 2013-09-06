@@ -41,6 +41,7 @@ omit =
     */agent_management_service*
     */resource_tree*
     */util/path*
+    */util/h5debug*
 
 [html]
 directory = coverage_results
