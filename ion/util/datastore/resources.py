@@ -19,13 +19,10 @@ from ooi.timer import get_accumulators
 
 from pyon.core import bootstrap
 from pyon.core.bootstrap import CFG, get_sys_name
-
 from pyon.datastore.datastore import DataStore
-
-#from pyon.datastore.datastore_common import DatastoreFactory, DataStore
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
 from pyon.datastore.couchdb.couchdb_standalone import CouchDataStore
-from pyon.public import log
+from pyon.public import log, RT
 
 """
 from ion.util.datastore.resources import ResourceRegistryHelper
@@ -317,3 +314,206 @@ class ResourceRegistryHelper(object):
                     key_delta[obj_id] = ts
 
         return delta_snapshot
+
+    def dump_container_stats_as_xlsx(self, filename=None):
+        self._wb = xlwt.Workbook()
+        self._worksheets = {}
+
+        cc_objs, _ = self.container.resource_registry.find_resources(restype=RT.CapabilityContainer, id_only=False)
+        for cc in cc_objs:
+            ws = self._wb.add_sheet(cc.name)
+            [ws.write(0, col, hdr) for (col, hdr) in enumerate(["RNum", "LNum", "Type"])]
+            self._row = 1
+
+            if not cc.status_log:
+                continue
+            cc_status = cc.status_log[0]
+
+            # Basic
+            basic_stats = cc_status.get("basic", {})
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Basic", "Key", "Value"])]
+            self._row += 1
+            for lnum, sn in enumerate(sorted(basic_stats.keys())):
+                stat = basic_stats[sn]
+                ws.write(self._row, 0, self._row)
+                ws.write(self._row, 1, lnum+1)
+                ws.write(self._row, 2, "Basic")
+                ws.write(self._row, 3, sn)
+                ws.write(self._row, 4, str(stat))
+                self._row += 1
+
+            # Processes
+            ws.write(self._row, 0, self._row)
+            self._row += 1
+            process_stats = cc_status.get("processes", {}).get("procs", {})
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Process", "ID"])]
+            if process_stats:
+                proc = process_stats[process_stats.keys()[0]]
+                for i, key in enumerate(sorted(proc.keys())):
+                    ws.write(self._row, i+4, key)
+            self._row += 1
+
+            for lnum, pid in enumerate(sorted(process_stats.keys())):
+                proc = process_stats[pid]
+                ws.write(self._row, 0, self._row)
+                ws.write(self._row, 1, lnum+1)
+                ws.write(self._row, 2, "Process")
+                ws.write(self._row, 3, pid)
+                for i, key in enumerate(sorted(proc.keys())):
+                    ws.write(self._row, i+4, str(proc[key]))
+                self._row += 1
+
+            # Policy
+            ws.write(self._row, 0, self._row)
+            self._row += 1
+            policy_stats = cc_status.get("policy", {})
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Policy", "PType", "Service/Resource", "Name", "Effect", "Description"])]
+            self._row += 1
+            lnum = 1
+            rpol = policy_stats.get("common_pdp", [])
+            for i, prule in enumerate(rpol):
+                ws.write(self._row, 0, self._row)
+                ws.write(self._row, 1, lnum)
+                ws.write(self._row, 2, "Policy")
+                ws.write(self._row, 3, "Common Policy")
+                ws.write(self._row, 5, prule.get("id", ""))
+                ws.write(self._row, 6, prule.get("effect", ""))
+                ws.write(self._row, 7, prule.get("description", ""))
+                self._row += 1
+                lnum += 1
+
+            for rname in sorted(policy_stats.get("service_pdp", {}).keys()):
+                rpol = policy_stats.get("service_pdp", {})[rname]
+
+                for i, prule in enumerate(rpol):
+                    ws.write(self._row, 0, self._row)
+                    ws.write(self._row, 1, lnum)
+                    ws.write(self._row, 2, "Policy")
+                    ws.write(self._row, 3, "Service Policy")
+                    ws.write(self._row, 4, rname)
+                    ws.write(self._row, 5, prule.get("id", ""))
+                    ws.write(self._row, 6, prule.get("effect", ""))
+                    ws.write(self._row, 7, prule.get("description", ""))
+                    self._row += 1
+                    lnum += 1
+
+            for rname in sorted(policy_stats.get("resource_pdp", {}).keys()):
+                rpol = policy_stats.get("resource_pdp", {})[rname]
+
+                for i, prule in enumerate(rpol):
+                    ws.write(self._row, 0, self._row)
+                    ws.write(self._row, 1, lnum)
+                    ws.write(self._row, 2, "Policy")
+                    ws.write(self._row, 3, "Resource Policy")
+                    ws.write(self._row, 4, rname)
+                    ws.write(self._row, 5, prule.get("id", ""))
+                    ws.write(self._row, 6, prule.get("effect", ""))
+                    ws.write(self._row, 7, prule.get("description", ""))
+                    self._row += 1
+                    lnum += 1
+
+            for rname in sorted(policy_stats.get("service_precondition", {}).keys()):
+                rpol = policy_stats.get("service_precondition", {})[rname]
+
+                for pname in sorted(rpol):
+                    ws.write(self._row, 0, self._row)
+                    ws.write(self._row, 1, lnum)
+                    ws.write(self._row, 2, "Policy")
+                    ws.write(self._row, 3, "Service Precond")
+                    ws.write(self._row, 4, rname)
+                    ws.write(self._row, 5, pname)
+                    self._row += 1
+                    lnum += 1
+
+            # Accumulators
+            ws.write(self._row, 0, self._row)
+            self._row += 1
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Accumulator", "Name", "Count", "Min", "Avg", "Max", "Sum", "SDev"])]
+            self._row += 1
+            acc_stats = cc_status.get("accumulators", {})
+            lnum = 1
+            for akey in sorted(acc_stats.keys()):
+                acc = acc_stats[akey]
+                for akey1 in sorted(acc.keys()):
+                    acc1 = acc[akey1]
+                    ws.write(self._row, 0, self._row)
+                    ws.write(self._row, 1, lnum+1)
+                    ws.write(self._row, 2, "Accumulator")
+                    ws.write(self._row, 3, "%s.%s" % (akey, akey1))
+                    ws.write(self._row, 4, str(acc1.get("count", "")))
+                    ws.write(self._row, 5, str(acc1.get("min", "")))
+                    ws.write(self._row, 6, str(acc1.get("avg", "")))
+                    ws.write(self._row, 7, str(acc1.get("max", "")))
+                    ws.write(self._row, 8, str(acc1.get("sum", "")))
+                    ws.write(self._row, 9, str(acc1.get("sdev", "")))
+                    self._row += 1
+                    lnum += 1
+
+            # Path
+            ws.write(self._row, 0, self._row)
+            self._row += 1
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Path", "Dir"])]
+            self._row += 1
+            config_stats = cc_status.get("config", {}).get("sys.path", [])
+            for i, p in enumerate(config_stats):
+                ws.write(self._row, 0, self._row)
+                ws.write(self._row, 1, i+1)
+                ws.write(self._row, 2, "Path")
+                ws.write(self._row, 3, p)
+                self._row += 1
+
+            # Env
+            ws.write(self._row, 0, self._row)
+            self._row += 1
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "ENV", "Key", "Value"])]
+            self._row += 1
+            config_stats = cc_status.get("config", {}).get("os.environ", [])
+            for i, ek in enumerate(sorted(config_stats.keys())):
+                ev = config_stats[ek]
+                ws.write(self._row, 0, self._row)
+                ws.write(self._row, 1, i+1)
+                ws.write(self._row, 2, "ENV")
+                ws.write(self._row, 3, ek)
+                ws.write(self._row, 4, ev)
+                self._row += 1
+
+            # Config
+            ws.write(self._row, 0, self._row)
+            self._row += 1
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "CFG", "Key", "Value", "Type"])]
+            self._row += 1
+            config_stats = cc_status.get("config", {}).get("CFG", {})
+
+            self.lnum = 1
+
+            def write_cfg_dict(prefix, cfg_dict):
+                for ckey in sorted(cfg_dict.keys()):
+                    cval = cfg_dict[ckey]
+                    if isinstance(cval, dict):
+                        write_cfg_dict("%s.%s" % (prefix, ckey), cval)
+                    else:
+                        ws.write(self._row, 0, self._row)
+                        ws.write(self._row, 1, self.lnum+1)
+                        ws.write(self._row, 2, "CFG")
+                        ws.write(self._row, 3, "%s.%s" % (prefix, ckey))
+                        ws.write(self._row, 4, str(cval))
+                        ws.write(self._row, 5, type(cval).__name__)
+                        self._row += 1
+                        self.lnum += 1
+
+            write_cfg_dict("CFG", config_stats)
+
+        dtstr = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
+        path = filename or "interface/containers_%s.xls" % dtstr
+        self._wb.save(path)
+
+"""
+from pyon.container.snapshot import ContainerSnapshot
+cs = ContainerSnapshot(cc)
+cs.take_snapshot()
+cs.persist_snapshot()
+
+from ion.util.datastore.resources import ResourceRegistryHelper
+rrh = ResourceRegistryHelper()
+rrh.dump_container_stats_as_xlsx()
+"""
