@@ -331,6 +331,7 @@ class ResourceRegistryHelper(object):
 
             # Basic
             basic_stats = cc_status.get("basic", {})
+            basic_stats.update({"snap."+k:v for k,v in cc_status.iteritems() if isinstance(v, str)})
             [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Basic", "Key", "Value"])]
             self._row += 1
             for lnum, sn in enumerate(sorted(basic_stats.keys())):

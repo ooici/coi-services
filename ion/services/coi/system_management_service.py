@@ -3,7 +3,8 @@
 __author__ = 'Michael Meisinger, Jonathan Newbrough'
 
 from pyon.event.event import EventPublisher
-from pyon.public import OT, IonObject
+from pyon.public import OT, IonObject, log
+from pyon.util.containers import get_ion_ts
 
 from interface.objects import AllContainers
 from interface.services.coi.isystem_management_service import BaseSystemManagementService
@@ -45,15 +46,23 @@ class SystemManagementService(BaseSystemManagementService):
         """
         self.perform_action(ALL_CONTAINERS_INSTANCE, IonObject(OT.TriggerGarbageCollection))
 
-    def trigger_container_snapshot(self, include_snapshots=None, exclude_snapshots=None, take_at_time='',
-                                   clear_all=False, persist_snapshot=True):
+    def trigger_container_snapshot(self, snapshot_id='', include_snapshots=None, exclude_snapshots=None,
+                                   take_at_time='', clear_all=False, persist_snapshot=True, snapshot_kwargs=None):
+
+        if not snapshot_id:
+            snapshot_id = get_ion_ts()
+        if not snapshot_kwargs:
+            snapshot_kwargs = {}
 
         self.perform_action(ALL_CONTAINERS_INSTANCE, IonObject(OT.TriggerContainerSnapshot,
+                                                               snapshot_id=snapshot_id,
                                                                include_snapshots=include_snapshots,
                                                                exclude_snapshots=exclude_snapshots,
                                                                take_at_time=take_at_time,
                                                                clear_all=clear_all,
-                                                               persist_snapshot=persist_snapshot))
+                                                               persist_snapshot=persist_snapshot,
+                                                               snapshot_kwargs=snapshot_kwargs))
+        log.info("Event to trigger container snapshots sent. snapshot_id=%s" % snapshot_id)
 
     def prepare_system_shutdown(self, mode=''):
         self.perform_action(ALL_CONTAINERS_INSTANCE, IonObject(OT.PrepareSystemShutdown, mode=mode))
