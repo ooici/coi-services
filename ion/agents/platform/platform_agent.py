@@ -140,7 +140,7 @@ class PlatformAgentAlertManager(AgentAlertManager):
     """
     Overwrites _update_aggstatus and do appropriate handling.
     """
-    def _update_aggstatus(self, aggregate_type, new_status):
+    def _update_aggstatus(self, aggregate_type, new_status, alerts_list=None):
         """
         Called to set a new status value for an aggstatus type.
         Note that an update to an aggstatus in a platform does not trigger

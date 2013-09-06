@@ -46,7 +46,7 @@ class AgentAlertManager(object):
         # update the aggreate status for this device
         self._process_aggregate_alerts()
         
-    def _update_aggstatus(self, aggregate_type, new_status, alerts_list):
+    def _update_aggstatus(self, aggregate_type, new_status, alerts_list=None):
         """
         Called by this manager to set a new status value for an aggstatus type.
 
@@ -116,7 +116,7 @@ class AgentAlertManager(object):
                     alerts_list =  agg_alerts[aggregate_type]
                 self._update_aggstatus(aggregate_type, updated_status[aggregate_type], alerts_list)
 
-    def _publish_agg_status_event(self, status_type, new_status, old_status, alerts_list):
+    def _publish_agg_status_event(self, status_type, new_status, old_status, alerts_list=None):
         """
         Publish resource config change event.
         """
