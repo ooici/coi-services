@@ -26,8 +26,8 @@ import os, sys
 from pprint import PrettyPrinter
 
 from ooi.logging import log
-from ooi.reflection import EggCache
 from ooi.poller import DirectoryPoller
+from ooi.reflection import EggCache
 
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
@@ -45,7 +45,8 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from coverage_model import ParameterDictionary
 
 # TODO: make unique for multiple processes on same VM
-EGG_CACHE=EggCache('/tmp/eggs%d' % os.getpid())
+EGG_CACHE_DIR='/tmp/eggs%d' % os.getpid()
+EGG_CACHE=EggCache(EGG_CACHE_DIR)
 DSA_STATE_KEY = 'dsa_state'
 
 class DataSetAgent(InstrumentAgent):
@@ -60,7 +61,6 @@ class DataSetAgent(InstrumentAgent):
         super(DataSetAgent,self).__init__(*args, **kwargs)
 
         log.debug("Agent: __init__")
-
 
     ####
     ##    Response Handlers
@@ -77,6 +77,11 @@ class DataSetAgent(InstrumentAgent):
     ####
     def _create_driver_plugin(self):
         try:
+            # Ensure the egg cache directory exists. ooi.reflections will fail
+            # somewhat silently when this directory doesn't exists.
+            if not os.path.isdir(EGG_CACHE_DIR):
+                os.makedirs(EGG_CACHE_DIR)
+
             log.debug("getting plugin config")
             uri = get_safe(self._dvr_config, 'dvr_egg')
             module_name = self._dvr_config['dvr_mod']
