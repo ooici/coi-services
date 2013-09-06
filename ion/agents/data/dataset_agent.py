@@ -78,7 +78,7 @@ class DataSetAgent(InstrumentAgent):
     def _create_driver_plugin(self):
         try:
             log.debug("getting plugin config")
-            uri = get_safe(self._dvr_config, 'uri')
+            uri = get_safe(self._dvr_config, 'dvr_egg')
             module_name = self._dvr_config['dvr_mod']
             class_name = self._dvr_config['dvr_cls']
             config = self._dvr_config['startup_config']
@@ -91,7 +91,7 @@ class DataSetAgent(InstrumentAgent):
         memento = self._get_state(DSA_STATE_KEY)
 
 
-        log.debug("Get driver object: %s, %s, %s, %s", class_name, module_name, egg_name, egg_repo)
+        log.warn("Get driver object: %s, %s, %s, %s", class_name, module_name, egg_name, egg_repo)
         if uri:
             egg_name = uri.split('/')[-1] if uri.startswith('http') else uri
             egg_repo = uri[0:len(uri)-len(egg_name)-1] if uri.startswith('http') else None
@@ -132,6 +132,8 @@ class DataSetAgent(InstrumentAgent):
         if self._dvr_client == None:
             log.error("Failed to instantiate driver plugin!")
             raise InstrumentStateException('failed to start driver')
+
+        log.warn("driver client created")
 
         self._asp.reset_connection()
 
