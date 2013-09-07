@@ -52,13 +52,9 @@ from pyon.agent.agent import ResourceAgentEvent
 
 # Driver imports.
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
-from ion.agents.instrument.driver_process import DriverProcessType
-from ion.agents.instrument.driver_process import ZMQEggDriverProcess
 
 # Objects and clients.
 from interface.objects import AgentCommand
-from interface.objects import CapabilityType
-from interface.objects import AgentCapability
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -68,8 +64,7 @@ from interface.objects import StreamAlertType, AggregateStatusType
 
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget,\
-    ProcessStateEnum, ProcessQueueingMode, ProcessRestartMode, ProcessDefinitionType
+from interface.objects import ProcessDefinition, ProcessStateEnum
 
 from pyon.core.object import IonObjectSerializer, IonObjectDeserializer
 from pyon.core.bootstrap import IonObject
@@ -96,46 +91,16 @@ DEV_PORT = CFG.device.sbe37.port
 DATA_PORT = CFG.device.sbe37.port_agent_data_port
 CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
 PA_BINARY = CFG.device.sbe37.port_agent_binary
+DELIM = CFG.device.sbe37.delim
+WORK_DIR = CFG.device.sbe37.workdir
+DRV_URI = CFG.device.sbe37.dvr_egg
 
-# Work dir and logger delimiter.
-WORK_DIR = '/tmp/'
-DELIM = ['<<','>>']
-
-from ion.agents.instrument.instrument_agent import InstrumentAgent
-# Agent parameters.
-IA_RESOURCE_ID = '123xyz'
-IA_NAME = 'Agent007'
-IA_MOD = 'ion.agents.instrument.instrument_agent'
-IA_CLS = 'InstrumentAgent'
-
-# A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.5-py2.7.egg'
-DRV_SHA_0_1_1 = 'e7b8e6239cfa8a68b10fb14673b5ced461f7e484'
-DRV_SHA_0_1_5 = '51ce182316f4f9dce336a76164276cb4749b77a5'
-DRV_SHA = DRV_SHA_0_1_5
-DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
-DRV_CLS = 'SBE37Driver'
-
-# Driver config.
-# DVR_CONFIG['comms_config']['port'] is set by the setup.
-DVR_CONFIG = {
-    'dvr_egg' : DRV_URI,
-    'dvr_mod' : DRV_MOD,
-    'dvr_cls' : DRV_CLS,
-    'workdir' : WORK_DIR,
-    'process_type' : (DriverProcessType.EGG,)
-}
-
-# Dynamically load the egg into the test path
-launcher = ZMQEggDriverProcess(DVR_CONFIG)
-egg = launcher._get_egg(DRV_URI)
-from hashlib import sha1
-with open(egg,'r') as f:
-    doc = f.read()
-    sha = sha1(doc).hexdigest()
-    if sha != DRV_SHA:
-        raise ImportError('Failed to load driver %s: incorrect checksum.  (%s!=%s)' % (DRV_URI, DRV_SHA, sha))
-if not egg in sys.path: sys.path.insert(0, egg)
+from ion.agents.instrument.test.agent_test_constants import IA_RESOURCE_ID
+from ion.agents.instrument.test.agent_test_constants import IA_NAME
+from ion.agents.instrument.test.agent_test_constants import IA_MOD
+from ion.agents.instrument.test.agent_test_constants import IA_CLS
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+DVR_CONFIG = load_egg()
 
 # Load MI modules from the egg
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent

@@ -29,7 +29,7 @@ __license__ = 'Apache 2.0'
 #
 
 
-from pyon.public import log
+from pyon.public import log, CFG
 
 from pyon.util.containers import get_ion_ts
 

@@ -61,15 +61,18 @@ DEV_PORT = CFG.device.sbe37.port
 DATA_PORT = CFG.device.sbe37.port_agent_data_port
 CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
 PA_BINARY = CFG.device.sbe37.port_agent_binary
-from ion.agents.instrument.test.agent_test_constants import DRV_MOD
-from ion.agents.instrument.test.agent_test_constants import DRV_CLS
-from ion.agents.instrument.test.agent_test_constants import DVR_CONFIG
-from ion.agents.instrument.test.agent_test_constants import DELIM
-from ion.agents.instrument.test.agent_test_constants import WORK_DIR
+DELIM = CFG.device.sbe37.delim
+WORK_DIR = CFG.device.sbe37.workdir
+DRV_URI = CFG.device.sbe37.dvr_egg
+
 from ion.agents.instrument.test.agent_test_constants import IA_RESOURCE_ID
 from ion.agents.instrument.test.agent_test_constants import IA_NAME
 from ion.agents.instrument.test.agent_test_constants import IA_MOD
 from ion.agents.instrument.test.agent_test_constants import IA_CLS
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+DVR_CONFIG = load_egg()
+DRV_MOD = DVR_CONFIG['dvr_mod']
+DRV_CLS = DVR_CONFIG['dvr_cls']
 
 
 # IA launch imports.
@@ -93,6 +96,7 @@ class FakeProcess(LocalContextMixin):
         
 @attr('INT', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+@unittest.skip('Skipping as this is now out of scope and takes a long time.')
 class Test2CAA(IonIntegrationTestCase):
     """
     Test cases for 2CAA terrestrial endpoint.

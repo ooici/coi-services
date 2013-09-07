@@ -13,8 +13,10 @@ from pyon.public import RT, IonObject, CFG
 from interface.objects import StreamConfiguration, ProcessStateEnum, AgentCommand
 from nose.plugins.attrib import attr
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState, ResourceAgentEvent
-import ion.agents.instrument.test.test_instrument_agent
-from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+load_egg()
+DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
+
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.services.dm.utility.granule import RecordDictionaryTool

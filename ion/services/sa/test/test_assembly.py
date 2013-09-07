@@ -29,10 +29,8 @@ from ion.services.sa.instrument.flag import KeywordFlag
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.agents.port.port_agent_process import PortAgentType
-from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
+DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-
-import string
 
 
 @attr('INT', group='sa')

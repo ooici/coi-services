@@ -54,7 +54,7 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from pyon.ion.stream import StandaloneStreamSubscriber
 
 from pyon.util.context import LocalContextMixin
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, CFG
 
 from nose.plugins.attrib import attr
 
@@ -98,7 +98,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from ion.services.sa.test.helpers import any_old, AgentProcessStateGate
 
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
-from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
+DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
 
 
 ###############################################################################

@@ -117,14 +117,14 @@ DEV_PORT = CFG.device.sbe37.port
 DATA_PORT = CFG.device.sbe37.port_agent_data_port
 CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
 PA_BINARY = CFG.device.sbe37.port_agent_binary
+DELIM = CFG.device.sbe37.delim
+WORK_DIR = CFG.device.sbe37.workdir
+DRV_URI = CFG.device.sbe37.dvr_egg
 
-from ion.agents.instrument.test.agent_test_constants import WORK_DIR
-from ion.agents.instrument.test.agent_test_constants import DELIM
 from ion.agents.instrument.test.agent_test_constants import IA_RESOURCE_ID
 from ion.agents.instrument.test.agent_test_constants import IA_NAME
 from ion.agents.instrument.test.agent_test_constants import IA_MOD
 from ion.agents.instrument.test.agent_test_constants import IA_CLS
-from ion.agents.instrument.test.agent_test_constants import DRV_URI
 
 # Launch from egg or a local MI repo.
 LAUNCH_FROM_EGG=True

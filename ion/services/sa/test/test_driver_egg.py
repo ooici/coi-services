@@ -40,7 +40,8 @@ load_egg()
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD, DRV_URI_BAD, DRV_URI_404
+DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
+from ion.agents.instrument.test.agent_test_constants import DRV_URI_BAD, DRV_URI_404
 
 import unittest
 

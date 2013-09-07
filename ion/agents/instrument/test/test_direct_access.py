@@ -59,19 +59,13 @@ from pyon.agent.agent import ResourceAgentEvent
 # Driver imports.
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
-from ion.agents.instrument.driver_process import DriverProcessType
 
 # Objects and clients.
 from interface.objects import AgentCommand
-from interface.objects import CapabilityType
-from interface.objects import AgentCapability
 from interface.services.icontainer_agent import ContainerAgentClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 # Alarms.
 from pyon.public import IonObject
-from interface.objects import StreamAlertType, AggregateStatusType
 
 from ooi.timer import Timer
 
@@ -79,68 +73,21 @@ from ooi.timer import Timer
 # Global constants.
 ###############################################################################
 
-# Real and simulated devcies we test against.
-DEV_ADDR = CFG.device.sbe37.host
-DEV_PORT = CFG.device.sbe37.port
-#DEV_ADDR = 'localhost'
-#DEV_ADDR = '67.58.49.220' 
-#DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
-#DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
-#DEV_PORT = 4001 # Moxa port or simulator random data.
-#DEV_PORT = 4002 # Simulator sine data.
-
 DEV_ADDR = CFG.device.sbe37.host
 DEV_PORT = CFG.device.sbe37.port
 DATA_PORT = CFG.device.sbe37.port_agent_data_port
 CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
 PA_BINARY = CFG.device.sbe37.port_agent_binary
+DELIM = CFG.device.sbe37.delim
+WORK_DIR = CFG.device.sbe37.workdir
+DRV_URI = CFG.device.sbe37.dvr_egg
 
-# Work dir and logger delimiter.
-WORK_DIR = '/tmp/'
-DELIM = ['<<','>>']
-
-#from ion.agents.instrument.instrument_agent import InstrumentAgent
-# Agent parameters.
-IA_RESOURCE_ID = '123xyz'
-IA_NAME = 'Agent007'
-IA_MOD = 'ion.agents.instrument.instrument_agent'
-IA_CLS = 'InstrumentAgent'
-
-# A seabird driver.
-#DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg'
-#DRV_SHA = '28e1b59708d72e008b0aa68ea7392d3a2467f393'
-#DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.4-py2.7.egg'
-#DRV_SHA = '50de2e8383ebd801c3cd78c31f88983800e6bd0c'
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.5-py2.7.egg'
-DRV_SHA = '51ce182316f4f9dce336a76164276cb4749b77a5'
-DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
-DRV_CLS = 'SBE37Driver'
-
-# Driver config.
-# DVR_CONFIG['comms_config']['port'] is set by the setup.
-DVR_CONFIG = {
-    'dvr_egg' : DRV_URI,
-    'dvr_mod' : DRV_MOD,
-    'dvr_cls' : DRV_CLS,
-    'workdir' : WORK_DIR,
-    'process_type' : None
-}
-
-# Launch from egg or a local MI repo.
-LAUNCH_FROM_EGG=True
-#LAUNCH_FROM_EGG=False
-
-if LAUNCH_FROM_EGG:
-    # tell driver process launcher to dynamically load the driver egg into the python path
-    DVR_CONFIG['process_type'] = (DriverProcessType.EGG,)
-
-else:
-    # tell driver process launcher to load the driver module from 'mi_repo' 
-    #mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'mi_repo'
-    mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'egg_test'
-    DVR_CONFIG['process_type'] = (DriverProcessType.PYTHON_MODULE,)
-    DVR_CONFIG['mi_repo'] = mi_repo
-
+from ion.agents.instrument.test.agent_test_constants import IA_RESOURCE_ID
+from ion.agents.instrument.test.agent_test_constants import IA_NAME
+from ion.agents.instrument.test.agent_test_constants import IA_MOD
+from ion.agents.instrument.test.agent_test_constants import IA_CLS
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+DVR_CONFIG = load_egg()
 
 class TcpClient():
     '''
@@ -323,7 +270,6 @@ class InstrumentAgentTestDA():
         log.info('device port: %s', DEV_PORT)
         log.info('log delimiter: %s', DELIM)
         log.info('work dir: %s', WORK_DIR)
-        log.info('LAUNCH_FROM_EGG: %s', LAUNCH_FROM_EGG)
         self._support = DriverIntegrationTestSupport(None,
             None,
             DEV_ADDR,

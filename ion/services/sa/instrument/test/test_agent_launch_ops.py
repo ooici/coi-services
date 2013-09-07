@@ -2,7 +2,6 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 #from pyon.ion.endpoint import ProcessRPCClient
-from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder, InstrumentAgentConfigurationBuilder
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
@@ -29,6 +28,7 @@ from pyon.public import RT, PRED, CFG
 from nose.plugins.attrib import attr
 from ooi.logging import log
 import unittest
+DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
 
 
 from ion.services.sa.test.helpers import any_old, AgentProcessStateGate

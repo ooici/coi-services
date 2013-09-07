@@ -19,11 +19,11 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from pyon.public import log, IonObject
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, CFG
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.agents.instrument.test.agent_test_constants import DRV_URI_GOOD
+DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
 
 import base64
 
