@@ -4,7 +4,8 @@
 @package ion.agents.platform.rsn.test.test_oms_client
 @file    ion/agents/platform/rsn/test/test_oms_client.py
 @author  Carlos Rueda
-@brief   Test cases for CIOMSClient.
+@brief   Test cases for CIOMSClient. The OMS enviroment variable can be used
+         to indicate which CIOMSClient will be tested.
 """
 
 __author__ = 'Carlos Rueda'
@@ -26,21 +27,26 @@ import os
 
 @attr('INT', group='sa')
 class Test(IonIntegrationTestCase, OmsTestMixin):
+    """
+    The OMS enviroment variable can be used to indicate which CIOMSClient will
+    be tested. By default, it tests against the simulator, which is launched
+    as an external process.
+    """
 
     @classmethod
     def setUpClass(cls):
         OmsTestMixin.setUpClass()
+        if os.getenv('OMS') == "rsn":
+            # use FQDM for local host if testing against actual RSN OMS:
+            cls._use_fqdn_for_event_listener = True
 
     def setUp(self):
         oms_uri = os.getenv('OMS', "launchsimulator")
         oms_uri = self._dispatch_simulator(oms_uri)
         log.debug("oms_uri = %s", oms_uri)
         self.oms = CIOMSClientFactory.create_instance(oms_uri)
-        OmsTestMixin.start_http_server()
 
         def done():
             CIOMSClientFactory.destroy_instance(self.oms)
-            event_notifications = OmsTestMixin.stop_http_server()
-            log.info("event_notifications = %s" % str(event_notifications))
 
         self.addCleanup(done)
