@@ -4,9 +4,9 @@
 @package ion.agents.platform.rsn.test.oms_simple
 @file    ion/agents/platform/rsn/test/oms_simple.py
 @author  Carlos Rueda
-@brief   Program that connects to the real RSN OMS enpoint to do basic
+@brief   Program that connects to the real RSN OMS endpoint to do basic
          verification of the operations. Note that VPN is required.
-         Also, port 12021 on the localhost (via corresponding fully-qualified
+         Also, port 5000 on the localhost (via corresponding fully-qualified
          domain name as returned by socket.getfqdn()) needs to be accessible
          from OMS for the event notification to be received here.
 
@@ -23,6 +23,7 @@ __license__ = 'Apache 2.0'
 
 from ion.agents.platform.rsn.oms_event_listener import OmsEventListener
 from ion.agents.platform.responses import InvalidResponse
+from pyon.util.breakpoint import breakpoint
 
 import xmlrpclib
 import sys
@@ -37,12 +38,15 @@ INVALID_PLATFORM_ID = InvalidResponse.PLATFORM_ID
 
 # use full-qualified domain name as the external host for the registration
 HTTP_SERVER_HOST = socket.getfqdn()
-HTTP_SERVER_PORT = 12021
+HTTP_SERVER_PORT = 5000
 
 EVENT_LISTENER_URL = "http://%s:%d/oms" % (HTTP_SERVER_HOST, HTTP_SERVER_PORT)
 
 # max time to wait to receive the test event
 max_wait = 0
+
+# launch IPython shell?
+launch_breakpoint = False
 
 tried = {}
 
@@ -72,11 +76,13 @@ def main(uri):  # pragma: no cover
         from datetime import datetime
         from ion.agents.platform.util import ntp_2_ion_ts
 
-        print("Event listeners:")
-        for a, b in sorted(proxy.event.get_registered_event_listeners().iteritems(),
+        event_listeners = proxy.event.get_registered_event_listeners()
+        print("Event listeners (%d):" % len(event_listeners))
+        for a, b in sorted(event_listeners.iteritems(),
                            lambda a, b: int(a[1] - b[1])):
             time = datetime.fromtimestamp(float(ntp_2_ion_ts(b)) / 1000)
             print("   %s  %s" % (time, a))
+        print
 
     def format_val(value):
         prefix = "\t\t"
@@ -208,6 +214,9 @@ def main(uri):  # pragma: no cover
         return retval, reterr
 
     show_listeners()
+
+    if launch_breakpoint:
+        breakpoint(locals())
 
     print "Basic verification of the operations:\n"
 
@@ -389,6 +398,10 @@ def main(uri):  # pragma: no cover
         full_method_name = "event.unregister_event_listener"
         retval, reterr = run(full_method_name, EVENT_LISTENER_URL)
         retval, reterr = verify_entry_in_dict(retval, reterr, EVENT_LISTENER_URL)
+    elif not reterr:
+        ok_but = "OK (but verification of event reception was not performed)"
+        tried[full_method_name] = ok_but
+        format_err(ok_but)
 
     show_listeners()
 
@@ -397,7 +410,7 @@ def main(uri):  # pragma: no cover
     okeys = 0
     for full_method_name, result in sorted(tried.iteritems()):
         print("%20s %-40s: %s" % ("", full_method_name, result))
-        if result == "OK":
+        if result.startswith("OK"):
             okeys += 1
     print("OK methods %d out of %s" % (okeys, len(tried)))
 
@@ -413,10 +426,14 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument("-w", "--wait",
                         help="Max wait time for test event (default: %d)" % DEFAULT_MAX_WAIT,
                         default=DEFAULT_MAX_WAIT)
+    parser.add_argument("-b", "--breakpoint",
+                        help="Launch IPython shell at beginning",
+                        action='store_const', const=True)
 
     opts = parser.parse_args()
 
     uri = opts.uri
     max_wait = int(opts.wait)
+    launch_breakpoint = bool(opts.breakpoint)
 
     main(uri)
