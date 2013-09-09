@@ -65,8 +65,7 @@ class TestParticleConversion(IonIntegrationTestCase):
         stream_def = self.pubsub_client.read_stream_definition(stream_def_id)
         rdt = RecordDictionaryTool(stream_definition=stream_def)
         rdt = populate_rdt(rdt, particle_list)
-        print '###################### RDT:'
-        print str(rdt)
+        log.trace("RDT: %s", str(rdt))
         g = rdt.to_granule(data_producer_id='fake_agent_id')
         return g
         
@@ -89,7 +88,7 @@ class TestParticleConversion(IonIntegrationTestCase):
         
         try:
             g = self.create_granule(stream_name, param_dict_name, particle_list)
-            #self.assertSBE37ParsedGranule(g)
+            self.assert_granule_time(g, particle_list[0]['port_timestamp'])
             
         except Exception as e:
             errmsg = 'Granule creation failed: %s' % str(e)
@@ -119,10 +118,68 @@ class TestParticleConversion(IonIntegrationTestCase):
 
         try:
             g = self.create_granule(stream_name, param_dict_name, particle_list)
-            #self.assertSBE37RawGranule(g)
+            self.assert_granule_time(g, particle_list[0]['port_timestamp'])
             
         except Exception as e:
-            errmsg = 'Granule creation failed: %s' % str(s)
+            errmsg = 'Granule creation failed: %s' % str(e)
+            errmsg += '\n stream_name: ' + stream_name
+            errmsg += '\n param_dict_name: ' + param_dict_name
+            errmsg += '\n particle list: %s' % str(particle_list)
+            self.fail(errmsg)
+
+    def test_internal_time_particle(self):
+        """
+        Test a particle that has an internal time listed for its preferred time
+        """
+        stream_name = 'parsed'
+        param_dict_name = 'ctd_parsed_param_dict'
+        particle_list = [{u'quality_flag': u'ok',
+                          u'preferred_timestamp': u'internal_timestamp',
+                          u'stream_name': u'parsed',
+                          u'port_timestamp': 3578927139.3578925,
+                          u'internal_timestamp': 3578927039.3178925,
+                          u'pkt_format_id': u'JSON_Data',
+                          u'pkt_version': 1,
+                          u'values': [{u'value_id': u'temp', u'value': 68.5895},
+                                    {u'value_id': u'conductivity', u'value': 26.72304},
+                                    {u'value_id': u'pressure', u'value': 733.303}],
+                          u'driver_timestamp': 3578927139.4226017}]
+        
+        try:
+            g = self.create_granule(stream_name, param_dict_name, particle_list)
+            self.assert_granule_time(g, particle_list[0]['internal_timestamp'])
+            
+        except Exception as e:
+            errmsg = 'Granule creation failed: %s' % str(e)
+            errmsg += '\n stream_name: ' + stream_name
+            errmsg += '\n param_dict_name: ' + param_dict_name
+            errmsg += '\n particle list: %s' % str(particle_list)
+            self.fail(errmsg)
+
+    def test_driver_time_particle(self):
+        """
+        Test a particle that has a driver time listed for its preferred time
+        """
+        stream_name = 'parsed'
+        param_dict_name = 'ctd_parsed_param_dict'
+        particle_list = [{u'quality_flag': u'ok',
+                          u'preferred_timestamp': u'driver_timestamp',
+                          u'stream_name': u'parsed',
+                          u'port_timestamp': 3578927139.3578925,
+                          u'internal_timestamp': 3578927039.3178925,
+                          u'pkt_format_id': u'JSON_Data',
+                          u'pkt_version': 1,
+                          u'values': [{u'value_id': u'temp', u'value': 68.5895},
+                                    {u'value_id': u'conductivity', u'value': 26.72304},
+                                    {u'value_id': u'pressure', u'value': 733.303}],
+                          u'driver_timestamp': 3578927139.4226017}]
+        
+        try:
+            g = self.create_granule(stream_name, param_dict_name, particle_list)
+            self.assert_granule_time(g, particle_list[0]['driver_timestamp'])
+            
+        except Exception as e:
+            errmsg = 'Granule creation failed: %s' % str(e)
             errmsg += '\n stream_name: ' + stream_name
             errmsg += '\n param_dict_name: ' + param_dict_name
             errmsg += '\n particle list: %s' % str(particle_list)
@@ -174,6 +231,17 @@ class TestParticleConversion(IonIntegrationTestCase):
         
         rdt = populate_rdt(rdt, particle_list)
         
+    def assert_granule_time(self, granule, target_time):
+        """
+        Assert that the granule's time matches the target time
+        @param granule The granule to be searched
+        @param target_time The time that should match the granule's overall time
+        """
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        rdt_time = rdt['time'][0]
+        log.debug("assert_granule_time granule time: %s", rdt_time)
+        log.debug("assert_granule_time target timestamp: %s", target_time)
+        self.assertEqual(rdt_time, target_time)
 
 """
 
