@@ -149,7 +149,8 @@ class PlatformAgentAlertManager(AgentAlertManager):
         does get published. StatusManager takes care of that handling.
         """
         log.debug("%r: _update_aggstatus called", self._agent._platform_id)
-        self._agent._status_manager.set_aggstatus(aggregate_type, new_status)
+        # alerts_list passed per OOIION-1275
+        self._agent._status_manager.set_aggstatus(aggregate_type, new_status, alerts_list)
 
 
 _INVALIDATED_CHILD = "INVALIDATED"
