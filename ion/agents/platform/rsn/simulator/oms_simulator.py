@@ -99,7 +99,7 @@ class CIOMSSimulator(CIOMSClient):
 
     def _enter(self):
         """
-        Called when entering any of the CI-OMS interface methods methods.
+        Called when entering any of the CI-OMS interface methods.
         """
         self._dispatch_synthetic_exception()
 
@@ -409,6 +409,25 @@ class CIOMSSimulator(CIOMSClient):
         self._enter()
 
         return self._reg_event_listeners
+
+    def generate_test_event(self, event):
+        self._enter()
+
+        if self._event_generator:  # there are listeners registered.
+            # copy event and include the additional fields:
+            event_instance = event.copy()
+            event_instance['test_event'] = True
+            timestamp = ntplib.system_to_ntp_time(time.time())
+            if 'timestamp' not in event_instance:
+                event_instance['timestamp'] = timestamp
+            if 'first_time_timestamp' not in event_instance:
+                event_instance['first_time_timestamp'] = timestamp
+            # simply notify listeners right away
+            self._event_notifier.notify(event_instance)
+            return True
+
+        else:  # there are *no* listeners registered.
+            return False
 
     def get_checksum(self, platform_id):
         """

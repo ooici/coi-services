@@ -11,7 +11,7 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from pyon.public import log
+from pyon.public import log, CFG
 import logging
 
 from copy import deepcopy
@@ -25,7 +25,8 @@ from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
-from ion.agents.platform.rsn.oms_event_listener import OmsEventListener
+from ion.services.coi.service_gateway_service import DEFAULT_WEB_SERVER_PORT
+import socket
 
 from ion.agents.platform.util import ion_ts_2_ntp
 
@@ -77,9 +78,13 @@ class RSNPlatformDriver(PlatformDriver):
         # CIOMSClient instance created by connect() and destroyed by disconnect():
         self._rsn_oms = None
 
-        # external event listener: we can instantiate this here as the
-        # actual http server is started via corresponding method.
-        self._event_listener = OmsEventListener(self._platform_id, self._notify_driver_event)
+        # URL for the event listener registration/unregistration (based on
+        # web server launched by ServiceGatewayService, since that's the
+        # service in charge of receiving/relaying the OMS events).
+        # NOTE: (as proposed long ago), this kind of functionality should
+        # actually be provided by some component more in charge of the RSN
+        # platform netwokr as a whole -- as opposed to platform-specific).
+        self.listener_url = None
 
     def _filter_capabilities(self, events):
         """
@@ -618,50 +623,81 @@ class RSNPlatformDriver(PlatformDriver):
         """
         Registers given url for all event types.
         """
+        log.debug("%r: registering event listener: %s", self._platform_id, url)
+        try:
+            already_registered = self._rsn_oms.event.get_registered_event_listeners()
+        except Exception as e:
+            raise PlatformConnectionException(
+                msg="%r: Cannot get registered event listeners: %s" % (self._platform_id, e))
+
+        if url in already_registered:
+            log.debug("listener %r was already registered", url)
+            return
+
         try:
             result = self._rsn_oms.event.register_event_listener(url)
         except Exception as e:
-            raise PlatformConnectionException(msg="Cannot register_event_listener: %s" % str(e))
+            raise PlatformConnectionException(
+                msg="%r: Cannot register_event_listener: %s" % (self._platform_id, e))
 
-        log.info("register_event_listener url=%r returned: %s", url, result)
+        log.debug("%r: register_event_listener(%r) => %s", self._platform_id, url, result)
 
     def _unregister_event_listener(self, url):
         """
         Unregisters given url for all event types.
         """
+        log.debug("%r: unregistering event listener: %s", self._platform_id, url)
         try:
             result = self._rsn_oms.event.unregister_event_listener(url)
         except Exception as e:
-            raise PlatformConnectionException(msg="Cannot unregister_event_listener: %s" % str(e))
+            raise PlatformConnectionException(
+                msg="%r: Cannot unregister_event_listener: %s" % (self._platform_id, e))
 
-        log.info("unregister_event_listener url=%r returned: %s", url, result)
+        log.debug("%r: unregister_event_listener(%r) => %s", self._platform_id, url, result)
 
     def _start_event_dispatch(self):
         """
-        Starts the dispatch of events received from the platform network to do
-        corresponding event notifications.
+        Registers the event listener by using the URL as determined by the
+        web server launched by the ServiceGatewayService.
+
+        NOTE: the same listener URL will be registered by multiple RSN platform
+        drivers. See other related notes in this file.
+
+        @see https://jira.oceanobservatories.org/tasks/browse/OOIION-968
         """
         self._assert_rsn_oms()
 
-        # start http server:
-        self._event_listener.start_http_server()
+        # gateway host and port to compose URL:
+        host = socket.getfqdn()
+        port = CFG.get_safe('container.service_gateway.web_server.port', DEFAULT_WEB_SERVER_PORT)
+        # TODO for the port we just use current logic in ServiceGatewayService
+        # but there should be a more API way to get that information.
 
-        # then, register my listener:
-        self._register_event_listener(self._event_listener.url)
+        self.listener_url = "http://%s:%s/ion-service/oms_event" % (host, port)
+        self._register_event_listener(self.listener_url)
 
         return "OK"
 
     def _stop_event_dispatch(self):
         """
         Stops the dispatch of events received from the platform network.
+
+        NOTE: Nothing is actually done here: since the same listener URL
+        is registered by multiple RSN platform drivers, we avoid unregistering
+        it here because it might affect other drivers still depending on the
+        events being notified.
+
+        @see https://jira.oceanobservatories.org/tasks/browse/OOIION-968
         """
         self._assert_rsn_oms()
 
-        # unregister my listener:
-        self._unregister_event_listener(self._event_listener.url)
+        log.debug("%r: Not unregistering listener URL to avoid affecting "
+                  "other RSN platform drivers", self._platform_id)
 
-        # then, stop http server:
-        self._event_listener.stop_http_server()
+        # unregister listener:
+        #self._unregister_event_listener(self.listener_url)
+        # NOTE: NO, DON'T unregister: other drivers might still be depending
+        # on the listener being registered.
 
         return "OK"
 

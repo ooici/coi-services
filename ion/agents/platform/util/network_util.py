@@ -142,10 +142,9 @@ class NetworkUtil(object):
 
             def build_and_add_attrs_to_node(attrs, pn):
                 for attr_defn in attrs:
-                    assert 'attr_id' in attr_defn
+                    attr_id = _get_attr_id(attr_defn)
                     assert 'monitor_cycle_seconds' in attr_defn
                     assert 'units' in attr_defn
-                    attr_id = attr_defn['attr_id']
                     pn.add_attribute(AttrNode(attr_id, attr_defn))
 
             def build_node(platObj, parent_node):
@@ -460,10 +459,9 @@ class NetworkUtil(object):
 
         def _add_attrs_to_platform_node(attrs, pn):
             for attr_defn in attrs:
-                assert 'attr_id' in attr_defn
+                attr_id = _get_attr_id(attr_defn)
                 assert 'monitor_cycle_seconds' in attr_defn
                 assert 'units' in attr_defn
-                attr_id = attr_defn['attr_id']
                 pn.add_attribute(AttrNode(attr_id, attr_defn))
 
         def _add_ports_to_platform_node(ports, pn):
@@ -531,3 +529,16 @@ class NetworkUtil(object):
         build_platform_node(CFG, ndef._dummy_root)
 
         return ndef
+
+
+def _get_attr_id(attr_defn):
+    if 'attr_id' in attr_defn:
+        attr_id = attr_defn['attr_id']
+    elif 'attr_name' in attr_defn and 'attr_instance' in attr_defn:
+        attr_id = "%s|%s" % (attr_defn['attr_name'], attr_defn['attr_instance'])
+    else:
+        raise PlatformDefinitionException(
+            "Attribute definition does now include 'attr_name' nor 'attr_instance'. "
+            "attr_defn = %s" % attr_defn)
+
+    return attr_id
