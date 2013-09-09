@@ -11,6 +11,7 @@ from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.services.dm.utility.tmpsf_simulator import TMPSFSimulator
+from ion.services.dm.utility.bad_simulator import BadSimulator
 from ion.util.direct_coverage_utils import DirectCoverageAccess
 from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from nose.plugins.attrib import attr
@@ -88,6 +89,17 @@ class TestDMExtended(DMTestCase):
         config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA,EXAMPLE1'
+        config.path = 'master'
+        #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+    
+    def preload_example2(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,EXAMPLE2'
         config.path = 'master'
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
@@ -400,6 +412,7 @@ class TestDMExtended(DMTestCase):
         rdt['temperature'] = [248471]
         rdt['pressure'] = [528418]
         rdt['conductivity'] = [1673175]
+        rdt['thermistor_temperature']=[24303]
 
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
@@ -409,4 +422,28 @@ class TestDMExtended(DMTestCase):
         rdt = RecordDictionaryTool.load_from_granule(g)
 
         breakpoint(locals())
+
+    @attr("UTIL")
+    def test_example2_preload(self):
+        print 'preloading...'
+        self.preload_example2()
+        breakpoint(locals())
+
+
+    @attr("UTIL")
+    def test_out_of_order(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+        s = BadSimulator(data_product_id)
+
+        breakpoint(locals())
+
+        s.stop()
+
+
 
