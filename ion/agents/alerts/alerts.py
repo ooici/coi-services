@@ -355,7 +355,7 @@ class IntervalAlert(StreamValueAlert):
         self._prev_status = self._status
         self._current_value_id = value_id
         
-        if self._lower_bound and self._upper_bound:
+        if isinstance(self._lower_bound, (int, float)) and isinstance(self._upper_bound, (int, float)):
             if self._lower_rel_op == '<=':
                 if self._upper_rel_op == '<=':
                     self._status = (self._lower_bound <= self._current_value <= self._upper_bound)
@@ -370,13 +370,13 @@ class IntervalAlert(StreamValueAlert):
                 else:
                     self._status = (self._lower_bound < self._current_value < self._upper_bound)
                         
-        elif self._lower_bound:
+        elif isinstance(self._lower_bound, (int, float)):
             if self._lower_rel_op == '<=':
                 self._status = (self._lower_bound <= self._current_value)
             else:
                 self._status = (self._lower_bound < self._current_value)
             
-        elif self._upper_bound:
+        elif isinstance(self._upper_bound, (int, float)):
             if self._upper_rel_op == '<=':
                 self._status = (self._current_value <= self._upper_bound)
             else:
