@@ -103,6 +103,19 @@ class TestDMExtended(DMTestCase):
         config.path = 'master'
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
+    def preload_ctdpf(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,CTDPF'
+        config.path = 'master'
+        #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+        self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'load', 'instrument':'CTDPF'})
+
     
     def create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
@@ -427,6 +440,13 @@ class TestDMExtended(DMTestCase):
     def test_example2_preload(self):
         print 'preloading...'
         self.preload_example2()
+        breakpoint(locals())
+
+
+    @attr("UTIL")
+    def test_ctdpf(self):
+        print 'preloading'
+        self.preload_ctdpf()
         breakpoint(locals())
 
 
