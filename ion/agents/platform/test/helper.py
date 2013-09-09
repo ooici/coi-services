@@ -174,7 +174,8 @@ class HelperTestMixin:
         self.assertIn(attr_id, dic)
         val = dic[attr_id]
         self.assertEquals(InvalidResponse.ATTRIBUTE_ID, val,
-                          "attr_id=%r, val=%r" % (attr_id, val))
+                          "attr_id=%r, val=%r but expected=%r" % (
+                          attr_id, val, InvalidResponse.ATTRIBUTE_ID))
 
     def _verify_attribute_value_out_of_range(self, attr_id, dic):
         """
@@ -184,7 +185,8 @@ class HelperTestMixin:
         self.assertIn(attr_id, dic)
         val = dic[attr_id]
         self.assertEquals(InvalidResponse.ATTRIBUTE_VALUE_OUT_OF_RANGE, val,
-                          "attr_id=%r, val=%r" % (attr_id, val))
+                          "attr_id=%r, val=%r but expected=%r" % (
+                          attr_id, val, InvalidResponse.ATTRIBUTE_VALUE_OUT_OF_RANGE))
 
     def _verify_not_writable_attribute_id(self, attr_id, dic):
         """

@@ -923,10 +923,6 @@ class PlatformAgent(ResourceAgent):
             self._asp.handle_attribute_value_event(driver_event)
             return
 
-        if isinstance(driver_event, ExternalEventDriverEvent):
-            self._handle_external_event_driver_event(driver_event)
-            return
-
         if isinstance(driver_event, StateChangeDriverEvent):
             self._async_driver_event_state_change(driver_event.state)
             return
@@ -969,31 +965,6 @@ class PlatformAgent(ResourceAgent):
                           self._platform_id, stream_name, param_name, value)
                 self._aam.process_alerts(stream_name=stream_name,
                                          value=value, value_id=param_name)
-
-    def _handle_external_event_driver_event(self, driver_event):
-
-        event_instance = driver_event.event_instance
-
-        description  = "external event payload: %s" % str(event_instance)
-
-        event_data = {
-            'description':  description,
-            'sub_type':     'platform_event',
-        }
-
-        log.info("%r: publishing external platform event: event_data=%s",
-                 self._platform_id, event_data)
-
-        try:
-            self._event_publisher.publish_event(
-                event_type='DeviceEvent',
-                origin_type=self.ORIGIN_TYPE,
-                origin=self.resource_id,
-                **event_data)
-
-        except:
-            log.exception("%r: Error while publishing external platform event: %s",
-                          self._platform_id, event_data)
 
     def _async_driver_event_agent_event(self, event):
         """

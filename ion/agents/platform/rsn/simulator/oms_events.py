@@ -17,6 +17,7 @@ import sys
 from time import sleep
 import time
 import ntplib
+from urlparse import urlparse
 import httplib
 import yaml
 import json
@@ -97,14 +98,14 @@ class EventNotifier(object):
         """
         Notifies event to given listener.
         """
-        if url == "http://NO_OMS_NOTIFICATIONS":
+        if url == "http://NO_OMS_NOTIFICATIONS":  # pragma: no cover
             # developer convenience -see ion.agents.platform.rsn.oms_event_listener
             return
 
         log.debug("Notifying event_instance=%s to listener=%s", str(event_instance), url)
 
-        # include url in event instance:
-        event_instance['url'] = url
+        # include url in event instance for diagnostic/debugging purposes:
+        event_instance['listener_url'] = url
 
         # prepare payload (JSON format):
         payload = json.dumps(event_instance, indent=2)
@@ -114,15 +115,14 @@ class EventNotifier(object):
             "Accept": "text/plain"
         }
 
-        # remove "http://" prefix for the connection itself
-        if url.lower().startswith("http://"):
-            url4conn = url[len("http://"):]
-        else:
-            url4conn = url
-
-        conn = httplib.HTTPConnection(url4conn)
+        conn = None
         try:
-            conn.request("POST", "", body=payload, headers=headers)
+            o = urlparse(url)
+            url4conn = o.netloc
+            path     = o.path
+
+            conn = httplib.HTTPConnection(url4conn)
+            conn.request("POST", path, body=payload, headers=headers)
             response = conn.getresponse()
             data = response.read()
             log.trace("RESPONSE: %s, %s, %s", response.status, response.reason, data)
@@ -130,7 +130,8 @@ class EventNotifier(object):
             # the actual listener is no longer there; just log a message
             log.warn("event notification HTTP request failed: %r: %s", url, e)
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
 
 class EventGenerator(object):
