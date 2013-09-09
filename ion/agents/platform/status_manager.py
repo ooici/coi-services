@@ -904,7 +904,7 @@ Published event: AGGREGATE_POWER -> STATUS_OK
     def _start_diagnostics_subscriber(self):  # pragma: no cover
         """
         For debugging/diagnostics purposes.
-        Registers a subscriber to DeviceEvent events with origin="command_line"
+        Registers a subscriber to DeviceStatusEvent events with origin="command_line"
         and sub_type="diagnoser" to log the current statuses via log.info.
         This method does nothing if the logging level is not enabled for INFO
         for this module.
@@ -920,7 +920,7 @@ Published event: AGGREGATE_POWER -> STATUS_OK
         if not log.isEnabledFor(logging.INFO):
             return
 
-        event_type  = "DeviceEvent"
+        event_type  = "DeviceStatusEvent"
         origin      = "command_line"
         sub_type    = "diagnoser"
 
@@ -986,7 +986,7 @@ def publish_event_for_diagnostics():  # pragma: no cover
 
     from pyon.event.event import EventPublisher
     ep = EventPublisher()
-    evt = dict(event_type='DeviceEvent', sub_type='diagnoser', origin='command_line')
+    evt = dict(event_type='DeviceStatusEvent', sub_type='diagnoser', origin='command_line')
     print("publishing: %s" % str(evt))
     ep.publish_event(**evt)
 
