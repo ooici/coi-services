@@ -374,11 +374,11 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             a = self.catch_alert.get(timeout=90)
             caught_events.append(a)
             if a.name == 'temperature_warning_interval' and \
-                a.description == 'Temperature is below the normal range of 50.0 and above.':
-                    got_bad_temp = True
+                a.description == 'Alert triggered by out of range data values: temp ':
+                got_bad_temp = True
             if a.name == 'late_data_warning' and \
                 a.description == 'Expected data has not arrived.':
-                    got_late_data = True
+                got_late_data = True
             runtime = time.time() - starttime            
         log.debug("caught_events: %s", [c.name for c in caught_events])
 
