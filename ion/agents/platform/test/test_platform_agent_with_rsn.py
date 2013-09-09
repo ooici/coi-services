@@ -695,10 +695,23 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._ping_agent()
 
         self._initialize()
+
+        # according to process_oms_event() (in service_gateway_service.py)
+        # https://github.com/ooici/coi-services/blob/999c4315259082a9e50d6f4f96f8dd606073fda8/ion/services/coi/service_gateway_service.py#L339-370
+        async_event_result, events_received = self._start_event_subscriber2(
+            count=1,
+            event_type="OMSDeviceStatusEvent",
+            origin_type='OMS Platform'
+        )
+
         self._go_active()
         self._run()
 
-        self._wait_for_external_event()
+        # verify reception of the external event:
+        log.info("waiting for external event notification... (timeout=%s)", self._receive_timeout)
+        async_event_result.get(timeout=self._receive_timeout)
+        self.assertEquals(len(events_received), 1)
+        log.info("external events received: (%d): %s", len(events_received), events_received)
 
     def test_connect_disconnect_instrument(self):
         self._create_network_and_start_root_platform()

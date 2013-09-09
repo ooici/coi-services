@@ -326,7 +326,7 @@ class StatusManager(object):
             log.exception('%r: platform agent could not publish event: %s',
                           self._platform_id, evt)
 
-    def set_aggstatus(self, status_name, status):
+    def set_aggstatus(self, status_name, status, alerts_list=None):
         """
         Sets a particular "aggstatus" for the platform itself.
         The rollup status is updated and an event is published if that rollup
@@ -334,22 +334,24 @@ class StatusManager(object):
 
         @param status_name   the particular status category (AggregateStatusType)
         @param status        the status value (DeviceStatusType)
+        @param alerts_list   See OOIION-1275
         """
 
         assert status_name in AggregateStatusType._str_map
         assert status in DeviceStatusType._str_map
 
-        log.debug("%r: set_aggstatus: %s <- %s",
+        log.debug("%r: set_aggstatus: %s <- %s;  alerts_list=%s",
                   self._platform_id,
                   AggregateStatusType._str_map[status_name],
-                  DeviceStatusType._str_map[status])
+                  DeviceStatusType._str_map[status],
+                  alerts_list)
 
         with self._lock:
             # do the update:
             self.aparam_aggstatus[status_name] = status
 
             # update aparam_rollup_status:
-            self._update_rollup_status_and_publish(status_name)
+            self._update_rollup_status_and_publish(status_name, alerts_list=alerts_list)
 
     #-------------------------------------------------------------------
     # supporting methods related with ProcessLifecycleEvent events
@@ -781,6 +783,7 @@ class StatusManager(object):
             # update the specific status
             self.aparam_child_agg_status[child_origin][status_name] = child_status
 
+            # TODO any need to pass child's alerts_list in the next call? See OOIION-1275
             new_rollup_status = self._update_rollup_status_and_publish(status_name, child_origin)
 
         if new_rollup_status and log.isEnabledFor(logging.TRACE):  # pragma: no cover
@@ -821,7 +824,8 @@ class StatusManager(object):
 
         return new_rollup_status, old_rollup_status
 
-    def _update_rollup_status_and_publish(self, status_name, child_origin=None):
+    def _update_rollup_status_and_publish(self, status_name, child_origin=None,
+                                          alerts_list=None):
         """
         Re-consolidates the rollup status for the given status and publishes
         event in case this status changed.
@@ -854,6 +858,9 @@ class StatusManager(object):
                        prev_status=old_rollup_status,
                        roll_up_status=True,
                        description=description)
+
+        if alerts_list is not None:
+            evt_out['values'] = alerts_list   # OOIION-1275
 
         log.debug("%r: publishing event: %s", self._platform_id, evt_out)
         self._event_publisher.publish_event(**evt_out)
@@ -904,7 +911,7 @@ Published event: AGGREGATE_POWER -> STATUS_OK
     def _start_diagnostics_subscriber(self):  # pragma: no cover
         """
         For debugging/diagnostics purposes.
-        Registers a subscriber to DeviceEvent events with origin="command_line"
+        Registers a subscriber to DeviceStatusEvent events with origin="command_line"
         and sub_type="diagnoser" to log the current statuses via log.info.
         This method does nothing if the logging level is not enabled for INFO
         for this module.
@@ -920,7 +927,7 @@ Published event: AGGREGATE_POWER -> STATUS_OK
         if not log.isEnabledFor(logging.INFO):
             return
 
-        event_type  = "DeviceEvent"
+        event_type  = "DeviceStatusEvent"
         origin      = "command_line"
         sub_type    = "diagnoser"
 
@@ -986,7 +993,7 @@ def publish_event_for_diagnostics():  # pragma: no cover
 
     from pyon.event.event import EventPublisher
     ep = EventPublisher()
-    evt = dict(event_type='DeviceEvent', sub_type='diagnoser', origin='command_line')
+    evt = dict(event_type='DeviceStatusEvent', sub_type='diagnoser', origin='command_line')
     print("publishing: %s" % str(evt))
     ep.publish_event(**evt)
 
