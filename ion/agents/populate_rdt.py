@@ -12,10 +12,33 @@ __license__ = 'Apache 2.0'
 
 import numpy
 import base64
+from pyon.public import log
+from ion.agents.data.parsers.parser_utils import DataParticleKey
 
 def populate_rdt(rdt, vals):
-    
-    
+    """
+    Populate a RecordDictionaryTool object with values from a data particle
+    @param rdt An empty/fresh RecordDictionaryTool for the given stream
+    @param A list of data particle dictionaries to insert into the RDT.
+    They should look something like:
+       [{u'quality_flag': u'ok',
+         u'preferred_timestamp': u'port_timestamp',
+         u'stream_name': u'raw',
+         u'port_timestamp': 3578927113.3578925,
+         u'pkt_format_id': u'JSON_Data',
+         u'pkt_version': 1,
+         u'values': [{u'binary': True,
+                      u'value_id': u'raw',
+                      u'value': u'ZAA='},
+                     {u'value_id': u'length',
+                      u'value': 2},
+                     {u'value_id': u'type',
+                      u'value': 1},
+                     {u'value_id': u'checksum',
+                      u'value': None}],
+         u'driver_timestamp': 3578927113.75216}]
+    @retval A valid, filled RDT structure
+    """
     array_size = len(vals)
     data_arrays = {}    
         
@@ -24,11 +47,15 @@ def populate_rdt(rdt, vals):
         
     
     for i, particle in enumerate(vals):
+        preferred_timestamp = DataParticleKey.DRIVER_TIMESTAMP
+        if DataParticleKey.PREFERRED_TIMESTAMP in particle:
+            preferred_timestamp = particle[DataParticleKey.PREFERRED_TIMESTAMP]
+            
         for k,v in particle.iteritems():
-            if k == 'values':
+            if k == DataParticleKey.VALUES:
                 for value_dict in v:
-                    value_id = value_dict['value_id']
-                    value = value_dict['value']
+                    value_id = value_dict[DataParticleKey.VALUE_ID]
+                    value = value_dict[DataParticleKey.VALUE]
                     if value_id in rdt:
                         if value_id not in data_arrays:
                             data_arrays[value_id] = [None] * array_size
@@ -36,7 +63,7 @@ def populate_rdt(rdt, vals):
                             value = base64.b64decode(value)
                         data_arrays[value_id][i] = value
             
-            elif k == 'driver_timestamp':
+            elif k == preferred_timestamp:
                 data_arrays[rdt.temporal_parameter][i] = v
             
             elif k in rdt:
@@ -48,38 +75,5 @@ def populate_rdt(rdt, vals):
         rdt[k] = numpy.array(v)
     
     return rdt
-                
-"""
-OLD
-def populate_rdt(rdt, vals):
-    data_arrays = {}
-    data_arrays[rdt.temporal_parameter] = [None] * len(vals)
-    
-    for i,tomato in enumerate(vals):
-        if 'values' in tomato:
-            for inner_dict in tomato['values']:
-                field = inner_dict['value_id']
-                value = inner_dict['value']
-                if field not in rdt:
-                    continue
-                if field not in data_arrays:
-                    data_arrays[field] = [None] * len(vals)
-                data_arrays[field][i] = value if not inner_dict.get('binary',None) else base64.b64decode(value)
-        for k,v in tomato.iteritems():
-            if k == 'values' or k not in rdt:
-                continue
-            if k not in data_arrays:
-                data_arrays[k] = [None] * len(vals)
-            if k == 'driver_timestamp':
-                data_arrays[rdt.temporal_parameter][i] = v
-            data_arrays[k][i] = v
-                
-    for (k,v) in data_arrays.iteritems():
-        if v and any(v):
-            rdt[k] = numpy.array(v)
-
-    return rdt
-"""
-
 
             
