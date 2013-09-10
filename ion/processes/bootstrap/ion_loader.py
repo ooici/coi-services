@@ -1058,7 +1058,9 @@ class IONLoader(ImmediateProcess):
 
         #set notification pref defaults for all users
         user_attrs['variables'] = [  {'name' : 'notifications_disabled', 'value' : False},
-                                                      {'name' : 'notifications_daily_digest', 'value' : False}  ]
+                                     {'name' : 'notifications_daily_digest', 'value' : False},
+                                     {'name' : 'ui_theme_dark', 'value' : False}]
+
 
         headers = self._get_webauth_actor_headers()
 
