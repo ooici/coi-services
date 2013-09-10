@@ -116,6 +116,18 @@ class TestDMExtended(DMTestCase):
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'load', 'instrument':'CTDPF'})
 
+
+    def preload_lctest(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,LC_TEST'
+        config.path = 'master'
+        config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
     
     def create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
@@ -440,8 +452,31 @@ class TestDMExtended(DMTestCase):
     def test_example2_preload(self):
         print 'preloading...'
         self.preload_example2()
-        breakpoint(locals())
 
+        data_product_ids, _ = self.container.resource_registry.find_resources_ext(alt_id='DPROD104', alt_id_ns='PRE')
+        data_product_id = data_product_ids[0]
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+
+        with DirectCoverageAccess() as dca:
+            dca.upload_calibration_coefficients(dataset_id, 'test_data/vel3d_coeff.csv', 'test_data/vel3d_coeff.yml')
+
+        from ion_functions.data.test.test_vel_functions import TS, VE, VN, VU
+
+        rdt = ParameterHelper.rdt_for_data_product(data_product_id)
+        rdt['time'] = [time.time() + 2208988800]
+        rdt['velocity_east'] = [VE[0]]
+        rdt['velocity_north'] = [VN[0]]
+        rdt['velocity_up'] = [VU[0]]
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+        dataset_monitor.event.wait(10)
+        g = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(g)
+
+        breakpoint(locals())
 
     @attr("UTIL")
     def test_ctdpf(self):
@@ -465,5 +500,39 @@ class TestDMExtended(DMTestCase):
 
         s.stop()
 
+    @attr("UTIL")
+    def test_lctest_preload(self):
+        self.preload_lctest()
 
+
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('sparse_dict', id_only=True)
+        stream_def_id = self.create_stream_definition('sparse_example', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('sparse_example', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+
+        rdt = ParameterHelper.rdt_for_data_product(data_product_id)
+        rdt['time'] = [time.time() + 2208988800]
+        rdt['sparse_float'] = [3.14159265358979323]
+        rdt['sparse_double'] = [2.7182818284590452353602874713526624977572470936999595]
+        rdt['sparse_int'] = [131071] # 6th mersenne prime
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+        dataset_monitor.event.wait(10)
+
+        for i in xrange(10):
+            dataset_monitor.event.clear()
+            rdt = ParameterHelper.rdt_for_data_product(data_product_id)
+            rdt['time'] = [time.time() + 2208988800]
+            ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+            dataset_monitor.event.wait(10)
+
+
+        g = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(g)
+            
+        breakpoint(locals())
 
