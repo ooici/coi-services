@@ -17,13 +17,9 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 
-# This import will dynamically load the driver egg.  It is needed for the MI includes below
-from ion.agents.instrument.test.load_test_driver_egg import load_egg
-DRV_URI_GOOD = load_egg()['dvr_egg']
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.inventory.index_management_service import IndexManagementService
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
@@ -59,6 +55,11 @@ import time
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+from ion.agents.instrument.test.load_test_driver_egg import load_egg
+load_egg()
+DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 class FakeProcess(LocalContextMixin):
     """
@@ -459,10 +460,18 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(ResourceAgentState.COMMAND, state)
 
-        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
         for i in xrange(10):
-            retval = self._ia_client.execute_resource(cmd)
-            log.debug("test_activateInstrumentSample: return from sample %s" , str(retval))
+            monitor = DatasetMonitor(dataset_id=self.parsed_dataset)
+            self._ia_client.execute_resource(AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE))
+            if not monitor.event.wait(30):
+                raise AssertionError('Failed on the %ith granule' % i)
+            monitor.stop()
+
+
+#        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+#        for i in xrange(10):
+#            retval = self._ia_client.execute_resource(cmd)
+#            log.debug("test_activateInstrumentSample: return from sample %s" , str(retval))
 
         log.debug( "test_activateInstrumentSample: calling reset ")
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
