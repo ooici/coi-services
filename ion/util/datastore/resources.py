@@ -426,6 +426,28 @@ class ResourceRegistryHelper(object):
                     self._row += 1
                     lnum += 1
 
+            # Policy Update Log
+            ws.write(self._row, 0, self._row)
+            self._row += 1
+            policy_stats = cc_status.get("policy", {}).get("update_log", [])
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "PolicyUpdate", "PType", "TS", "Message"])]
+            self._row += 1
+            for lnum, plog in enumerate(policy_stats):
+                ws.write(self._row, 0, self._row)
+                ws.write(self._row, 1, lnum+1)
+                ws.write(self._row, 2, "PolicyUpdate")
+                ws.write(self._row, 3, plog["update_type"])
+                ws.write(self._row, 4, plog["update_ts"])
+                ws.write(self._row, 5, plog["message"])
+                cnum = 6
+                for key in sorted(plog.keys()):
+                    if key in ("update_type", "update_ts", "message"):
+                        continue
+                    puval = plog[key]
+                    ws.write(self._row, cnum, "%s=%s" % (key, puval))
+                    cnum += 1
+                self._row += 1
+
             # Accumulators
             ws.write(self._row, 0, self._row)
             self._row += 1
@@ -503,6 +525,19 @@ class ResourceRegistryHelper(object):
                         self.lnum += 1
 
             write_cfg_dict("CFG", config_stats)
+
+            # Path
+            ws.write(self._row, 0, self._row)
+            self._row += 1
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Greenlet", "Name"])]
+            self._row += 1
+            gl_stats = cc_status.get("gevent", {}).get("greenlets", [])
+            for i, p in enumerate(gl_stats):
+                ws.write(self._row, 0, self._row)
+                ws.write(self._row, 1, i+1)
+                ws.write(self._row, 2, "Greenlet")
+                ws.write(self._row, 3, p[0])
+                self._row += 1
 
         dtstr = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
         path = filename or "interface/containers_%s.xls" % dtstr
