@@ -17,14 +17,11 @@ from pyon.public import log
 from pyon.public import CFG
 
 # Standard imports.
-import sys
 import time
 import socket
 import re
-import json
 import unittest
 import os
-import signal
 import subprocess
 
 # 3rd party imports.
@@ -58,8 +55,6 @@ from pyon.agent.agent import ResourceAgentEvent
 # Driver imports.
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
-from ion.agents.instrument.driver_process import DriverProcessType
-from ion.agents.instrument.driver_process import ZMQEggDriverProcess
 
 # Objects and clients.
 from interface.objects import AgentCommand

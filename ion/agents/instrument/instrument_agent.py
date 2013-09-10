@@ -54,8 +54,7 @@ from ion.agents.agent_alert_manager import AgentAlertManager
 
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
-from interface.objects import StreamAlertType
-from interface.objects import AgentCommand, DeviceStatusType, AggregateStatusType
+from interface.objects import AgentCommand
 
 class InstrumentAgentState(BaseEnum):
     POWERED_DOWN = ResourceAgentState.POWERED_DOWN
@@ -1512,10 +1511,10 @@ class InstrumentAgent(ResourceAgent):
         Stop the driver process and driver client.
         """
 
+        self._dvr_client = None
         if self._dvr_proc:
             self._dvr_proc.stop(force)
             self._dvr_proc = None
-            self._dvr_client = None
             self._resource_schema = {}
 
             log.info('Instrument agent %s stopped its driver.', self._proc_name)
