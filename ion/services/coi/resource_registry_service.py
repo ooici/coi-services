@@ -3,12 +3,12 @@
 
 __author__ = 'Thomas R. Lennan, Michael Meisinger, Stephen Henrie'
 __license__ = 'Apache 2.0'
-import types
-from pyon.core.exception import BadRequest, ServerError
-from pyon.ion.resource import ExtendedResourceContainer
+from pyon.core.exception import ServerError
 from pyon.ion.resregistry import ResourceRegistryServiceWrapper
 from pyon.public import log, OT
-
+from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
+from pyon.public import RT, PRED
+from pyon.core.exception import Inconsistent
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 
 # The following decorator is needed because the couchdb client used in the RR backend
@@ -191,3 +191,43 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.prepare_resource_support(resource_type=resource_type, resource_id=resource_id)
 
 
+##
+    ##
+    ##  GOVERNANCE FUNCTION
+    ##
+    ##
+
+
+    def check_attachment_policy(self, process, message, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process, resource_id_required=False)
+
+        except Inconsistent, ex:
+            return False, ex.message
+
+        resource_id = message.resource_id
+
+        resource = self.resource_registry.read(resource_id)
+        # Allow attachment to an org
+        if resource.type_ == 'Org':
+
+            if (has_org_role(gov_values.actor_roles, resource.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR, DATA_OPERATOR])):
+                return True, ''
+
+        # Allow actor to add attachment to his own UserInfo
+        elif resource.type_ == 'UserInfo':
+
+            actor_identity,_ = self.resource_registry.find_subjects(subject_type=RT.ActorIdentity, predicate=PRED.hasInfo, object=resource_id, id_only=False)
+            if actor_identity[0]._id == headers['ion-actor-id']:
+                return True, ''
+        # Allow actor to add attachment to any resource in an org where the actor has appropriate role
+        else:
+
+            orgs,_ = self.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
+            for org in orgs:
+                if (has_org_role(gov_values.actor_roles, org.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR, DATA_OPERATOR])):
+                    return True, ''
+
+
+        return False, '%s(%s) has been denied since the user is not a member in any org to which the resource id %s belongs ' % (process.name, gov_values.op, resource_id)
