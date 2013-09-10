@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 from pyon.core.exception import ServerError
 from pyon.ion.resregistry import ResourceRegistryServiceWrapper
 from pyon.public import log, OT
-from pyon.core.governance import ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
+from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
 from pyon.public import RT, PRED
 from pyon.core.exception import Inconsistent
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
@@ -209,24 +209,24 @@ class ResourceRegistryService(BaseResourceRegistryService):
         resource_id = message.resource_id
 
         resource = self.resource_registry.read(resource_id)
-
         # Allow attachment to an org
         if resource.type_ == 'Org':
-            if (has_org_role(gov_values.actor_roles, resource.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR])):
+
+            if (has_org_role(gov_values.actor_roles, resource.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR, DATA_OPERATOR])):
                 return True, ''
 
         # Allow actor to add attachment to his own UserInfo
         elif resource.type_ == 'UserInfo':
+
             actor_identity,_ = self.resource_registry.find_subjects(subject_type=RT.ActorIdentity, predicate=PRED.hasInfo, object=resource_id, id_only=False)
-            if actor_identity == headers['ion-actor-id']:
+            if actor_identity[0]._id == headers['ion-actor-id']:
                 return True, ''
         # Allow actor to add attachment to any resource in an org where the actor has appropriate role
         else:
-            orgs,_ = self.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
 
+            orgs,_ = self.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
             for org in orgs:
-                log.debug(gov_values.actor_roles)
-                if (has_org_role(gov_values.actor_roles, org.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR])):
+                if (has_org_role(gov_values.actor_roles, org.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR, DATA_OPERATOR])):
                     return True, ''
 
 
