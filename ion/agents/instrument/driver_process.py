@@ -136,11 +136,13 @@ class DriverProcess(object):
 
             if not force and self._driver_client:
                 try:
+                    log.info('Stopping driver process.')
                     self._driver_client.done()
                     self._driver_process.wait()
                     log.info('Driver process stopped.')
                 except:
                     try:
+                        log.error('Exception stopping driver process...killing')
                         self._driver_process.kill()
                         self._driver_process.wait()
                         log.error('Driver process killed.')
@@ -151,9 +153,10 @@ class DriverProcess(object):
 
             else:
                 try:
+                    log.info('Killing driver process.')
                     self._driver_process.kill()
                     self._driver_process.wait()
-                    log.error('Driver process killed.')
+                    log.info('Driver process killed.')
                 except Exception as ex:
                     log.error('Exception killing driver process')
                     log.error(type(ex))
