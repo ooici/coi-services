@@ -7,7 +7,8 @@ from email.utils import formatdate
 from stat import ST_MTIME
 
 from coverage_model.coverage import AbstractCoverage
-from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType, CategoryType, BooleanType, ParameterFunctionType
+from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType 
+from coverage_model.parameter_types import CategoryType, BooleanType, ParameterFunctionType, SparseConstantType
 from coverage_model.parameter_functions import ParameterFunctionException
 from pydap.model import DatasetType,BaseType, GridType
 from pydap.handlers.lib import BaseHandler
@@ -213,10 +214,10 @@ class Handler(BaseHandler):
                     if isinstance(pc.param_type, QuantityType) and not param.is_coordinate and cov.temporal_parameter_name != name:
                         data, dtype = self.filter_data(data)
                         dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                    if isinstance(pc.param_type, ConstantType):
+                    elif isinstance(pc.param_type, ConstantType):
                         data, dtype = self.filter_data(data)
                         dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                    if isinstance(pc.param_type, ConstantRangeType):
+                    elif isinstance(pc.param_type, ConstantRangeType):
                         #start = time.time()
                         #convert to string
                         try:
@@ -230,27 +231,33 @@ class Handler(BaseHandler):
                         except Exception, e:
                             data = np.asanyarray(['None' for d in data])
                         dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, 'S')                
-                    if isinstance(pc.param_type,BooleanType):
+                    elif isinstance(pc.param_type,BooleanType):
                         data, dtype = self.filter_data(data)
                         dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                    if isinstance(pc.param_type,CategoryType):
+                    elif isinstance(pc.param_type,CategoryType):
                         data, dtype = self.filter_data(data)
                         #start = time.time()
                         dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                    if isinstance(pc.param_type,ArrayType):
+                    elif isinstance(pc.param_type,ArrayType):
                         data, dtype = self.filter_data(data)
                         dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
 
-                    if isinstance(pc.param_type,RecordType):
+                    elif isinstance(pc.param_type,RecordType):
                         data, dtype = self.filter_data(data)
                         dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
 
-                    if isinstance(pc.param_type, ParameterFunctionType):
+                    elif isinstance(pc.param_type, ParameterFunctionType):
                         data, dtype = self.filter_data(data)
                         dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                        
-                    if param.is_coordinate and cov.temporal_parameter_name == name:
+
+                    elif isinstance(pc.param_type, SparseConstantType):
+                        data, dtype = self.filter_data(data)
+                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
+                    elif param.is_coordinate and cov.temporal_parameter_name == name:
                         dataset[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs, shape=data.shape)
+                    else:
+                        log.error("Unhandled parameter for parameter (%s) type: %s", name, pc.param_type.__class__.__name__)
+                        
                 except Exception, e:
                     log.exception('Problem reading cov %s %s', cov.name, e)
                     continue

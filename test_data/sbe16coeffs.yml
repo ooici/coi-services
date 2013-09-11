@@ -1,0 +1,9 @@
+# SBE 16 Calibration Coefficients Table Configuration (EXAMPLE ONLY)
+# Author: Luke Campbell
+# Date: Thu Sep  5 12:21:32 EDT 2013
+#
+header_size: 0
+delimiter: ','
+use_column_names: true
+
+
