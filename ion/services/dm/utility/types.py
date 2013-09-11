@@ -125,6 +125,8 @@ class TypesManager(object):
             return self.get_record_type()
         elif parameter_type == 'function':
             return self.get_function_type(parameter_type, encoding, pfid, pmap)
+        elif parameter_type == 'sparse':
+            return self.get_sparse_type(parameter_type, encoding)
         else:
             raise TypeError( 'Invalid Parameter Type: %s' % parameter_type)
 
@@ -468,6 +470,9 @@ class TypesManager(object):
             return ConstantRangeType(self.get_quantity_type(groups[2], encoding))
         else:
             raise TypeError('Unsupported Constant Range Type: %s' % groups[2])
+
+    def get_sparse_type(self, parameter_type, encoding):
+        return SparseConstantType(value_encoding=encoding)
 
 
     def get_record_type(self):

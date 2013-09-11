@@ -794,6 +794,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt['driver_timestamp'] = [ntp_now]
         rdt['pressure'] = [256.8]
         
+        dataset_monitor.event.clear()
         publisher.publish(rdt.to_granule())
         self.assertTrue(dataset_monitor.event.wait(30))
         dataset_monitor.event.clear()
