@@ -321,7 +321,12 @@ class ResourceRegistryHelper(object):
 
         cc_objs, _ = self.container.resource_registry.find_resources(restype=RT.CapabilityContainer, id_only=False)
         for cc in cc_objs:
-            ws = self._wb.add_sheet(cc.name[:31])
+            name_parts = cc.name.split("_")
+            if len(name_parts) >= 2:
+                tab_name = "%s_%s" % (name_parts[0], name_parts[-1])
+            else:
+                tab_name = cc.name
+            ws = self._wb.add_sheet(tab_name[:31])
             [ws.write(0, col, hdr) for (col, hdr) in enumerate(["RNum", "LNum", "Type"])]
             self._row = 1
 
@@ -332,6 +337,7 @@ class ResourceRegistryHelper(object):
             # Basic
             basic_stats = cc_status.get("basic", {})
             basic_stats.update({"snap."+k:v for k,v in cc_status.iteritems() if isinstance(v, str)})
+            basic_stats.update({"cc.id": cc.name})
             [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Basic", "Key", "Value"])]
             self._row += 1
             for lnum, sn in enumerate(sorted(basic_stats.keys())):
