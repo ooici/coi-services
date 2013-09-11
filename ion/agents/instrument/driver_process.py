@@ -146,7 +146,7 @@ class DriverProcess(object):
                         self._driver_process.kill()
                         self._driver_process.wait()
                         log.error('Driver process killed.')
-                    except:
+                    except Exception as ex:
                         log.error('Exception killing driver process')
                         log.error(type(ex))
                         log.error(ex)
