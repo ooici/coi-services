@@ -321,7 +321,7 @@ class ResourceRegistryHelper(object):
 
         cc_objs, _ = self.container.resource_registry.find_resources(restype=RT.CapabilityContainer, id_only=False)
         for cc in cc_objs:
-            ws = self._wb.add_sheet(cc.name)
+            ws = self._wb.add_sheet(cc.name[:31])
             [ws.write(0, col, hdr) for (col, hdr) in enumerate(["RNum", "LNum", "Type"])]
             self._row = 1
 
