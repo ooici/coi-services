@@ -2390,11 +2390,8 @@ class InstrumentAgentTest(IonIntegrationTestCase):
 
         # Kill driver.
         log.info('Sending kill signal to driver.')
-        print "### " + str(dvr_pid)
-        print '### ' + str(type(dvr_pid))
         args = ['kill', '-9', str(dvr_pid)]
         subprocess.check_output(args)
-
 
         def poll_state():
             start = time.time()

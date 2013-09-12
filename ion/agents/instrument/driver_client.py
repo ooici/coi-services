@@ -134,11 +134,6 @@ class ZmqDriverClient(DriverClient):
             driver events. Can be run as a thread or greenlet.
             @param driver_client The client object that launches the thread.
             """
-            #context = zmq.Context()
-            #sock = self.zmq_context.socket(zmq.SUB)
-            #sock.connect(self.event_host_string)
-            #sock.setsockopt(zmq.SUBSCRIBE, '')
-
             self.stop_event_thread = False
             while not self.stop_event_thread:
                 try:
@@ -151,15 +146,8 @@ class ZmqDriverClient(DriverClient):
                 except Exception, e:
                     log.error('Driver client error reading from zmq event socket: ' + str(e))
                     log.error('Driver client error type: ' + str(type(e)))                    
-                #cur_time = time.time()
-                #if cur_time - last_time > 5:
-                #    log.info('event thread listening')
-                #    last_time = cur_time
-            #sock.close()
-            #context.destroy()
             log.info('Client event socket closed.')
 
-        #self.event_thread = thread.start_new_thread(recv_evt_messages, (self,))
         self.event_thread = spawn(recv_evt_messages)
         log.info('Driver client messaging started: ' + str(self.event_thread))
         
@@ -170,18 +158,15 @@ class ZmqDriverClient(DriverClient):
         cause event thread to close event socket and context and terminate.
         Await event thread completion and return.
         """
-        
-        #self.stop_event_thread = True
-        self.event_thread.join()
-        self.zmq_cmd_socket.close()
-        self.zmq_cmd_socket = None
-        self.zmq_evt_socket.close()
-        self.zmq_evt_socket = None
-        self.zmq_context.destroy()
-        self.zmq_context = None
-        self.event_thread = None
+        if self.event_thread:
+            self.stop_event_thread = True
+            self.event_thread.join()
+            self.event_thread = None
+        if self.zmq_context:
+            self.zmq_context.destroy(linger=1)
+            self.zmq_context = None
         self.evt_callback = None
-        log.info('Driver client messaging closed.')        
+        log.info('Driver client messaging closed.')
     
     def cmd_dvr(self, cmd, *args, **kwargs):
         """

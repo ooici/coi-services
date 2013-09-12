@@ -131,7 +131,6 @@ class DriverProcess(object):
         Stop the driver process.  We try to stop gracefully using the driver client if we can, otherwise a simple kill
         does the job.
         """
-
         if self._driver_process:
 
             if not force and self._driver_client:
@@ -142,20 +141,13 @@ class DriverProcess(object):
                     log.info('Driver process stopped.')
                 except:
                     try:
-                        log.error('Exception stopping driver process...killing')
-                        print '## polling'
+                        log.error('Exception stopping driver process...killing.')
+                        self._driver_client.stop_messaging()
                         self._driver_process.poll()
                         if not self._driver_process.returncode:
-                            print '## poll return code is: ' + str(self._driver_process.returncode)
-                            print '## killing'
                             self._driver_process.kill()
                             self._driver_process.wait()
-                        print '## stopping'
-                        #self._driver_client.stop_messaging()
-                        #self._driver_client.stop_event_thread = True
-                        #self._driver_client.event_thread.kill()
-                        #self._driver_client.event_thread.join()
-                        log.error('Driver process killed.')
+                            log.info('Driver process killed.')
                     except Exception as ex:
                         log.error('Exception killing driver process')
                         log.error(type(ex))
@@ -164,21 +156,14 @@ class DriverProcess(object):
             else:
                 try:
                     log.info('Killing driver process.')
-                    print '## polling'
+                    self._driver_client.stop_messaging()
                     self._driver_process.poll()
-                    if  not self._driver_process.returncode:
-                        print '## poll return code is: ' + str(self._driver_process.returncode)
-                        print '## killing'
+                    if not self._driver_process.returncode:
                         self._driver_process.kill()
                         self._driver_process.wait()
-                    print '## stopping'
-                    self._driver_client.stop_messaging()
-                    #self._driver_client.stop_event_thread = True
-                    #self._driver_client.event_thread.kill()
-                    #self._driver_client.event_thread.join()
-                    log.info('Driver process killed.')
+                        log.info('Driver process killed.')
                 except Exception as ex:
-                    log.error('Exception killing driver process')
+                    log.error('Exception killing driver process.')
                     log.error(type(ex))
                     log.error(ex)
 
