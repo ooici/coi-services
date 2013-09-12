@@ -540,11 +540,19 @@ class InstrumentAgent(ResourceAgent):
                                   get_ion_ts())
             next_state = None
         except InstDriverClientTimeoutError:
-            self._stop_driver(True)
+            print '##### pinger timed out ONE'
+            #self._pinger.kill()
+            print '##### pinger timed out TWO'
+            #self._stop_driver(True)
+            print '##### pinger timed out THREE'
             next_state = ResourceAgentState.UNINITIALIZED
+            print '##### pinger timed FOUR'
             result = None
+            print '##### pinger timed FIVE'
             self._on_driver_comms_error('_handler_ping_resource')
+            print '##### pinger timed SIX'
 
+        print '##### ping hendler returning'
         return (next_state, result)
 
     def _handler_done(self, *args, **kwargs):
@@ -1551,7 +1559,7 @@ class InstrumentAgent(ResourceAgent):
                         self._pinger = None
                         break
 
-                    retval = self._fsm.on_event_if_free(ResourceAgentEvent.PING_RESOURCE, driver_timeout=60)
+                    retval = self._fsm.on_event_if_free(ResourceAgentEvent.PING_RESOURCE, driver_timeout=30)
                     log.info(str(retval))
 
                     # If we have reset, then kill the greenlet automatically.

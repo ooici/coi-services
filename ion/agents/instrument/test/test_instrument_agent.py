@@ -22,6 +22,7 @@ import socket
 import re
 import unittest
 import os
+import signal
 import subprocess
 
 # 3rd party imports.
@@ -2385,24 +2386,29 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         dvr_pid = self._ia_client.get_agent(['driver_pid'])['driver_pid']
-        gevent.sleep(15)
+        gevent.sleep(5)
 
         # Kill driver.
         log.info('Sending kill signal to driver.')
-        #retval = os.kill(int(dvr_pid), signal.SIGKILL)
+        print "### " + str(dvr_pid)
+        print '### ' + str(type(dvr_pid))
         args = ['kill', '-9', str(dvr_pid)]
-        retval = subprocess.check_output(args)
-        log.info('Kill signal output: %s', str(retval))
+        subprocess.check_output(args)
 
-        start = time.time()
-        elapsed = 0
-        while elapsed < 300:
-            gevent.sleep(5)
-            state = self._ia_client.get_agent_state()
-            log.info('Insturment agent state is %s.', state)
-            if state == ResourceAgentState.UNINITIALIZED:
-                break
-            elapsed = time.time() - start
+
+        def poll_state():
+            start = time.time()
+            elapsed = 0
+            while elapsed < 120:
+                gevent.sleep(5)
+                state = self._ia_client.get_agent_state()
+                log.info('Insturment agent state is %s.', state)
+                if state == ResourceAgentState.UNINITIALIZED:
+                    break
+                elapsed = time.time() - start
+
+        gl = gevent.spawn(poll_state)
+        gl.join()
 
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
