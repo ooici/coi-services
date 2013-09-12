@@ -100,7 +100,7 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('HARDWARE', group='sa')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 180}}})
 class TestInstrumentAlerts(IonIntegrationTestCase):
     pdict_id = None
 
@@ -371,7 +371,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         caught_events = []
         while (got_bad_temp == False or got_late_data == False) and \
             runtime < 120:            
-            a = self.catch_alert.get(timeout=90)
+            a = self.catch_alert.get(timeout=180)
             caught_events.append(a)
             if a.name == 'temperature_warning_interval' and \
                 a.description == 'Alert triggered by out of range data values: temp ':
