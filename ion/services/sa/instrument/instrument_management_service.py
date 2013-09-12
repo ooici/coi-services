@@ -2172,6 +2172,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                        {"instrument_model_id":  "$(instrument_model_id)",
                                                         "instrument_agent_id":  instrument_agent_id })
 
+        #There can be multiple instruments to a InstrumentModel
+        resource_data.associations['InstrumentModel'].multiple_associations = True
+
         #Fill out service request information for assigning a InstrumentAgentInstance
         extended_resource_handler.set_service_requests(resource_data.associations['InstrumentAgentInstance'].assign_request, 'instrument_management',
             'assign_instrument_agent_to_instrument_agent_instance', {"instrument_agent_id":  instrument_agent_id,
