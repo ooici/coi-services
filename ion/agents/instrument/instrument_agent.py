@@ -1307,7 +1307,6 @@ class InstrumentAgent(ResourceAgent):
             self._fsm.on_event(agt_evt, *args, **kwargs)
             
         except Exception as ex:
-            #print '################## exception: str(ex)'
             log.warning('Instrument agent %s error processing asynchronous agent event %s', self.id, str(val))
 
 
@@ -1551,7 +1550,7 @@ class InstrumentAgent(ResourceAgent):
                         self._pinger = None
                         break
 
-                    retval = self._fsm.on_event_if_free(ResourceAgentEvent.PING_RESOURCE, driver_timeout=60)
+                    retval = self._fsm.on_event_if_free(ResourceAgentEvent.PING_RESOURCE, driver_timeout=30)
                     log.info(str(retval))
 
                     # If we have reset, then kill the greenlet automatically.

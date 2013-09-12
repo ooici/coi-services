@@ -131,21 +131,23 @@ class DriverProcess(object):
         Stop the driver process.  We try to stop gracefully using the driver client if we can, otherwise a simple kill
         does the job.
         """
-
         if self._driver_process:
 
             if not force and self._driver_client:
                 try:
-                    log.info('Stopping driver process.')
+                    log.info('Stopping driver process.') 
                     self._driver_client.done()
                     self._driver_process.wait()
                     log.info('Driver process stopped.')
                 except:
                     try:
-                        log.error('Exception stopping driver process...killing')
-                        self._driver_process.kill()
-                        self._driver_process.wait()
-                        log.error('Driver process killed.')
+                        log.error('Exception stopping driver process...killing.')
+                        self._driver_client.stop_messaging()
+                        self._driver_process.poll()
+                        if not self._driver_process.returncode:
+                            self._driver_process.kill()
+                            self._driver_process.wait()
+                            log.info('Driver process killed.')
                     except Exception as ex:
                         log.error('Exception killing driver process')
                         log.error(type(ex))
@@ -154,11 +156,14 @@ class DriverProcess(object):
             else:
                 try:
                     log.info('Killing driver process.')
-                    self._driver_process.kill()
-                    self._driver_process.wait()
-                    log.info('Driver process killed.')
+                    self._driver_client.stop_messaging()
+                    self._driver_process.poll()
+                    if not self._driver_process.returncode:
+                        self._driver_process.kill()
+                        self._driver_process.wait()
+                        log.info('Driver process killed.')
                 except Exception as ex:
-                    log.error('Exception killing driver process')
+                    log.error('Exception killing driver process.')
                     log.error(type(ex))
                     log.error(ex)
 
