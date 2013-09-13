@@ -9,6 +9,11 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
+from gevent import monkey
+monkey.patch_all()
+from gevent import spawn
+
+
 import time
 import thread
 
@@ -115,44 +120,36 @@ class ZmqDriverClient(DriverClient):
         self.zmq_cmd_socket = self.zmq_context.socket(zmq.REQ)
         self.zmq_cmd_socket.connect(self.cmd_host_string)
         log.info('Driver client cmd socket connected to %s.' %
-                       self.cmd_host_string)        
+                       self.cmd_host_string)
+        self.zmq_evt_socket = self.zmq_context.socket(zmq.SUB)
+        self.zmq_evt_socket.connect(self.event_host_string)
+        self.zmq_evt_socket.setsockopt(zmq.SUBSCRIBE, '')
+        log.info('Driver client event thread connected to %s.' %
+                  self.event_host_string)
         self.evt_callback = evt_callback
         
-        def recv_evt_messages(driver_client):
+        def recv_evt_messages():
             """
             A looping function that monitors a ZMQ SUB socket for asynchronous
             driver events. Can be run as a thread or greenlet.
             @param driver_client The client object that launches the thread.
             """
-            context = zmq.Context()
-            sock = context.socket(zmq.SUB)
-            sock.connect(driver_client.event_host_string)
-            sock.setsockopt(zmq.SUBSCRIBE, '')
-            log.info('Driver client event thread connected to %s.' %
-                  driver_client.event_host_string)
-
-            driver_client.stop_event_thread = False
-            #last_time = time.time()
-            while not driver_client.stop_event_thread:
+            self.stop_event_thread = False
+            while not self.stop_event_thread:
                 try:
-                    evt = sock.recv_pyobj(flags=zmq.NOBLOCK)
+                    evt = self.zmq_evt_socket.recv_pyobj(flags=zmq.NOBLOCK)
                     log.debug('got event: %s' % str(evt))
-                    if driver_client.evt_callback:
-                        driver_client.evt_callback(evt)
+                    if self.evt_callback:
+                        self.evt_callback(evt)
                 except zmq.ZMQError:
                     time.sleep(.5)
                 except Exception, e:
                     log.error('Driver client error reading from zmq event socket: ' + str(e))
                     log.error('Driver client error type: ' + str(type(e)))                    
-                #cur_time = time.time()
-                #if cur_time - last_time > 5:
-                #    log.info('event thread listening')
-                #    last_time = cur_time
-            sock.close()
-            context.term()
             log.info('Client event socket closed.')
-        self.event_thread = thread.start_new_thread(recv_evt_messages, (self,))
-        log.info('Driver client messaging started.')
+
+        self.event_thread = spawn(recv_evt_messages)
+        log.info('Driver client messaging started: ' + str(self.event_thread))
         
     def stop_messaging(self):
         """
@@ -161,16 +158,15 @@ class ZmqDriverClient(DriverClient):
         cause event thread to close event socket and context and terminate.
         Await event thread completion and return.
         """
-        
-        self.zmq_cmd_socket.close()
-        self.zmq_cmd_socket = None
-        self.zmq_context.term()
-        self.zmq_context = None
-        self.stop_event_thread = True                    
-        #self.event_thread.join()
-        self.event_thread = None
+        if self.event_thread:
+            self.stop_event_thread = True
+            self.event_thread.join()
+            self.event_thread = None
+        if self.zmq_context:
+            self.zmq_context.destroy(linger=1)
+            self.zmq_context = None
         self.evt_callback = None
-        log.info('Driver client messaging closed.')        
+        log.info('Driver client messaging closed.')
     
     def cmd_dvr(self, cmd, *args, **kwargs):
         """
