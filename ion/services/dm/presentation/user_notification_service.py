@@ -229,7 +229,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s", notification_id)
+        #log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s", notification_id)
 
         self.event_publisher.publish_event( event_type= OT.ReloadUserInfoEvent,
             origin="UserNotificationService",

@@ -139,7 +139,7 @@ def convert_events_to_email_message(events=None, rr_client=None):
                 "Do not reply to this email.  This email address is not monitored and the emails will not be read.\r\n"
 
 
-    log.debug("The email has the following message body: %s", msg_body)
+    #log.debug("The email has the following message body: %s", msg_body)
 
     msg_subject = ""
     if 1 == len(events):
@@ -165,7 +165,7 @@ def send_email(event, msg_recipient, smtp_client, rr_client):
 
     """
 
-    log.debug("Got type of event to notify on: %s", event.type_)
+    #log.debug("Got type of event to notify on: %s", event.type_)
 
     #------------------------------------------------------------------------------------
     # the 'from' email address for notification emails
@@ -178,7 +178,7 @@ def send_email(event, msg_recipient, smtp_client, rr_client):
     msg['From'] = smtp_sender
     msg['To'] = msg_recipient
     log.debug("UNS sending email from %s to %s for event type: %s", smtp_sender,msg_recipient, event.type_)
-    log.debug("UNS using the smtp client: %s", smtp_client)
+    #log.debug("UNS using the smtp client: %s", smtp_client)
 
     try:
         smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())

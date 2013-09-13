@@ -68,9 +68,6 @@ class NotificationWorker(TransformEventListener):
             Callback method for the subscriber to ReloadUserInfoEvent
             '''
 
-            notification_id =  event_msg.notification_id
-            log.debug("(Notification worker received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
-
             try:
                 self.user_info = self.load_user_info()
             except NotFound:
@@ -79,8 +76,8 @@ class NotificationWorker(TransformEventListener):
             self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
             self.test_hook(self.user_info, self.reverse_user_info)
 
-            log.debug("After a reload, the user_info: %s" % self.user_info)
-            log.debug("The recalculated reverse_user_info: %s" % self.reverse_user_info)
+            #log.debug("After a reload, the user_info: %s" % self.user_info)
+            #log.debug("The recalculated reverse_user_info: %s" % self.reverse_user_info)
 
         # the subscriber for the ReloadUSerInfoEvent
         self.reload_user_info_subscriber = EventSubscriber(
@@ -91,6 +88,16 @@ class NotificationWorker(TransformEventListener):
 
         self.add_endpoint(self.reload_user_info_subscriber)
 
+
+        # the subscriber for the UserInfo resource update events
+        self.userinfo_rsc_mod_subscriber = EventSubscriber(
+            event_type=OT.ResourceModifiedEvent,
+            sub_type="UPDATE",
+            origin_type="UserInfo",
+            callback=reload_user_info
+        )
+
+        self.add_endpoint(self.userinfo_rsc_mod_subscriber)
 
     def process_event(self, msg, headers):
         """
@@ -103,6 +110,8 @@ class NotificationWorker(TransformEventListener):
         user_ids = []
         if self.reverse_user_info:
             user_ids = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
+
+            #log.debug('process_event  user_ids: %s', user_ids)
 
             #log.debug("Notification worker found interested users %s" % user_ids)
 
@@ -131,7 +140,7 @@ class NotificationWorker(TransformEventListener):
         user_notif_req_objs, _ = self.resource_registry.find_objects(
             subject=user_info_id, predicate=PRED.hasNotification, object_type=RT.NotificationRequest, id_only=False)
 
-        #log.debug("Got %s notifications, for the user: %s", len(user_notif_req_objs), user_info_id)
+        #log.debug("get_user_notifications Got %s notifications, for the user: %s", len(user_notif_req_objs), user_info_id)
 
         for notif in user_notif_req_objs:
             # do not include notifications that have expired
