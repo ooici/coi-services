@@ -482,6 +482,10 @@ class TestDMExtended(DMTestCase):
     def test_ctdpf(self):
         print 'preloading'
         self.preload_ctdpf()
+
+        data_product_id = self.container.resource_registry.find_resources_ext(restype='DataProduct', alt_id='DPROD100', alt_id_ns='PRE', id_only=True)[0][0]
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        
         breakpoint(locals())
 
 
