@@ -2393,11 +2393,11 @@ class PlatformAgent(ResourceAgent):
 
             # All is OK here. Proceed with initializing children:
             try:
-                # initialize sub-platforms
-                self._subplatforms_initialize()
-
                 # initialize instruments
                 self._instruments_initialize()
+
+                # initialize sub-platforms
+                self._subplatforms_initialize()
 
             except:
                 log.exception("%r: unexpected exception while initializing children: "
@@ -2495,13 +2495,14 @@ class PlatformAgent(ResourceAgent):
         self._run_this_platform()
 
         if recursion:
-            # first instruments:
-            self._instruments_run()
+            try:
+                self._instruments_run()
+                self._subplatforms_run()
 
-            # we proceed with sub-platforms even if some instruments failed.
-
-            # then sub-platforms:
-            self._subplatforms_run()
+            except:
+                log.exception("%r: unexpected exception while sending RUN to children: "
+                              "any errors during this sequence should have "
+                              "been handled with event notifications.", self._platform_id)
 
         result = None
         return result
