@@ -657,8 +657,7 @@ class RSNPlatformDriver(PlatformDriver):
     def _start_event_dispatch(self):
         """
         Registers the event listener by using a URL that is composed from
-        CFG.server.oms.host, CFG.server.oms.port, and path (route) directly
-        copied from the service gateway.
+        CFG.server.oms.host, CFG.server.oms.port, and CFG.server.oms.path.
 
         NOTE: the same listener URL will be registered by multiple RSN platform
         drivers. See other related notes in this file.
@@ -671,9 +670,7 @@ class RSNPlatformDriver(PlatformDriver):
         # gateway host and port to compose URL:
         host = CFG.get_safe('server.oms.host', "localhost")
         port = CFG.get_safe('server.oms.port', "5000")
-        path = "/ion-service/oms_event"
-        # TODO 'path' should also be given via configuration. For now,
-        # copying it directly from the ServiceGatewayService.
+        path = CFG.get_safe('server.oms.path', "/ion-service/oms_event")
 
         if host == "localhost":
             # in general we need a host name that is externally visible
