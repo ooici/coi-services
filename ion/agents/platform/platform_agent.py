@@ -2495,13 +2495,14 @@ class PlatformAgent(ResourceAgent):
         self._run_this_platform()
 
         if recursion:
-            # first instruments:
-            self._instruments_run()
+            try:
+                self._instruments_run()
+                self._subplatforms_run()
 
-            # we proceed with sub-platforms even if some instruments failed.
-
-            # then sub-platforms:
-            self._subplatforms_run()
+            except:
+                log.exception("%r: unexpected exception while sending RUN to children: "
+                              "any errors during this sequence should have "
+                              "been handled with event notifications.", self._platform_id)
 
         result = None
         return result
