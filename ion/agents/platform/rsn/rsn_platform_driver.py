@@ -25,7 +25,6 @@ from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
-from ion.services.coi.service_gateway_service import DEFAULT_WEB_SERVER_PORT
 import socket
 
 from ion.agents.platform.util import ion_ts_2_ntp
@@ -657,23 +656,30 @@ class RSNPlatformDriver(PlatformDriver):
 
     def _start_event_dispatch(self):
         """
-        Registers the event listener by using the URL as determined by the
-        web server launched by the ServiceGatewayService.
+        Registers the event listener by using a URL that is composed from
+        CFG.server.oms.host, CFG.server.oms.port, and CFG.server.oms.path.
 
         NOTE: the same listener URL will be registered by multiple RSN platform
         drivers. See other related notes in this file.
 
+        @see https://jira.oceanobservatories.org/tasks/browse/OOIION-1287
         @see https://jira.oceanobservatories.org/tasks/browse/OOIION-968
         """
         self._assert_rsn_oms()
 
         # gateway host and port to compose URL:
-        host = socket.getfqdn()
-        port = CFG.get_safe('container.service_gateway.web_server.port', DEFAULT_WEB_SERVER_PORT)
-        # TODO for the port we just use current logic in ServiceGatewayService
-        # but there should be a more API way to get that information.
+        host = CFG.get_safe('server.oms.host', "localhost")
+        port = CFG.get_safe('server.oms.port', "5000")
+        path = CFG.get_safe('server.oms.path', "/ion-service/oms_event")
 
-        self.listener_url = "http://%s:%s/ion-service/oms_event" % (host, port)
+        if host == "localhost":
+            # in general we need a host name that is externally visible
+            # (localhost would be ok if everything is running locally,
+            # including our RSN OMS simulator).
+            host = socket.getfqdn()
+            log.debug("%r: Using %r instead of 'localhost'", self._platform_id, host)
+
+        self.listener_url = "http://%s:%s%s" % (host, port, path)
         self._register_event_listener(self.listener_url)
 
         return "OK"
