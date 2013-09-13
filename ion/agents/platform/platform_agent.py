@@ -2393,11 +2393,11 @@ class PlatformAgent(ResourceAgent):
 
             # All is OK here. Proceed with initializing children:
             try:
-                # initialize sub-platforms
-                self._subplatforms_initialize()
-
                 # initialize instruments
                 self._instruments_initialize()
+
+                # initialize sub-platforms
+                self._subplatforms_initialize()
 
             except:
                 log.exception("%r: unexpected exception while initializing children: "
