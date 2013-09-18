@@ -267,26 +267,37 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.STOP_MONITORING,
         ]
 
-
-        def sort_caps(caps):
+        def sort_caps(caps_list):
             agt_cmds = []
             agt_pars = []
             res_cmds = []
+            res_iface = []
             res_pars = []
 
-            if len(caps)>0 and isinstance(caps[0], AgentCapability):
-                agt_cmds = [x.name for x in caps if x.cap_type==CapabilityType.AGT_CMD]
-                agt_pars = [x.name for x in caps if x.cap_type==CapabilityType.AGT_PAR]
-                res_cmds = [x.name for x in caps if x.cap_type==CapabilityType.RES_CMD]
-                res_pars = [x.name for x in caps if x.cap_type==CapabilityType.RES_PAR]
+            if len(caps_list)>0 and isinstance(caps_list[0], AgentCapability):
+                agt_cmds = [x.name for x in caps_list if x.cap_type==CapabilityType.AGT_CMD]
+                agt_pars = [x.name for x in caps_list if x.cap_type==CapabilityType.AGT_PAR]
+                res_cmds = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_CMD]
+                res_iface = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_IFACE]
+                res_pars = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_PAR]
 
-            elif len(caps)>0 and isinstance(caps[0], dict):
-                agt_cmds = [x['name'] for x in caps if x['cap_type']==CapabilityType.AGT_CMD]
-                agt_pars = [x['name'] for x in caps if x['cap_type']==CapabilityType.AGT_PAR]
-                res_cmds = [x['name'] for x in caps if x['cap_type']==CapabilityType.RES_CMD]
-                res_pars = [x['name'] for x in caps if x['cap_type']==CapabilityType.RES_PAR]
+            elif len(caps_list)>0 and isinstance(caps_list[0], dict):
+                agt_cmds = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.AGT_CMD]
+                agt_pars = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.AGT_PAR]
+                res_cmds = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_CMD]
+                res_iface = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_IFACE]
+                res_pars = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_PAR]
 
-            return agt_cmds, agt_pars, res_cmds, res_pars
+            state = self._pa_client.get_agent_state()
+            log.debug("sort_caps: in agent state=%s\n"
+                      "agt_cmds  => %s\n"
+                      "agt_pars  => %s\n"
+                      "res_cmds  => %s\n"
+                      "res_iface => %s\n"
+                      "res_pars  => %s\n",
+                      state, agt_cmds, agt_pars, res_cmds, res_iface, res_pars)
+
+            return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
 
         def verify_schema(caps_list):
             
@@ -390,7 +401,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         retval = self._pa_client.get_capabilities()
 
         # Validate capabilities for state UNINITIALIZED.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         agt_cmds_uninitialized = [
             PlatformAgentEvent.INITIALIZE,
@@ -405,7 +416,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         retval = self._pa_client.get_capabilities(current_state=False)
 
         # Validate all capabilities as read from state UNINITIALIZED.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -423,7 +434,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         retval = self._pa_client.get_capabilities()
 
         # Validate capabilities for state INACTIVE.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         agt_cmds_inactive = [
             PlatformAgentEvent.RESET,
@@ -443,11 +454,11 @@ class TestPlatformAgent(BaseIntTestPlatform):
         retval = self._pa_client.get_capabilities(False)
 
          # Validate all capabilities as read from state INACTIVE.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertEqual(set(res_cmds), set(res_cmds_all))
+        self.assertItemsEqual(res_cmds, [])
         #self.assertItemsEqual(res_pars, [])
 
         verify_schema(retval)
@@ -465,7 +476,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         retval = self._pa_client.get_capabilities()
 
          # Validate capabilities for state IDLE.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         agt_cmds_idle = [
             PlatformAgentEvent.RESET,
@@ -479,18 +490,18 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_idle)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_cmds, [])
         #self.assertItemsEqual(res_pars, [])
 
         # Get exposed capabilities in all states as read from IDLE.
         retval = self._pa_client.get_capabilities(False)
 
          # Validate all capabilities as read from state IDLE.
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_cmds, [])
         #self.assertItemsEqual(res_pars, [])
 
         verify_schema(retval)
@@ -504,7 +515,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         retval = self._pa_client.get_capabilities()
 
          # Validate capabilities of state COMMAND
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         agt_cmds_command = [
             PlatformAgentEvent.GO_INACTIVE,
@@ -539,11 +550,14 @@ class TestPlatformAgent(BaseIntTestPlatform):
         retval = self._pa_client.get_capabilities()
 
          # Validate capabilities of state STOPPED
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         agt_cmds_stopped = [
             PlatformAgentEvent.RESUME,
             PlatformAgentEvent.CLEAR,
+            PlatformAgentEvent.GO_INACTIVE,
+            PlatformAgentEvent.RESET,
+            PlatformAgentEvent.SHUTDOWN,
             #PlatformAgentEvent.PING_RESOURCE,
             #PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             #PlatformAgentEvent.GET_RESOURCE_STATE,
@@ -551,7 +565,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_stopped)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertItemsEqual(res_cmds, [])
         #self.assertItemsEqual(res_pars, res_pars_all)
 
         verify_schema(retval)
@@ -568,7 +582,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         retval = self._pa_client.get_capabilities()
 
          # Validate capabilities of state MONITORING
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         agt_cmds_monitoring = [
             PlatformAgentEvent.RESET,
@@ -603,7 +617,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         retval = self._pa_client.get_capabilities(False)
 
          # Validate all capabilities as read from state COMMAND
-        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)

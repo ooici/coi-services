@@ -136,6 +136,15 @@ class PlatformAgentCapability(BaseEnum):
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
 
 
+class ResourceInterfaceCapability(BaseEnum):
+    #GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
+    PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
+    GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
+    SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
+    EXECUTE_RESOURCE          = PlatformAgentEvent.EXECUTE_RESOURCE
+    GET_RESOURCE_STATE        = PlatformAgentEvent.GET_RESOURCE_STATE
+
+
 class PlatformAgentAlertManager(AgentAlertManager):
     """
     Overwrites _update_aggstatus and do appropriate handling.
@@ -2892,6 +2901,40 @@ class PlatformAgent(ResourceAgent):
     # STOPPED event handlers.
     ##############################################################
 
+    def _handler_stopped_reset(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        recursion = self._get_recursion_parameter("_handler_stopped_reset", args, kwargs)
+
+        next_state = PlatformAgentState.UNINITIALIZED
+        result = self._reset(recursion)
+        if result is not None:
+            # problems with children; do not make transition:
+            next_state = None
+
+        return next_state, result
+
+    def _handler_stopped_go_inactive(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        recursion = self._get_recursion_parameter("_handler_stopped_go_inactive", args, kwargs)
+
+        next_state = PlatformAgentState.INACTIVE
+        result = self._go_inactive(recursion)
+        if result is not None:
+            # problems with children; do not make transition:
+            next_state = None
+
+        return next_state, result
+
     def _handler_stopped_resume(self, *args, **kwargs):
         """
         Transitions to COMMAND state.
@@ -3004,6 +3047,31 @@ class PlatformAgent(ResourceAgent):
 
         events_out = [x for x in events if PlatformAgentCapability.has(x)]
         return events_out
+
+    def _get_resource_interface(self, current_state=True):
+        """
+        """
+        agent_cmds = self._fsm.get_events(current_state)
+        res_iface_cmds = [x for x in agent_cmds if ResourceInterfaceCapability.has(x)]
+
+        # convert agent mediated resource commands into interface names.
+        result = []
+        for x in res_iface_cmds:
+            if x == PlatformAgentEvent.GET_RESOURCE:
+                result.append('get_resource')
+            elif x == PlatformAgentEvent.SET_RESOURCE:
+                result.append('set_resource')
+            elif x == PlatformAgentEvent.PING_RESOURCE:
+                result.append('ping_resource')
+            elif x == PlatformAgentEvent.GET_RESOURCE_STATE:
+                result.append('get_resource_state')
+            elif x == PlatformAgentEvent.EXECUTE_RESOURCE:
+                result.append('execute_resource')
+
+        log.debug("%r/%s: _get_resource_interface(current_state=%r) => %s)",
+                  self._platform_id, self.get_agent_state(),
+                  current_state, result)
+        return result
 
     ##############################################################
     # Resource interface and common resource event handlers.
@@ -3329,7 +3397,6 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
-        self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
         # IDLE state event handlers.
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RESET, self._handler_idle_reset)
@@ -3338,15 +3405,16 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RUN, self._handler_idle_run)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
-        self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # STOPPED state event handlers.
+        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.RESET, self._handler_stopped_reset)
+        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
+        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GO_INACTIVE, self._handler_stopped_go_inactive)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.RESUME, self._handler_stopped_resume)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.CLEAR, self._handler_stopped_clear)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
-        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # COMMAND and MONITORING common state event handlers.
@@ -3376,6 +3444,5 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.RESET, self._handler_lost_connection_reset)
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.AUTORECONNECT, self._handler_lost_connection_autoreconnect)
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GO_INACTIVE, self._handler_lost_connection_go_inactive)
-        self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
 
