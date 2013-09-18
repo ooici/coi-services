@@ -1208,12 +1208,7 @@ class PlatformAgent(ResourceAgent):
 
         @param sub   subscriber
         """
-        #self.remove_endpoint(sub) -- why this is making tests fail?
-        # TODO determine whether self.remove_endpoint is the appropriate call
-        # here and if so, how it should be used. For now, calling sub.close()
-        # (this only change made the difference between successful tests and
-        # failing tests that actually never exited -- I had to kill them).
-        sub.close()
+        self.remove_endpoint(sub)
 
     def _prepare_await_state(self, origin, state):
         """

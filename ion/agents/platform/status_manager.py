@@ -124,11 +124,13 @@ class StatusManager(object):
         self.aparam_rollup_status, self.aparam_child_agg_status.
         """
         def stop_es(origin, es):
+            log.debug("%r: destroying event subscriber: origin=%r; es=%r",
+                      self._platform_id, origin, es)
             try:
                 self._agent._destroy_event_subscriber(es)
             except Exception as ex:
-                log.warn("%r: error destroying event subscriber: origin=%r: %s",
-                         self._platform_id, origin, ex)
+                log.warn("%r: error destroying event subscriber: origin=%r; es=%r: %s",
+                         self._platform_id, origin, es, ex)
 
         with self._lock:
             self._active = False
@@ -141,6 +143,7 @@ class StatusManager(object):
             for status_name in AggregateStatusType._str_map.keys():
                 self.aparam_rollup_status[status_name] = DeviceStatusType.STATUS_UNKNOWN
 
+            log.debug("%r: about to destroy %d event subscribers", self._platform_id, len(ess))
             for origin, es in ess.iteritems():
                 stop_es(origin, es)
 
