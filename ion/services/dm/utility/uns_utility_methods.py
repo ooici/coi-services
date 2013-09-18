@@ -422,7 +422,9 @@ def get_event_summary(event):
             summary  +=  " values: %s" % event.values
     elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
         summary = "Operator entered: %s" % event.description
-
+    elif "ParameterQCEvent" in event_types:
+        summary = "%s   Temporal values: %s  " % (event.description, event.temporal_values )
+        log.debug('ParameterQCEvent  summary: %s', summary)
     elif "OrgMembershipGrantedEvent" in event_types:
         summary = "Joined Org '%s' as member" % event.org_name
     elif "OrgMembershipCancelledEvent" in event_types:

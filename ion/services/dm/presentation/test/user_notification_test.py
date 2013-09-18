@@ -356,6 +356,11 @@ class UserNotificationEventsTest(PyonTestCase):
                 status_name=AggregateStatusType.AGGREGATE_DATA,
                 values=['TemperatureIntervalAlert'])),
 
+        dict(et='ParameterQCEvent', o='ID_1', ot='', st='',
+            attr=dict(qc_parameter='tempwat_glblrng_qc',
+                description='Automated Quality Control Alerted on tempwat_glblrng_qc',
+                temporal_values=[0.0, 7.0])),
+
     ]
 
     def test_get_recent_events(self):
