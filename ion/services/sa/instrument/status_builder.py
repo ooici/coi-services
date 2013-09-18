@@ -256,10 +256,13 @@ class AgentStatusBuilder(object):
         a_client, reason = self.get_device_agent(device_id)
         if None is a_client:
             return None, reason
-
-        aggstatus = a_client.get_agent(['aggstatus'])['aggstatus']
-        log.debug('get_aggregate_status_of_device status: %s', aggstatus)
-        return aggstatus, ""
+        try:
+            aggstatus = a_client.get_agent(['aggstatus'])['aggstatus']
+            log.debug('get_aggregate_status_of_device status: %s', aggstatus)
+            return aggstatus, ""
+        except Unauthorized:
+            log.warn("The requester does not have the proper role to access the status of this agent")
+            return None, "InstrumentDevice(get_agent) has been denied"
 
     def get_status_of_device(self, device_id):
         status, _ = self._get_status_of_device(device_id)
