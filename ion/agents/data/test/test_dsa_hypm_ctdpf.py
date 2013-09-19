@@ -14,6 +14,7 @@ from pyon.public import log
 from nose.plugins.attrib import attr
 
 from ion.agents.data.test.dataset_test import DatasetAgentTestCase
+from ion.services.dm.test.dm_test_case import breakpoint
 
 ###############################################################################
 # Global constants.
@@ -37,4 +38,9 @@ class HypmCTDTest(DatasetAgentTestCase):
     def test_init(self):
         """
         """
-        log.debug("Here here")
+        self.assert_initialize()
+
+        self.create_sample_data("hypm_ctdpf/DAT0003.txt")
+
+        breakpoint(locals())
+        self.assert_reset()
