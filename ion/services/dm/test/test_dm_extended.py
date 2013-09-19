@@ -66,7 +66,7 @@ class TestDMExtended(DMTestCase):
         config = DotDict()
         config.op = 'load'
         config.loadui=True
-        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA'
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
@@ -76,7 +76,7 @@ class TestDMExtended(DMTestCase):
         config = DotDict()
         config.op = 'load'
         config.loadui=True
-        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA,TMPSF'
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
@@ -86,7 +86,7 @@ class TestDMExtended(DMTestCase):
         config = DotDict()
         config.op = 'load'
         config.loadui=True
-        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA,EXAMPLE1'
         config.path = 'master'
@@ -97,7 +97,7 @@ class TestDMExtended(DMTestCase):
         config = DotDict()
         config.op = 'load'
         config.loadui=True
-        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA,EXAMPLE2'
         config.path = 'master'
@@ -108,7 +108,7 @@ class TestDMExtended(DMTestCase):
         config = DotDict()
         config.op = 'load'
         config.loadui=True
-        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA,CTDPF'
         config.path = 'master'
@@ -121,7 +121,7 @@ class TestDMExtended(DMTestCase):
         config = DotDict()
         config.op = 'load'
         config.loadui=True
-        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA,LC_TEST'
         config.path = 'master'
@@ -536,3 +536,11 @@ class TestDMExtended(DMTestCase):
             
         breakpoint(locals())
 
+    @attr("UTIL")
+    def test_ccov_stuff(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+
+        breakpoint(locals())
