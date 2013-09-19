@@ -1208,6 +1208,19 @@ class PlatformAgent(ResourceAgent):
 
         @param sub   subscriber
         """
+        #self.remove_endpoint(sub) -- why this is making tests fail?
+        # TODO determine whether self.remove_endpoint is the appropriate call
+        # here and if so, how it should be used. For now, calling sub.close()
+        # (this only change made the difference between successful tests and
+        # failing tests that actually never exited -- I had to kill them).
+        # Update 19/Sep/2013: I thought that remove_endpoint was now working
+        # but not!  It seems I did testing with the --with-pycc flag, but
+        # using it actually causes the same behavior as noted above a few
+        # months ago. So, keeping the use of close() again.
+        # See https://jira.oceanobservatories.org/tasks/browse/OOIION-987
+        sub.close()
+
+        # per discussion with JC also calling self.remove_endpoint(sub)
         self.remove_endpoint(sub)
 
     def _prepare_await_state(self, origin, state):
