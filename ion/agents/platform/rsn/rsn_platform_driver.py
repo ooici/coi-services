@@ -25,7 +25,6 @@ from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
-import socket
 
 from ion.agents.platform.util import ion_ts_2_ntp
 
@@ -671,13 +670,6 @@ class RSNPlatformDriver(PlatformDriver):
         host = CFG.get_safe('server.oms.host', "localhost")
         port = CFG.get_safe('server.oms.port', "5000")
         path = CFG.get_safe('server.oms.path', "/ion-service/oms_event")
-
-        if host == "localhost":
-            # in general we need a host name that is externally visible
-            # (localhost would be ok if everything is running locally,
-            # including our RSN OMS simulator).
-            host = socket.getfqdn()
-            log.debug("%r: Using %r instead of 'localhost'", self._platform_id, host)
 
         self.listener_url = "http://%s:%s%s" % (host, port, path)
         self._register_event_listener(self.listener_url)
