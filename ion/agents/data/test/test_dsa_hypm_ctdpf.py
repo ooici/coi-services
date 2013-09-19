@@ -42,5 +42,4 @@ class HypmCTDTest(DatasetAgentTestCase):
 
         self.create_sample_data("hypm_ctdpf/DAT0003.txt")
 
-        breakpoint(locals())
         self.assert_reset()
