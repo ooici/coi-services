@@ -1220,10 +1220,8 @@ class PlatformAgent(ResourceAgent):
         # See https://jira.oceanobservatories.org/tasks/browse/OOIION-987
         sub.close()
 
-        # We could probably call self.remove_endpoint(sub) after the close
-        # call above; but, if this is the expected use of the managed endpoint
-        # API, then there wouldn't be good symmetry because we don't have to call
-        # sub.start() along with add_endpoint(sub) when enabling the subscriber.
+        # per discussion with JC also calling self.remove_endpoint(sub)
+        self.remove_endpoint(sub)
 
     def _prepare_await_state(self, origin, state):
         """
