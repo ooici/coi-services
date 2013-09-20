@@ -91,7 +91,7 @@ class PlatformAgentEvent(BaseEnum):
     GO_ACTIVE                 = ResourceAgentEvent.GO_ACTIVE
     GO_INACTIVE               = ResourceAgentEvent.GO_INACTIVE
     RUN                       = ResourceAgentEvent.RUN
-    SHUTDOWN                  = 'PLATFORM_AGENT_SHUTDOWN'
+    SHUTDOWN                  = 'PLATFORM_AGENT_SHUTDOWN_CHILDREN'
 
     CLEAR                     = ResourceAgentEvent.CLEAR
     PAUSE                     = ResourceAgentEvent.PAUSE
