@@ -177,7 +177,7 @@ class PlatformAgentStreamPublisher(object):
                     self._unconfigured_params.add(param_name)
                     log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r'
                              ' rdt.keys=%s',
-                             self._platform_id, param_name, stream_name. rdt.keys())
+                             self._platform_id, param_name, stream_name, list(rdt.iterkeys()))
                 continue
 
             # Note that notification from the driver has the form
