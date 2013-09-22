@@ -28,7 +28,6 @@ from ion.services.sa.observatory.observatory_management_service import INSTRUMEN
 
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
-from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
