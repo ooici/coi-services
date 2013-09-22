@@ -76,7 +76,7 @@ class PlatformAgentState(BaseEnum):
     IDLE              = ResourceAgentState.IDLE
     STOPPED           = ResourceAgentState.STOPPED
     COMMAND           = ResourceAgentState.COMMAND
-    MONITORING        = 'PLATFORM_AGENT_STATE_MONITORING'
+    MONITORING        = 'PLATFORM_AGENT_STATE_AUTOSAMPLE'
     LAUNCHING         = 'PLATFORM_AGENT_STATE_LAUNCHING'
     LOST_CONNECTION   = ResourceAgentState.LOST_CONNECTION
 
@@ -103,8 +103,8 @@ class PlatformAgentEvent(BaseEnum):
     EXECUTE_RESOURCE          = ResourceAgentEvent.EXECUTE_RESOURCE
     GET_RESOURCE_STATE        = ResourceAgentEvent.GET_RESOURCE_STATE
 
-    START_MONITORING          = 'PLATFORM_AGENT_START_MONITORING'
-    STOP_MONITORING           = 'PLATFORM_AGENT_STOP_MONITORING'
+    START_MONITORING          = 'PLATFORM_AGENT_START_AUTOSAMPLE'
+    STOP_MONITORING           = 'PLATFORM_AGENT_STOP_AUTOSAMPLE'
     LAUNCH_COMPLETE           = 'PLATFORM_AGENT_LAUNCH_COMPLETE'
 
     LOST_CONNECTION           = ResourceAgentEvent.LOST_CONNECTION
