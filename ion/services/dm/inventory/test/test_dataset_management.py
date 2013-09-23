@@ -38,10 +38,8 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         
         ds_obj.name = 'something different'
         self.dataset_management.update_dataset(ds_obj)
-        self.dataset_management.register_dataset(dataset_id)
         ds_obj2 = self.dataset_management.read_dataset(dataset_id)
         self.assertEquals(ds_obj.name, ds_obj2.name)
-        self.assertTrue(ds_obj2.registered)
     
     def test_context_crud(self):
         context_ids = self.create_contexts()
