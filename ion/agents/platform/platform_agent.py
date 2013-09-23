@@ -28,7 +28,6 @@ from ion.services.sa.observatory.observatory_management_service import INSTRUMEN
 
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
-from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
@@ -77,7 +76,7 @@ class PlatformAgentState(BaseEnum):
     IDLE              = ResourceAgentState.IDLE
     STOPPED           = ResourceAgentState.STOPPED
     COMMAND           = ResourceAgentState.COMMAND
-    MONITORING        = 'PLATFORM_AGENT_STATE_MONITORING'
+    MONITORING        = 'PLATFORM_AGENT_STATE_AUTOSAMPLE'
     LAUNCHING         = 'PLATFORM_AGENT_STATE_LAUNCHING'
     LOST_CONNECTION   = ResourceAgentState.LOST_CONNECTION
 
@@ -91,7 +90,7 @@ class PlatformAgentEvent(BaseEnum):
     GO_ACTIVE                 = ResourceAgentEvent.GO_ACTIVE
     GO_INACTIVE               = ResourceAgentEvent.GO_INACTIVE
     RUN                       = ResourceAgentEvent.RUN
-    SHUTDOWN                  = 'PLATFORM_AGENT_SHUTDOWN'
+    SHUTDOWN                  = 'PLATFORM_AGENT_SHUTDOWN_CHILDREN'
 
     CLEAR                     = ResourceAgentEvent.CLEAR
     PAUSE                     = ResourceAgentEvent.PAUSE
@@ -104,8 +103,8 @@ class PlatformAgentEvent(BaseEnum):
     EXECUTE_RESOURCE          = ResourceAgentEvent.EXECUTE_RESOURCE
     GET_RESOURCE_STATE        = ResourceAgentEvent.GET_RESOURCE_STATE
 
-    START_MONITORING          = 'PLATFORM_AGENT_START_MONITORING'
-    STOP_MONITORING           = 'PLATFORM_AGENT_STOP_MONITORING'
+    START_MONITORING          = 'PLATFORM_AGENT_START_AUTOSAMPLE'
+    STOP_MONITORING           = 'PLATFORM_AGENT_STOP_AUTOSAMPLE'
     LAUNCH_COMPLETE           = 'PLATFORM_AGENT_LAUNCH_COMPLETE'
 
     LOST_CONNECTION           = ResourceAgentEvent.LOST_CONNECTION

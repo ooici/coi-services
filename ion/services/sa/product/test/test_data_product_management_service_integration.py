@@ -356,8 +356,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         tempwat_dp = DataProduct(name='TEMPWAT')
         tempwat_dp_id = self.dpsc_cli.create_data_product(tempwat_dp, stream_definition_id=simple_stream_def_id, parent_data_product_id=dp_id)
         self.addCleanup(self.dpsc_cli.delete_data_product, tempwat_dp_id)
-        self.dpsc_cli.activate_data_product_persistence(tempwat_dp_id)
-        self.addCleanup(self.dpsc_cli.suspend_data_product_persistence, tempwat_dp_id)
         # Check that the streams associated with the data product are persisted with
         stream_ids, _ =  self.rrclient.find_objects(dp_id,PRED.hasStream,RT.Stream,True)
         for stream_id in stream_ids:

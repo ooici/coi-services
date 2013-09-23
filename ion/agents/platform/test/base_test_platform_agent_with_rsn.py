@@ -1104,6 +1104,63 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         return p_root
 
+    def _set_up_small_hierarchy_with_some_instruments(self, instr_keys,
+                                                      start_port_agent=True):
+        """
+        Creates a small platform network consisting of 3 platforms as follows:
+          Node1D -> MJ01C -> LJ01D
+        and the given instruments, which are all assigned to the leaf platform
+        LJ01D.
+        """
+        for instr_key in instr_keys:
+            self.assertIn(instr_key, instruments_dict)
+
+        #####################################
+        # create platform hierarchy
+        #####################################
+        log.info("will create platform hierarchy ...")
+        p_root       = self._create_platform('Node1D')
+        p_child      = self._create_platform('MJ01C', parent_platform_id='Node1D')
+        p_grandchild = self._create_platform('LJ01D', parent_platform_id='MJ01C')
+
+        self._assign_child_to_parent(p_child, p_root)
+        self._assign_child_to_parent(p_grandchild, p_child)
+
+        #####################################
+        # create the indicated instruments
+        #####################################
+        log.info("will create %d instruments: %s", len(instr_keys), instr_keys)
+
+        created = 0
+        for instr_key in instr_keys:
+            # create only if not already created:
+            if instr_key in self._setup_instruments:
+                i_obj = self._setup_instruments[instr_key]
+                log.debug("instrument was already created = %r (%s)",
+                          i_obj.instrument_agent_instance_id, instr_key)
+            else:
+                i_obj = self._create_instrument(instr_key, start_port_agent=start_port_agent)
+                log.debug("instrument created = %r (%s)",
+                          i_obj.instrument_agent_instance_id, instr_key)
+                created += 1
+
+        log.info("%d instruments created.", created)
+
+        #####################################
+        # assign the instruments
+        #####################################
+        log.info("will assign %d instruments to the leaf platform...", len(instr_keys))
+        for instr_key in instr_keys:
+            i_obj = self._setup_instruments[instr_key]
+            self._assign_instrument_to_platform(i_obj, p_grandchild)
+            log.debug("instrument %r (%s) assigned to leaf platform",
+                      i_obj.instrument_agent_instance_id,
+                      instr_key)
+
+        log.info("%d instruments assigned.", len(instr_keys))
+
+        return p_root
+
     def _set_up_platform_hierarchy_with_some_instruments(self, instr_keys,
                                                          start_port_agent=True):
         """
