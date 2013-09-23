@@ -71,8 +71,6 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                       exchange_point=exchange_point)
 
         if dataset_id and parent_data_product_id:
-            print "Dataset id: ", dataset_id
-            print "parent data product id: ", parent_data_product_id
             raise BadRequest('A parent dataset or parent data product can be specified, not both.')
         if dataset_id and not data_product_id:
             self.assign_dataset_to_data_product(data_product_id=data_product_id, dataset_id=dataset_id)
@@ -81,6 +79,8 @@ class DataProductManagementService(BaseDataProductManagementService):
             dataset_ids, _ = self.clients.resource_registry.find_objects(parent_data_product_id, predicate=PRED.hasDataset, id_only=True)
             for dataset_id in dataset_ids:
                 self.assign_dataset_to_data_product(data_product_id, dataset_id)
+            if dataset_ids:
+                self.clients.dataset_management.register_dataset(data_product_id=data_product_id)
 
       # Return the id of the new data product
         return data_product_id
@@ -249,20 +249,8 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         parent_data_product_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
         dataset_ids = []
-        if len(parent_data_product_ids)==1:
-            parent_id = parent_data_product_ids[0]
-            dataset_ids, _ = self.clients.resource_registry.find_objects(parent_id, predicate=PRED.hasDataset, id_only=True)
-            if not dataset_ids:
-                raise BadRequest('Parent Data Product must be activated first')
-            parent_dataset_id = dataset_ids[0]
-            dataset_id = self.clients.dataset_management.create_dataset(name='dataset_%s' % stream_id, 
-                                                            spatial_domain={'null':'null'},
-                                                            temporal_domain={'null':'null'},
-                                                            parameter_dict=stream_def.parameter_dictionary,
-                                                            parent_dataset_id=parent_dataset_id)
-            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
-            self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
-            return
+        if len(parent_data_product_ids)==1: # This is a child data product
+            raise BadRequest("Child Data Products shouldn't be activated")
         else:
             dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
 
@@ -272,7 +260,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         
         if not dataset_ids:
             # No datasets are currently linked which means we need to create a new one
-            dataset_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
+            dataset_id = self.clients.dataset_management.create_dataset(   name= 'dataset_%s' % stream_id,
                                                                             stream_id=stream_id,
                                                                             parameter_dict=stream_def.parameter_dictionary,
                                                                             temporal_domain=data_product_obj.temporal_domain or temporal_domain,
@@ -282,7 +270,11 @@ class DataProductManagementService(BaseDataProductManagementService):
             self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
             
             # register the dataset for externalization
-            self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
+
+            self.clients.dataset_management.register_dataset(data_product_id=data_product_id)
+            child_products, _ = self.clients.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
+            for child_product in child_products:
+                self.clients.dataset_management.register_dataset(data_product_id=child_product)
             
             log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
         else:
@@ -829,8 +821,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         erddap_host = CFG.get_safe('server.erddap.host','localhost')
         errdap_port = CFG.get_safe('server.erddap.port','8080')
         try:
-            dataset_id = self._get_dataset_id(data_product_id)
-            ret.value  = string.join( ["http://", erddap_host, ":", str(errdap_port),"/erddap/griddap/", str(dataset_id), "_0.html"],'')
+            ret.value  = string.join( ["http://", erddap_host, ":", str(errdap_port),"/erddap/griddap/", str(data_product_id), ".html"],'')
             ret.status = ComputedValueAvailability.PROVIDED
             log.debug("get_data_url: data_url: %s", ret.value)
         except NotFound:
