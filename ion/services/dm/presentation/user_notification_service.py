@@ -374,7 +374,7 @@ class UserNotificationService(BaseUserNotificationService):
 #
 #        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
-    def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit=-1, descending=False):
+    def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit=-1, descending=False, offset=0):
         """
         This method leverages couchdb view and simple filters. It does not use elastic search.
 
@@ -393,7 +393,7 @@ class UserNotificationService(BaseUserNotificationService):
         event_tuples = []
 
         try:
-            event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
+            event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending, skip=offset)
         except Exception as exc:
             log.warning("The UNS find_events operation for event origin = %s and type = %s failed. Error message = %s", origin, type, exc.message)
 
@@ -500,10 +500,18 @@ class UserNotificationService(BaseUserNotificationService):
         @param limit int
         @retval ComputedListValue with value list of 4-tuple with Event objects
         """
+        return self.get_events(resource_id=resource_id, limit=limit, offset=0)
 
+    def get_events(self, resource_id='', limit=10, offset=0):
+        """
+        Get events for use in extended resource computed attribute
+        @param resource_id str
+        @param limit int
+        @param offset int
+        @retval ComputedListValue with value list of 4-tuple with Event objects
+        """
         now = get_ion_ts()
-        events = self.find_events(origin=resource_id, limit=limit, max_datetime=now, descending=True)
-
+        events = self.find_events(origin=resource_id, limit=limit, max_datetime=now, descending=True, offset=offset)
         ret = IonObject(OT.ComputedEventListValue)
         if events:
             ret.value = events
@@ -513,7 +521,6 @@ class UserNotificationService(BaseUserNotificationService):
             ret.status = ComputedValueAvailability.NOTAVAILABLE
 
         return ret
-
 
     def get_user_notifications(self, user_info_id=''):
         """
