@@ -2,6 +2,7 @@ from pyon.core.exception import BadRequest
 from pyon.ion.process import StandaloneProcess
 from pyon.util.file_sys import FileSystem
 from pyon.util.log import log
+from pyon.public import PRED
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
@@ -40,22 +41,27 @@ class RegistrationProcess(StandaloneProcess):
         with open(os.path.join(path,'datasets.xml'),'w') as f:
             f.write(datasets_xml)
 
-    def register_dap_dataset(self, dataset_id, data_product_name=''):
+    def register_dap_dataset(self, data_product_id):
+        dataset_id = self.container.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
+        data_product = self.container.resource_registry.read(data_product_id)
+        data_product_name = data_product.name
+        stream_definition = self.container.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)[0][0]
         coverage_path = DatasetManagementService._get_coverage_path(dataset_id)
         try:
-            self.add_dataset_to_xml(coverage_path=coverage_path, product_name=data_product_name)
+            self.add_dataset_to_xml(coverage_path=coverage_path, product_id=data_product_id, product_name=data_product_name, available_fields=stream_definition.available_fields)
             self.create_symlink(coverage_path, self.pydap_data_path)
         except: # We don't re-raise to prevent clients from bombing out...
             log.exception('Problem registering dataset')
             log.error('Failed to register dataset for coverage path %s' % coverage_path)
     
     def create_symlink(self, coverage_path, pydap_path):
-        paths = os.path.split(coverage_path)
-        os.symlink(coverage_path, pydap_path + paths[1])
+        head, tail = os.path.split(coverage_path)
+        if not os.path.exists(os.path.join(pydap_path, tail)):
+            os.symlink(coverage_path, os.path.join(pydap_path, tail))
 
-    def add_dataset_to_xml(self, coverage_path, product_name=''):
+    def add_dataset_to_xml(self, coverage_path, product_id, product_name='', available_fields=None):
         dom1 = parse(self.datasets_xml_path)
-        xml_str = self.get_dataset_xml(coverage_path, product_name)
+        xml_str = self.get_dataset_xml(coverage_path, product_id, product_name, available_fields)
         dom2 = parseString(xml_str)
 
         erddap_datasets_element = dom1.getElementsByTagName('erddapDatasets')[0]
@@ -75,7 +81,7 @@ class RegistrationProcess(StandaloneProcess):
                 result[name] = name
         return result
 
-    def get_dataset_xml(self, coverage_path, product_name=''):
+    def get_dataset_xml(self, coverage_path, product_id, product_name='', available_fields=None):
         #http://coastwatch.pfeg.noaa.gov/erddap/download/setupDatasetsXml.html
         result = ''
         paths = os.path.split(coverage_path)
@@ -93,9 +99,10 @@ class RegistrationProcess(StandaloneProcess):
         datasets = {}
         for key in cov.list_parameters():
             pc = cov.get_parameter_context(key)
-            if hasattr(pc,'visible') and not pc.visible:
+            #if getattr(pc, 'visible', None):
+            #    continue
+            if available_fields and pc.name not in available_fields:
                 continue
-            
             #if not isinstance(pc.param_type, QuantityType):
             #    continue
 
@@ -124,7 +131,7 @@ class RegistrationProcess(StandaloneProcess):
             if not (len(dims) == 1 and dims[0] == vars[0]):
                 dataset_element = doc.createElement('dataset')
                 dataset_element.setAttribute('type', 'EDDGridFromDap')
-                dataset_element.setAttribute('datasetID', '{0}_{1}'.format(paths[1], index))
+                dataset_element.setAttribute('datasetID', product_id)
                 dataset_element.setAttribute('active', 'True')
 
                 source_element = doc.createElement('sourceUrl')

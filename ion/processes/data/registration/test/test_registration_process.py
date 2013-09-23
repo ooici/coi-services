@@ -43,7 +43,7 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         coverage_path = DatasetManagementService()._get_coverage_path(dataset_id)
         cov = SimplexCoverage.load(coverage_path)
         
-        xml_str = self.rp.get_dataset_xml(coverage_path)
+        xml_str = self.rp.get_dataset_xml(coverage_path, 'product_id', 'product_name')
         dom = parseString(xml_str)
         node = dom.getElementsByTagName('addAttributes')
         
@@ -51,7 +51,7 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         for n in metadata.childNodes:
             if n.nodeType != 3:
                 if n.attributes["name"].value == "title":
-                    self.assertEquals(cov.name, n.childNodes[0].nodeValue)
+                    self.assertEquals('product_name', n.childNodes[0].nodeValue)
                 if n.attributes["name"].value == "institution":
                     self.assertEquals('OOI', n.childNodes[0].nodeValue)
                 if n.attributes["name"].value == "infoUrl":
