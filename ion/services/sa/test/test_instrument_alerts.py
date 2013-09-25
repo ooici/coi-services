@@ -213,7 +213,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
 
         port_agent_config = {
             'device_addr': CFG.device.sbe37.host,
-            'device_port': 4008,
+            'device_port': 4009,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
             'port_agent_addr': 'localhost',
