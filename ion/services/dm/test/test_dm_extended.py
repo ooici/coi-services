@@ -14,6 +14,7 @@ from ion.services.dm.utility.tmpsf_simulator import TMPSFSimulator
 from ion.services.dm.utility.bad_simulator import BadSimulator
 from ion.util.direct_coverage_utils import DirectCoverageAccess
 from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.public import IonObject, RT, CFG
@@ -538,9 +539,23 @@ class TestDMExtended(DMTestCase):
 
     @attr("UTIL")
     def test_ccov_stuff(self):
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
-        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
-        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
-        self.activate_data_product(data_product_id)
 
-        breakpoint(locals())
+        #Create the input data product
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id = self.create_stream_definition('ctd sim L2', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd simulator', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        
+
+        #viz_token = self.visualization.initiate_realtime_visualization_data(data_product_id=data_product_id)
+
+        streamer = Streamer(data_product_id)
+        self.addCleanup(streamer.stop)
+
+        from ion.processes.data.replay.replay_process import ReplayProcess
+        cov = DatasetManagementService._get_coverage(dataset_id)
+
+        
+
+        breakpoint(locals(), globals())
