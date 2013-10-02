@@ -41,7 +41,7 @@ DRV_URI_GOOD = load_egg()['dvr_egg']
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 #from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
-
+import unittest
 from mock import patch
 import gevent
 from gevent import queue
@@ -239,6 +239,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
 
         return instAgentInstance_id
 
+    @unittest.skip("issues with delayed-stream-sim")
     def test_alerts(self):
 
         #-------------------------------------------------------------------------------------
