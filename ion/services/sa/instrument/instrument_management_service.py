@@ -24,6 +24,7 @@ from pyon.util.containers import get_ion_ts
 from coverage_model.parameter import ParameterDictionary
 
 from ion.agents.port.port_agent_process import PortAgentProcess
+from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder, \
@@ -664,7 +665,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         register an instrument driver by putting it in a web-accessible location
         @instrument_agent_id the agent receiving the driver
         @agent_egg a base64-encoded egg file
-        @qa_documents a base64-encoded zip file containing a MANIFEST.csv file 
+        @qa_documents a base64-encoded zip file containing a MANIFEST.csv file
 
         MANIFEST.csv fields:
          - filename
@@ -851,7 +852,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 return False, '%s(%s) has been denied since the resource id %s has not been shared with any Org' % (process.name, gov_values.op, gov_values.resource_id)
 
             #Handle these lifecycle transitions first
-            
+
             if not (lifecycle_event == LCE.INTEGRATE or lifecycle_event == LCE.DEPLOY or lifecycle_event == LCE.RETIRE):
 
                 #The owner can do any of these other lifecycle transitions
@@ -1612,6 +1613,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'RESOUCE_AGENT_STATE_DIRECT_ACCESS': 'DIRECT ACCESS',
             'RESOURCE_AGENT_STATE_BUSY': 'BUSY',
             'RESOURCE_AGENT_STATE_LOST_CONNECTION': 'LOST CONNECTION',
+            'PLATFORM_AGENT_STATE_AUTOSAMPLE' : 'STREAMING',
+            'PLATFORM_AGENT_STATE_LAUNCHING' : 'LAUNCHING'
         }
 
         retval = IonObject(OT.ComputedStringValue)
@@ -1630,6 +1633,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 retval.value = resource_agent_state_labels[ state ]
                 retval.status = ComputedValueAvailability.PROVIDED
             else:
+                log.warning('IMS:get_operational_state label map has no value for this state:  %s', state)
                 retval.value = 'UNKNOWN'
                 retval.status = ComputedValueAvailability.NOTAVAILABLE
                 retval.reason = "State not returned in agent response"
@@ -1667,7 +1671,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if device.type_ == 'InstrumentDevice':
             event_state = ResourceAgentState.STREAMING
         elif device.type_ == 'PlatformDevice':
-            event_state = 'PLATFORM_AGENT_STATE_MONITORING'
+            event_state = PlatformAgentEvent.START_MONITORING
 
         #----------------------------------------------------------------------------------------------
         # Get events associated with device from the events db
