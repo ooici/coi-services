@@ -847,10 +847,10 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_direct_access_execute_direct_access(self, *args, **kwargs):
         try:
-            (next_state, result) = self._dvr_client.cmd_dvr('execute_direct', *args, **kwargs)
+            self._dvr_client.cmd_dvr('execute_direct', *args, **kwargs)
+            next_state = None
         except InstDriverClientTimeoutError:
             self._stop_driver(True)
-            result = None
             next_state = ResourceAgentState.UNINITIALIZED
             self._on_driver_comms_error('_handler_direct_access_execute_resource')
             # Stop the DA server. This must always be done to kill its session/inactivity timeout thread
@@ -859,7 +859,7 @@ class InstrumentAgent(ResourceAgent):
                 self._da_server = None
             self._da_session_close_reason = 'lost comms to driver'
 
-        return (next_state, result)
+        return (next_state, None)
 
     def _handler_direct_access_go_command(self, *args, **kwargs):
         log.error("Instrument agent requested to stop direct access mode - %s",
