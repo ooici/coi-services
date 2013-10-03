@@ -138,6 +138,7 @@ class TestMultiLaunch(BaseIntTestPlatform):
         self._set_receive_timeout()
         self._do_cycles(create_network)
 
+    @unittest.skip("timeout issues may be related to sim cleanup")
     def test_03_platforms_and_03_instruments(self):
         #
         # small platform topology and 3 instruments, all assigned to leaf platform
