@@ -12,6 +12,7 @@ from pyon.core.exception import NotFound, Unauthorized, BadRequest
 
 from interface.objects import ComputedValueAvailability, ComputedIntValue, ComputedDictValue, ComputedListValue
 from interface.objects import AggregateStatusType, DeviceStatusType
+from pyon.core.governance import DEFAULT_ACTOR_ID
 from pyon.ion.resource import RT, PRED
 from pyon.util.containers import DotDict
 
@@ -67,6 +68,11 @@ class AgentStatusBuilder(object):
     def get_device_agent(self, device_id):
         if not device_id or device_id is None:
             return None, "No device ID was provided"
+
+        ctx = self.process.get_context()
+        actor_id = ctx.get('ion-actor-id', None) if ctx else None
+        if actor_id and actor_id == DEFAULT_ACTOR_ID:
+            return None, "Guest access to device status is denied"
 
         try:
             h_agent = self._get_agent_client(device_id, process=self.process)
