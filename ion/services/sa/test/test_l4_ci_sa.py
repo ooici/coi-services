@@ -142,78 +142,78 @@ class TestL4CiSaReqs(IonIntegrationTestCase):
     ###### not done yet
 
 
-    @unittest.skip('Requires platform agent, plus interaction between it and instrument agent')
-    def test_l4_ci_sa_rq_315(self):
-        """
-        Instrument management shall implement physical resource command queueing
-
-        For use on intermittently-connected platforms.
-        The batch file is executed the next time the platform is connected.
-        """
-        pass
-
-
-    @unittest.skip('Capabilities not yet available')
-    def test_l4_ci_sa_rq_314_320_321_225(self):
-        """
-        314: Instrument management control capabilities shall submit requests to control a physical resource as
-              required by policy
-        320:Instrument management shall implement the acquire life cycle activity
-        321:Instrument management shall implement the release life cycle activity
-
-        225: The instrument activation services shall support the deactivation of physical resources.
-        225: Instrument activation shall support transition to the deactivated state of instruments
-        225: Deactivation means the instrument is no longer available for use. This takes the instrument off-line,
-              powers it down and shuts down its Instrument Agent.
-        The predecessor to the actual submission of a command.  Then release instrument
-
-
-        note from maurice 2012-05-18: coord with stephen
-        """
-        pass
-
-
-
-    @unittest.skip('Capabilities not yet available')
-    def test_l4_ci_sa_rq_380(self):
-        """
-        Instrument management shall implement the synoptic notion of time
-
-        Software to utilize NTP or PTP synoptic time for instrument and platform management purposes
-
-        note from maurice 2012-05-18: will need to talk to tim m / alan about this, until then just write a test shell
-                                      with outline of how this can be generated
-
-        Tim M: [synoptic is] A $5 word for "the overall general view of time".  So this refers to the ability to
-               synchronize time internally using an external source.  Hence the NTP or PTP.  Show that the Instrument
-               Management Service updates it's time based on one of the external sources.  Could do this by reading the
-               time from the Instrument Management Service and comparing it to the time from an external service or
-               just show in the log where the Instrument Management Service is synchronizing it's time using the
-               external service.
-       """
-        pass
-
-    @unittest.skip('Possibly a demonstration test / IDK')
-    def test_l4_ci_sa_rq_226(self):
-        """
-        Test services to apply test procedures to physical resources shall be provided.
-
-        Instrument management shall implement qualification of physical resources on ION
-
-        This includes testing of the instrument and its Instrument Agent for compatibility with ION. This could be
-        carried out using the Instrument Test Kit, or online for a newly installed instrument on the marine
-        infrastructure. The details of the qualification tests are instrument specific at the discretion of the marine
-        operator.
-
-        note from maurice 2012-05-18: Bill may already have this or perhaps this is just an inspection test.  Talk with
-                                      Tim M.
-
-        Tim M: This refers to step 6 of UC.R2.15:  The observatory / asset operator has the ability to "qualify" an
-               instrument.  I think this could be demonstration.  The steps could be:  operator checks the instrument
-               agent / driver and the physical instrument, performs qualification test suite, observes that test logs
-               are saved / archived.
-
-        """
-        pass
+#    @unittest.skip('Requires platform agent, plus interaction between it and instrument agent')
+#    def test_l4_ci_sa_rq_315(self):
+#        """
+#        Instrument management shall implement physical resource command queueing
+#
+#        For use on intermittently-connected platforms.
+#        The batch file is executed the next time the platform is connected.
+#        """
+#        pass
+#
+#
+#    @unittest.skip('Capabilities not yet available')
+#    def test_l4_ci_sa_rq_314_320_321_225(self):
+#        """
+#        314: Instrument management control capabilities shall submit requests to control a physical resource as
+#              required by policy
+#        320:Instrument management shall implement the acquire life cycle activity
+#        321:Instrument management shall implement the release life cycle activity
+#
+#        225: The instrument activation services shall support the deactivation of physical resources.
+#        225: Instrument activation shall support transition to the deactivated state of instruments
+#        225: Deactivation means the instrument is no longer available for use. This takes the instrument off-line,
+#              powers it down and shuts down its Instrument Agent.
+#        The predecessor to the actual submission of a command.  Then release instrument
+#
+#
+#        note from maurice 2012-05-18: coord with stephen
+#        """
+#        pass
+#
+#
+#
+#    @unittest.skip('Capabilities not yet available')
+#    def test_l4_ci_sa_rq_380(self):
+#        """
+#        Instrument management shall implement the synoptic notion of time
+#
+#        Software to utilize NTP or PTP synoptic time for instrument and platform management purposes
+#
+#        note from maurice 2012-05-18: will need to talk to tim m / alan about this, until then just write a test shell
+#                                      with outline of how this can be generated
+#
+#        Tim M: [synoptic is] A $5 word for "the overall general view of time".  So this refers to the ability to
+#               synchronize time internally using an external source.  Hence the NTP or PTP.  Show that the Instrument
+#               Management Service updates it's time based on one of the external sources.  Could do this by reading the
+#               time from the Instrument Management Service and comparing it to the time from an external service or
+#               just show in the log where the Instrument Management Service is synchronizing it's time using the
+#               external service.
+#       """
+#        pass
+#
+#    @unittest.skip('Possibly a demonstration test / IDK')
+#    def test_l4_ci_sa_rq_226(self):
+#        """
+#        Test services to apply test procedures to physical resources shall be provided.
+#
+#        Instrument management shall implement qualification of physical resources on ION
+#
+#        This includes testing of the instrument and its Instrument Agent for compatibility with ION. This could be
+#        carried out using the Instrument Test Kit, or online for a newly installed instrument on the marine
+#        infrastructure. The details of the qualification tests are instrument specific at the discretion of the marine
+#        operator.
+#
+#        note from maurice 2012-05-18: Bill may already have this or perhaps this is just an inspection test.  Talk with
+#                                      Tim M.
+#
+#        Tim M: This refers to step 6 of UC.R2.15:  The observatory / asset operator has the ability to "qualify" an
+#               instrument.  I think this could be demonstration.  The steps could be:  operator checks the instrument
+#               agent / driver and the physical instrument, performs qualification test suite, observes that test logs
+#               are saved / archived.
+#
+#        """
+#        pass
 
 
