@@ -41,7 +41,7 @@ DRV_URI_GOOD = load_egg()['dvr_egg']
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 #from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
-import unittest
+
 from mock import patch
 import gevent
 from gevent import queue
@@ -166,18 +166,53 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             Test interval alarm and alarm event publishing for a closed
             inteval.
             """
-
-            temp_alert_def = {
-                'name' : 'temperature_warning_interval',
+            
+            temp_alert_def1 = {
+                'name' : 'temperature_warning_interval temp below 25',
                 'stream_name' : 'parsed',
-                'description' : 'Temperature is below the normal range of 50.0 and above.',
+                'description' : 'temperature_warning_interval temp below 25',
                 'alert_type' : StreamAlertType.WARNING,
                 'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
                 'value_id' : 'temp',
                 'resource_id' : instDevice_id,
                 'origin_type' : 'device',
-                'lower_bound' : 50.0,
-                'lower_rel_op' : '<',
+                #'lower_bound' : 0,
+                #'lower_rel_op' : '<',
+                # temp
+                'upper_rel_op' : '<=',
+                'upper_bound' : 25,
+                'alert_class' : 'IntervalAlert'
+            }
+            temp_alert_def2 = {
+                'name' : 'temperature_warning_interval temp below 50',
+                'stream_name' : 'parsed',
+                'description' : 'temperature_warning_interval temp below 50',
+                'alert_type' : StreamAlertType.WARNING,
+                'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+                'value_id' : 'temp',
+                'resource_id' : instDevice_id,
+                'origin_type' : 'device',
+                #'lower_bound' : 25,
+                #'lower_rel_op' : '<',
+                # temp
+                'upper_rel_op' : '<=',
+                'upper_bound' : 50,
+                'alert_class' : 'IntervalAlert'
+            }
+            temp_alert_def3 = {
+                'name' : 'temperature_warning_interval temp below 75',
+                'stream_name' : 'parsed',
+                'description' : 'temperature_warning_interval temp below 75',
+                'alert_type' : StreamAlertType.WARNING,
+                'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+                'value_id' : 'temp',
+                'resource_id' : instDevice_id,
+                'origin_type' : 'device',
+                #'lower_bound' : 50,
+                #'lower_rel_op' : '<',
+                # temp
+                'upper_rel_op' : '<=',
+                'upper_bound' : 75,
                 'alert_class' : 'IntervalAlert'
             }
 
@@ -193,23 +228,10 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
                 'time_delta' : 2,
                 'alert_class' : 'LateDataAlert'
             }
-            return temp_alert_def, late_data_alert_def
+            return [temp_alert_def1, temp_alert_def2, temp_alert_def3, late_data_alert_def]
 
 
     def _create_instrument_agent_instance(self, instAgent_id, instDevice_id):
-
-
-#        port_agent_config = {
-#            'device_addr':  CFG.device.sbe37.host,
-#            'device_port':  CFG.device.sbe37.port,
-#            'process_type': PortAgentProcessType.UNIX,
-#            'binary_path': "port_agent",
-#            'port_agent_addr': 'localhost',
-#            'command_port': CFG.device.sbe37.port_agent_cmd_port,
-#            'data_port': CFG.device.sbe37.port_agent_data_port,
-#            'log_level': 5,
-#            'type': PortAgentType.ETHERNET
-#        }
 
         port_agent_config = {
             'device_addr': CFG.device.sbe37.host,
@@ -223,12 +245,12 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             'type': PortAgentType.ETHERNET
             }
 
-        temp_alert, late_data_alert = self._create_instrument_stream_alarms(instDevice_id)
+        self.all_alerts = self._create_instrument_stream_alarms(instDevice_id)
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
             description="SBE37IMAgentInstance",
             port_agent_config = port_agent_config,
-            alerts= [temp_alert, late_data_alert]
+            alerts= self.all_alerts
             )
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
@@ -239,8 +261,12 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
 
         return instAgentInstance_id
 
-    @unittest.skip("issues with delayed-stream-sim")
     def test_alerts(self):
+        #
+        # test that with the 4009 sim we can get a late data alert
+        # as well as alerts for out of range for > 25, > 50, and > 75
+        # as well as the ALL_CLEAR alerts for each of them.
+        #
 
         #-------------------------------------------------------------------------------------
         # Create InstrumentModel
@@ -365,26 +391,62 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
-        got_bad_temp = False
+        got_bad_temp = [False, False, False, False]
         got_late_data = False
+        got_temp_all_clear = [False, False, False, False]
         runtime = 0
         starttime = time.time()
         caught_events = []
-        while (got_bad_temp == False or got_late_data == False) and \
-            runtime < 120:            
+        while (got_bad_temp[0] == False or
+               got_bad_temp[1] == False or
+               got_bad_temp[2] == False or
+               got_temp_all_clear[0] == False or
+               got_temp_all_clear[1] == False or
+               got_temp_all_clear[2] == False or
+               got_late_data == False) and runtime < 120:
             a = self.catch_alert.get(timeout=180)
             caught_events.append(a)
-            if a.name == 'temperature_warning_interval' and \
-                a.description == 'Alert triggered by out of range data values: temp ':
-                got_bad_temp = True
+
+            if a.name == 'temperature_warning_interval temp below 25':
+                if a.sub_type == 'WARNING' and \
+                   a.values[0] > 25:
+                    got_bad_temp[0] = True
+                    log.error(str(a.values[0]) + " should be above 25")
+                elif a.sub_type == 'ALL_CLEAR':
+                    got_temp_all_clear[0] = True
+                    log.error("25 ALL_CLEAR")
+
+            if a.name == 'temperature_warning_interval temp below 50':
+                if a.sub_type == 'WARNING' and \
+                   a.values[0] > 50:
+                    got_bad_temp[1] = True
+                    log.error(str(a.values[0]) + " should be above 50")
+                elif a.sub_type == 'ALL_CLEAR':
+                    got_temp_all_clear[1] = True
+                    log.error("50 ALL_CLEAR" )
+
+            if a.name == 'temperature_warning_interval temp below 75':
+                if a.sub_type == 'WARNING' and \
+                   a.values[0] > 75:
+                    got_bad_temp[2] = True
+                    log.error(str(a.values[0]) + " should be above 75")
+                elif a.sub_type == 'ALL_CLEAR':
+                    got_temp_all_clear[2] = True
+                    log.error("75 ALL_CLEAR")
+
             if a.name == 'late_data_warning' and \
                 a.description == 'Expected data has not arrived.':
                 got_late_data = True
-            runtime = time.time() - starttime            
+                log.error("late value")
+
+        runtime = time.time() - starttime
         log.debug("caught_events: %s", [c.name for c in caught_events])
 
         for c in caught_events:
-            self.assertIn(c.name, ['temperature_warning_interval', 'late_data_warning'])
+            self.assertIn(c.name, ['temperature_warning_interval temp below 25',
+                                   'temperature_warning_interval temp below 50',
+                                   'temperature_warning_interval temp below 75',
+                                   'late_data_warning'])
             self.assertEqual(c.origin, instDevice_id)
             self.assertEqual(c.type_, 'DeviceStatusAlertEvent')
             self.assertEqual(c.origin_type, 'InstrumentDevice')
