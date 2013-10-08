@@ -321,6 +321,7 @@ class TestGovernanceHeaders(IonIntegrationTestCase):
 
         self.resource_id_header_value = ''
 
+
     @attr('LOCOINT')
     @attr('HEADERS')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -338,9 +339,7 @@ class TestGovernanceHeaders(IonIntegrationTestCase):
             #Only duplicate the message send from the initial client call
             msg_headers = kwargs['headers']
 
-            self.resource_id_header_value = ''
-
-            if msg_headers.has_key('resource-id'):
+            if (self.resource_id_header_value == '') and msg_headers.has_key('resource-id'):
                 self.resource_id_header_value = msg_headers['resource-id']
 
             return old_send(*args, **kwargs)
