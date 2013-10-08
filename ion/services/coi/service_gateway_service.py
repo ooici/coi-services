@@ -27,8 +27,11 @@ from pyon.util.containers import current_time_millis
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
-from interface.objects import Attachment
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
+from ion.services.dm.utility.granule import RecordDictionaryTool
+from interface.objects import Attachment, Granule
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
+import numpy as np
 
 #Initialize the flask app
 service_gateway_app = Flask(__name__)
@@ -227,6 +230,7 @@ def process_gateway_request(service_name, operation):
         #Retrieve json data from HTTP Post payload
         json_params = None
         if request.method == "POST":
+            print request.form
             payload = request.form['payload']
             #debug only
             #payload = '{"serviceRequest": { "serviceName": "resource_registry", "serviceOp": "find_resources", "params": { "restype": "BankAccount", "lcstate": "", "name": "", "id_only": false } } }'
@@ -600,6 +604,9 @@ def set_object_field(obj, field, field_val):
 
 #Used by json encoder
 def ion_object_encoder(obj):
+    if isinstance(obj, np.ndarray):
+        return {'__np__':{'dtype':obj.dtype.str, 'shape':obj.shape, 'data':obj.tolist()}}
+
     return obj.__dict__
 
 
@@ -894,5 +901,28 @@ def resolve_org_negotiation():
         return gateway_json_response(resp)
 
     except Exception, e:
+        return build_error_response(e)
+
+@service_gateway_app.route('/ion-service/retrieve', methods=['GET', 'POST'])
+def retrieve():
+    try:
+        payload              = request.form['payload']
+        json_params          = simplejson.loads(str(payload))
+        ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+        headers              = build_message_headers(ion_actor_id, expiry)
+        data_retriever = DataRetrieverServiceProcessClient(process=service_gateway_instance)
+        param_list = create_parameter_list('serviceRequest', 'data_retriever', data_retriever, 'retrieve', json_params)
+        param_list['headers'] = headers
+        granule = data_retriever.retrieve(**param_list)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        value_dict = {}
+        for f in rdt.fields:
+            if rdt[f] is not None:
+                value_dict[f] = rdt[f][:]
+
+        return gateway_json_response({'status':'ok', 'value_dict':value_dict})
+
+    except Exception as e:
         return build_error_response(e)
 

@@ -542,5 +542,19 @@ class TestDMExtended(DMTestCase):
         stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
         data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
         self.activate_data_product(data_product_id)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
 
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        now = time.time()
+        ntp_now = now + 2208988800
+        rdt['time'] = np.arange(ntp_now, ntp_now+10, 0.25)
+        rdt['temp'] = np.arange(40)
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
+
+        dataset_monitor.event.wait(10)
+        g = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(g)
         breakpoint(locals())
