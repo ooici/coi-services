@@ -10,6 +10,7 @@
 __author__ = 'Bill French'
 __license__ = 'Apache 2.0'
 
+import gevent
 from pyon.public import log
 from nose.plugins.attrib import attr
 
@@ -41,5 +42,6 @@ class HypmCTDTest(DatasetAgentTestCase):
         self.assert_initialize()
 
         self.create_sample_data("hypm_ctdpf/DAT0003.txt")
+        gevent.sleep(5)
 
         self.assert_reset()
