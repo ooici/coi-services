@@ -500,6 +500,17 @@ class DatasetManagementService(BaseDatasetManagementService):
         return coverage
 
     @classmethod
+    def _get_nonview_coverage(cls, dataset_id, mode='w'):
+        cov = cls._get_coverage(dataset_id, mode)
+        if isinstance(cov, ViewCoverage):
+            rcov = cov.reference_coverage
+            pdir = rcov.persistence_dir
+            rcov = None
+            cov.close()
+            cov = AbstractCoverage.load(pdir, mode=mode)
+        return cov
+
+    @classmethod
     def _get_simplex_coverage(cls, dataset_id, mode='w'):
         cov = cls._get_coverage(dataset_id, mode=mode)
         if isinstance(cov, SimplexCoverage):

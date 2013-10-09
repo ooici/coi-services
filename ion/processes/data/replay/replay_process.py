@@ -100,13 +100,44 @@ class ReplayProcess(BaseReplayProcess):
 
     @classmethod
     def get_time_idx(cls, coverage, timeval):
-        temporal_variable = coverage.temporal_parameter_name
-        uom = coverage.get_parameter_context(temporal_variable).uom
-        
-        units = TimeUtils.ts_to_units(uom, timeval)
+        corrected_time = cls.convert_time(coverage, timeval)
 
-        idx = TimeUtils.get_relative_time(coverage, units)
+        idx = TimeUtils.get_relative_time(coverage, corrected_time)
         return idx
+
+    @classmethod
+    def convert_time(cls, coverage, timeval):
+        tname = coverage.temporal_parameter_name
+        uom = coverage.get_parameter_context(tname).uom
+
+        corrected_time = TimeUtils.ts_to_units(uom, timeval)
+        return corrected_time
+
+    @classmethod
+    def _cov2granule(cls, coverage, start_time=None, end_time=None, stride_time=None, stream_def_id=None, parameters=None, tdoa=None):
+
+        if tdoa is None:
+            if start_time is not None:
+                start_time = cls.convert_time(coverage, start_time)
+            if end_time is not None:
+                end_time = cls.convert_time(coverage, end_time)
+            slice_ = slice(start_time, end_time, stride_time)
+        
+        if stream_def_id:
+            rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        else:
+            rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
+        if tdoa:
+            vdict = coverage.get_value_dictionary(parameters or rdt.fields, domain_slice=tdoa)
+        else:
+            vdict = coverage.get_value_dictionary(parameters or rdt.fields, temporal_slice=slice_)
+        rdt[coverage.temporal_parameter_name] = vdict[coverage.temporal_parameter_name]
+        for k,v in vdict.iteritems():
+            if k == coverage.temporal_parameter_name:
+                continue
+            rdt[k] = v
+
+        return rdt
 
 
     @classmethod

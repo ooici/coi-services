@@ -134,7 +134,7 @@ class DataRetrieverService(BaseDataRetrieverService):
                 #@TODO: Add in LRU logic (maybe some mem checking too!)
                 if len(cls._retrieve_cache) > cls._cache_limit:
                     cls._retrieve_cache.popitem(0)
-                retval = DatasetManagementService._get_coverage(dataset_id, mode='r') 
+                retval = DatasetManagementService._get_nonview_coverage(dataset_id, mode='r') 
             age = time.time()
             cls._retrieve_cache[dataset_id] = (retval, age)
         return retval
@@ -151,7 +151,7 @@ class DataRetrieverService(BaseDataRetrieverService):
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else:
-                rdt = ReplayProcess._coverage_to_granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
+                rdt = ReplayProcess._cov2granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
         except:
             cls._eject_cache(dataset_id)
             log.exception('Problems reading from the coverage')
