@@ -538,8 +538,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         retrieved_data = self.data_retriever.retrieve(dataset_id=dataset_id,query=query)
 
         rdt = RecordDictionaryTool.load_from_granule(retrieved_data)
-        comp = np.arange(0,20,2) == rdt['time']
-        self.assertTrue(comp.all(),'%s' % rdt.pretty_print())
+        np.testing.assert_array_equal(rdt['time'], np.arange(0,20,2))
         self.assertEquals(set(rdt.iterkeys()), set(['time','temp']))
 
         extents = self.dataset_management.dataset_extents(dataset_id=dataset_id, parameters=['time','temp'])

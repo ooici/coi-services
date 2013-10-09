@@ -14,10 +14,13 @@ from ion.services.dm.utility.tmpsf_simulator import TMPSFSimulator
 from ion.services.dm.utility.bad_simulator import BadSimulator
 from ion.util.direct_coverage_utils import DirectCoverageAccess
 from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.public import IonObject, RT, CFG
 from pyon.util.containers import DotDict
+from pydap.client import open_url
+import unittest
 import numpy as np
 import time
 
@@ -126,6 +129,15 @@ class TestDMExtended(DMTestCase):
         config.scenario = 'BETA,LC_TEST'
         config.path = 'master'
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
+    def preload_ui(self):
+        config = DotDict()
+        config.op='loadui'
+        config.loadui=True
+        config.attachments='res/preload/r2_ioc/attachments'
+        config.ui_path = "http://userexperience.oceanobservatories.org/database-exports/Candidates"
+        
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     
@@ -536,11 +548,57 @@ class TestDMExtended(DMTestCase):
             
         breakpoint(locals())
 
-    @attr("UTIL")
-    def test_ccov_stuff(self):
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
-        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
-        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
-        self.activate_data_product(data_product_id)
+    @attr("INT")
+    def test_ccov_visualization(self):
+        '''
+        Tests Complex Coverage aggregation of array types and proper splitting of coverages
+        tests pydap and the visualization
+        '''
+        if not CFG.get_safe('bootstrap.use_pydap',False):
+            raise unittest.SkipTest('PyDAP is off (bootstrap.use_pydap)')
 
-        breakpoint(locals())
+        data_product_id, stream_def_id = self.make_array_data_product()
+
+        # Make a granule with an array type, give it a few values
+        # Send it to google_dt transform, verify output
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(2208988800, 2208988810)
+        rdt['temp_sample'] = np.arange(10*4).reshape(10,4)
+        rdt['cond_sample'] = np.arange(10*4).reshape(10,4)
+
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc1', connection_index='1')
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.event.clear()
+
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(2208988810, 2208988820)
+        rdt['temp_sample'] = np.arange(10*4).reshape(10,4)
+        rdt['cond_sample'] = np.arange(10*4).reshape(10,4)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc2', connection_index='1')
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.event.clear()
+
+        qstring = '{"stride_time": 1, "parameters": [], "query_type": "highcharts_data", "start_time": 0, "use_direct_access": 0, "end_time": 19}'
+        graph = self.visualization.get_visualization_data(data_product_id, qstring)
+        self.assertIn('temp_sample[3]', graph)
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+
+        np.testing.assert_array_equal(rdt['temp_sample'][0], np.arange(4))
+
+        pydap_host = CFG.get_safe('server.pydap.host','localhost')
+        pydap_port = CFG.get_safe('server.pydap.port',8001)
+        url = 'http://%s:%s/%s' %(pydap_host, pydap_port, dataset_id)
+
+        ds = open_url(url)
+
+        temp_sample, time = ds['temp_sample']
+        temp_values, dim = temp_sample[0]
+        np.testing.assert_array_equal(temp_values, np.array(['0.0,1.0,2.0,3.0']))
+
