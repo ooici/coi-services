@@ -31,9 +31,12 @@ class TimeUtils(object):
         '''
         if 'iso' in units:
             return time.strftime('%Y-%d-%mT%H:%M:%S', time.gmtime(val))
+        elif 'seconds since 1900-01-01' == units:
+            return val + 2208988800
         elif 'since' in units:
             t = netCDF4.netcdftime.utime(units)
-            return t.date2num(datetime.datetime.utcfromtimestamp(val))
+            v = t.date2num(datetime.datetime.utcfromtimestamp(val))
+            return v
         else:
             return val
 
