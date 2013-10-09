@@ -45,12 +45,13 @@ def populate_rdt(rdt, vals):
     # Populate the temporal parameter.
     data_arrays[rdt.temporal_parameter] = [None] * array_size
         
-    
+    found_preferred_timestamp = False
+
     for i, particle in enumerate(vals):
         preferred_timestamp = DataParticleKey.DRIVER_TIMESTAMP
         if DataParticleKey.PREFERRED_TIMESTAMP in particle:
             preferred_timestamp = particle[DataParticleKey.PREFERRED_TIMESTAMP]
-            
+
         for k,v in particle.iteritems():
             if k == DataParticleKey.VALUES:
                 for value_dict in v:
@@ -63,17 +64,18 @@ def populate_rdt(rdt, vals):
                             value = base64.b64decode(value)
                         data_arrays[value_id][i] = value
             
-            elif k == preferred_timestamp:
-                data_arrays[rdt.temporal_parameter][i] = v
-            
             elif k in rdt:
                 if k not in data_arrays:
                     data_arrays[k] = [None] * array_size
                 data_arrays[k][i] = v
-                
+
+            if k == preferred_timestamp:
+                data_arrays[rdt.temporal_parameter][i] = v
+                found_preferred_timestamp = True
+
     for k,v in data_arrays.iteritems():
         rdt[k] = numpy.array(v)
-    
+
     return rdt
 
             
