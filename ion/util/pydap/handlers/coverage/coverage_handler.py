@@ -123,7 +123,8 @@ class Handler(BaseHandler):
     def get_data(self,cov, name, slice_):
         #pc = cov.get_parameter_context(name)
         try:
-            data = cov.get_parameter_values(name, tdoa=slice_)
+            data_dict = cov.get_value_dictionary(param_list=[name], domain_slice=slice_)
+            data = data_dict[name]
         except ParameterFunctionException:
             time_vector = self.get_time_data(cov,slice_)
             data = np.empty(time_vector.shape, dtype='object')

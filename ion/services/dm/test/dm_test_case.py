@@ -28,6 +28,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.breakpoint import breakpoint
 from pyon.container.cc import Container
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from uuid import uuid4
 
 import numpy as np
 import time
@@ -91,7 +92,7 @@ class DMTestCase(IonIntegrationTestCase):
         self.addCleanup(self.data_product_management.suspend_data_product_persistence, data_product_id)
 
 class Streamer(object):
-    def __init__(self, data_product_id, interval=1, simple_time=False):
+    def __init__(self, data_product_id, interval=1, simple_time=False, connection=False):
         self.resource_registry = Container.instance.resource_registry
         self.pubsub_management = PubsubManagementServiceClient()
         self.data_product_id = data_product_id
@@ -100,8 +101,10 @@ class Streamer(object):
         self.simple_time = simple_time
         self.finished = Event()
         self.g = gevent.spawn(self.run)
+        self.connection = connection
 
     def run(self):
+        connection = uuid4().hex
         while not self.finished.wait(self.interval):
             rdt = ParameterHelper.rdt_for_data_product(self.data_product_id)
             now = time.time()
@@ -116,7 +119,10 @@ class Streamer(object):
             rdt['conductivity'] = self.float_range(3.3,3.5,np.array([now]))
             rdt['driver_timestamp'] = np.array([now + 2208988800])
             rdt['preferred_timestamp'] = ['driver_timestamp']
-            ParameterHelper.publish_rdt_to_data_product(self.data_product_id, rdt)
+            if self.connection:
+                ParameterHelper.publish_rdt_to_data_product(self.data_product_id, rdt, connection_id=connection, connection_index=self.i)
+            else:
+                ParameterHelper.publish_rdt_to_data_product(self.data_product_id, rdt)
             self.i += 1
     
     def stop(self):
