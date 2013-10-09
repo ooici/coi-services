@@ -583,6 +583,8 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         self.assertIsInstance(rdt['conductivity'][0], numpy.float32)
         self.assertIsInstance(rdt['pressure'][0], numpy.float32)
         self.assertIsInstance(rdt['time'][0], numpy.float64)
+        log.info('Received a granule with time parameter: %f' % rdt['time'][0])
+        log.info('Preferred timestamp: %s' % rdt['preferred_timestamp'][0])
 
     def assertRawGranule(self, granule):
         rdt = RecordDictionaryTool.load_from_granule(granule)
@@ -1202,7 +1204,8 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         self.assertGreater(len(self._raw_samples_received), 10)
         for x in self._raw_samples_received:
             self.assertRawGranule(x)
-        
+
+
     def test_autosample(self):
         """
         test_autosample
