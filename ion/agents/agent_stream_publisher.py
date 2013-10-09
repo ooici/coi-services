@@ -207,6 +207,8 @@ class AgentStreamPublisher(object):
             
             log.info('Outgoing granule: %s',
                      ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
+            log.info('Outgoing granule preferred timestamp: %s' % rdt['preferred_timestamp'][0])
+            log.info('Outgoing granule destined for stream: %s', stream_name)
             g = rdt.to_granule(data_producer_id=self._agent.resource_id, connection_id=self._connection_ID.hex,
                     connection_index=str(self._connection_index[stream_name]))
             
