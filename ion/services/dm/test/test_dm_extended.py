@@ -492,9 +492,17 @@ class TestDMExtended(DMTestCase):
 
     @attr("UTIL")
     def test_ctdpf(self):
-        print 'preloading'
+        import os
+        #import shutil
+        from zipfile import ZipFile
+        if not os.path.exists('/tmp/dsatest'):
+            os.makedirs('/tmp/dsatest')
+
+        with ZipFile('test_data/ctdpf_example.zip','r') as zf:
+            for f in zf.infolist():
+                zf.extract(f, '/tmp/dsatest')
         self.preload_ctdpf()
-        breakpoint(locals())
+        breakpoint(locals(), globals())
 
 
     @attr("UTIL")
@@ -601,4 +609,64 @@ class TestDMExtended(DMTestCase):
         temp_sample, time = ds['temp_sample']
         temp_values, dim = temp_sample[0]
         np.testing.assert_array_equal(temp_values, np.array(['0.0,1.0,2.0,3.0']))
+
+    @attr('INT')
+    def test_ccov_domain_slicing(self):
+        '''
+        Verifies that the complex coverage can handle slicing across the domain instead of the range
+        '''
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(20,40)
+        rdt['temp'] = np.arange(20)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='1', connection_index='1')
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.event.clear()
+        
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(60,80)
+        rdt['temp'] = np.arange(20)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='2', connection_index='1')
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.event.clear()
+        
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(100,120)
+        rdt['temp'] = np.arange(20)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='3', connection_index='1')
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.event.clear()
+
+        cov = DatasetManagementService._get_coverage(dataset_id)
+        ccov = cov.reference_coverage
+        self.assertEquals(len(ccov._reference_covs), 3)
+
+        # Completely within the first coverage
+        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(0,5))
+        np.testing.assert_array_equal(testval['time'], np.arange(20,25))
+
+        # Completely within a different coverage
+        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(20,25))
+        np.testing.assert_array_equal(testval['time'], np.arange(60,65))
+
+        # Intersecting two coverages
+        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(15,25))
+        np.testing.assert_array_equal(testval['time'], np.array([35, 36, 37, 38, 39, 60, 61, 62, 63, 64]))
+
+        # Union of entire domain
+        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(0,60))
+        np.testing.assert_array_equal(testval['time'], np.concatenate([np.arange(20,40), np.arange(60,80), np.arange(100,120)]))
+
+        # Exceeding domain
+        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(0,120))
+        np.testing.assert_array_equal(testval['time'], np.concatenate([np.arange(20,40), np.arange(60,80), np.arange(100,120)]))
+        
+
 
