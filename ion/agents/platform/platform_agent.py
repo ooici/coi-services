@@ -2311,7 +2311,7 @@ class PlatformAgent(ResourceAgent):
                 children were processed OK.
         """
         instrument_ids = self._get_instrument_ids()
-        assert instrument_ids == self._ia_clients.keys()
+        raise PlatformException("%s does not equal to %s ", repr(set(instrument_ids)), repr(set(self._ia_clients.keys() ) ) )
 
         instruments_with_errors = {}
         if len(instrument_ids):
