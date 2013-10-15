@@ -41,7 +41,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         super(DatasetManagementService,self).on_start()
         self.datastore_name = self.CFG.get_safe('process.datastore_name', self.DEFAULT_DATASTORE)
         self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
-        self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
+        #self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
 #--------
 
