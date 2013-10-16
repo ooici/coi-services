@@ -214,12 +214,14 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
 
-        #check data_product_parameters_set
-        self.assertEqual(ComputedValueAvailability.PROVIDED,
-                         extended_instrument.computed.data_product_parameters_set.status)
-        self.assertTrue( 'Parsed_Canonical' in extended_instrument.computed.data_product_parameters_set.value)
-        # the ctd parameters should include 'temp'
-        self.assertTrue( 'temp' in extended_instrument.computed.data_product_parameters_set.value['Parsed_Canonical'])
+        ##check data_product_parameters_set
+        # !!!  OOIION-1342 The UI does not use data_product_parameters_set and it is an expensive calc so the attribute calc was disabled
+        # !!!   Remove check in this test
+        #self.assertEqual(ComputedValueAvailability.PROVIDED,
+        #                 extended_instrument.computed.data_product_parameters_set.status)
+        #self.assertTrue( 'Parsed_Canonical' in extended_instrument.computed.data_product_parameters_set.value)
+        ## the ctd parameters should include 'temp'
+        #self.assertTrue( 'temp' in extended_instrument.computed.data_product_parameters_set.value['Parsed_Canonical'])
 
         #none of these will work because there is no agent
 #        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
