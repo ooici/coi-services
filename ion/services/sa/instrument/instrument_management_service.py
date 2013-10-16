@@ -24,7 +24,7 @@ from pyon.util.containers import get_ion_ts
 from coverage_model.parameter import ParameterDictionary
 
 from ion.agents.port.port_agent_process import PortAgentProcess
-from ion.agents.platform.platform_agent import PlatformAgentEvent
+from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder, \
@@ -1671,7 +1671,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if device.type_ == 'InstrumentDevice':
             event_state = ResourceAgentState.STREAMING
         elif device.type_ == 'PlatformDevice':
-            event_state = PlatformAgentEvent.START_MONITORING
+            event_state = PlatformAgentState.MONITORING
 
         #----------------------------------------------------------------------------------------------
         # Get events associated with device from the events db
