@@ -16,12 +16,14 @@ from nose.plugins.attrib import attr
 
 from ion.agents.data.test.dataset_test import DatasetAgentTestCase
 from ion.services.dm.test.dm_test_case import breakpoint
+import unittest
 
 ###############################################################################
 # Global constants.
 ###############################################################################
 
 
+@unittest.skip("Skip this test until OOIION-1332 passes.")
 @attr('INT', group='mi')
 class HypmCTDTest(DatasetAgentTestCase):
     """
