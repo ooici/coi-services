@@ -2625,9 +2625,15 @@ Reason: %s
         stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
         stream_configurations = [self.stream_config[name] for name in stream_config_names]
 
+        agent_default_config = {}
+        raw_agent_default_config = row.get('agent_default_config', None)
+        if raw_agent_default_config:
+            agent_default_config = parse_dict(raw_agent_default_config)
+
         eda_id = self._basic_resource_create(row, "ExternalDatasetAgent", "eda/",
                                              "data_acquisition_management", "create_external_dataset_agent",
-                                             set_attributes=dict(stream_configurations=stream_configurations),
+                                             set_attributes=dict(stream_configurations=stream_configurations,
+                                                                 agent_default_config=agent_default_config),
                                              support_bulk=True)
 
         svc_client = self._get_service_client('data_acquisition_management')
