@@ -502,6 +502,9 @@ class TestDMExtended(DMTestCase):
             for f in zf.infolist():
                 zf.extract(f, '/tmp/dsatest')
         self.preload_ctdpf()
+        data_product_ids, _ = self.container.resource_registry.find_resources_ext(alt_id='DPROD100', alt_id_ns='PRE')
+        data_product_id = data_product_ids[0]
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         breakpoint(locals(), globals())
 
 
