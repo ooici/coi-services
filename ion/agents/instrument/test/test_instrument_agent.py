@@ -1011,6 +1011,19 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
 
+        # Test the driver name.
+        if LAUNCH_FROM_EGG:
+            retval = self._ia_client.get_agent(['driver_name'])
+            driver_name = retval['driver_name']
+            self.assertIsInstance(driver_name, str)
+            self.assertTrue(driver_name.endswith('.egg'))
+
+            # Driver name is read only.
+            self._ia_client.set_agent({'driver_name' : 'bogus'})
+            retval = self._ia_client.get_agent(['driver_name'])
+            driver_name_new = retval['driver_name']
+            self.assertEqual(driver_name, driver_name_new)
+
         # Test with a bad parameter name.
         with self.assertRaises(BadRequest):
             retval = self._ia_client.get_agent(['a bad param name'])
