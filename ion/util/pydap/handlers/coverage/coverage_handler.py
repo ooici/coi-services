@@ -134,11 +134,7 @@ class Handler(BaseHandler):
         return data
     
     def get_time_data(self, cov, slice_):
-        data = cov.get_parameter_values(cov.temporal_parameter_name, tdoa=slice_)
-        data = np.asanyarray(data) 
-        if not data.shape:
-            data.shape = (1,)
-        return data
+        return self.get_data(cov, cov.temporal_parameter_name, slice_)
 
     def make_grid(self, response, name, data, time_data, attrs, time_attrs, dims, ttype):
         grid = GridType(name=name)
