@@ -201,6 +201,10 @@ class InstrumentAgent(ResourceAgent):
         # The driver process id. For test instrumentation.
         self.aparam_driver_pid = None
 
+        # The driver egg name. For version display.
+        # Driver name is read only. Get handled by base class.
+        self.aparam_driver_name = None
+
         # Autoreconnect thread.
         self._autoreconnect_greenlet = None
 
@@ -588,6 +592,11 @@ class InstrumentAgent(ResourceAgent):
 
         # Start the driver and switch to inactive.
         self._start_driver(self._dvr_config)
+
+        # Set the driver name aparam.
+        #dvr_egg': 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.5-py2.7.egg'
+        if 'dvr_egg' in self._dvr_config:
+            self.aparam_driver_name = self._dvr_config['dvr_egg'].split('/')[-1]
 
         return (ResourceAgentState.INACTIVE, None)
 
@@ -1728,7 +1737,10 @@ class InstrumentAgent(ResourceAgent):
         else:
             log.info('Instrument agent %s restored state %s = %s.',
                      self.id, state, cur_state)
-    
+
+    def aparam_set_driver_name(self, params):
+        return -1
+
     ##############################################################
     # On state enter, on command, on command error handlers.
     ##############################################################    
