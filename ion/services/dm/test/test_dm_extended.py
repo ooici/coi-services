@@ -65,6 +65,14 @@ class TestDMExtended(DMTestCase):
         self.activate_data_product(data_product_id)
         return data_product_id, stream_def_id
 
+    def make_ctd_data_product(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+        return data_product_id
+
+
     def preload_beta(self):
         config = DotDict()
         config.op = 'load'
@@ -671,6 +679,26 @@ class TestDMExtended(DMTestCase):
         testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(0,120))
         np.testing.assert_array_equal(testval['time'], np.concatenate([np.arange(20,40), np.arange(60,80), np.arange(100,120)]))
         
+    @attr("UTIL")
     def test_locking_contention(self):
         pass
+
+    @attr("UTIL")
+    def test_large_perf(self):
+        self.preload_ui()
+        data_product_id = self.make_ctd_data_product()
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+        cov = DatasetManagementService._get_simplex_coverage(dataset_id)
+        cov.insert_timesteps(22000)
+        value_array = np.arange(22000)
+        cov.set_parameter_values('time', value_array)
+        cov.set_parameter_values('temp', value_array)
+        cov.set_parameter_values('conductivity', value_array)
+        cov.set_parameter_values('pressure', value_array)
+
+
+        #self.data_retriever.retrieve(dataset_id)
+        breakpoint(locals(), globals())
+
 
