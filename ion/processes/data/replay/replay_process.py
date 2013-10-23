@@ -135,7 +135,9 @@ class ReplayProcess(BaseReplayProcess):
         for k,v in vdict.iteritems():
             if k == coverage.temporal_parameter_name:
                 continue
-            rdt[k] = v
+            # The values have already been inside a coverage so we know they're safe and they exist, so they can be inserted directly.
+            rdt._rd[k] = v
+            #rdt[k] = v
 
         return rdt
 
