@@ -671,5 +671,6 @@ class TestDMExtended(DMTestCase):
         testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(0,120))
         np.testing.assert_array_equal(testval['time'], np.concatenate([np.arange(20,40), np.arange(60,80), np.arange(100,120)]))
         
-
+    def test_locking_contention(self):
+        pass
 
