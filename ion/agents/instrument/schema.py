@@ -272,6 +272,13 @@ AGENT_SCHEMA_V1 = {
                 "description" : "Process ID of the driver.",
                 "visibility" : "READ_ONLY",
                 "type" : "str",
+            },
+        "driver_name" :
+            {
+                "display_name" : "Driver Name.",
+                "description" : "Name of the driver module.",
+                "visibility" : "READ_ONLY",
+                "type" : "str",
             }
         },
     "states" : {

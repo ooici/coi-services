@@ -1305,7 +1305,8 @@ class InstrumentAgentTest(IonIntegrationTestCase):
                         'streams',
                         'pubrate',
                         'aggstatus',
-                        'driver_pid'
+                        'driver_pid',
+                        'driver_name'
                         ]
         
         res_cmds_all =[
