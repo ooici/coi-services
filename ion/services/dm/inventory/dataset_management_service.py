@@ -135,15 +135,15 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def get_dataset_info(self,dataset_id=''):
-        coverage = self._get_coverage(dataset_id)
+        coverage = self._get_coverage(dataset_id, mode='r')
         return coverage.info
 
     def get_dataset_parameters(self, dataset_id=''):
-        coverage = self._get_coverage(dataset_id)
+        coverage = self._get_coverage(dataset_id, mode='r')
         return coverage.parameter_dictionary.dump()
 
     def get_dataset_length(self, dataset_id=''):
-        coverage = self._get_coverage(dataset_id)
+        coverage = self._get_coverage(dataset_id, mode='r')
         return coverage.num_timesteps
 
 #--------
@@ -307,7 +307,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def dataset_bounds(self, dataset_id='', parameters=None):
         self.read_dataset(dataset_id) # Validates proper dataset
         parameters = parameters or None
-        coverage = self._get_coverage(dataset_id)
+        coverage = self._get_coverage(dataset_id, mode='r')
         if not coverage.num_timesteps:
             if isinstance(parameters,list):
                 return {i:(coverage.get_parameter_context(i).fill_value,coverage.get_parameter_context(i).fill_value) for i in parameters}
@@ -320,7 +320,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def dataset_bounds_by_axis(self, dataset_id='', axis=None):
         self.read_dataset(dataset_id) # Validates proper dataset
         axis = axis or None
-        coverage = self._get_coverage(dataset_id)
+        coverage = self._get_coverage(dataset_id, mode='r')
         if not coverage.num_timesteps:
             temporal = coverage.temporal_parameter_name
             if isinstance(axis,list):
@@ -332,7 +332,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         return coverage.get_data_bounds_by_axis(axis)
 
     def dataset_temporal_bounds(self, dataset_id):
-        coverage = self._get_coverage(dataset_id)
+        coverage = self._get_coverage(dataset_id, mode='r')
         temporal_param = coverage.temporal_parameter_name
         try:
             bounds = coverage.get_data_bounds(temporal_param)
@@ -345,7 +345,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def dataset_extents(self, dataset_id='', parameters=None):
         self.read_dataset(dataset_id)
         parameters = parameters or None
-        coverage = DatasetManagementService._get_coverage(dataset_id)
+        coverage = DatasetManagementService._get_coverage(dataset_id, mode='r')
         extents = coverage.get_data_extents(parameters)
         coverage.close()
         return extents
@@ -361,7 +361,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         parameters = parameters or None
         slice_     = slice_ if isinstance(slice_, slice) else None
 
-        coverage = self._get_coverage(dataset_id)
+        coverage = self._get_coverage(dataset_id, mode='r')
         return coverage.get_data_size(parameters, slice_, in_bytes)
 
 #--------
@@ -494,7 +494,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         coverage.flush()
 
     @classmethod
-    def _get_coverage(cls,dataset_id,mode='w'):
+    def _get_coverage(cls,dataset_id,mode='r'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
         coverage = AbstractCoverage.load(file_root, dataset_id, mode=mode)
         return coverage
