@@ -1585,6 +1585,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if t:
             t.complete_step('ims.instrument_device_extension.deploy')
             stats.add(t)
+
+        # Fix OOIION-1356. Agent instance contains very large stream and parameter info, unused in the UI.
+        extended_instrument.agent_instance.agent_spawn_config = {}
+        extended_instrument.agent_instance.agent_config = {}
+
         return extended_instrument
 
 
@@ -1877,6 +1882,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if t:
             t.complete_step('ims.platform_device_extension.deploy')
             stats.add(t)
+
+        # Fix OOIION-1356. Agent instance contains very large stream and parameter info, unused in the UI.
+        extended_platform.agent_instance.agent_spawn_config = {}
+        extended_platform.agent_instance.agent_config = {}
+
         return extended_platform
 
     def _get_site_device(self, site_id, device_relations):
