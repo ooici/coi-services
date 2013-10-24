@@ -85,8 +85,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
         # NOTE The tests expect to use values set up by HelperTestMixin for
         # the following networks (see ion/agents/platform/test/helper.py)
         if self.PLATFORM_ID == 'Node1D':
-            self.p_root = self._create_small_hierarchy()
-
+            #self.p_root = self._create_small_hierarchy()
+            instr_keys = ["SBE37_SIM_01", ]
+            self.p_root = self._set_up_small_hierarchy_with_some_instruments(instr_keys)
+            
         elif self.PLATFORM_ID == 'LJ01D':
             self.p_root = self._create_single_platform()
 
@@ -627,19 +629,25 @@ class TestPlatformAgent(BaseIntTestPlatform):
         verify_schema(retval)
 
     def test_some_state_transitions(self):
+        print "#################################################### starting test_some_state_transitions"
         self._create_network_and_start_root_platform(self._shutdown)
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
+        """
         self._initialize()   # -> INACTIVE
         self._reset()        # -> UNINITIALIZED
 
         self._initialize()   # -> INACTIVE
         self._go_active()    # -> IDLE
         self._reset()        # -> UNINITIALIZED
-
+        """
+        
+        print "#################################################### calling _initialize()"
         self._initialize()   # -> INACTIVE
+        print "#################################################### calling _go_active()"
         self._go_active()    # -> IDLE
+        print "#################################################### calling _run()"
         self._run()          # -> COMMAND
         self._pause()        # -> STOPPED
         self._resume()       # -> COMMAND
