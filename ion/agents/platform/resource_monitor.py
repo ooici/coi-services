@@ -58,8 +58,6 @@ class ResourceMonitor(object):
         log.debug("%r: ResourceMonitor entered. rate_secs=%s, attr_defns=%s",
                   platform_id, rate_secs, attr_defns)
 
-        assert platform_id, "must give a valid platform ID"
-
         self._get_attribute_values = get_attribute_values
         self._platform_id = platform_id
         self._rate_secs = rate_secs
@@ -231,7 +229,6 @@ class ResourceMonitor(object):
 
         # update _last_ts for each retrieved attribute:
         for attr_id, attr_vals in vals_dict.iteritems():
-            assert attr_vals, "Must be a non-empty array of values per _retrieve_attribute_values"
 
             _, ntp_ts = attr_vals[-1]
 
