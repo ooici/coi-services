@@ -44,9 +44,6 @@ class PlatformAgentStreamPublisher(object):
     """
 
     def __init__(self, agent):
-
-        assert agent.resource_id, "agent's resource_id must have been set"
-
         self._agent = agent
 
         self._platform_id = agent._platform_id
@@ -126,9 +123,6 @@ class PlatformAgentStreamPublisher(object):
                   self._platform_id, self._connection_ID.hex, self._connection_index)
 
     def handle_attribute_value_event(self, driver_event):
-
-        assert isinstance(driver_event, AttributeValueDriverEvent)
-
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             # show driver_event as retrieved (driver_event.vals_dict might be large)
             log.trace("%r: driver_event = %s", self._platform_id, driver_event)
@@ -179,11 +173,6 @@ class PlatformAgentStreamPublisher(object):
                              ' rdt.keys=%s',
                              self._platform_id, param_name, stream_name, list(rdt.iterkeys()))
                 continue
-
-            # Note that notification from the driver has the form
-            # of a non-empty list of pairs (val, ts)
-            assert isinstance(param_value, list)
-            assert isinstance(param_value[0], tuple)
 
             # separate values and timestamps:
             vals, timestamps = zip(*param_value)

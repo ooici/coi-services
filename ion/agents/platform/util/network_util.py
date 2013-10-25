@@ -92,6 +92,9 @@ class NetworkUtil(object):
 
         @param ser representation of the given serialization
         @return A NetworkDefinition object
+        
+        Since this static method is only called by the OMS simulator used for 
+        testing the asserts have been left in the code
         """
 
         ndef = NetworkDefinition()
@@ -439,7 +442,8 @@ class NetworkUtil(object):
         ndef._pnodes = {}
 
         def create_platform_node(platform_id, platform_types=None, CFG=None):
-            assert not platform_id in ndef.pnodes
+            if platform_id in ndef.pnodes:
+                raise PlatformDefinitionException("create_platform_node(): platform_id %r not in ndef.pnodes" % platform_id)
             pn = PlatformNode(platform_id, platform_types, CFG)
             ndef.pnodes[platform_id] = pn
             return pn
@@ -460,14 +464,18 @@ class NetworkUtil(object):
         def _add_attrs_to_platform_node(attrs, pn):
             for attr_defn in attrs:
                 attr_id = _get_attr_id(attr_defn)
-                assert 'monitor_cycle_seconds' in attr_defn
-                assert 'units' in attr_defn
+                if not 'monitor_cycle_seconds' in attr_defn:
+                    raise PlatformDefinitionException("_add_attrs_to_platform_node(): 'monitor_cycle_seconds' not in attr_defn")
+                if not 'units' in attr_defn:
+                    raise PlatformDefinitionException("_add_attrs_to_platform_node(): 'units' not in attr_defn")
                 pn.add_attribute(AttrNode(attr_id, attr_defn))
 
         def _add_ports_to_platform_node(ports, pn):
             for port_info in ports:
-                assert 'port_id' in port_info
-                assert 'network' in port_info
+                if not 'port_id' in port_info:
+                    raise PlatformDefinitionException("_add_ports_to_platform_node(): 'port_id' not in port_info")
+                if not 'network' in port_info:
+                    raise PlatformDefinitionException("_add_ports_to_platform_node(): 'network' not in port_info")
                 port_id = port_info['port_id']
                 network = port_info['network']
                 port = PortNode(port_id, network)

@@ -86,9 +86,6 @@ class PlatformDriver(object):
         # of the corresponding platform (most of which coming from configuration)
         #
 
-        assert pnode, "pnode must be given"
-        assert event_callback, "event_callback parameter must be given"
-
         self._pnode = pnode
         self._send_event = event_callback
 
@@ -319,8 +316,6 @@ class PlatformDriver(object):
         @param driver_event a DriverEvent object.
         """
         log.debug("%r: _notify_driver_event: %s", self._platform_id, driver_event)
-
-        assert isinstance(driver_event, DriverEvent)
 
         self._send_event(driver_event)
 
