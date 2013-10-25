@@ -629,25 +629,19 @@ class TestPlatformAgent(BaseIntTestPlatform):
         verify_schema(retval)
 
     def test_some_state_transitions(self):
-        print "#################################################### starting test_some_state_transitions"
         self._create_network_and_start_root_platform(self._shutdown)
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
-        """
         self._initialize()   # -> INACTIVE
         self._reset()        # -> UNINITIALIZED
 
         self._initialize()   # -> INACTIVE
         self._go_active()    # -> IDLE
-        self._reset()        # -> UNINITIALIZED
-        """
+        self._reset()        # -> UNINITIALIZED        """
         
-        print "#################################################### calling _initialize()"
         self._initialize()   # -> INACTIVE
-        print "#################################################### calling _go_active()"
         self._go_active()    # -> IDLE
-        print "#################################################### calling _run()"
         self._run()          # -> COMMAND
         self._pause()        # -> STOPPED
         self._resume()       # -> COMMAND
