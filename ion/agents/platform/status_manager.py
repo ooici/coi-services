@@ -76,9 +76,6 @@ class StatusManager(object):
                     elements handled by this helper.
         """
 
-        assert pa._platform_id is not None
-        assert pa._children_resource_ids is not None
-
         self._agent = pa
 
         self._platform_id            = pa._platform_id
@@ -340,9 +337,6 @@ class StatusManager(object):
         @param alerts_list   See OOIION-1275
         """
 
-        assert status_name in AggregateStatusType._str_map
-        assert status in DeviceStatusType._str_map
-
         log.debug("%r: set_aggstatus: %s <- %s;  alerts_list=%s",
                   self._platform_id,
                   AggregateStatusType._str_map[status_name],
@@ -537,8 +531,10 @@ class StatusManager(object):
         log.debug("%r: _got_device_status_event: %s\n sub_type=%r",
                   self._platform_id, evt, evt.sub_type)
 
-        assert sub_type in expected_subtypes, \
-            "Unexpected sub_type=%r. Expecting one of %r" % (sub_type, expected_subtypes)
+        if not sub_type in expected_subtypes:
+            log.error("StatusManager._got_device_status_event: Unexpected sub_type=%r. Expecting one of %r" 
+                      % (sub_type, expected_subtypes))
+            return
 
         with self._lock:
             if sub_type == "device_added":

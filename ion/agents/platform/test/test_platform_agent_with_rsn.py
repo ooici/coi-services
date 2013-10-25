@@ -85,8 +85,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
         # NOTE The tests expect to use values set up by HelperTestMixin for
         # the following networks (see ion/agents/platform/test/helper.py)
         if self.PLATFORM_ID == 'Node1D':
-            self.p_root = self._create_small_hierarchy()
-
+            #self.p_root = self._create_small_hierarchy()
+            instr_keys = ["SBE37_SIM_01", ]
+            self.p_root = self._set_up_small_hierarchy_with_some_instruments(instr_keys)
+            
         elif self.PLATFORM_ID == 'LJ01D':
             self.p_root = self._create_single_platform()
 
@@ -636,8 +638,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._initialize()   # -> INACTIVE
         self._go_active()    # -> IDLE
-        self._reset()        # -> UNINITIALIZED
-
+        self._reset()        # -> UNINITIALIZED        """
+        
         self._initialize()   # -> INACTIVE
         self._go_active()    # -> IDLE
         self._run()          # -> COMMAND
