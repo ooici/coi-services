@@ -442,7 +442,7 @@ class NetworkUtil(object):
         ndef._pnodes = {}
 
         def create_platform_node(platform_id, platform_types=None, CFG=None):
-            if not platform_id in ndef.pnodes:
+            if platform_id in ndef.pnodes:
                 raise PlatformDefinitionException("create_platform_node(): platform_id %r not in ndef.pnodes" % platform_id)
             pn = PlatformNode(platform_id, platform_types, CFG)
             ndef.pnodes[platform_id] = pn
