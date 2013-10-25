@@ -591,13 +591,13 @@ class PolicyManagementService(BasePolicyManagementService):
         rules = ""
         if not service_name:
             policy_set,_ = self.clients.resource_registry.find_resources_ext(restype=RT.Policy, nested_type=OT.CommonServiceAccessPolicy)
-            for p in policy_set:
+            for p in sorted(policy_set, key=lambda o: o.ts_created):
                 if p.enabled:
                     rules += p.policy_type.policy_rule
 
         else:
             policy_set,_ = self.clients.resource_registry.find_resources_ext(restype=RT.Policy, nested_type=OT.ServiceAccessPolicy)
-            for p in policy_set:
+            for p in sorted(policy_set, key=lambda o: o.ts_created):
                 if p.enabled and p.policy_type.service_name == service_name:
                     rules += p.policy_type.policy_rule
 
@@ -621,7 +621,7 @@ class PolicyManagementService(BasePolicyManagementService):
 
         preconditions = list()
         policy_set,_ = self.clients.resource_registry.find_resources_ext(restype=RT.Policy, nested_type=OT.ProcessOperationPreconditionPolicy)
-        for p in policy_set:
+        for p in sorted(policy_set, key=lambda o: o.ts_created):
 
             if op:
                 if p.enabled and p.policy_type.process_name == process_name and p.policy_type.op == op:
