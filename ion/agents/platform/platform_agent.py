@@ -410,8 +410,11 @@ class PlatformAgent(ResourceAgent):
                 log.error(msg)
 
         # Create network definition from the provided CFG:
-        self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
-        log.debug("%r: created network_definition from CFG", self._platform_id)
+        try:
+            self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
+            log.debug("%r: created network_definition from CFG", self._platform_id)
+        except:
+            log.exception("PlatformAgent._validate_configuration: exception raised while calling NetworkUtil.create_network_definition_from_ci_config")
 
         # verify the given platform_id is contained in the NetworkDefinition:
         if not self._platform_id in self._network_definition.pnodes:
