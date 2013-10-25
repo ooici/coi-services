@@ -735,4 +735,25 @@ class TestDMExtended(DMTestCase):
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['pressure_sensor_range'], np.array([[6000, 6000]]))
+    
+    @attr("UTIL")
+    def test_overlapping(self):
+
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(20,40)
+        rdt['temp'] = np.arange(20)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='1', connection_index='1')
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+
+
 
