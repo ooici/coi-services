@@ -1587,8 +1587,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             stats.add(t)
 
         # Fix OOIION-1356. Agent instance contains very large stream and parameter info, unused in the UI.
-        extended_instrument.agent_instance.agent_spawn_config = {}
-        extended_instrument.agent_instance.agent_config = {}
+        if extended_instrument.agent_instance:
+            extended_instrument.agent_instance.agent_spawn_config = {}
+            extended_instrument.agent_instance.agent_config = {}
 
         return extended_instrument
 
@@ -1884,8 +1885,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             stats.add(t)
 
         # Fix OOIION-1356. Agent instance contains very large stream and parameter info, unused in the UI.
-        extended_platform.agent_instance.agent_spawn_config = {}
-        extended_platform.agent_instance.agent_config = {}
+        if extended_platform.agent_instance:
+            extended_platform.agent_instance.agent_spawn_config = {}
+            extended_platform.agent_instance.agent_config = {}
 
         return extended_platform
 
