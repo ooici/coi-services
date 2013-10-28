@@ -10,6 +10,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from ion.services.dm.utility.granule import RecordDictionaryTool
 
 from pyon.core.exception import BadRequest 
+from pyon.container.cc import Container
 from pyon.public import PRED, RT
 from pyon.util.arg_check import validate_is_instance, validate_true
 from pyon.util.containers import for_name
@@ -154,7 +155,9 @@ class DataRetrieverService(BaseDataRetrieverService):
                 rdt = ReplayProcess._cov2granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
         except:
             cls._eject_cache(dataset_id)
-            log.exception('Problems reading from the coverage')
+            data_products, _ = Container.instance.resource_registry.find_subjects(object=dataset_id, predicate=PRED.hasDataset, subject_type=RT.DataProduct)
+            for data_product in data_products:
+                log.exception("Data Product %s (%s) had issues reading from the coverage model\nretrieve_oob(dataset_id='%s', query=%s, delivery_format=%s)", data_product.name, data_product._id, dataset_id, query, delivery_format)
             raise BadRequest('Problems reading from the coverage')
         return rdt.to_granule()
 
