@@ -422,12 +422,17 @@ class VisualizationService(BaseVisualizationService):
         if not stream_def_ids:
             raise NotFound('Could not find stream definition associated with data product')
         stream_def_id = stream_def_ids[0]
+        try:
 
-        if use_direct_access:
-            retrieved_granule = DataRetrieverService.retrieve_oob(ds_ids[0], query=query, delivery_format=stream_def_id)
-        else:
-            #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-            retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query, delivery_format=stream_def_id)
+            if use_direct_access:
+                retrieved_granule = DataRetrieverService.retrieve_oob(ds_ids[0], query=query, delivery_format=stream_def_id)
+            else:
+                #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
+                retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query, delivery_format=stream_def_id)
+        except BadRequest:
+            dp = self.container.resource_registry.read(data_product_id)
+            log.exception('Problem visualizing data product: %s (%s).\n_get_highcharts_data(data_product_id="%s", visualization_parameters=%s)', dp.name, data_product_id, data_product_id, visualization_parameters)
+            raise
 
         # If thereis no data, return an empty dict
         if retrieved_granule is None:
