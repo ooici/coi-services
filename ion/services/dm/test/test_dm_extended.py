@@ -115,6 +115,17 @@ class TestDMExtended(DMTestCase):
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
+    def preload_prest(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,PREST'
+        config.path = 'master'
+        #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
     def preload_ctdpf(self):
         config = DotDict()
         config.op = 'load'
@@ -701,4 +712,27 @@ class TestDMExtended(DMTestCase):
         #self.data_retriever.retrieve(dataset_id)
         breakpoint(locals(), globals())
 
+
+    @attr("INT")
+    def test_prest(self):
+        '''
+        Tests the prest configuration data product to make sure that the 
+        presssure_sensor_range is compatible with the coverage model
+        '''
+        self.preload_prest()
+        data_products, _ = self.container.resource_registry.find_resources_ext(alt_id='DPROD69', alt_id_ns='PRE')
+        data_product_id = data_products[0]._id
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = [0]
+        rdt['pressure_sensor_range'] = [(6000,6000)]
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.event.wait(30))
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['pressure_sensor_range'], np.array([[6000, 6000]]))
 
