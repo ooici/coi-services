@@ -72,7 +72,15 @@ class QCPostProcessing(SimpleProcess):
         for st,et in self.chop(int(start_time),int(end_time)):
             log.debug('Chopping %s:%s', st, et)
             log.debug("Retrieving data: data_retriever.retrieve('%s', query={'start_time':%s, 'end_time':%s')", dataset_id, st, et)
-            granule = self.data_retriever.retrieve(dataset_id, query={'start_time':st, 'end_time':et})
+            try:
+                granule = self.data_retriever.retrieve(dataset_id, query={'start_time':st, 'end_time':et})
+            except BadRequest:
+                data_products, _ = self.container.resource_registry.find_subjects(object=dataset_id, predicate=PRED.hasDataset, subject_type=RT.DataProduct)
+                for data_product in data_products:
+                    log.exception('Failed to perform QC Post Processing on %s', data_product.name)
+                    log.error('Calculated Start Time: %s', st)
+                    log.error('Calculated End Time:   %s', et)
+                raise
             log.debug('Retrieved Data')
             rdt = RecordDictionaryTool.load_from_granule(granule)
             qc_fields = [i for i in rdt.fields if any([i.endswith(j) for j in qc_params])]

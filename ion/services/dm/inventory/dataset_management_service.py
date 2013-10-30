@@ -500,7 +500,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         return coverage
 
     @classmethod
-    def _get_nonview_coverage(cls, dataset_id, mode='w'):
+    def _get_nonview_coverage(cls, dataset_id, mode='r'):
         cov = cls._get_coverage(dataset_id, mode)
         if isinstance(cov, ViewCoverage):
             rcov = cov.reference_coverage
@@ -511,7 +511,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         return cov
 
     @classmethod
-    def _get_simplex_coverage(cls, dataset_id, mode='w'):
+    def _get_simplex_coverage(cls, dataset_id, mode='r'):
         cov = cls._get_coverage(dataset_id, mode=mode)
         if isinstance(cov, SimplexCoverage):
             return cov
