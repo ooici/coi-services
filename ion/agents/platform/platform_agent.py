@@ -25,7 +25,7 @@ from pyon.core.exception import NotFound, Inconsistent
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_valid_resource_commitments, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 
-
+from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
@@ -909,7 +909,7 @@ class PlatformAgent(ResourceAgent):
 
         curr_state = self._plat_driver._fsm.get_current_state()
         if PlatformDriverState.DISCONNECTED != curr_state:
-            msg = "PlatformAgent._configure_driver: expected driver state to be %s but got %s in" % (
+            msg = "PlatformAgent._configure_driver: expected driver state to be %s but got %s" % (
                   PlatformDriverState.DISCONNECTED, curr_state)
             log.error(msg)  
             raise PlatformDriverException(msg)
