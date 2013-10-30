@@ -131,6 +131,9 @@ class ReplayProcess(BaseReplayProcess):
             vdict = coverage.get_value_dictionary(parameters or rdt.fields, domain_slice=tdoa)
         else:
             vdict = coverage.get_value_dictionary(parameters or rdt.fields, temporal_slice=slice_)
+        if not vdict:
+            log.warning('Retrieve returning empty set')
+            return rdt
         rdt[coverage.temporal_parameter_name] = vdict[coverage.temporal_parameter_name]
         for k,v in vdict.iteritems():
             if k == coverage.temporal_parameter_name:

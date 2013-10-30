@@ -10,6 +10,7 @@ from coverage_model import AbstractCoverage
 #from coverage_model.parameter_types import QuantityType
 
 from xml.dom.minidom import parse, parseString
+from xml.parsers.expat import ExpatError
 from zipfile import ZipFile
 
 import base64
@@ -62,7 +63,12 @@ class RegistrationProcess(StandaloneProcess):
     def add_dataset_to_xml(self, coverage_path, product_id, product_name='', available_fields=None):
         dom1 = parse(self.datasets_xml_path)
         xml_str = self.get_dataset_xml(coverage_path, product_id, product_name, available_fields)
-        dom2 = parseString(xml_str)
+        try:
+            dom2 = parseString(xml_str)
+        except ExpatError:
+            log.exception('Error parsing XML string for %s' % product_name)
+            log.error(xml_str)
+            raise
 
         erddap_datasets_element = dom1.getElementsByTagName('erddapDatasets')[0]
         erddap_datasets_element.appendChild(dom2.getElementsByTagName('dataset')[0])
@@ -247,8 +253,8 @@ class RegistrationProcess(StandaloneProcess):
                 index += 1
                 #bug with prettyxml
                 #http://ronrothman.com/public/leftbraned/xml-dom-minidom-toprettyxml-and-silly-whitespace/
-                #result += dataset_element.toprettyxml() + '\n'
-                result += dataset_element.toxml() + '\n'
+                result += dataset_element.toprettyxml() + '\n'
+                #result += dataset_element.toxml() + '\n'
 
         cov.close()
 
