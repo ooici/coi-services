@@ -587,7 +587,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         ntp_ago  = unix_ago + 2208988800
 
         stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
-        coverage = DatasetManagementService._get_simplex_coverage(dataset_id)
+        coverage = DatasetManagementService._get_simplex_coverage(dataset_id, mode='a')
         coverage.insert_timesteps(20)
         coverage.set_parameter_values('time', np.arange(ntp_ago,ntp_now))
         
@@ -619,7 +619,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         DataRetrieverService._refresh_interval = 1
         datasets = [self.make_simple_dataset() for i in xrange(10)]
         for stream_id, route, stream_def_id, dataset_id in datasets:
-            coverage = DatasetManagementService._get_simplex_coverage(dataset_id)
+            coverage = DatasetManagementService._get_simplex_coverage(dataset_id, mode='a')
             coverage.insert_timesteps(10)
             coverage.set_parameter_values('time', np.arange(10))
             coverage.set_parameter_values('temp', np.arange(10))
