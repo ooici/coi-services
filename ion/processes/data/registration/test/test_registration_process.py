@@ -19,7 +19,7 @@ import os
 import gevent
 import numpy as np
 
-@attr('INT')
+@attr('INT', group='dm')
 class RegistrationProcessTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
