@@ -232,7 +232,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertIsInstance(extended_data_product.computed.data_datetime, ComputedListValue)
 
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
-        self.assertIn( 'ok', extended_data_product.computed.last_granule.value['quality_flag'] )
         self.assertEqual( 2, len(extended_data_product.computed.data_datetime.value) )
 
         notifications = extended_data_product.computed.user_notification_requests.value
