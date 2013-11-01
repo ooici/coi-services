@@ -150,6 +150,17 @@ class TestDMExtended(DMTestCase):
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
+    def preload_sptest(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,SP_TEST'
+        config.path = 'master'
+        config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
     def preload_ui(self):
         config = DotDict()
         config.op='loadui'
@@ -736,3 +747,12 @@ class TestDMExtended(DMTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['pressure_sensor_range'], np.array([[6000, 6000]]))
 
+    @attr("UTIL")
+    def test_sptest(self):
+        self.preload_sptest()
+        breakpoint(locals(), globals())
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctdbp_no_sample', id_only=True)
+        stream_def_id = self.create_stream_definition('ctdbp_no_sample', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('CTDBP-NO Parsed', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+        breakpoint(locals(), globals())
