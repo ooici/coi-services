@@ -2942,7 +2942,18 @@ Reason: %s
 
             ia_code = series_obj["ia_code"]
             iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
-            log.debug("Generating DataProducts for %s %s", inst_id, "from agent %s streams and SAF" % ia_code if ia_code else "using SAF and defaults (no streams)")
+
+            dart_code = series_obj["dart_code"]
+            dagent_res_obj = self._get_resource_obj(dart_code, True) if dart_code else None
+
+            #print "!!!", inst_id, series_obj, "/", ia_code, iagent_res_obj, "/", dart_code, dagent_res_obj
+
+            if iagent_res_obj:
+                log.debug("Generating DataProducts for %s from instrument agent %s streams and SAF", inst_id, ia_code)
+            elif dagent_res_obj:
+                log.debug("Generating DataProducts for %s from instrument dataset agent %s streams and SAF", inst_id, dart_code)
+            else:
+                log.debug("Generating DataProducts for %s using SAF and defaults (no streams)", inst_id)
 
             const_id1 = ''
             if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
@@ -2950,11 +2961,10 @@ Reason: %s
                 const_id1 = inst_id + "_const1"
 
             parsed_pdict_id = ""
-            if iagent_res_obj:
+            if iagent_res_obj or dagent_res_obj:
                 # There exists an agent with stream configurations. Create one DataProduct per stream
-                iastream_configs = iagent_res_obj.stream_configurations
+                iastream_configs = iagent_res_obj.stream_configurations if iagent_res_obj else dagent_res_obj.stream_configurations
                 for index, scfg in enumerate(iastream_configs):
-                    ia_enabled = series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
                     dp_id = inst_id + "_DPI" + str(index)
                     newrow = {}
                     newrow[COL_ID] = dp_id
@@ -2979,7 +2989,9 @@ Reason: %s
 
                     pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                     strdef_id = self._create_dp_stream_def(inst_id, pdict_id, scfg.stream_name)
-                    if ia_enabled:
+                    ia_enabled = iagent_res_obj and series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
+                    dart_enabled = dagent_res_obj and series_obj.get("dart_exists", False)
+                    if ia_enabled or dart_enabled:
                         newrow['stream_def_id'] = strdef_id
                         newrow['parent'] = ''
                         newrow['lcstate'] = "DEPLOYED_AVAILABLE"
