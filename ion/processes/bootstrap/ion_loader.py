@@ -533,6 +533,7 @@ class IONLoader(ImmediateProcess):
         for index, category in enumerate(self.categories):
             t = Timer() if stats.is_log_enabled() else None
             self.bulk_objects = {}    # This keeps objects to be bulk inserted/updated at the end of a category
+            self.bulk_existing = set()  # This keeps the ids of the bulk objects to update instead of delete
             self.row_count, self.ext_count = 0, 0  # Counts all executions of row/ext for category
             self._category = category
 
@@ -598,7 +599,13 @@ class IONLoader(ImmediateProcess):
         func(row)
 
     def _finalize_bulk(self, category):
-        res = self.resource_ds.create_mult(self.bulk_objects.values(), allow_ids=True)
+        # Perform the create for resources and associations - note: should do resources first then assoc but works OK.
+        obj_new = [obj for obj in self.bulk_objects.values() if obj["_id"] not in self.bulk_existing]
+        res = self.resource_ds.create_mult(obj_new, allow_ids=True)
+
+        # Perform the update for resources
+        obj_upd = [obj for obj in self.bulk_objects.values() if obj["_id"] in self.bulk_existing]
+        res = self.resource_ds.update_mult(obj_upd)
 
         num_objects = len([1 for obj in self.bulk_objects.values() if obj.type_ != "Association"])
         num_assoc = len(self.bulk_objects) - num_objects
@@ -607,6 +614,7 @@ class IONLoader(ImmediateProcess):
         log.debug("Bulk stored %d resource objects, %d associations in resource registry (%s updates)", num_objects, num_assoc, num_existing)
 
         self.bulk_objects.clear()
+        self.bulk_existing.clear()
         return num_objects
 
     def _create_object_from_row(self, objtype, row, prefix='',
@@ -837,6 +845,7 @@ class IONLoader(ImmediateProcess):
             res_id = self.resource_ids[res_id_alias]
             if self.bulk and support_bulk:
                 self.bulk_objects[res_id] = res_obj
+                self.bulk_existing.add(res_id)  # Make sure to remember which objects are existing
             else:
                 # TODO: Use the appropriate service call here
                 self.container.resource_registry.update(res_obj)
