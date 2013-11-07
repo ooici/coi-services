@@ -43,6 +43,7 @@
       ooiexclude= synonymous to excludecategories. Don't use
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       ooiparams= if True (default is False) create links to OOI parameter definitions
+      ooipartial= if True (default is False) creates resources (data products etc) even if not all inputs are there
       exportui= if True, writes interface/ui_specs.json with UI object
       revert= if True (and debug==True) remove all new resources and associations created if preload fails
 
@@ -106,8 +107,8 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 HTTP_RETRIES=5
 
 ## can set ui_path to keywords 'default' for TESTED_UI_ASSETS or 'candidate' for CANDIDATE_UI_ASSETS
-TESTED_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/'
-CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates'
+TESTED_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exports/Stable'
+CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exports/Candidates'
 
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
 # Edit the doc here: https://docs.google.com/spreadsheet/ccc?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE
@@ -217,6 +218,7 @@ class IONLoader(ImmediateProcess):
 
         self.resource_ids = {}          # Holds a mapping of preload IDs to internal resource ids
         self.resource_objs = {}         # Holds a mapping of preload IDs to the actual resource objects
+        self.resource_assocs = {}       # Holds a mapping of existing associations list by predicate
 
         self.constraint_defs = {}       # alias -> value for refs, since not stored in DB
         self.contact_defs = {}          # alias -> value for refs, since not stored in DB
@@ -266,18 +268,18 @@ class IONLoader(ImmediateProcess):
         self.attachment_path = config.get("attachments", self.path + '/attachments')
         self.asset_path = config.get("assets", None)
         if not self.asset_path:
-            self.asset_path = DEFAULT_ASSETS_PATH if self.path.startswith('http') else self.path + "/ooi_assets"
+            self.asset_path = DEFAULT_ASSETS_PATH if self.path.startswith('http') or self.path.endswith('xlsx') else self.path + "/ooi_assets"
         self.assetmapping_path = config.get("assetmappings", OOI_MAPPING_DOC)
 
-        default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
+        default_ui_path = self.path if self.path.startswith('http') or self.path.endswith('xlsx') else self.path + "/ui_assets"
         self.ui_path = config.get("ui_path", default_ui_path)
-        if self.ui_path=='default':
+        if self.ui_path == 'default':
             self.ui_path = TESTED_UI_ASSETS
-        elif self.ui_path=='candidate':
+        elif self.ui_path == 'candidate':
             self.ui_path = CANDIDATE_UI_ASSETS
 
         self.debug = config.get("debug", False)        # Debug mode with certain shorthands
-        self.ooiuntil = config.get("ooiuntil", "9/1/2013")  # Don't import stuff later than given date
+        self.ooiuntil = config.get("ooiuntil", "12/31/2013")  # Don't import stuff later than given date
         if self.ooiuntil:
             self.ooiuntil = datetime.datetime.strptime(self.ooiuntil, "%m/%d/%Y")
         self.exportui = config.get("exportui", False)  # Save UI JSON file
@@ -314,6 +316,7 @@ class IONLoader(ImmediateProcess):
             self.clearcols = config.get("clearcols", None)          # Clear given columns in rows
             self.idmap = bool(config.get("idmap", False))           # Substitute column values in rows
             self.ooiparams = bool(config.get("ooiparams", False))   # Hook up with loaded OOI params
+            self.ooipartial = bool(config.get("ooipartial", False))  # Load partially defined resources
             self.parseooi = config.get("parseooi", False)
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
@@ -489,6 +492,11 @@ class IONLoader(ImmediateProcess):
 
         log.debug("Found %s previously preloaded resources", len(res_objs))
 
+        res_assocs = self.container.resource_registry.find_associations(predicate="*", id_only=False)
+        [self.resource_assocs.setdefault(assoc["p"], []).append(assoc) for assoc in res_assocs]
+
+        log.debug("Found %s previously preloaded associations", len(res_assocs))
+
         existing_resources = dict(zip(res_preload_ids, res_objs))
 
         if len(existing_resources) != len(res_objs):
@@ -533,6 +541,7 @@ class IONLoader(ImmediateProcess):
         for index, category in enumerate(self.categories):
             t = Timer() if stats.is_log_enabled() else None
             self.bulk_objects = {}    # This keeps objects to be bulk inserted/updated at the end of a category
+            self.bulk_existing = set()  # This keeps the ids of the bulk objects to update instead of delete
             self.row_count, self.ext_count = 0, 0  # Counts all executions of row/ext for category
             self._category = category
 
@@ -598,7 +607,13 @@ class IONLoader(ImmediateProcess):
         func(row)
 
     def _finalize_bulk(self, category):
-        res = self.resource_ds.create_mult(self.bulk_objects.values(), allow_ids=True)
+        # Perform the create for resources and associations - note: should do resources first then assoc but works OK.
+        obj_new = [obj for obj in self.bulk_objects.values() if obj["_id"] not in self.bulk_existing]
+        res = self.resource_ds.create_mult(obj_new, allow_ids=True)
+
+        # Perform the update for resources
+        obj_upd = [obj for obj in self.bulk_objects.values() if obj["_id"] in self.bulk_existing]
+        res = self.resource_ds.update_mult(obj_upd)
 
         num_objects = len([1 for obj in self.bulk_objects.values() if obj.type_ != "Association"])
         num_assoc = len(self.bulk_objects) - num_objects
@@ -607,6 +622,7 @@ class IONLoader(ImmediateProcess):
         log.debug("Bulk stored %d resource objects, %d associations in resource registry (%s updates)", num_objects, num_assoc, num_existing)
 
         self.bulk_objects.clear()
+        self.bulk_existing.clear()
         return num_objects
 
     def _create_object_from_row(self, objtype, row, prefix='',
@@ -742,6 +758,13 @@ class IONLoader(ImmediateProcess):
         res = self._get_resource_obj(res_id, silent=True)
         return res is not None
 
+    def _has_association(self, sub, pred, obj):
+        """Returns True if the described associated already exists."""
+        for assoc in self.resource_assocs.get(pred, []):
+            if assoc.s == sub and assoc.o == obj:
+                return True
+        return False
+
     def _row_exists(self, row):
         if self._resource_exists(row[COL_ID]):
             log.debug("Resource/row %s/%s exists. Ignore with no update", self._category, row[COL_ID])
@@ -837,6 +860,7 @@ class IONLoader(ImmediateProcess):
             res_id = self.resource_ids[res_id_alias]
             if self.bulk and support_bulk:
                 self.bulk_objects[res_id] = res_obj
+                self.bulk_existing.add(res_id)  # Make sure to remember which objects are existing
             else:
                 # TODO: Use the appropriate service call here
                 self.container.resource_registry.update(res_obj)
@@ -1252,8 +1276,10 @@ class IONLoader(ImmediateProcess):
         ooi_objs = self.ooi_loader.get_type_assets("nodetype")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
-            if not self._before_cutoff(ooi_obj):
-                continue
+            #if not self._before_cutoff(ooi_obj):
+            #    continue
+            #if not self._match_filter(ooi_obj.get('array_list', None)):
+            #    continue
 
             newrow = {}
             newrow[COL_ID] = ooi_id + "_PM"
@@ -1261,9 +1287,6 @@ class IONLoader(ImmediateProcess):
             newrow['pm/description'] = "Node Type: %s" % ooi_id
             newrow['pm/alt_ids'] = "['OOI:" + ooi_id + "_PM" + "']"
             newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
-
-            if not self._match_filter(ooi_obj.get('array_list', None)):
-                continue
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_PlatformModel(newrow)
@@ -1280,16 +1303,19 @@ class IONLoader(ImmediateProcess):
         subseries_objs = self.ooi_loader.get_type_assets("subseries")
         family_objs = self.ooi_loader.get_type_assets("family")
         makemodel_objs = self.ooi_loader.get_type_assets("makemodel")
-        agent_objs = self.ooi_loader.get_type_assets("instagent")
+        iagent_objs = self.ooi_loader.get_type_assets("instagent")
+        dagent_objs = self.ooi_loader.get_type_assets("dataagent")
 
         # Collect all models referenced by agents (to prevent dangling agents)
         agent_models = set()
-        for ooi_id, agent_obj in agent_objs.iteritems():
-            if agent_obj.get('active', False):
-                ia_id = "IA_" + ooi_id
-                if self._get_resource_obj(ia_id):
-                    series_list = agent_obj.get('series_list', [])
-                    agent_models.update(series_list)
+        for ooi_id, agent_obj in iagent_objs.iteritems():
+            if agent_obj.get('present', False):
+                series_list = agent_obj.get('series_list', [])
+                agent_models.update(series_list)
+        for ooi_id, agent_obj in dagent_objs.iteritems():
+            if agent_obj.get('present', False):
+                series_list = agent_obj.get('series_list', [])
+                agent_models.update(series_list)
         log.debug("InstrumentModels used by agents: %s", agent_models)
 
         for ooi_id, series_obj in series_objs.iteritems():
@@ -2498,12 +2524,16 @@ Reason: %s
         headers = self._get_op_headers(row)
         res_id = self._get_resource_id(row[COL_ID])
 
+
         svc_client = self._get_service_client("instrument_management")
         im_ids = row["instrument_model_ids"]
         if im_ids:
             im_ids = get_typed_value(im_ids, targettype="simplelist")
             log.debug("Linking InstrumentAgent %s with models %s", row[COL_ID], im_ids)
             for im_id in im_ids:
+                if self._has_association(res_id, PRED.hasModel, self.resource_ids[im_id]):
+                    continue
+
                 if self.bulk:
                     model_obj = self._get_resource_obj(im_id)
                     agent_obj = self._get_resource_obj(row[COL_ID])
@@ -2871,6 +2901,7 @@ Reason: %s
     def _load_DataProduct_OOI(self):
         """DataProducts and DataProductLink"""
         node_objs = self.ooi_loader.get_type_assets("node")
+        nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         instagent_objs = self.ooi_loader.get_type_assets("instagent")
         series_objs = self.ooi_loader.get_type_assets("series")
@@ -2899,6 +2930,8 @@ Reason: %s
 
         # I. Platform data products (parsed)
         for node_id, node_obj in node_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(node_id)
+
             if not self._before_cutoff(node_obj):
                 continue
 
@@ -2907,25 +2940,58 @@ Reason: %s
                 # At this point, the constraint was already added with the PlatformSite
                 const_id1 = node_id + "_const1"
 
-            newrow = {}
-            newrow[COL_ID] = node_id + "_DPP1"
-            newrow['dp/name'] = "Parsed - platform " + node_id
-            newrow['dp/description'] = "Platform %s data product" % node_id
-            newrow['dp/ooi_product_name'] = ""
-            newrow['dp/processing_level_code'] = "Parsed"
-            newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
-            newrow['contact_ids'] = ''
-            newrow['geo_constraint_id'] = const_id1
-            newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-            newrow['stream_def_id'] = ''
-            newrow['parent'] = ''
-            newrow['persist_data'] = 'False'
-            newrow['lcstate'] = "DEPLOYED_AVAILABLE"
-            if not self._resource_exists(newrow[COL_ID]):
-                self._load_DataProduct(newrow, do_bulk=self.bulk)
+            nodetype_obj = nodetype_objs.get(ooi_rd.node_type, None)
+            pa_code = nodetype_obj.get("pa_code", None) if nodetype_obj else None
+            pagent_res_obj = self._get_resource_obj(pa_code, True) if pa_code else None  # This could be an EDA
+            if pagent_res_obj and nodetype_obj:
+                log.debug("Generating DataProducts for %s from platform agent %s streams and SAF", node_id, pa_code)
+                pastream_configs = pagent_res_obj.stream_configurations if pagent_res_obj else pagent_res_obj.stream_configurations
+                for index, scfg in enumerate(pastream_configs):
+                    dp_id = node_id + "_DPI" + str(index)
+                    newrow = {}
+                    newrow[COL_ID] = dp_id
+                    newrow['dp/name'] = "Platform %s stream '%s' data product" % (node_id, scfg.stream_name)
+                    newrow['dp/description'] = "Platform %s data product" % node_id
+                    newrow['dp/ooi_product_name'] = ""
+                    newrow['dp/processing_level_code'] = "Parsed"
+                    newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
+                    newrow['contact_ids'] = ''
+                    newrow['geo_constraint_id'] = const_id1
+                    newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
+                    newrow['parent'] = ''
+                    newrow['persist_data'] = 'False'
+                    newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
-                create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
-                create_dp_link(node_id + "_DPP1", node_id)
+                    pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
+                    strdef_id = self._create_dp_stream_def(node_id, pdict_id, scfg.stream_name)
+                    newrow['stream_def_id'] = strdef_id
+
+                    if not self._resource_exists(newrow[COL_ID]):
+                        self._load_DataProduct(newrow, do_bulk=self.bulk)
+
+                        create_dp_link(dp_id, node_id + "_PD", 'PlatformDevice', do_bulk=False)
+                        create_dp_link(dp_id, node_id, do_bulk=False)
+
+            elif self.ooipartial:
+                newrow = {}
+                newrow[COL_ID] = node_id + "_DPP1"
+                newrow['dp/name'] = "Parsed - platform " + node_id
+                newrow['dp/description'] = "Platform %s data product" % node_id
+                newrow['dp/ooi_product_name'] = ""
+                newrow['dp/processing_level_code'] = "Parsed"
+                newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
+                newrow['contact_ids'] = ''
+                newrow['geo_constraint_id'] = const_id1
+                newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
+                newrow['stream_def_id'] = ''
+                newrow['parent'] = ''
+                newrow['persist_data'] = 'False'
+                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+                if not self._resource_exists(newrow[COL_ID]):
+                    self._load_DataProduct(newrow, do_bulk=self.bulk)
+
+                    create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
+                    create_dp_link(node_id + "_DPP1", node_id)
 
         # II. Instrument data products (raw, parsed, engineering, science L0, L1, L2)
         for inst_id, inst_obj in inst_objs.iteritems():
@@ -2937,24 +3003,27 @@ Reason: %s
                 continue
             if not self._match_filter(inst_id[:2]):
                 continue
-            if self._resource_exists(inst_id + "_DPI0"):
+            if self._resource_exists(inst_id + "_DPI0"):  # TODO: Correct to pass here?
                 continue
-
-            ia_code = series_obj["ia_code"]
-            iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
-            log.debug("Generating DataProducts for %s %s", inst_id, "from agent %s streams and SAF" % ia_code if ia_code else "using SAF and defaults (no streams)")
 
             const_id1 = ''
             if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
                 # At this point, the constraint was already added with the InstrumentSite
                 const_id1 = inst_id + "_const1"
 
+            ia_code = series_obj["ia_code"]
+            iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
+            dart_code = series_obj["dart_code"]
+            dagent_res_obj = self._get_resource_obj(dart_code, True) if dart_code else None
+
             parsed_pdict_id = ""
-            if iagent_res_obj:
+            if iagent_res_obj or dagent_res_obj:
+                log.debug("Generating DataProducts for %s from instrument/data agent %s streams and SAF", inst_id,
+                          ia_code if iagent_res_obj else dart_code)
+
                 # There exists an agent with stream configurations. Create one DataProduct per stream
-                iastream_configs = iagent_res_obj.stream_configurations
+                iastream_configs = iagent_res_obj.stream_configurations if iagent_res_obj else dagent_res_obj.stream_configurations
                 for index, scfg in enumerate(iastream_configs):
-                    ia_enabled = series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
                     dp_id = inst_id + "_DPI" + str(index)
                     newrow = {}
                     newrow[COL_ID] = dp_id
@@ -2979,7 +3048,9 @@ Reason: %s
 
                     pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                     strdef_id = self._create_dp_stream_def(inst_id, pdict_id, scfg.stream_name)
-                    if ia_enabled:
+                    ia_enabled = iagent_res_obj and series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
+                    dart_enabled = dagent_res_obj and series_obj.get("dart_exists", False)
+                    if ia_enabled or dart_enabled:
                         newrow['stream_def_id'] = strdef_id
                         newrow['parent'] = ''
                         newrow['lcstate'] = "DEPLOYED_AVAILABLE"
@@ -2994,7 +3065,9 @@ Reason: %s
                     create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice', do_bulk=False)
                     create_dp_link(dp_id, inst_id, do_bulk=False)
 
-            else:
+            elif self.ooipartial:
+                log.debug("Generating DataProducts for %s using SAF and defaults (no streams)", inst_id)
+
                 # There is no agent defined. Just create basic raw and parsed data products
                 # (0) Device Data Product - raw
                 newrow = {}
@@ -3034,11 +3107,17 @@ Reason: %s
                 create_dp_link(inst_id + "_DPI1", inst_id + "_ID", 'InstrumentDevice')
                 create_dp_link(inst_id + "_DPI1", inst_id)
 
+            else:
+                # There is no agent defined. Wait generating DataProducts
+                #log.debug("Not generating DataProducts for %s - no agent/streams defined", inst_id)
+                pass
+
+
             data_product_list = inst_obj.get('data_product_list', [])
             for dp_id in data_product_list:
                 dp_obj = data_products[dp_id]
 
-                # (3*) Site Data Product DPS - Level
+                # (3*) Data Product DPS - Level (per site)
                 newrow = {}
                 newrow[COL_ID] = inst_id + "_" + dp_id + "_DPID"
                 platform_obj = node_objs[node_obj['platform_id']]
@@ -3092,13 +3171,17 @@ Reason: %s
 
                     create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID", do_bulk=False)
                     create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id, do_bulk=False)
-                else:
+
+                elif self.ooipartial:
                     newrow['stream_def_id'] = ''
 
                     self._load_DataProduct(newrow, do_bulk=self.bulk)
 
                     create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID")
                     create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id)
+
+                else:
+                    pass # Ignore this derived data product in case we don't have stream info
 
     def _load_DataProductLink(self, row, do_bulk=False):
         self.row_count += 1
@@ -3320,7 +3403,8 @@ Reason: %s
             newrow['site_id'] = inst_id
             newrow['device_id'] = inst_id + "_ID"
             # TODO: Activating a Deployment in preload is probably a shortcut. This should be an operator action!
-            newrow['activate'] = "TRUE"
+            #newrow['activate'] = "TRUE"
+            newrow['activate'] = "FALSE"
             newrow['d/name'] = "Deployment of instrument " + inst_id
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
@@ -3329,7 +3413,8 @@ Reason: %s
             newrow['context_type'] = 'CabledInstrumentDeploymentContext'
             newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
-            log.debug("Create & activate Deployment for ID %s", inst_id)
+            #log.debug("Create & activate Deployment for ID %s", inst_id)
+            log.debug("Create (not activated) Deployment for ID %s", inst_id)
             self._load_Deployment(newrow)
 
     def _load_Scheduler(self, row):
