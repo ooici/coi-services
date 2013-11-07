@@ -77,37 +77,67 @@ class TestLoader(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.ingestion_management = IngestionManagementServiceClient()
+        self.rr = self.container.resource_registry
 
-    def assert_can_load(self, scenarios, loadui=False, loadooi=False,
-            path=TESTED_DOC, ui_path='default'):
-        """ perform preload for given scenarios and raise exception if there is a problem with the data """
-        config = dict(op="load",
-                      scenario=scenarios,
-                      attachments="res/preload/r2_ioc/attachments",
-                      loadui=loadui,
-                      loadooi=loadooi,
-                      path=path, ui_path=ui_path,
-                      assets='res/preload/r2_ioc/ooi_assets',
-                      bulk=loadooi)
-        if loadooi:
-            config["excludecategories"] = 'DataProduct,DataProductLink'
-        self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
+    def _perform_preload(self, load_cfg):
+        self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=load_cfg)
+
+    def _preload_instrument(self, inst_scenario):
+        load_cfg = dict(op="load",
+                        scenario=inst_scenario,
+                        attachments="res/preload/r2_ioc/attachments",
+                        assets='res/preload/r2_ioc/ooi_assets',
+                        )
+        self._perform_preload(load_cfg)
+
+    def _preload_ui(self, ui_path="default"):
+        load_cfg = dict(op="load",
+                        loadui=True,
+                        ui_path=ui_path,
+                        )
+        self._perform_preload(load_cfg)
+
+    def _preload_cfg(self, cfg, path=TESTED_DOC):
+        load_cfg = dict(cfg=cfg,
+                        path=path)
+        self._perform_preload(load_cfg)
+
+    def _preload_scenario(self, scenario, path=TESTED_DOC, idmap=False):
+        load_cfg = dict(op="load",
+                        scenario=scenario,
+                        attachments="res/preload/r2_ioc/attachments",
+                        path=path,
+                        idmap=idmap)
+        self._perform_preload(load_cfg)
+
+    def _preload_ooi(self, path=TESTED_DOC):
+        load_cfg = dict(op="load",
+                        loadooi=True,
+                        assets="res/preload/r2_ioc/ooi_assets",
+                        path=path,
+                        ooiuntil="12/31/2013",
+                        )
+        self._perform_preload(load_cfg)
 
     @attr('PRELOAD')
-    @unittest.skip('UI specs load error. Multiple issues in UIULoader:load_ui')
     def test_ui_valid(self):
-        """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/' """
-        self.assert_can_load("BETA", loadui=True, ui_path='default')
+        """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exports/Stable' """
+        self._preload_ui(ui_path='default')
+        obj_list,_ = self.rr.find_resources(restype=RT.UISpec, name="ION UI Specs", id_only=False)
+        self.assertEquals(len(obj_list), 1)
 
     @attr('PRELOAD')
     def test_ui_candidates_valid(self):
-        """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates' """
-        self.assert_can_load("BETA", loadui=True, ui_path='candidate')
+        """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exports/Candidates' """
+        self._preload_ui(ui_path='candidate')
+        obj_list,_ = self.rr.find_resources(restype=RT.UISpec, name="ION UI Specs", id_only=False)
+        self.assertEquals(len(obj_list), 1)
 
     @attr('PRELOAD')
-    def test_assets_valid(self):
+    def test_betademo_valid(self):
         """ make sure can load asset DB """
-        self.assert_can_load("BETA,DEVS", path='master', loadooi=True)
+        self._preload_scenario("BETA,R2_DEMO", path="master")
+        self._preload_ooi(path="master")
 
     @attr('PRELOAD')
     def test_alpha_valid(self):
@@ -115,7 +145,7 @@ class TestLoader(IonIntegrationTestCase):
             is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BETA,ALPHA_SYS", path='master')
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_alpha.yml", path="master")
 
     @attr('PRELOAD')
     def test_beta_valid(self):
@@ -123,25 +153,47 @@ class TestLoader(IonIntegrationTestCase):
             is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BETA,BETA_SYS", path='master')
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_beta.yml", path="master")
 
     @attr('PRELOAD')
-    @unittest.skip('Parameter dictionary for StreamDef24-29 not defined')
-    def test_devs_valid(self):
-        """ make sure DEVS scenario in master google doc
+    def test_incremental(self):
+        """ make sure R2_DEMO scenario in master google doc
             is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BETA,DEVS", path='master')
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_load_config.yml", path="master")
+        self._preload_scenario("OOIR2_DEMO", path="master", idmap=True)
+
+        dp_list1,_ = self.rr.find_resources(restype=RT.DataProduct, id_only=True)
+        ia_list1,_ = self.rr.find_resources(restype=RT.InstrumentAgent, id_only=True)
+
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_instruments.yml", path="master")
+
+        ia_list2,_ = self.rr.find_resources(restype=RT.InstrumentAgent, id_only=True)
+        self.assertGreater(len(ia_list2), len(ia_list1))
+        dp_list2,_ = self.rr.find_resources(restype=RT.DataProduct, id_only=True)
+        self.assertGreater(len(dp_list2), len(dp_list1))
+        id_list2,_ = self.rr.find_resources(restype=RT.InstrumentDevice, id_only=True)
+
+        self._preload_ooi(path="master")
+
+        dp_list3,_ = self.rr.find_resources(restype=RT.DataProduct, id_only=True)
+        self.assertGreater(len(dp_list3), len(dp_list2))
+        id_list3,_ = self.rr.find_resources(restype=RT.InstrumentDevice, id_only=True)
+        self.assertEquals(len(id_list3), len(id_list2))
+
+        self._preload_ooi(path="master")
+
+        dp_list4,_ = self.rr.find_resources(restype=RT.DataProduct, id_only=True)
+        self.assertEquals(len(dp_list4), len(dp_list3))
+        id_list4,_ = self.rr.find_resources(restype=RT.InstrumentDevice, id_only=True)
+        self.assertEquals(len(id_list4), len(id_list3))
 
     def find_object_by_name(self, name, resource_type):
-        objects,_ = self.container.resource_registry.find_resources(resource_type, id_only=False)
-        self.assertGreaterEqual(len(objects), 1)
+        objects,_ = self.container.resource_registry.find_resources(resource_type, name=name, id_only=False)
+        self.assertEquals(len(objects), 1)
 
-        filtered_objs = [obj for obj in objects if obj.name == name]
-        self.assertEquals(len(filtered_objs), 1)
-
-        return filtered_objs[0]
+        return objects[0]
 
     @attr('INT', group='loader')
     @attr('SMOKE', group='loader')
@@ -152,7 +204,7 @@ class TestLoader(IonIntegrationTestCase):
         """
 
         # first make sure this scenario loads successfully
-        self.assert_can_load("BETA,NOSE")
+        self._preload_scenario("BETA,NOSE")
 
         # check for ExternalDataset
         eds = self.find_object_by_name('Test External CTD Dataset', RT.ExternalDataset)
