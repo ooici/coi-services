@@ -107,8 +107,8 @@ DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
 HTTP_RETRIES=5
 
 ## can set ui_path to keywords 'default' for TESTED_UI_ASSETS or 'candidate' for CANDIDATE_UI_ASSETS
-TESTED_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/'
-CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates'
+TESTED_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exports/Stable'
+CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exports/Candidates'
 
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
 # Edit the doc here: https://docs.google.com/spreadsheet/ccc?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE
@@ -268,14 +268,14 @@ class IONLoader(ImmediateProcess):
         self.attachment_path = config.get("attachments", self.path + '/attachments')
         self.asset_path = config.get("assets", None)
         if not self.asset_path:
-            self.asset_path = DEFAULT_ASSETS_PATH if self.path.startswith('http') else self.path + "/ooi_assets"
+            self.asset_path = DEFAULT_ASSETS_PATH if self.path.startswith('http') or self.path.endswith('xlsx') else self.path + "/ooi_assets"
         self.assetmapping_path = config.get("assetmappings", OOI_MAPPING_DOC)
 
-        default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
+        default_ui_path = self.path if self.path.startswith('http') or self.path.endswith('xlsx') else self.path + "/ui_assets"
         self.ui_path = config.get("ui_path", default_ui_path)
-        if self.ui_path=='default':
+        if self.ui_path == 'default':
             self.ui_path = TESTED_UI_ASSETS
-        elif self.ui_path=='candidate':
+        elif self.ui_path == 'candidate':
             self.ui_path = CANDIDATE_UI_ASSETS
 
         self.debug = config.get("debug", False)        # Debug mode with certain shorthands
@@ -1276,8 +1276,10 @@ class IONLoader(ImmediateProcess):
         ooi_objs = self.ooi_loader.get_type_assets("nodetype")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
-            if not self._before_cutoff(ooi_obj):
-                continue
+            #if not self._before_cutoff(ooi_obj):
+            #    continue
+            #if not self._match_filter(ooi_obj.get('array_list', None)):
+            #    continue
 
             newrow = {}
             newrow[COL_ID] = ooi_id + "_PM"
@@ -1285,9 +1287,6 @@ class IONLoader(ImmediateProcess):
             newrow['pm/description'] = "Node Type: %s" % ooi_id
             newrow['pm/alt_ids'] = "['OOI:" + ooi_id + "_PM" + "']"
             newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
-
-            if not self._match_filter(ooi_obj.get('array_list', None)):
-                continue
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_PlatformModel(newrow)
@@ -1304,16 +1303,19 @@ class IONLoader(ImmediateProcess):
         subseries_objs = self.ooi_loader.get_type_assets("subseries")
         family_objs = self.ooi_loader.get_type_assets("family")
         makemodel_objs = self.ooi_loader.get_type_assets("makemodel")
-        agent_objs = self.ooi_loader.get_type_assets("instagent")
+        iagent_objs = self.ooi_loader.get_type_assets("instagent")
+        dagent_objs = self.ooi_loader.get_type_assets("dataagent")
 
         # Collect all models referenced by agents (to prevent dangling agents)
         agent_models = set()
-        for ooi_id, agent_obj in agent_objs.iteritems():
-            if agent_obj.get('active', False):
-                ia_id = "IA_" + ooi_id
-                if self._get_resource_obj(ia_id):
-                    series_list = agent_obj.get('series_list', [])
-                    agent_models.update(series_list)
+        for ooi_id, agent_obj in iagent_objs.iteritems():
+            if agent_obj.get('present', False):
+                series_list = agent_obj.get('series_list', [])
+                agent_models.update(series_list)
+        for ooi_id, agent_obj in dagent_objs.iteritems():
+            if agent_obj.get('present', False):
+                series_list = agent_obj.get('series_list', [])
+                agent_models.update(series_list)
         log.debug("InstrumentModels used by agents: %s", agent_models)
 
         for ooi_id, series_obj in series_objs.iteritems():
@@ -2899,6 +2901,7 @@ Reason: %s
     def _load_DataProduct_OOI(self):
         """DataProducts and DataProductLink"""
         node_objs = self.ooi_loader.get_type_assets("node")
+        nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         instagent_objs = self.ooi_loader.get_type_assets("instagent")
         series_objs = self.ooi_loader.get_type_assets("series")
@@ -2927,6 +2930,8 @@ Reason: %s
 
         # I. Platform data products (parsed)
         for node_id, node_obj in node_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(node_id)
+
             if not self._before_cutoff(node_obj):
                 continue
 
@@ -2935,25 +2940,58 @@ Reason: %s
                 # At this point, the constraint was already added with the PlatformSite
                 const_id1 = node_id + "_const1"
 
-            newrow = {}
-            newrow[COL_ID] = node_id + "_DPP1"
-            newrow['dp/name'] = "Parsed - platform " + node_id
-            newrow['dp/description'] = "Platform %s data product" % node_id
-            newrow['dp/ooi_product_name'] = ""
-            newrow['dp/processing_level_code'] = "Parsed"
-            newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
-            newrow['contact_ids'] = ''
-            newrow['geo_constraint_id'] = const_id1
-            newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-            newrow['stream_def_id'] = ''
-            newrow['parent'] = ''
-            newrow['persist_data'] = 'False'
-            newrow['lcstate'] = "DEPLOYED_AVAILABLE"
-            if not self._resource_exists(newrow[COL_ID]):
-                self._load_DataProduct(newrow, do_bulk=self.bulk)
+            nodetype_obj = nodetype_objs.get(ooi_rd.node_type, None)
+            pa_code = nodetype_obj.get("pa_code", None) if nodetype_obj else None
+            pagent_res_obj = self._get_resource_obj(pa_code, True) if pa_code else None  # This could be an EDA
+            if pagent_res_obj and nodetype_obj:
+                log.debug("Generating DataProducts for %s from platform agent %s streams and SAF", node_id, pa_code)
+                pastream_configs = pagent_res_obj.stream_configurations if pagent_res_obj else pagent_res_obj.stream_configurations
+                for index, scfg in enumerate(pastream_configs):
+                    dp_id = node_id + "_DPI" + str(index)
+                    newrow = {}
+                    newrow[COL_ID] = dp_id
+                    newrow['dp/name'] = "Platform %s stream '%s' data product" % (node_id, scfg.stream_name)
+                    newrow['dp/description'] = "Platform %s data product" % node_id
+                    newrow['dp/ooi_product_name'] = ""
+                    newrow['dp/processing_level_code'] = "Parsed"
+                    newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
+                    newrow['contact_ids'] = ''
+                    newrow['geo_constraint_id'] = const_id1
+                    newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
+                    newrow['parent'] = ''
+                    newrow['persist_data'] = 'False'
+                    newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
-                create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
-                create_dp_link(node_id + "_DPP1", node_id)
+                    pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
+                    strdef_id = self._create_dp_stream_def(node_id, pdict_id, scfg.stream_name)
+                    newrow['stream_def_id'] = strdef_id
+
+                    if not self._resource_exists(newrow[COL_ID]):
+                        self._load_DataProduct(newrow, do_bulk=self.bulk)
+
+                        create_dp_link(dp_id, node_id + "_PD", 'PlatformDevice', do_bulk=False)
+                        create_dp_link(dp_id, node_id, do_bulk=False)
+
+            elif self.ooipartial:
+                newrow = {}
+                newrow[COL_ID] = node_id + "_DPP1"
+                newrow['dp/name'] = "Parsed - platform " + node_id
+                newrow['dp/description'] = "Platform %s data product" % node_id
+                newrow['dp/ooi_product_name'] = ""
+                newrow['dp/processing_level_code'] = "Parsed"
+                newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
+                newrow['contact_ids'] = ''
+                newrow['geo_constraint_id'] = const_id1
+                newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
+                newrow['stream_def_id'] = ''
+                newrow['parent'] = ''
+                newrow['persist_data'] = 'False'
+                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+                if not self._resource_exists(newrow[COL_ID]):
+                    self._load_DataProduct(newrow, do_bulk=self.bulk)
+
+                    create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
+                    create_dp_link(node_id + "_DPP1", node_id)
 
         # II. Instrument data products (raw, parsed, engineering, science L0, L1, L2)
         for inst_id, inst_obj in inst_objs.iteritems():
@@ -2965,7 +3003,7 @@ Reason: %s
                 continue
             if not self._match_filter(inst_id[:2]):
                 continue
-            if self._resource_exists(inst_id + "_DPI0"):
+            if self._resource_exists(inst_id + "_DPI0"):  # TODO: Correct to pass here?
                 continue
 
             const_id1 = ''
@@ -2986,7 +3024,6 @@ Reason: %s
                 # There exists an agent with stream configurations. Create one DataProduct per stream
                 iastream_configs = iagent_res_obj.stream_configurations if iagent_res_obj else dagent_res_obj.stream_configurations
                 for index, scfg in enumerate(iastream_configs):
-                    #ia_enabled = series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
                     dp_id = inst_id + "_DPI" + str(index)
                     newrow = {}
                     newrow[COL_ID] = dp_id

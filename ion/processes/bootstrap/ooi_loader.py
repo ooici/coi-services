@@ -71,6 +71,7 @@ class OOILoader(object):
                        'MAP:PlatformAgents',
                        'MAP:Series',
                        'MAP:InstAgents',
+                       'MAP:DataAgents',
         ]
 
         # Holds the object representations of parsed OOI assets by type
@@ -486,11 +487,14 @@ class OOILoader(object):
     def _parse_NodeType(self, row):
         code = row['Code']
         name = row['Name']
+        pa_code = row['PA Code']
 
         # Only add new stuff from spreadsheet
         if code not in self.ooi_objects['nodetype']:
             self._add_object_attribute('nodetype',
                 code, None, None, name=name)
+        self._add_object_attribute('nodetype',
+            code, None, None, pa_code=pa_code)
 
     def _parse_PlatformAgents(self, row):
         code = row['Code']
@@ -547,6 +551,14 @@ class OOILoader(object):
             self._add_object_attribute('instagent',
                                        ia_code, 'series_list', series_rd, value_is_list=True, list_dup_ok=True)
 
+        if dart_exists and dart_code and dart_code != "NA":
+            self._add_object_attribute('dataagent',
+                                       dart_code, None, None,
+                                       inst_class=code,
+                                       tier1=row['Tier 1'] == "Yes")
+            self._add_object_attribute('dataagent',
+                                       dart_code, 'series_list', series_rd, value_is_list=True, list_dup_ok=True)
+
     def _parse_InstAgents(self, row):
         agent_code = row['Agent Code']
         self._add_object_attribute('instagent',
@@ -555,6 +567,13 @@ class OOILoader(object):
                                    present=row['Present'] == "Yes",
                                    parsed_sc=row['Parsed SC'])
 
+    def _parse_DataAgents(self, row):
+        agent_code = row['Agent Code']
+        self._add_object_attribute('dataagent',
+                                   agent_code, None, None,
+                                   active=row['Active'] == "Yes",
+                                   present=row['Present'] == "Yes",
+                                   parsed_sc=row['Parsed SC'])
 
     # ---- Post-processing and validation ----
 
