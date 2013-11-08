@@ -11,6 +11,7 @@ import tempfile
 from ooi import logging
 from ooi.logging import log
 
+from pyon.core import bootstrap
 from pyon.core.exception import NotFound, BadRequest
 from pyon.ion.resource import PRED, RT
 from pyon.util.containers import get_ion_ts, dict_merge
@@ -399,15 +400,20 @@ class AgentConfigurationBuilder(object):
         return agent_config
 
 
-
     def record_launch_parameters(self, agent_config):
         """
         record process id of the launch
         """
-        log.debug("add the process id, the generated config, and update the resource")
-        self.agent_instance_obj.agent_config = agent_config
-        self.agent_instance_obj.agent_spawn_config = agent_config
-        self.RR2.update(self.agent_instance_obj)
+        log.debug("Save the generated agent config to the object store")
+        obj_id = "agent_spawncfg_" + self.agent_instance_obj._id
+        obj_store = bootstrap.container_instance.object_store
+        try:
+            obj_store.delete_doc(obj_id)
+        except Exception:
+            pass
+        obj_store.create_doc(agent_config, obj_id)
+
+        #self.RR2.update(self.agent_instance_obj)
 
         log.debug('completed agent start')
 
