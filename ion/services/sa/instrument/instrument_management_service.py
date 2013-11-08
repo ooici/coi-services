@@ -375,23 +375,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             log.error('failed to launch', exc_info=True)
             raise ServerError('failed to launch')
 
-        #save the config into spawn_config which will be passed to the agent by the container.
+        # Save the config into an object in the object store which will be passed to the agent by the container.
         config_builder.record_launch_parameters(config)
 
-        config_ref = "resources:%s/agent_spawn_config" % instrument_agent_instance_id
+        config_ref = "objects:agent_spawncfg_%s/" % instrument_agent_instance_id
         launch_config = {'process':{'config_ref':config_ref}}
 
         process_id = launcher.launch(launch_config, config_builder._get_process_definition()._id)
         if not process_id:
             raise ServerError("Launched instrument agent instance but no process_id")
 
-
         # reload resource as it has been updated by the launch function
-        instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
+        #instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
 
-
-        self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_obj.agent_config)
-
+        self.record_instrument_producer_activation(config_builder._get_device()._id, config)
 
         launcher.await_launch(self._agent_launch_timeout("start_instrument_agent_instance"))
 
@@ -540,7 +537,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             self.RR2.update(producer_obj)
 
 
-
     def stop_agent_instance(self, agent_instance_id, device_type):
         """
         Deactivate an agent instance, return device ID
@@ -572,6 +568,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if "pagent_pid" in agent_instance_obj.driver_config:
             agent_instance_obj.driver_config['pagent_pid'] = None
         self.RR2.update(agent_instance_obj)
+
+        try:
+            obj_id = "agent_spawncfg_%s" % agent_instance_id
+            self.container.object_store.delete_doc(obj_id)
+        except Exception as ex:
+            log.warn("Cannot delete agent spawn config for instance %s: %s", agent_instance_id, ex)
+
 
         return agent_instance_obj, device_id
 
@@ -958,16 +961,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug("start_platform_agent_instance: device is %s connected to platform agent instance %s (L4-CI-SA-RQ-363)",
                   str(platform_device_obj._id),  str(platform_agent_instance_id))
 
-        #retrive the stream info for this model
-        #todo: add stream info to the platform model create
-        #        streams_dict = platform_model_obj.custom_attributes['streams']
-        #        if not streams_dict:
-        #            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(platform_models_objs[0]) )
-
-        #save the config into spawn_config which will be passed to the agent by the container.
+        # Save the config into an object in the object store which will be passed to the agent by the container.
         configuration_builder.record_launch_parameters(config)
 
-        config_ref = "resources:%s/agent_spawn_config" % platform_agent_instance_id
+        config_ref = "objects:agent_spawncfg_%s/" % platform_agent_instance_id
         launch_config = {'process':{'config_ref':config_ref}}
 
         process_id = launcher.launch(launch_config, configuration_builder._get_process_definition()._id)
@@ -975,8 +972,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         launcher.await_launch(self._agent_launch_timeout("start_platform_agent_instance"))
 
         return process_id
-
-
 
     def stop_platform_agent_instance(self, platform_agent_instance_id=''):
         """
@@ -1586,11 +1581,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.instrument_device_extension.deploy')
             stats.add(t)
 
-        # Fix OOIION-1356. Agent instance contains very large stream and parameter info, unused in the UI.
-        if extended_instrument.agent_instance:
-            extended_instrument.agent_instance.agent_spawn_config = {}
-            extended_instrument.agent_instance.agent_config = {}
-
         return extended_instrument
 
 
@@ -1883,11 +1873,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if t:
             t.complete_step('ims.platform_device_extension.deploy')
             stats.add(t)
-
-        # Fix OOIION-1356. Agent instance contains very large stream and parameter info, unused in the UI.
-        if extended_platform.agent_instance:
-            extended_platform.agent_instance.agent_spawn_config = {}
-            extended_platform.agent_instance.agent_config = {}
 
         return extended_platform
 

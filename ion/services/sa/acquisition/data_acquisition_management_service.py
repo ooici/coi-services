@@ -737,11 +737,16 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             log.error('failed to launch', exc_info=True)
             raise ServerError('failed to launch')
 
+        # Save the config into an object in the object store which will be passed to the agent by the container.
+        config_builder.record_launch_parameters(config)
+
+        config_ref = "objects:agent_spawncfg_%s/" % external_dataset_agent_instance_id
+        launch_config = {'process':{'config_ref':config_ref}}
+
         launcher = AgentLauncher(self.clients.process_dispatcher)
-        process_id = launcher.launch(config, config_builder._get_process_definition()._id)
+        process_id = launcher.launch(launch_config, config_builder._get_process_definition()._id)
         if not process_id:
             raise ServerError("Launched external dataset agent instance but no process_id")
-        config_builder.record_launch_parameters(config)
 
         launcher.await_launch(10.0)
 
@@ -762,6 +767,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Cancels the execution of the given process id.
         self.clients.process_dispatcher.cancel_process(agent_process_id)
 
+        try:
+            obj_id = "agent_spawncfg_%s" % external_dataset_agent_instance_id
+            self.container.object_store.delete_doc(obj_id)
+        except Exception as ex:
+            log.warn("Cannot delete agent spawn config for instance %s: %s", external_dataset_agent_instance_id, ex)
 
 
     def retrieve_external_dataset_agent_instance(self, external_dataset_id=''):
