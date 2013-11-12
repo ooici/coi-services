@@ -9,6 +9,7 @@
 from interface.objects import ComputedIntValue, ComputedValueAvailability, ComputedListValue, ComputedDictValue
 from ion.services.sa.test.helpers import any_old
 from pyon.ion.resource import RT
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
 
 __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 __license__ = 'Apache 2.0'
@@ -24,6 +25,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_hierarchy
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform_with_an_instrument
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform_with_instruments_streaming
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_instrument_first_then_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_1_instrument
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_2_instruments
@@ -99,6 +101,45 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self.addCleanup(self._run_shutdown_commands)
 
         self._run_startup_commands()
+
+
+    def test_single_platform_with_instruments_streaming(self):
+        #
+        # basic test of launching a single platform with an instrument
+        #
+        self._set_receive_timeout()
+
+        p_root = self._set_up_single_platform_with_some_instruments(['SBE37_SIM_01', 'SBE37_SIM_02'])
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+
+        self._run_startup_commands()
+
+        self._start_resource_monitoring()
+
+        self._wait_for_a_data_sample()
+
+        i_obj1 = self._get_instrument('SBE37_SIM_01')
+        #check that the instrument is in streaming mode.
+        _ia_client1 = self._create_resource_agent_client(i_obj1.instrument_device_id)
+        state1 = _ia_client1.get_agent_state()
+        self.assertEquals(state1, InstrumentAgentState.STREAMING)
+
+        i_obj2 = self._get_instrument('SBE37_SIM_02')
+        #check that the instrument is in streaming mode.
+        _ia_client2 = self._create_resource_agent_client(i_obj2.instrument_device_id)
+        state2 = _ia_client2.get_agent_state()
+        self.assertEquals(state2, InstrumentAgentState.STREAMING)
+
+        self._stop_resource_monitoring()
+
+        #check that the instrument is NOT in streaming mode.
+        state1 = _ia_client1.get_agent_state()
+        self.assertEquals(state1, InstrumentAgentState.COMMAND)
+
+        state2 = _ia_client2.get_agent_state()
+        self.assertEquals(state2, InstrumentAgentState.COMMAND)
 
     def test_instrument_first_then_platform(self):
         #
