@@ -130,11 +130,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         state2 = _ia_client2.get_agent_state()
         self.assertEquals(state2, ResourceAgentState.STREAMING)
 
-        log.debug('test_single_platform_with_instruments_streaming  checked streaming started')
-
         self._stop_resource_monitoring()
-
-        log.debug('test_single_platform_with_instruments_streaming  _stop_resource_monitoring')
 
         #check that the instrument is NOT in streaming mode.
         state1 = _ia_client1.get_agent_state()
@@ -142,8 +138,6 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         state2 = _ia_client2.get_agent_state()
         self.assertEquals(state2, ResourceAgentState.COMMAND)
-
-        log.debug('test_single_platform_with_instruments_streaming  checked streaming stopped')
 
 
     def test_instrument_first_then_platform(self):
