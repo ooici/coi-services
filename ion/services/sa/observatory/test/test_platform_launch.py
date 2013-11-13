@@ -100,6 +100,52 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         self._run_startup_commands()
 
+
+    def test_single_platform_with_instruments_streaming(self):
+        #
+        # basic test of launching a single platform with an instrument
+        #
+        self._set_receive_timeout()
+
+        p_root = self._set_up_single_platform_with_some_instruments(['SBE37_SIM_01', 'SBE37_SIM_02'])
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+
+        self._run_startup_commands()
+
+        self._start_resource_monitoring()
+
+        self._wait_for_a_data_sample()
+
+        i_obj1 = self._get_instrument('SBE37_SIM_01')
+        #check that the instrument is in streaming mode.
+        _ia_client1 = self._create_resource_agent_client(i_obj1.instrument_device_id)
+        state1 = _ia_client1.get_agent_state()
+        self.assertEquals(state1, ResourceAgentState.STREAMING)
+
+        i_obj2 = self._get_instrument('SBE37_SIM_02')
+        #check that the instrument is in streaming mode.
+        _ia_client2 = self._create_resource_agent_client(i_obj2.instrument_device_id)
+        state2 = _ia_client2.get_agent_state()
+        self.assertEquals(state2, ResourceAgentState.STREAMING)
+
+        log.debug('test_single_platform_with_instruments_streaming  checked streaming started')
+
+        self._stop_resource_monitoring()
+
+        log.debug('test_single_platform_with_instruments_streaming  _stop_resource_monitoring')
+
+        #check that the instrument is NOT in streaming mode.
+        state1 = _ia_client1.get_agent_state()
+        self.assertEquals(state1, ResourceAgentState.COMMAND)
+
+        state2 = _ia_client2.get_agent_state()
+        self.assertEquals(state2, ResourceAgentState.COMMAND)
+
+        log.debug('test_single_platform_with_instruments_streaming  checked streaming stopped')
+
+
     def test_instrument_first_then_platform(self):
         #
         # An instrument is launched first (including its associated port

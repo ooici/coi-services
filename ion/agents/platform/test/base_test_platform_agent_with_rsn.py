@@ -1604,8 +1604,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
-    def _start_resource_monitoring(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING)
+    def _start_resource_monitoring(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.MONITORING)
 
@@ -1623,8 +1624,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(len(self._events_received) >= 1)
         log.info("Received events: %s", len(self._events_received))
 
-    def _stop_resource_monitoring(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING)
+    def _stop_resource_monitoring(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
