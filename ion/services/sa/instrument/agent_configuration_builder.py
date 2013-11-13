@@ -201,7 +201,8 @@ class AgentConfigurationBuilder(object):
                                  str(agent_process_id))
 
         self.will_launch = will_launch
-        return self.generate_config()
+        config = self.generate_config()
+        return config
 
 
     def _generate_org_governance_name(self):
@@ -309,8 +310,13 @@ class AgentConfigurationBuilder(object):
 
     def _generate_agent_config(self):
         log.debug("_generate_agent_config for %s", self.agent_instance_obj.name)
-        # should override this
-        return {}
+        agent_config = {}
+
+        # Set the agent state vector from the prior agent run
+        if self.agent_instance_obj.saved_agent_state:
+            agent_config["prior_state"] = self.agent_instance_obj.saved_agent_state
+
+        return agent_config
 
     def _generate_alerts_config(self):
         log.debug("_generate_alerts_config for %s", self.agent_instance_obj.name)

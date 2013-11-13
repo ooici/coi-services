@@ -697,43 +697,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         process_definition_id = self.clients.resource_registry.read_object(
             subject=ext_dataset_agent_obj._id, predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=True)
 
-        # # Get ALL streams for given external dataset or device
-        # data_product_objs, _ = self.clients.resource_registry.find_objects(source_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
-        # if not data_product_objs:
-        #     raise NotFound("No stream found for %s" % source_id)
-        #
-        # for dp in data_product_objs:
-        #     if 'parsed' in dp.processing_level_code.lower():
-        #         data_product_id = dp._id
-        #         break
-        #
-        # if not data_product_id:
-        #     data_product_id = data_product_objs[0]._id
-        #     log.warn("Cannot find parsed DataProduct for %s" % source_id)
-        #
-        # stream_def_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStreamDefinition, RT.StreamDefinition, id_only=True)
-        # stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_def_id)
-        #
-        # stream_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
-        # route = self.clients.pubsub_management.read_stream_route(stream_id)
-        #
-        # if log.isEnabledFor(logging.DEBUG):
-        #     log.debug('stream def: %r', {key: getattr(stream_def_obj, key) for key in stream_def_obj._schema})
-
-        # dataset_agent_instance_obj.dataset_agent_config['driver_config']['parameter_dict'] = stream_def_obj.parameter_dictionary
-        # dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_id'] = stream_id
-        # dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_route'] = {key: getattr(route, key) for key in route._schema}
-
         # Agent launch
-
         config_builder = ExternalDatasetAgentConfigurationBuilder(self.clients)
         try:
             config_builder.set_agent_instance_object(dataset_agent_instance_obj)
             config = config_builder.prepare()
             log.trace("Using dataset agent configuration: %s", config)
-            # import pprint
-            # pprint.pprint(config)
-        except:
+        except Exception:
             log.error('failed to launch', exc_info=True)
             raise ServerError('failed to launch')
 
@@ -762,7 +732,22 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Cancels the execution of the given process id.
         self.clients.process_dispatcher.cancel_process(agent_process_id)
 
+        # Save the process state
+        agent_instance_res = self.clients.resource_registry.read(external_dataset_agent_instance_id)
+        old_state = None
+        try:
+            old_state,_ = self.container.state_repository.get_state(agent_process_id)
+            old_state["_prior_agent_process_id"] = agent_process_id
+        except NotFound:
+            log.warn("Could not find process state for agent instance %s", external_dataset_agent_instance_id)
 
+        if old_state and isinstance(old_state, dict):
+            agent_instance_res.saved_agent_state = old_state
+        else:
+            agent_instance_res.saved_agent_state = {}
+
+        agent_instance_res.saved_agent_state = old_state
+        self.clients.resource_registry.update(agent_instance_res)
 
     def retrieve_external_dataset_agent_instance(self, external_dataset_id=''):
         """
@@ -1021,4 +1006,3 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             if 'qc_keys' in producer.producer_context.configuration:
                 document_keys.extend(producer.producer_context.configuration['qc_keys'])
         return document_keys
-
