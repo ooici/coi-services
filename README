@@ -1,74 +1,69 @@
 ===========================================================
 Ocean Observatories Initiative Cyberinfrastructure (OOI CI)
-Integrated Observatory Network (ION)
+Integrated Observatory Network (ION) - OOI Network
 
 coi-services - ION Release 2 system and services
 
 (C) UC Regents, 2010-2013
 ===========================================================
 
-This is the repository that defines the COI services.
-Note: Initially, all ION services are defined here and later moved to subsystem repositories.
+This is the repository that defines the OOI Network with its services and agents.
+The OOI Network system is started from this repository.
+Submodules provide additional required functionality, such as the Pyon
+Capability Container.
 
-COI services are intended to be deployed as part of the ION system launch.
-Services are deployed in pyon capability containers.
 
 INSTALL
 =======
 
-This assumes basic development environment setup (git, directory structure). Please follow the
-"New Developers Tutorial" for basic steps.
+This assumes basic development environment setup (git, directory structure).
+Please follow the "New Developers Tutorial" for basic steps.
+  https://confluence.oceanobservatories.org/display/CIDev/New+Developer+Tutorial
 
-Pyon: The main dependency of this repository is the pyon Capability Container. Follow the listed
-steps to install the minimal needed dependencies to run pyon on a Mac. For more details and Linux
-install instructions, check out the pyon README: https://github.com/ooici/pyon/blob/master/README
+The Pyon Capability Container is packaged as a submodule. All dependencies are
+installed during the process described below. For details, refer to:
+  https://github.com/ooici/pyon/blob/master/README
 
 
-Install the following if not yet present:
+Install the following if not yet present (brew install instructions are for Mac only):
 
 * OS Packages and package management:
 For Mac, use homebrew
     > /usr/bin/ruby <(curl -fsSkL raw.github.com/mxcl/homebrew/go)
-- python 2.7.2
-- git 1.7.7: Use brew or download the Mac or Linux installer and run it
-- couchdb 1.1.0 (optional if memory mockdb is used)
-    You will need to upgrade couchdb to at least 1.1.0.
-- rabbitmq 2.6.1 or later (recommended, but can use rabbitmq on amoeba)
-    Use brew.
-    Alternative: download generic Linux version and unpack into a suitable directory.
-- Install libevent, libyaml, zeromq, couchdb, python, rabbitmq, and pkg-config with Homebrew
+- python 2.7.x
+    > brew install python --framework --universal
+    Note: see 'brew doctor' for any path issues
+- git 1.7.7 or higher: Use brew or download the Mac or Linux installer and run it
+    > brew install git
 
-    > brew install libevent libyaml zeromq couchdb python rabbitmq hdf5 pkg-config netcdf udunits
+- Install core packages with Homebrew (including CouchDB and RabbitMQ)
 
-    You can even reinstall git using brew to clean up your /usr/local directory
-    Be sure to read the pyon README for platform specific guidance to installing
-    dependent libraries and packages.
+    > brew install libevent libyaml zeromq couchdb rabbitmq hdf5 pkg-config netcdf udunits
+
     Linux: Note that many installs have much older versions installed by default.
     (If you have trouble with brew 'MD5 mismatch' errors, try running 'brew update'
     and try the install again)
+    For any kind of installation trouble run 'brew doctor' and fix any issues.
 
 - Install libgswteos-10 for marine science calculations
     > brew tap lukecampbell/homebrew-libgswteos
     > brew install libgswteos-10
     > brew test -v libgswteos-10
     
-- Install swig and gfortran (Needed by udunits and scipy)
+- Install data processing packages (Needed by udunits and scipy)
     > brew install swig (Make sure brew installed swig is used. `which swig`)
     > brew install gfortran
 
-installation
-- Install
-
-* python packages and environment management:
+* Python packages and environment management:
 - pip
     > easy_install pip
 - virtualenv and virtualenvwrapper modules for your python 2.7 installation
     > easy_install --upgrade virtualenv
     > easy_install --upgrade virtualenvwrapper
-    Note: This may require Mac's XCode (use XCode 3.3 free version)
+    Note: This require Mac's XCode with installed command line tools
 
-* Setup a virtualenv to run COI-services (use any name you like):
-    > mkvirtualenv --no-site-packages --python=python2.7 coi
+* Setup a virtualenv to run COI-services:
+    > mkvirtualenv --no-site-packages coi
     Note: Do not use the pyon virtualenv if you are a pyon developer
 
 * Pin setuptools in your virtualenv
@@ -81,10 +76,8 @@ installation
 PACKAGE DOWNLOAD
 ================
 
-Clone coi-services (if you haven't already) in your code directory:
+Clone coi-services (this repository, if you haven't already) in your code directory:
     > cd code   # Whatever your code repository directory is
-
-Clone coi-services (this repository, if you haven't already):
     > git clone git@github.com:ooici/coi-services.git
 
 Initialize submodules::
@@ -97,7 +90,7 @@ Initialize submodules::
 PACKAGE DEPENDENCIES
 ====================
 
-Use Buildout to install the python package dependencies (including pyon itself) with:
+Use buildout to install the python package dependencies with:
     > python bootstrap.py -v 2.2.0
     > bin/buildout
 
@@ -105,39 +98,41 @@ Use Buildout to install the python package dependencies (including pyon itself) 
     compile for packages such as gevent, pyml, etc.
     export C_INCLUDE_PATH=/usr/local/include
 
-** If matplot lib fails to build due to not finding the free type headers, try:
-    if /usr/X11/lib/pkgconfig has a file named freetype2.pc, then add the following line to your .bash_profile
+** If matplotlib fails to build due to not finding the free type headers, try:
+    if /usr/X11/lib/pkgconfig has a file named freetype2.pc, then add the
+    following line to your .bash_profile
     export PKG_CONFIG_PATH=/usr/X11/lib/pkgconfig
 
-** Mac should have libpng and libfreetype headers, which are required
+    Mac should have libpng and libfreetype headers, which are required
     for matplotlib python build.  If for some reason your buildout fails on
     matplotlib due to missing libpng libraries, try install from here:
     http://ethan.tira-thompson.com/Mac_OS_X_Ports.html
 
-For additional support to install matplotlib on MacOS X 10.7 (Lion) please see the following:
+    For additional support to install matplotlib on MacOS X 10.7 (Lion) see:
     http://www.thisisthegreenroom.com/2011/installing-python-numpy-scipy-matplotlib-and-ipython-on-lion/
 
 Generate service definition interfaces and abstract base classes files:
     > bin/generate_interfaces
-    Note: These will be placed in the interfaces/ subdirectory (and not in GIT nor in the egg).
+    Note: These will be placed in the interfaces/ subdirectory.
 
 
 RUN-TIME DEPENDENCIES
 =====================
 
-COUCHDB (OBJECT DATA STORE):
+COUCHDB (DATA STORE):
 
 Run couchdb in second terminal before starting the container or running tests:
-Note: optional. An in-memory mockdb is used by default and couchdb unit-tests are skipped.
+Note: See the New Developer Tutorial for automatic start using supervisord
     > couchdb
 
 
 RABBITMQ (MESSAGE BROKER):
 
 Run RabbitMQ in second terminal before starting the container or running tests:
-Note: optional. RabbitMQ on amoeba us used by default for new developers.
+Note: See the New Developer Tutorial for automatic start using supervisord
     > cd rabbitmq_server-2.x.x
     > sudo sbin/rabbitmq-server
+
 
 ELASTICSEARCH (SEARCH ENGINE):
 
@@ -187,12 +182,12 @@ ELASTICSEARCH (SEARCH ENGINE):
         http://localhost:9200/_plugin/head/
 
 
+SOURCE PATH
 
-SOURCE PATH:
-
-Add the current directory to your PYTHONPATH for an easier time running scripts. Add the following
-line to your ~/.profile (create it if it doesn't exist, or use bash_profile if you already have that):
-    > export PYTHONPATH=.
+Add the current directory to your PYTHONPATH for an easier time running
+scripts. Add the following line to your ~/.profile (create it if it
+doesn't exist, or use bash_profile if you already have that):
+    export PYTHONPATH=.
 
 
 USE
@@ -210,7 +205,7 @@ List supported Pyon Capability Container arguments:
 Run unit tests:
     > bin/nosetests -v -a UNIT
 
-Run smoke tests to verify sanity of system:
+Run smoke tests to verify sanity of the system:
     > bin/nosetests -v -a SMOKE
 
 Run full integration tests - this will take a long time so may be optional:
@@ -219,11 +214,10 @@ Run full integration tests - this will take a long time so may be optional:
 
 Start an example (bank) locally:
     > bin/pycc --rel res/deploy/examples/bank_complete.yml
-    Note: It does not do anything but start by itself. You need to use a client to trigger actions.
+    Note: It does not do anything but start a service. You need a client to trigger actions.
 
 Start development instance of the ION system with all services:
     > bin/pycc --rel res/deploy/r2deploy.yml
-
 
 
 TROUBLESHOOTING
@@ -239,35 +233,35 @@ pyon.local.yml or logging.local.yml.  Check with other developers.
 
 If your tests fail unexpectedly when you have tried everything else, your build
 might be corrupted.
-    > deactivate from your existing virtualenv
+    > deactivate your existing virtualenv
     > rm and create the virtualenv again
     > re-run bootstrap.py and buildout
-    > If you suspect an egg is bad, Remove the suspected egg from the eggs/ dir. Re-reun buildout.
+    > If you suspect an egg is bad, remove the suspected egg from the eggs/ dir. Re-run buildout.
+
 
 DEBUG
 =====
 
-USE Pycharm or any other Python IDE to debug; breakpoints and step-by-step are possible.
-Set the executable to the bin/pycc and set the working directory to the git repository root.
-Use the -n option to avoid the interactive ipython shell. It does not work property with the debugger.
+Use Pycharm or any other Python IDE to debug; breakpoints and step-by-step
+are possible. Set the executable to the bin/pycc and set the working directory
+to the git repository root. Use the -n option to avoid the interactive IPython
+shell--it does not work properly with the debugger.
 
-Set your debugger to start the bin/pycc or bin/nosetests scripts, with the arguments you like.
+Start bin/pycc or bin/nosetests scripts in the debugger, with arguments.
 
-Later versions of PyCharm may need to be enabled to run with gevent. You can google how to do this.
+PyCharm may need to be enabled to run with gevent. Google how to do this.
 
-Remote debugging of services in a running container is possible too. Setup a remote debugging
-configuration to use the localhost and port 8585. First start the remote debuging server, then
-start the container from the command line below using the pyccd script ( the -n seems to be required )
+Remote debugging of services in a running container is possible too. Setup a
+remote debugging configuration to use the localhost and port 8585. First start
+the remote debugging server, then start the container from the command line
+below using the pyccd script (the -n seems to be required):
     > bin/pyccd -n --rel res/deploy/xxx.yml
-
 
 
 DEVELOPMENT
 ===========
 
-You can develop services locally in this repository. Use this repository until subsystem
-specific repositories are available.
-
+You can develop services locally in this repository.
 Please follow the following steps as long as you are new:
 
 Get the latest code before you start editing, or anytime you want:
@@ -275,18 +269,16 @@ Get the latest code before you start editing, or anytime you want:
     (fix any issues, git add, git rebase --continue)
 
     > git submodule update  # Do NOT forget. This does not happen automatically
+    See below for an automated approach using git submodule hooks.
 
-See below for an automated approach.
-
-As extern pointers change, service interfaces can change and old pyc files
-can be left around unintentinally. enerate interfaces frequently (especially in case of error):
+As extern submodule pointers change, service interfaces can change and old pyc files
+can be left around unintentinally. Generate interfaces frequently (especially in case of error):
     > ant clean
     > bin/generate-interfaces
 
-*See below for an automated approach to git-submodules*
-Note: The res/ and obj/ dirs are symlinks to a subdirectory in a git submodule. Beware of the pitfalls
-of git submodule. You need to treat it as a separate GIT module. In case of changes, both GIT modules
-must be pushed, submodule first:
+Note: The res/ and obj/ dirs are symlinks to a subdirectory in a git submodule.
+Beware of the pitfalls of git submodule. You need to treat it as a separate GIT
+module. In case of changes, both GIT modules must be pushed, submodule first:
     > cd extern/ion-definitions
     > git checkout master
     > do edits...
@@ -299,14 +291,14 @@ must be pushed, submodule first:
 
 Put your services in ion/services/<subsystem>/... (subdirectories are allowed).
 
-The ion-definition submodules approach above apply to other submodules as
-well.
+The ion-definition submodules approach above applies to other submodules as well.
+
 
 GIT SUBMODULE HOOKS
 ===================
 
-A git hook is a script that executes during various points of using git. Some simple hooks have been written
-to help automate dealing with submodules for most people. See the steps here:
+A git hook is a script that executes during various points of using git.
+Git hooks exist automating submodules for most people. See the steps here:
 http://blog.chaitanyagupta.com/2009/08/couple-of-hooks-to-make-life-easy-with.html
 
 They do require an initial setup. Simple instructions:
@@ -318,29 +310,23 @@ Clone this repository:
 Use the provided install script:
     > sh gitutils/submodule-hooks/install.sh /path/to/your/pyon/or/coi-services/dir
 
+Now, when checking out a branch, pulling, merging etc, git will prompt you to
+automatically update if it notices a change to the commit that your supermodule
+points to.
 
-The install script does the following (you can also do it manually):
-    > cd /your/pyon/.git/hooks
-    > cp /your/tmp/gitutils/submodule-hooks/pre-commit pre-commit
-    > cp /your/tmp/gitutils/submodule-hooks/post-merge-commit post-merge
-    > ln -s post-merge post-checkout
-    > chmod +x post-merge post-checkout pre-commit
-
-Now, when checking out a branch, pulling, merging etc, git will prompt you to automatically update
-if it notices a change to the commit that your supermodule points to.
-
-The pre-commit script is so you don't forget to push changes to the submodule *BEFORE* you push changes
-to the supermodule.
+The pre-commit script is so you don't forget to push changes to the submodule
+*BEFORE* you push changes to the supermodule.
 
 
 Instrument Development Kit (IDK)
 ================================
 There are now 4 configuration options in a new config file res/config/idk.yml
-The only option you are likely to need to override is the driver_path, currently set to ion/code. Override it in idk.local.yml to the parrent directory of coi-services, pyon, and marine-integrations if they are located elsewhere.
+The only option you are likely to need to override is the driver_path,
+currently set to ion/code. Override it in idk.local.yml to the parent directory
+of coi-services, pyon, and marine-integrations if they are located elsewhere.
 
 Use driver_path: OOI
 If you have the following structure.
   ~/OOI/coi-services 
   ~/OOI/pyon 
   ~/OOI/marine-integrations 
-

@@ -1,10 +1,9 @@
-This file contains hints for running a demo of OOI ION Release 2 out of this repository.
+This file contains hints for running the OOI Network system out of this repository.
 
 Prerequisites:
 ==============
 
-- Git repos in $CODE_DIR:
-  $CODE_DIR/pyon
+- Git repositories in $CODE_DIR:
   $CODE_DIR/coi-services (this one)
   $CODE_DIR/ion-ux
 - Virtualenv and buildout set for coi-services and ion-ux
@@ -28,14 +27,14 @@ Start the UI (in ion-ux, virtualenv prepared as documented):
 > python main.py
 
 
-Demo steps (e.g. ALPHA preload):
+Demo steps (using ALPHA preload):
 ===========================================
 
 Go to "CI Bench Test Facility", choose "Platforms", select "Low Power JBox - RSN Bench Testing"
 - From commands menu, select command
 - Start platform agent, then initialize, go_active, run
 
-Go to "CI Bench Test Facility", choose "Instruments", select "CTD Simulator 1 Demo"
+Go to "CI Bench Test Facility", choose "Instruments", select "CTD Simulator"
 - From commands menu, select command
 - Start instrument agent, then initialize, go_active, run
 
@@ -44,7 +43,7 @@ Individual preload commands:
 ============================
 
 Preload system UI only
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path='https://userexperience.oceanobservatories.org/database-exports/Candidates'
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path='http://userexperience.oceanobservatories.org/database-exports/Candidates'
 
 Preload system resources (base setup, without OOI resources or UI)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA attachments=res/preload/r2_ioc/attachments
@@ -63,13 +62,13 @@ Start the services container and preload with UI (no OOI):
 > bin/pycc -fc -r res/deploy/r2demo.yml
 
 Preload system with UI (without OOI assets)
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO ui_path='http://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
 
 OR: Preload system OOI assets only, create User/Org on the fly; bulk+debug mode not ready for production). Exclude data product etc
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load loadooi=True assets=res/preload/r2_ioc/ooi_assets bulk=True debug=True ooiexclude=DataProduct,DataProductLink,Deployment,Workflow,WorkflowDefinition
 
 OR: Run preload from file (not GoogleDoc master):
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO path=res/preload/r2_ioc/R2PreloadedResources.xlsx ui_path='https://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO path=res/preload/r2_ioc/R2PreloadedResources.xlsx ui_path='http://userexperience.oceanobservatories.org/database-exports/Stable' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
 
 Delete OOI assets for a retry:
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=deleteooi
@@ -85,6 +84,9 @@ or in the shell:
 
 Load OOI assets using preload scripts:
 ======================================
+
+Beta system preload using master GoogleDoc:
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_beta.yml path=master
 
 Development OOI load (parse OOI assets, save and print assets report)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/dev_ooi_parse.yml
