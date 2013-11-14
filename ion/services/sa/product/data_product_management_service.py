@@ -23,6 +23,7 @@ from interface.objects import ComputedValueAvailability
 
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
 from lxml import etree
 from datetime import datetime
@@ -603,26 +604,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         return self.RR2.advance_lcs(data_product_id, lifecycle_event)
 
 
-    def get_last_update(self, data_product_id=''):
-        """@todo document this interface!!!
-
-        @param data_product_id    str
-        @retval last_update    LastUpdate
-        @throws NotFound    Data product not found or cache for data product not found.
-        """
-        from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
-        datastore_name = CACHE_DATASTORE_NAME
-        db = self.container.datastore_manager.get_datastore(datastore_name)
-        stream_ids,other = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
-        retval = {}
-        for stream_id in stream_ids:
-            try:
-                lu = db.read(stream_id)
-                retval[stream_id] = lu
-            except NotFound:
-                continue
-        return retval
-
 
     def get_data_product_group_list(self, org_id=''):
         group_names = set()
@@ -884,11 +865,16 @@ class DataProductManagementService(BaseDataProductManagementService):
                 ret.reason = "No stream definition associated with this data product"
                 return ret
 
-            stream_def_id = stream_def_ids[0]
+            #stream_def_id = stream_def_ids[0]
 
-            replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1, delivery_format=stream_def_id)
+            #replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1, delivery_format=stream_def_id)
             #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
-            rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+            rdt = ParameterHelper.rdt_for_data_product(data_product_id)
+            values = self.clients.dataset_management.dataset_latest(dataset_ids[0])
+            for k,v in values.iteritems():
+                if k in rdt:
+                    rdt[k] = [v]
+
             retval = {}
             for k,v in rdt.iteritems():
                 if hasattr(rdt.context(k),'visible') and not rdt.context(k).visible:
@@ -911,6 +897,8 @@ class DataProductManagementService(BaseDataProductManagementService):
                     try:
                         precision = int(rdt.context(k).precision)
                     except ValueError:
+                        precision = 5
+                    except TypeError: # None results in a type error
                         precision = 5
                     formatted = ("{0:.%df}" % precision).format(round(element,precision))
                     retval[k] = '%s: %s' %(k, formatted)

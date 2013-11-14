@@ -169,6 +169,21 @@ class TestDMExtended(DMTestCase):
         config.ui_path = "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+    
+    def launch_ui_facepage(self, data_product_id):
+        '''
+        Opens the UI face page on localhost for a particular data product
+        '''
+        from subprocess import call
+        call(['open', 'http://localhost:3000/DataProduct/face/%s/' % data_product_id])
+
+    def strap_erddap(self):
+        '''
+        Copies the datasets.xml to /tmp
+        '''
+        import os
+        datasets_xml_path =CFG.get_safe('server.pydap.datasets_xml_path', "RESOURCE:ext/datasets.xml")
+        os.copy(datasets_xml_path, '/tmp/')
 
     
     def create_google_dt_workflow_def(self):
@@ -642,6 +657,60 @@ class TestDMExtended(DMTestCase):
         temp_sample, time = ds['temp_sample']
         temp_values, dim = temp_sample[0]
         np.testing.assert_array_equal(temp_values, np.array(['0.0,1.0,2.0,3.0']))
+
+    @attr('INT')
+    def test_ingest_metadata(self):
+        data_product_id = self.make_ctd_data_product()
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.arange(30)
+        rdt['temp'] = np.arange(30)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.event.clear()
+
+        object_store = self.container.object_store
+        metadata_doc = object_store.read_doc(dataset_id)
+        self.assertIn('bounds', metadata_doc)
+        bounds = metadata_doc['bounds']
+        self.assertEquals(bounds['time'], [0, 29])
+        self.assertEquals(bounds['temp'], [0, 29])
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = [-15, -1, 20, 40]
+        rdt['temp'] = [-1, 0, 0, 0]
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.event.clear()
+        
+        metadata_doc = object_store.read_doc(dataset_id)
+        self.assertIn('bounds', metadata_doc)
+        bounds = metadata_doc['bounds']
+        self.assertEquals(bounds['time'], [-15, 40])
+        self.assertEquals(bounds['temp'], [-1, 29])
+
+        bounds = self.dataset_management.dataset_bounds(dataset_id)
+        self.assertEquals(bounds['time'], [-15, 40])
+        self.assertEquals(bounds['temp'], [-1, 29])
+        bounds = self.dataset_management.dataset_bounds(dataset_id, ['temp'])
+        self.assertEquals(bounds['temp'], [-1, 29])
+        assert 'time' not in bounds
+        tmin, tmax = self.dataset_management.dataset_bounds_by_axis(dataset_id, 'temp')
+        self.assertEquals([tmin,tmax], [-1, 29])
+        tmin, tmax = self.dataset_management.dataset_temporal_bounds(dataset_id)
+        self.assertEquals([tmin,tmax], [-15 - 2208988800, 40 - 2208988800])
+
+        extents = self.dataset_management.dataset_extents(dataset_id)
+        self.assertEquals(extents['time'], 34)
+        self.assertEquals(extents['temp'], 34)
+
+        extent = self.dataset_management.dataset_extents_by_axis(dataset_id, 'time')
+        self.assertEquals(extent, 34)
+        self.preload_ui()
+        self.launch_ui_facepage(data_product_id)
 
     @attr('INT')
     def test_ccov_domain_slicing(self):
