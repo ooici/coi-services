@@ -124,22 +124,23 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #check that the instrument is in streaming mode.
         _ia_client1 = self._create_resource_agent_client(i_obj1.instrument_device_id)
         state1 = _ia_client1.get_agent_state()
-        self.assertEquals(state1, InstrumentAgentState.STREAMING)
+        self.assertEquals(state1, ResourceAgentState.STREAMING)
 
         i_obj2 = self._get_instrument('SBE37_SIM_02')
         #check that the instrument is in streaming mode.
         _ia_client2 = self._create_resource_agent_client(i_obj2.instrument_device_id)
         state2 = _ia_client2.get_agent_state()
-        self.assertEquals(state2, InstrumentAgentState.STREAMING)
+        self.assertEquals(state2, ResourceAgentState.STREAMING)
 
         self._stop_resource_monitoring()
 
         #check that the instrument is NOT in streaming mode.
         state1 = _ia_client1.get_agent_state()
-        self.assertEquals(state1, InstrumentAgentState.COMMAND)
+        self.assertEquals(state1, ResourceAgentState.COMMAND)
 
         state2 = _ia_client2.get_agent_state()
-        self.assertEquals(state2, InstrumentAgentState.COMMAND)
+        self.assertEquals(state2, ResourceAgentState.COMMAND)
+
 
     def test_instrument_first_then_platform(self):
         #
