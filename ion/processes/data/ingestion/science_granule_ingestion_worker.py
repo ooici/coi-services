@@ -21,6 +21,7 @@ from interface.services.dm.iingestion_worker import BaseIngestionWorker
 from pyon.ion.stream import StreamSubscriber
 from gevent.coros import RLock
 
+
 from coverage_model.parameter_values import SparseConstantValue
 from coverage_model import SparseConstantType
 
@@ -34,6 +35,8 @@ import time
 import uuid
 import numpy as np
 from gevent.queue import Queue
+
+numpy_walk = DatasetManagementService.numpy_walk
 
 REPORT_FREQUENCY=100
 MAX_RETRY_TIME=3600
@@ -156,6 +159,66 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         if datasets:
             return datasets[0]
         return None
+
+    def initialize_metadata(self, dataset_id, rdt):
+        '''
+        Initializes a metadata document in the object store. The document
+        contains information about the bounds and extents of the dataset as
+        well other metadata to improve performance.
+
+        '''
+
+        object_store = self.container.object_store
+        key = dataset_id
+        bounds = {}
+        extents = {}
+        last_values = {}
+        rough_size = 0
+        for k,v in rdt.iteritems():
+            v = v[:].flatten()
+            bounds[k] = (np.min(v), np.max(v))
+            extents[k] = len(rdt)
+            last_values[k] = v[-1]
+            rough_size += len(rdt) * 4
+
+        doc = {'bounds':bounds, 'extents':extents, 'last_values':last_values, 'size': rough_size}
+        doc = numpy_walk(doc)
+        object_store.create_doc(doc, object_id=key)
+        return 
+
+    def update_metadata(self, dataset_id, rdt):
+        '''
+        Updates the metada document with the latest information available
+        '''
+        # Grab the document
+        object_store = self.container.object_store
+        key = dataset_id
+        try:
+            doc = object_store.read_doc(key)
+        except NotFound:
+            return self.initialize_metadata(dataset_id, rdt)
+        # These are the fields we're interested in
+        bounds = doc['bounds']
+        extents = doc['extents']
+        last_values = doc['last_values']
+        rough_size = doc['size']
+        for k,v in rdt.iteritems():
+            v = v[:].flatten() # Get the numpy representation (dense array).
+            # Update the bounds
+            l_min = np.min(v)
+            l_max = np.max(v)
+            o_min, o_max = bounds[k]
+            bounds[k] = (min(l_min, o_min), max(l_max, o_max))
+            # Increase the extents
+            extents[k] = extents[k] + len(rdt)
+            # How about the last value?
+            last_values[k] = v[-1]
+
+            rough_size += len(rdt) * 4
+        # Sanitize it
+        doc = numpy_walk(doc)
+        object_store.update_doc(doc)
+
     
     def get_dataset(self,stream_id):
         '''
@@ -477,7 +540,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
             timer.complete_step('save')
         
         start_index = coverage.num_timesteps - elements
-        self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
 
         if not self.ignore_gaps and gap_found:
             self.splice_coverage(dataset_id, coverage)
@@ -489,6 +551,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
             self._add_timing_stats(timer)
 
         self.update_connection_index(rdt.connection_id, rdt.connection_index)
+
+        self.update_metadata(dataset_id, rdt)
+        self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
 
     def _add_timing_stats(self, timer):
         """ add stats from latest coverage operation to Accumulator and periodically log results """

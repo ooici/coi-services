@@ -157,6 +157,8 @@ class DatasetManagementService(BaseDatasetManagementService):
             pass
         except NotImplementedError:
             pass
+        except ValueError:
+            pass
 
         if isinstance(obj, np.number):
             return np.asscalar(obj)
@@ -307,62 +309,70 @@ class DatasetManagementService(BaseDatasetManagementService):
     def dataset_bounds(self, dataset_id='', parameters=None):
         self.read_dataset(dataset_id) # Validates proper dataset
         parameters = parameters or None
-        coverage = self._get_coverage(dataset_id, mode='r')
-        if not coverage.num_timesteps:
-            if isinstance(parameters,list):
-                return {i:(coverage.get_parameter_context(i).fill_value,coverage.get_parameter_context(i).fill_value) for i in parameters}
-            elif not parameters: 
-                return {i:(coverage.get_parameter_context(i).fill_value,coverage.get_parameter_context(i).fill_value) for i in coverage.list_parameters()}
-            else:
-                return (coverage.get_parameter_context(parameters).fill_value, coverage.get_parameter_context(parameters).fill_value)
-        return coverage.get_data_bounds(parameters)
+        try:
+            doc = self.container.object_store.read_doc(dataset_id)
+        except NotFound:
+            return {}
+
+        if parameters is not None:
+            retval = {}
+            for p in parameters:
+                retval[p] = doc['bounds'][p]
+            return retval
+
+        return doc['bounds']
 
     def dataset_bounds_by_axis(self, dataset_id='', axis=None):
-        self.read_dataset(dataset_id) # Validates proper dataset
-        axis = axis or None
-        coverage = self._get_coverage(dataset_id, mode='r')
-        if not coverage.num_timesteps:
-            temporal = coverage.temporal_parameter_name
-            if isinstance(axis,list):
-                return {temporal:(coverage.get_parameter_context(temporal).fill_value, coverage.get_parameter_context(temporal).fill_value)}
-            elif not axis:
-                return {temporal:(coverage.get_parameter_context(temporal).fill_value, coverage.get_parameter_context(temporal).fill_value)}
-            else:
-                return (coverage.get_parameter_context(temporal).fill_value, coverage.get_parameter_context(temporal).fill_value)
-        return coverage.get_data_bounds_by_axis(axis)
+        bounds = self.dataset_bounds(dataset_id)
+        return bounds[axis]
 
     def dataset_temporal_bounds(self, dataset_id):
-        coverage = self._get_coverage(dataset_id, mode='r')
-        temporal_param = coverage.temporal_parameter_name
-        try:
-            bounds = coverage.get_data_bounds(temporal_param)
-        except ValueError:
-            return (coverage.get_parameter_context(temporal_param).fill_value,) * 2
-        uom = coverage.get_parameter_context(temporal_param).uom
-        new_bounds = (TimeUtils.units_to_ts(uom,bounds[0]), TimeUtils.units_to_ts(uom,bounds[1]))
-        return new_bounds
+        dataset = self.read_dataset(dataset_id)
+        pdict = ParameterDictionary.load(dataset.parameter_dictionary)
+        temporal_parameter = pdict.temporal_parameter_name
+        units = pdict.get_temporal_context().uom
+        bounds = self.dataset_bounds(dataset_id)
+        bounds = bounds[temporal_parameter]
+        bounds = [TimeUtils.units_to_ts(units, i) for i in bounds]
+        return bounds
 
     def dataset_extents(self, dataset_id='', parameters=None):
-        self.read_dataset(dataset_id)
+        self.read_dataset(dataset_id) # Validates proper dataset
         parameters = parameters or None
-        coverage = DatasetManagementService._get_coverage(dataset_id, mode='r')
-        extents = coverage.get_data_extents(parameters)
-        coverage.close()
-        return extents
+        try:
+            doc = self.container.object_store.read_doc(dataset_id)
+        except NotFound:
+            return {}
+        if parameters is not None:
+            retval = {}
+            for p in parameters:
+                retval[p] = doc['extents'][p]
+        return doc['extents']
+
 
     def dataset_extents_by_axis(self, dataset_id='', axis=None):
-        self.read_dataset(dataset_id) 
-        axis = axis or None
-        coverage = self._get_coverage(dataset_id)
-        return coverage.get_data_extents_by_axis(axis)
+        extents = self.dataset_extents(dataset_id)
+        return extents[axis]
 
-    def dataset_size(self,dataset_id='', parameters=None, slice_=None, in_bytes=False):
-        self.read_dataset(dataset_id) 
-        parameters = parameters or None
-        slice_     = slice_ if isinstance(slice_, slice) else None
+    def dataset_size(self,dataset_id='', in_bytes=False):
+        self.read_dataset(dataset_id) # Validates proper dataset
+        try:
+            doc = self.container.object_store.read_doc(dataset_id)
+        except NotFound:
+            return 0.
+        size = doc['size']
+        if not in_bytes:
+            size = size / 1024.
+        return size
 
-        coverage = self._get_coverage(dataset_id, mode='r')
-        return coverage.get_data_size(parameters, slice_, in_bytes)
+    def dataset_latest(self, dataset_id=''):
+        self.read_dataset(dataset_id) # Validates proper dataset
+        try:
+            doc = self.container.object_store.read_doc(dataset_id)
+        except NotFound:
+            return {}
+        return doc['last_values']
+
 
 #--------
 
