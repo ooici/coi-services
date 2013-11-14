@@ -47,8 +47,6 @@ class DataAgentControl(ImmediateProcess):
         if not resource_name:
             raise BadRequest("Must provide ExternalDataset, Device or ExternalDatasetAgentInstance resource name or id")
 
-        print resource_name, type(resource_name)
-
         resource = None
         try:
             log.debug("Looking for a resource with id %s", dataset_name)
