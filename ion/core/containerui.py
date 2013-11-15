@@ -754,12 +754,6 @@ def _process_cmd_agent_execute(resource_id, res_obj=None):
     res_str = get_formatted_value(res_dict, fieldtype="dict")
     return res_str
 
-def _process_cmd_last_granule(resource_id, res_obj=None):
-    from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-    dpms_cl = DataProductManagementServiceClient()
-    response = dpms_cl.get_last_update(res_obj)
-    return "Last Update: " + str(response)
-
 def _process_cmd_deploy(resource_id, res_obj=None):
     li_id = get_arg('deploy')
     from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
