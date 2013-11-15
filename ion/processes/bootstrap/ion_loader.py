@@ -2672,6 +2672,8 @@ Reason: %s
         if model_ids:
             model_ids = get_typed_value(model_ids, targettype="simplelist")
             for mid in model_ids:
+                if self._has_association(eda_id, PRED.hasModel, self.resource_ids[mid]):
+                    continue
                 if self.bulk:
                     model_obj = self._get_resource_obj(mid)
                     agent_obj = self._get_resource_obj(row[COL_ID])
@@ -2691,6 +2693,8 @@ Reason: %s
         if model_ids:
             model_ids = get_typed_value(model_ids, targettype="simplelist")
             for mid in model_ids:
+                if self._has_association(eda_id, PRED.hasModel, self.resource_ids[mid]):
+                    continue
                 if self.bulk:
                     model_obj = self._get_resource_obj(mid)
                     agent_obj = self._get_resource_obj(row[COL_ID])
