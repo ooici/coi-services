@@ -13,6 +13,7 @@ from copy import deepcopy
 from ooi.timer import Timer, Accumulator
 
 from pyon.core.exception import NotFound, BadRequest, ServerError
+from pyon.ion.resource import ExtendedResourceContainer
 from pyon.public import CFG, IonObject, log, RT, LCS, PRED, OT
 from pyon.util.arg_check import validate_is_instance
 
@@ -548,6 +549,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     # External Data Set
     #
     ##########################################################################
+
     def create_external_dataset(self, external_dataset=None, external_dataset_model_id=''):
         # Persist ExternalDataSet object and return object _id as OOI id
         external_dataset_id = self.RR2.create(external_dataset, RT.ExternalDataset)
@@ -641,6 +643,90 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def assign_model_to_external_dataset_agent(self, model_id='', external_dataset_agent_id=''):
         self.clients.resource_registry.create_association(external_dataset_agent_id, PRED.hasModel, model_id)
 
+    def unassign_model_from_external_dataset_agent(self, model_id='', external_dataset_agent_id=''):
+        self.clients.resource_registry.delete_association((external_dataset_agent_id, PRED.hasModel, model_id))
+
+    def assign_external_data_agent_to_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
+        #Connect the agent with an agent instance
+        data_source = self.clients.resource_registry.read(external_data_agent_id)
+        agent_instance = self.clients.resource_registry.read(agent_instance_id)
+        log.debug("associating: external dataset agent instance %s hasAgentDefinition %s", agent_instance_id, external_data_agent_id)
+
+        # check if the association already exists
+        associations = self.clients.resource_registry.find_associations(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id, id_only=True)
+        log.trace('found associations: %r', associations)
+        if not associations:
+            self.clients.resource_registry.create_association(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id)
+
+    def unassign_external_data_agent_from_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
+        data_source = self.clients.resource_registry.read(external_data_agent_id)
+        agent_instance = self.clients.resource_registry.read(agent_instance_id)
+
+        # delete the associations
+        self.clients.resource_registry.delete_association((agent_instance_id,  PRED.hasAgentDefinition,  external_data_agent_id))
+
+    def prepare_external_dataset_agent_support(self, external_dataset_agent_id=''):
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_resource_support(external_dataset_agent_id, OT.ExternalDatasetAgentPrepareSupport)
+
+        #Fill out service request information for creating a instrument agent
+        extended_resource_handler.set_service_requests(resource_data.create_request,
+                                                       'data_acquisition_management',
+                                                       'create_external_dataset_agent',
+                                                       { "external_dataset_agent":  "$(external_dataset_agent)" })
+
+        #Fill out service request information for creating a instrument agent
+        extended_resource_handler.set_service_requests(resource_data.update_request,
+                                                       'data_acquisition_management',
+                                                       'update_external_dataset_agent',
+                                                       { "external_dataset_agent":  "$(external_dataset_agent)" })
+
+        #Fill out service request information for assigning a InstrumentModel
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentModel'].assign_request,
+                                                       'data_acquisition_management',
+                                                       'assign_model_to_external_dataset_agent',
+                                                       {"model_id":  "$(instrument_model_id)",
+                                                        "external_dataset_agent_id":  external_dataset_agent_id })
+
+        #Fill out service request information for unassigning a InstrumentModel
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentModel'].unassign_request,
+                                                       'data_acquisition_management',
+                                                       'unassign_model_from_external_dataset_agent',
+                                                       {"model_id":  "$(instrument_model_id)",
+                                                        "external_dataset_agent_id":  external_dataset_agent_id })
+
+        #Fill out service request information for assigning a PlatformModel
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformModel'].assign_request,
+                                                       'data_acquisition_management',
+                                                       'assign_model_to_external_dataset_agent',
+                                                       {"model_id":  "$(platform_model_id)",
+                                                        "external_dataset_agent_id":  external_dataset_agent_id })
+
+        #Fill out service request information for unassigning a PlatformModel
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformModel'].unassign_request,
+                                                       'data_acquisition_management',
+                                                       'unassign_model_from_external_dataset_agent',
+                                                       {"model_id":  "$(platform_model_id)",
+                                                        "external_dataset_agent_id":  external_dataset_agent_id })
+
+        #Fill out service request information for assigning a ExternalDatasetAgentInstance
+        extended_resource_handler.set_service_requests(resource_data.associations['ExternalDatasetAgentInstance'].assign_request,
+                                                       'data_acquisition_management',
+                                                       'assign_external_data_agent_to_agent_instance',
+                                                       {"external_data_agent_id":  external_dataset_agent_id,
+                                                       "agent_instance_id": "$(external_dataset_agent_instance_id)" })
+
+        #Fill out service request information for unassigning a ExternalDatasetAgentInstance
+        extended_resource_handler.set_service_requests(resource_data.associations['ExternalDatasetAgentInstance'].unassign_request,
+                                                       'data_acquisition_management',
+                                                       'unassign_external_data_agent_from_agent_instance',
+                                                       {"external_data_agent_id": external_dataset_agent_id,
+                                                       "agent_instance_id":  "$(external_dataset_agent_instance_id)" })
+
+        return resource_data
+
     #
     # ExternalDatasetAgentInstance
     #
@@ -653,7 +739,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.RR2.assign_external_dataset_agent_instance_to_external_dataset_with_has_agent_instance(
                 external_dataset_agent_instance_id, external_dataset_id)
 
-        self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance_id)
+        if external_dataset_agent_id:
+            self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance_id)
+
         log.debug('created dataset agent instance %s, agent id=%s', external_dataset_agent_instance_id, external_dataset_agent_id)
         return external_dataset_agent_instance_id
 
@@ -675,6 +763,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def assign_external_dataset_agent_instance_to_device(self, external_dataset_agent_instance_id='', device_id=''):
         self.clients.resource_registry.create_association(device_id, PRED.hasAgentInstance, external_dataset_agent_instance_id)
+
+    def unassign_external_dataset_agent_instance_from_device(self, external_dataset_agent_instance_id='', device_id=''):
+        self.clients.resource_registry.delete_association((device_id, PRED.hasAgentInstance, external_dataset_agent_instance_id))
 
     def start_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
         """Launch an external dataset agent instance process and return its process id.
@@ -722,7 +813,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         return process_id
 
-
     def stop_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
         """
         Deactivate the agent instance process
@@ -759,6 +849,80 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.container.object_store.delete_doc(obj_id)
         except Exception as ex:
             log.warn("Cannot delete agent spawn config for instance %s: %s", external_dataset_agent_instance_id, ex)
+
+    def prepare_external_dataset_agent_instance_support(self, external_dataset_agent_instance_id=''):
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_resource_support(external_dataset_agent_instance_id, OT.ExternalDatasetAgentInstancePrepareSupport)
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.create_request,
+                                                       'data_acquisition_management',
+                                                       'create_external_dataset_agent_instance',
+                                                       {"external_dataset_agent_instance":  "$(external_dataset_agent_instance)" })
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.update_request,
+                                                       'data_acquisition_management',
+                                                       'update_external_dataset_agent_instance',
+                                                       {"external_dataset_agent_instance":  "$(external_dataset_agent_instance)" })
+
+        #Fill out service request information for starting an instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.start_request,
+                                                       'data_acquisition_management',
+                                                       'start_external_dataset_agent_instance',
+                                                       {"external_dataset_agent_instance_id":  "$(external_dataset_agent_instance_id)" })
+
+        #Fill out service request information for starting an instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.stop_request,
+                                                       'data_acquisition_management',
+                                                       'stop_external_dataset_agent_instance',
+                                                       {"external_dataset_agent_instance_id":  "$(external_dataset_agent_instance_id)" })
+
+        #Fill out service request information for assigning a InstrumentDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].assign_request,
+                                                       'data_acquisition_management',
+                                                       'assign_external_dataset_agent_instance_to_device',
+                                                       {"device_id":  "$(instrument_device_id)",
+                                                        "external_dataset_agent_instance_id":  external_dataset_agent_instance_id })
+
+        #Fill out service request information for unassigning a InstrumentDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].unassign_request,
+                                                       'data_acquisition_management',
+                                                       'unassign_external_dataset_agent_instance_from_device',
+                                                       {"device_id":  "$(instrument_device_id)",
+                                                        "external_dataset_agent_instance_id":  external_dataset_agent_instance_id })
+
+        #Fill out service request information for assigning a PlatformDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformDevice'].assign_request,
+                                                       'data_acquisition_management',
+                                                       'assign_external_dataset_agent_instance_to_device',
+                                                       {"device_id":  "$(platform_device_id)",
+                                                        "external_dataset_agent_instance_id":  external_dataset_agent_instance_id })
+
+        #Fill out service request information for unassigning a PlatformDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformDevice'].unassign_request,
+                                                       'data_acquisition_management',
+                                                       'unassign_external_dataset_agent_instance_from_device',
+                                                       {"device_id":  "$(platform_device_id)",
+                                                        "external_dataset_agent_instance_id":  external_dataset_agent_instance_id })
+
+        #Fill out service request information for assigning a InstrumentAgent
+        extended_resource_handler.set_service_requests(resource_data.associations['ExternalDatasetAgent'].assign_request,
+                                                       'data_acquisition_management',
+                                                       'assign_external_data_agent_to_agent_instance',
+                                                       {"external_data_agent_id":  "$(external_dataset_agent_id)",
+                                                        "agent_instance_id":  external_dataset_agent_instance_id })
+
+        #Fill out service request information for unassigning a InstrumentAgent
+        extended_resource_handler.set_service_requests(resource_data.associations['ExternalDatasetAgent'].unassign_request,
+                                                       'data_acquisition_management',
+                                                       'unassign_external_data_agent_from_agent_instance',
+                                                       {"external_data_agent_id":  "$(external_dataset_agent_id)",
+                                                        "agent_instance_id":  external_dataset_agent_instance_id })
+
+        return resource_data
 
     def retrieve_external_dataset_agent_instance(self, external_dataset_id=''):
         """
@@ -804,10 +968,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         agent_instance = self.clients.resource_registry.read(external_data_provider_id)
 
         # delete the associations
-        # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(data_source_id, PRED.hasProvider, external_data_provider_id, id_only=True)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
+        self.clients.resource_registry.delete_association((data_source_id, PRED.hasProvider, external_data_provider_id))
 
 
     def assign_data_source_to_data_model(self, data_source_id='', data_source_model_id=''):
@@ -826,11 +987,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         agent_instance = self.clients.resource_registry.read(data_source_model_id)
 
         # delete the associations
-        # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(data_source_id,  PRED.hasModel,  data_source_model_id, id_only=True)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
-
+        self.clients.resource_registry.delete_association((data_source_id,  PRED.hasModel,  data_source_model_id))
 
 
     def assign_external_dataset_to_agent_instance(self, external_dataset_id='', agent_instance_id=''):
@@ -848,34 +1005,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         agent_instance = self.clients.resource_registry.read(agent_instance_id)
 
         # delete the associations
-        # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id, id_only=True)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
-
-
-
-    def assign_external_data_agent_to_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
-        #Connect the agent with an agent instance
-        data_source = self.clients.resource_registry.read(external_data_agent_id)
-        agent_instance = self.clients.resource_registry.read(agent_instance_id)
-        log.debug("associating: external dataset agent instance %s hasAgentDefinition %s", agent_instance_id, external_data_agent_id)
-
-        # check if the association already exists
-        associations = self.clients.resource_registry.find_associations(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id, id_only=True)
-        log.trace('found associations: %r', associations)
-        if not associations:
-            self.clients.resource_registry.create_association(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id)
-
-    def unassign_external_data_agent_from_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
-        data_source = self.clients.resource_registry.read(external_data_agent_id)
-        agent_instance = self.clients.resource_registry.read(agent_instance_id)
-
-        # delete the associations
-        # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(agent_instance_id,  PRED.hasAgentDefinition,  external_data_agent_id, id_only=True)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
+        self.clients.resource_registry.delete_association((external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id))
 
 
     def assign_dataset_agent_to_external_dataset_model(self, dataset_agent_id='', external_dataset_model_id=''):
@@ -894,10 +1024,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         external_dataset_model = self.clients.resource_registry.read(external_dataset_model_id)
 
         # delete the associations
-        # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(dataset_agent_id,  PRED.hasModel,  external_dataset_model_id, id_only=True)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
+        self.clients.resource_registry.delete_association((dataset_agent_id,  PRED.hasModel,  external_dataset_model_id))
 
 
     def assign_external_dataset_to_data_source(self, external_dataset_id='', data_source_id=''):
@@ -917,10 +1044,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         agent_instance = self.clients.resource_registry.read(data_source_id)
 
         # delete the associations
-        # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasDataSource,  data_source_id, id_only=True)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
+        self.clients.resource_registry.delete_association((external_dataset_id,  PRED.hasDataSource,  data_source_id))
 
     def create_parser(self, parser=None):
         parser_id, rev = self.clients.resource_registry.create(parser)
