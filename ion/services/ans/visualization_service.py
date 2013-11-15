@@ -556,7 +556,7 @@ class VisualizationService(BaseVisualizationService):
         #dp_meta_data['time_bounds'] = [float(ntplib.ntp_to_system_time(i)) for i in time_bounds]
         time_bounds = self.clients.dataset_management.dataset_temporal_bounds(ds_ids[0])
         dp_meta_data['time_bounds'] = time_bounds
-        dp_meta_data['time_steps'] = self.clients.dataset_management.dataset_extents(ds_ids[0])['time'][0]
+        dp_meta_data['time_steps'] = self.clients.dataset_management.dataset_extents_by_axis(ds_ids[0], 'time')
 
         # use the associations to get to the parameter dict
         parameter_display_names = {}
