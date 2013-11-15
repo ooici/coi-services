@@ -64,5 +64,11 @@ class SystemManagementService(BaseSystemManagementService):
                                                                snapshot_kwargs=snapshot_kwargs))
         log.info("Event to trigger container snapshots sent. snapshot_id=%s" % snapshot_id)
 
+    def start_gevent_block(self, alarm_mode=False):
+        self.perform_action(ALL_CONTAINERS_INSTANCE, IonObject(OT.StartGeventBlock, alarm_mode=alarm_mode))
+
+    def stop_gevent_block(self):
+        self.perform_action(ALL_CONTAINERS_INSTANCE, IonObject(OT.StopGeventBlock))
+
     def prepare_system_shutdown(self, mode=''):
         self.perform_action(ALL_CONTAINERS_INSTANCE, IonObject(OT.PrepareSystemShutdown, mode=mode))
