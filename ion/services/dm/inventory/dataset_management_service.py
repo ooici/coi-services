@@ -332,7 +332,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         temporal_parameter = pdict.temporal_parameter_name
         units = pdict.get_temporal_context().uom
         bounds = self.dataset_bounds(dataset_id)
-        bounds = bounds[temporal_parameter]
+        bounds = bounds[temporal_parameter or 'time']
         bounds = [TimeUtils.units_to_ts(units, i) for i in bounds]
         return bounds
 
@@ -344,9 +344,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         except NotFound:
             return {}
         if parameters is not None:
-            retval = {}
-            for p in parameters:
-                retval[p] = doc['extents'][p]
+            if isinstance(parameters, list):
+                retval = {}
+                for p in parameters:
+                    retval[p] = doc['extents'][p]
+                return retval
+            elif isinstance(parameters, basestring):
+                return doc['extents'][parameters]
         return doc['extents']
 
 

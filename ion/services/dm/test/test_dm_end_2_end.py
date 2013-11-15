@@ -176,7 +176,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         done = False
         with gevent.Timeout(40):
             while not done:
-                extents = self.dataset_management.dataset_extents(dataset_id, 'time')[0]
+                extents = self.dataset_management.dataset_extents(dataset_id, 'time')
                 granule = self.data_retriever.retrieve_last_data_points(dataset_id, 1)
                 rdt     = RecordDictionaryTool.load_from_granule(granule)
                 if rdt['time'] and rdt['time'][0] != rdt._pdict.get_context('time').fill_value and extents >= data_size:
@@ -574,8 +574,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(success)
 
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    @unittest.skip('deprecated')
     def test_correct_time(self):
 
         # There are 2208988800 seconds between Jan 1 1900 and Jan 1 1970, i.e. 
