@@ -203,6 +203,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         last_values = doc['last_values']
         rough_size = doc['size']
         for k,v in rdt.iteritems():
+            if k not in bounds:
+                continue
+
             v = v[:].flatten() # Get the numpy representation (dense array).
             # Update the bounds
             l_min = np.min(v)
