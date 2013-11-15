@@ -115,7 +115,7 @@ CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exp
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dFB4cDEybEJJY1Fha0xmcmZURlhTeHc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdDBRcTFhLVVvaDZmdjhSWUtjQUNKcnc&output=xls"
 
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
@@ -234,7 +234,7 @@ class IONLoader(ImmediateProcess):
             self.preload_cfg = Config([cfg]).data
             load_sequence = self.preload_cfg["load_sequence"]
             for num, step_cfg in enumerate(load_sequence):
-                log.info("Executing preload step %s '%s'", num, step_cfg['name'])
+                log.info("-------------------------- Executing preload step %s '%s' --------------------------", num, step_cfg['name'])
                 if num > 0:
                     self._init_preload()
                 docstr = step_cfg.get("docstring", None)
@@ -249,7 +249,7 @@ class IONLoader(ImmediateProcess):
                 # Then override with command line arguments
                 dict_merge(step_config, self.container.spawn_args, inplace=True)
                 self._do_preload(step_config)
-                log.info("-------------------------- Completed step '%s' --------------------------", step_cfg['name'])
+                log.info("--- Completed step '%s' ---", step_cfg['name'])
         else:
             self.preload_cfg = None
             self._do_preload(self.CFG)
