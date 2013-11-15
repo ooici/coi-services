@@ -194,10 +194,6 @@ class TestDataProductManagementServiceCoverage(IonIntegrationTestCase):
         #log.debug("get extension")
         #self.DPMS.get_data_product_extension(dp_id)
 
-        log.debug("getting last update")
-        lastupdate = self.DPMS.get_last_update(dp_id)
-        self.assertEqual({}, lastupdate) # should be no updates to a new data product
-
         log.debug("prepare resource support")
         support = self.DPMS.prepare_data_product_support(dp_id)
         self.assertIsNotNone(support)
