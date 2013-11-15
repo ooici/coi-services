@@ -1,32 +1,29 @@
-#from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import log, IonObject
-from pyon.util.int_test import IonIntegrationTestCase
+from nose.plugins.attrib import attr
+import unittest
 
+#from pyon.ion.endpoint import ProcessRPCClient
+from pyon.public import log, IonObject, RT, PRED, BadRequest
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.agent.agent import ResourceAgentClient
+from pyon.util.context import LocalContextMixin
+
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
+
+from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+
+# MI imports
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
+
+from interface.objects import AgentCommand
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 
-from nose.plugins.attrib import attr
-
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
-from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-
-from pyon.agent.agent import ResourceAgentClient
-from interface.objects import AgentCommand
-
-# MI imports
-from ion.agents.instrument.instrument_agent import InstrumentAgentState
-
-from pyon.util.context import LocalContextMixin
-from pyon.core.exception import BadRequest
-from pyon.public import RT, PRED
-import unittest
-
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 # Agent parameters.
 EDA_RESOURCE_ID = '123xyz'
@@ -301,3 +298,19 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         #-------------------------------
         self.damsclient.stop_external_dataset_agent_instance(extDatasetAgentInstance_id)
 
+
+    def test_dataset_agent_prepare_support(self):
+
+        eda_sup = self.damsclient.prepare_external_dataset_agent_support()
+
+        eda_obj = IonObject(RT.ExternalDatasetAgent, name="ExternalDatasetAgent")
+        eda_id = self.damsclient.create_external_dataset_agent(eda_obj)
+
+        eda_sup = self.damsclient.prepare_external_dataset_agent_support(external_dataset_agent_id=eda_id)
+
+        edai_sup = self.damsclient.prepare_external_dataset_agent_instance_support()
+
+        edai_obj = IonObject(RT.ExternalDatasetAgentInstance, name="ExternalDatasetAgentInstance")
+        edai_id = self.damsclient.create_external_dataset_agent_instance(edai_obj)
+
+        edai_sup = self.damsclient.prepare_external_dataset_agent_instance_support(external_dataset_agent_instance_id=edai_id)
