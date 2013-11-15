@@ -532,7 +532,7 @@ class ResourceRegistryHelper(object):
 
             write_cfg_dict("CFG", config_stats)
 
-            # Path
+            # Greenlet
             ws.write(self._row, 0, self._row)
             self._row += 1
             [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Greenlet", "Name"])]
@@ -543,6 +543,20 @@ class ResourceRegistryHelper(object):
                 ws.write(self._row, 1, i+1)
                 ws.write(self._row, 2, "Greenlet")
                 ws.write(self._row, 3, p[0])
+                self._row += 1
+
+            # Gevent Block
+            ws.write(self._row, 0, self._row)
+            self._row += 1
+            [ws.write(self._row, col, hdr) for (col, hdr) in enumerate([self._row, 0, "Gevent Block", "Trace 1", "Trace 2", "Trace 3"])]
+            self._row += 1
+            gl_block = cc_status.get("gevent_block", {}).get("gevent_block", {})
+            for gl_id, msgs in gl_block.items():
+                ws.write(self._row, 0, self._row)
+                ws.write(self._row, 1, i+1)
+                ws.write(self._row, 2, gl_id)
+                for index, msg in enumerate(msgs):
+                    ws.write(self._row, 3+index, msg)
                 self._row += 1
 
         dtstr = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
