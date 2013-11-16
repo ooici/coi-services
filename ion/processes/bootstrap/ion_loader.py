@@ -115,7 +115,7 @@ CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exp
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdDBRcTFhLVVvaDZmdjhSWUtjQUNKcnc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dHZ1dTQwdnFxallKNkItNWh2d0hnWkE&output=xls"
 
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
@@ -3303,13 +3303,31 @@ Reason: %s
         coordinate_name = row['coordinate_system']
         context_type = row['context_type']
 
+
         context = IonObject(context_type)
+
+        platform_port = None
+        assignments = {}
+        raw_port_assigment = row.get('port_assignment', None)
+        if raw_port_assigment:
+            port_assigments = parse_dict(raw_port_assigment)
+
+            for dev_id, port_asgn_info in port_assigments.iteritems():
+                platform_port = IonObject(OT.PlatformPort,
+                                         reference_designator=port_asgn_info['reference_designator'],
+                                         port_type=port_asgn_info['port_type'],
+                                         ip_address=port_asgn_info['ip_address'])
+                device_resrc_id = self.resource_ids[dev_id]
+                assignments[device_resrc_id] = platform_port
 
         deployment_id = self._basic_resource_create(row, "Deployment", "d/",
                                              "observatory_management", "create_deployment",
                                              constraints=constraints, constraint_field='constraint_list',
                                              set_attributes={"coordinate_reference_system": self.resource_ids[coordinate_name] if coordinate_name else None,
-                                                             "context": context})
+                                                             "context": context,
+                                                             "port_assignments": assignments})
+
+        deploy_obj = self._get_resource_obj(deployment_id)
 
         device_id = self.resource_ids[row['device_id']]
         site_id = self.resource_ids[row['site_id']]
