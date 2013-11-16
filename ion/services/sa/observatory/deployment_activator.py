@@ -53,7 +53,7 @@ class DeploymentOperatorFactory(object):
             return new_object_type(self.clients,
                                    deployment_obj,
                                    allow_children=True,
-                                   include_children=True,
+                                   include_children=False,
                                    RR2=self.RR2)
 
         # single node, with instruments optionally
@@ -61,7 +61,7 @@ class DeploymentOperatorFactory(object):
             return new_object_type(self.clients,
                                    deployment_obj,
                                    allow_children=True,
-                                   include_children=True,
+                                   include_children=False,
                                    RR2=self.RR2)
 
         raise BadRequest("Can't activate deployments of unimplemented context type '%s'" % deployment_context_type)
@@ -622,7 +622,6 @@ class DeploymentActivator(DeploymentOperator):
         portref_of_device = self.deployment_obj.port_assignments
 
 
-
         def _merge_helper(acc, site_ptr, dev_ptr, unmatched_list):
             """
             given 2 trees, try to match up all their children.  assume roots already matched
@@ -639,14 +638,27 @@ class DeploymentActivator(DeploymentOperator):
 
             for child_dev_id, child_dev_ptr in dev_ptr["children"].iteritems():
                 if not child_dev_id in portref_of_device:
-                    raise BadRequest("No reference_designator specified for device %s" % child_dev_id)
+                    raise BadRequest("No platform port information specified for device %s" % child_dev_id)
                 dev_port = portref_of_device[child_dev_id]
+
+                #check that a PlatformPort object is provided
+                if dev_port.type_ != OT.PlatformPort:
+                    raise BadRequest("No platform port information specified for device %s" % child_dev_id)
+
+                child_site_ptr = ''
                 if not dev_port in site_of_portref:
-                    raise BadRequest("Couldn't find a port on site %s (%s) called '%s'" % (site_ptr["name"],
-                                                                                           site_id,
-                                                                                           dev_port))
-                child_site_id = site_of_portref[dev_port]
-                child_site_ptr = site_ptr["children"][child_site_id]
+                    pass
+
+                    # this check is to match the ref_designator in the deployment object with the ref_designator in the target site
+                    #todo add ref_designators to the Sites in preload to match intended deployments
+
+                    #raise BadRequest("Couldn't find a port on site %s (%s) called '%s'" % (site_ptr["name"],
+                    #                                                                       site_id,
+                    #                                                                       dev_port))
+                else:
+                    child_site_id = site_of_portref[dev_port]
+                    child_site_ptr = site_ptr["children"][child_site_id]
+
                 acc, unmatched_list = _merge_helper(acc[:], child_site_ptr, child_dev_ptr, unmatched_list[:])
 
             return acc, unmatched_list
