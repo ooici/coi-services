@@ -94,7 +94,7 @@ from coverage_model.parameter import ParameterContext
 from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
 
 from interface import objects
-from interface.objects import StreamAlertType, PortTypeEnum
+from interface.objects import StreamAlertType, PortTypeEnum, StreamConfigurationType
 
 from ooi.timer import Accumulator, Timer
 stats = Accumulator(persist=True)
@@ -115,7 +115,7 @@ CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exp
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dHZ1dTQwdnFxallKNkItNWh2d0hnWkE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdDlHV0xEUGNsbHdhdklzZ1ItU09JT3c&output=xls"
 
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
@@ -226,6 +226,7 @@ class IONLoader(ImmediateProcess):
         self.alerts = {}                # id -> alert definition dict
 
         self.idmapping = {}             # Mapping of current to new preload IDs
+        self._category_info = []        # Keeps track of scanned scenario categories
 
     def on_start(self):
         cfg = self.CFG.get("cfg", None)
@@ -239,8 +240,8 @@ class IONLoader(ImmediateProcess):
                     self._init_preload()
                 docstr = step_cfg.get("docstring", None)
                 if docstr:
-                    log.debug("Explanation: "+ docstr)
-                step_config_override = step_cfg.get("config", {})
+                    log.debug("Step info: "+ docstr)
+                step_config_override = dict(step_cfg.get("config", {}))
                 log.debug("Step config override: %s", step_config_override)
                 # Build config for step based on container CFG
                 step_config = copy.deepcopy(self.CFG)
@@ -335,7 +336,7 @@ class IONLoader(ImmediateProcess):
             try:
                 self.load_ion(scenarios)
             except Exception as ex:
-                log.exception("Reverting because of")
+                log.exception("Exception in preload (revert=%s)", self.revert)
                 #from pyon.util.breakpoint import breakpoint; breakpoint(locals())
                 if self.revert:
                     self._revert_to_snapshot()
@@ -389,6 +390,8 @@ class IONLoader(ImmediateProcess):
                 self._read_xls_file(scenarios)
             else:
                 self._read_csv_files(scenarios)
+
+            log.debug("Category rows: " + ", ".join(["%s: %s/%s" % (inf["category"], inf["use"], inf["total"]) for inf in self._category_info]))
         #else:
         #    self.object_definitions = {}
         #    log.info("No scenarios provided, not loading preload rows")
@@ -448,8 +451,9 @@ class IONLoader(ImmediateProcess):
         row_skip = row_do = 0
         rows = []
         for row in reader:
-            if (category in DEFINITION_CATEGORIES and any(sc not in IGNORE_SCENARIOS for sc in row[COL_SCENARIO].split(","))) \
-                or any(sc in scenarios for sc in row[COL_SCENARIO].split(",")):
+            if row[COL_SCENARIO] in IGNORE_SCENARIOS:
+                continue
+            if category in DEFINITION_CATEGORIES or any(sc in scenarios for sc in row[COL_SCENARIO].split(",")):
                 row_do += 1
                 rows.append(row)
             else:
@@ -458,7 +462,8 @@ class IONLoader(ImmediateProcess):
                     log.trace('skipping %s row %s in scenario %s', category, row[COL_ID], row[COL_SCENARIO])
                 else:
                     log.trace('skipping %s row in scenario %s: %r', category, row[COL_SCENARIO], row)
-        log.debug('parsed entries for category %s: using %d rows, skipping %d rows', category, row_do, row_skip)
+        #log.debug('parsed entries for category %s: using %d rows, skipping %d rows', category, row_do, row_skip)
+        self._category_info.append(dict(category=category, use=row_do, skip=row_skip, total=row_do+row_skip))
         return rows
 
     def _load_system_ids(self):
@@ -495,7 +500,7 @@ class IONLoader(ImmediateProcess):
         res_assocs = self.container.resource_registry.find_associations(predicate="*", id_only=False)
         [self.resource_assocs.setdefault(assoc["p"], []).append(assoc) for assoc in res_assocs]
 
-        log.debug("Found %s previously preloaded associations", len(res_assocs))
+        log.debug("Found %s existing associations", len(res_assocs))
 
         existing_resources = dict(zip(res_preload_ids, res_objs))
 
@@ -2935,6 +2940,7 @@ Reason: %s
         # I. Platform data products (parsed)
         for node_id, node_obj in node_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(node_id)
+            num_dp_generated = 0
 
             if not self._before_cutoff(node_obj):
                 continue
@@ -2951,13 +2957,16 @@ Reason: %s
                 log.debug("Generating DataProducts for %s from platform agent %s streams and SAF", node_id, pa_code)
                 pastream_configs = pagent_res_obj.stream_configurations if pagent_res_obj else pagent_res_obj.stream_configurations
                 for index, scfg in enumerate(pastream_configs):
+                    if scfg.stream_type == StreamConfigurationType.PARSED:
+                        log.warn("Platform %s should not have PARSED stream: %s/%s",
+                                 node_id, scfg.stream_name, scfg.parameter_dictionary_name)
                     dp_id = node_id + "_DPI" + str(index)
                     newrow = {}
                     newrow[COL_ID] = dp_id
                     newrow['dp/name'] = "Platform %s stream '%s' data product" % (node_id, scfg.stream_name)
                     newrow['dp/description'] = "Platform %s data product" % node_id
                     newrow['dp/ooi_product_name'] = ""
-                    newrow['dp/processing_level_code'] = "Parsed"
+                    newrow['dp/processing_level_code'] = ""
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
                     newrow['contact_ids'] = ''
                     newrow['geo_constraint_id'] = const_id1
@@ -2972,6 +2981,7 @@ Reason: %s
 
                     if not self._resource_exists(newrow[COL_ID]):
                         self._load_DataProduct(newrow, do_bulk=self.bulk)
+                        num_dp_generated += 1
 
                         create_dp_link(dp_id, node_id + "_PD", 'PlatformDevice', do_bulk=False)
                         create_dp_link(dp_id, node_id, do_bulk=False)
@@ -2982,7 +2992,7 @@ Reason: %s
                 newrow['dp/name'] = "Parsed - platform " + node_id
                 newrow['dp/description'] = "Platform %s data product" % node_id
                 newrow['dp/ooi_product_name'] = ""
-                newrow['dp/processing_level_code'] = "Parsed"
+                newrow['dp/processing_level_code'] = ""
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
@@ -2993,12 +3003,17 @@ Reason: %s
                 newrow['lcstate'] = "DEPLOYED_AVAILABLE"
                 if not self._resource_exists(newrow[COL_ID]):
                     self._load_DataProduct(newrow, do_bulk=self.bulk)
+                    num_dp_generated += 1
 
                     create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
                     create_dp_link(node_id + "_DPP1", node_id)
 
+            if num_dp_generated:
+                log.debug(" ...generated %s data products", num_dp_generated)
+
         # II. Instrument data products (raw, parsed, engineering, science L0, L1, L2)
         for inst_id, inst_obj in inst_objs.iteritems():
+            num_dp_generated = 0
             ooi_rd = OOIReferenceDesignator(inst_id)
             node_obj = node_objs[ooi_rd.node_rd]
             series_obj = series_objs[ooi_rd.series_rd]
@@ -3006,8 +3021,6 @@ Reason: %s
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
             if not self._match_filter(inst_id[:2]):
-                continue
-            if self._resource_exists(inst_id + "_DPI0"):  # TODO: Correct to pass here?
                 continue
 
             const_id1 = ''
@@ -3032,18 +3045,22 @@ Reason: %s
                     newrow = {}
                     newrow[COL_ID] = dp_id
                     newrow['dp/name'] = "Instrument %s stream '%s' data product" % (inst_id, scfg.stream_name)
-                    if index == 0:
+                    if scfg.stream_type == StreamConfigurationType.RAW:
                         newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Raw"
-                    elif index == 1:
+                    elif scfg.stream_type == StreamConfigurationType.PARSED and not parsed_pdict_id:
                         newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
                         parsed_pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                     else:
+                        if scfg.stream_type == StreamConfigurationType.PARSED:
+                            log.warn("Instrument %s (agent %s) has more than one PARSED stream: %s (first pdict id=%s)",
+                                     inst_id, ia_code or dart_code, scfg.stream_name, parsed_pdict_id)
                         newrow['dp/description'] = "Instrument %s data product: engineering data" % inst_id
                         newrow['dp/ooi_product_name'] = ""
+
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
                     newrow['contact_ids'] = ''
                     newrow['geo_constraint_id'] = const_id1
@@ -3064,10 +3081,12 @@ Reason: %s
                         newrow['stream_def_id'] = ''
                         newrow['parent'] = ''
 
-                    self._load_DataProduct(newrow)
+                    if not self._resource_exists(dp_id):
+                        self._load_DataProduct(newrow)
+                        num_dp_generated += 1
 
-                    create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice', do_bulk=False)
-                    create_dp_link(dp_id, inst_id, do_bulk=False)
+                        create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice', do_bulk=False)
+                        create_dp_link(dp_id, inst_id, do_bulk=False)
 
             elif self.ooipartial:
                 log.debug("Generating DataProducts for %s using SAF and defaults (no streams)", inst_id)
@@ -3075,7 +3094,8 @@ Reason: %s
                 # There is no agent defined. Just create basic raw and parsed data products
                 # (0) Device Data Product - raw
                 newrow = {}
-                newrow[COL_ID] = inst_id + "_DPI0"
+                dp_id = inst_id + "_DPI0"
+                newrow[COL_ID] = dp_id
                 newrow['dp/name'] = "Raw - instrument " + inst_id
                 newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
                 newrow['dp/ooi_product_name'] = ""
@@ -3087,14 +3107,16 @@ Reason: %s
                 newrow['stream_def_id'] = 'StreamDef23'        # Hardcoded to preload row value!!
                 newrow['parent'] = ''
                 newrow['persist_data'] = 'False'
-                self._load_DataProduct(newrow, do_bulk=self.bulk)
+                if not self._resource_exists(dp_id):
+                    self._load_DataProduct(newrow, do_bulk=self.bulk)
 
-                create_dp_link(inst_id + "_DPI0", inst_id + "_ID", 'InstrumentDevice')
-                create_dp_link(inst_id + "_DPI0", inst_id)
+                    create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice')
+                    create_dp_link(dp_id, inst_id)
 
                 # (1) Device Data Product - parsed
                 newrow = {}
-                newrow[COL_ID] = inst_id + "_DPI1"
+                dp_id = inst_id + "_DPI1"
+                newrow[COL_ID] = dp_id
                 newrow['dp/name'] = "Parsed - instrument " + inst_id
                 newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                 newrow['dp/ooi_product_name'] = ""
@@ -3106,27 +3128,62 @@ Reason: %s
                 newrow['stream_def_id'] = ''
                 newrow['parent'] = ''
                 newrow['persist_data'] = 'False'
-                self._load_DataProduct(newrow, do_bulk=self.bulk)
+                if not self._resource_exists(dp_id):
+                    self._load_DataProduct(newrow, do_bulk=self.bulk)
+                    num_dp_generated += 1
 
-                create_dp_link(inst_id + "_DPI1", inst_id + "_ID", 'InstrumentDevice')
-                create_dp_link(inst_id + "_DPI1", inst_id)
+                    create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice')
+                    create_dp_link(dp_id, inst_id)
 
             else:
                 # There is no agent defined. Wait generating DataProducts
                 #log.debug("Not generating DataProducts for %s - no agent/streams defined", inst_id)
                 pass
 
-
+            # (3*) Data Product DPS - Level (per site)
             data_product_list = inst_obj.get('data_product_list', [])
-            for dp_id in data_product_list:
-                dp_obj = data_products[dp_id]
+            for dptype_id in data_product_list:
+                dp_id = inst_id + "_" + dptype_id + "_DPID"
+                if self._resource_exists(dp_id):
+                    continue
+                dp_obj = data_products[dptype_id]
 
-                # (3*) Data Product DPS - Level (per site)
                 newrow = {}
-                newrow[COL_ID] = inst_id + "_" + dp_id + "_DPID"
+                newrow[COL_ID] = dp_id
                 platform_obj = node_objs[node_obj['platform_id']]
-                # TODO: Append instrument (port) depth if series not unique for this platform
-                newrow['dp/name'] = "%s %s %s %s" % (dp_obj['name'], dp_obj['level'], inst_obj['Class'], platform_obj['name'])
+                # Create a unique DataProduct name. It must be unique (a stream is named after it)
+                # Warning: Using the platform name (not node name) is ambiguous!!
+                found_num_onnode = 0   # Number of instruments of same class on same node
+                for iid in inst_objs.keys():
+                    ooi_rd1 = OOIReferenceDesignator(iid)
+                    if ooi_rd.node_rd == ooi_rd1.node_rd and ooi_rd1.inst_class == inst_obj['Class']:
+                        found_num_onnode += 1
+                        if found_num_onnode > 1:
+                            break
+                found_num_onsite = 0   # Number of instruments of same class on same site
+                for iid,iobj in inst_objs.iteritems():
+                    ooi_rd1 = OOIReferenceDesignator(iid)
+                    if found_num_onnode > 1:
+                        if ooi_rd.subsite_rd == ooi_rd1.subsite_rd and ooi_rd1.inst_class == inst_obj['Class'] and \
+                                inst_obj.get("depth_port_min", None) == iobj.get("depth_port_min", None):
+                            found_num_onsite += 1
+                    else:
+                        if ooi_rd.subsite_rd == ooi_rd1.subsite_rd and ooi_rd1.inst_class == inst_obj['Class']:
+                            found_num_onsite += 1
+                    if found_num_onsite > 1:
+                        break
+
+                if found_num_onnode > 1:
+                    # More than 1 instrument of same class on node. Use port depth in name
+                    inst_unique = "%s %sm" % (inst_obj['Class'], inst_obj.get("depth_port_min", None) or ooi_rd.inst_seriesseq)
+                else:
+                    inst_unique = inst_obj['Class']
+                if found_num_onsite > 1:
+                    inst_unique += " (node %s%s)" % (ooi_rd.node_type, ooi_rd.node_seq)
+
+                dp_name = "%s %s %s %s" % (dp_obj['name'], dp_obj['level'], inst_unique, platform_obj['name'])
+
+                newrow['dp/name'] = dp_name
                 newrow['dp/description'] = "Instrument %s core OOI data product" % (inst_id)
                 newrow['dp/ooi_short_name'] = dp_obj['code']
                 newrow['dp/ooi_product_name'] = dp_obj['name']
@@ -3166,26 +3223,30 @@ Reason: %s
                             param_list.append(param)
 
                     av_fields = ",".join(self._get_resource_obj(pid).name for pid in param_list)
-                    strdef_id = self._create_dp_stream_def(inst_id, parsed_pdict_id, dp_id, av_fields)
+                    strdef_id = self._create_dp_stream_def(inst_id, parsed_pdict_id, dptype_id, av_fields)
 
                     newrow['stream_def_id'] = strdef_id
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
                     self._load_DataProduct(newrow)
+                    num_dp_generated += 1
 
-                    create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID", do_bulk=False)
-                    create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id, do_bulk=False)
+                    create_dp_link(dp_id, inst_id + "_ID", do_bulk=False)
+                    create_dp_link(dp_id, inst_id, do_bulk=False)
 
                 elif self.ooipartial:
                     newrow['stream_def_id'] = ''
 
                     self._load_DataProduct(newrow, do_bulk=self.bulk)
 
-                    create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID")
-                    create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id)
+                    create_dp_link(dp_id, inst_id + "_ID")
+                    create_dp_link(dp_id, inst_id)
 
                 else:
-                    pass # Ignore this derived data product in case we don't have stream info
+                    pass  # Ignore this derived data product in case we don't have stream info
+
+            if num_dp_generated:
+                log.debug(" ...generated %s data products", num_dp_generated)
 
     def _load_DataProductLink(self, row, do_bulk=False):
         self.row_count += 1
@@ -3255,8 +3316,6 @@ Reason: %s
         self._register_id(row[COL_ID], att_id, att_obj)
 
     def _load_WorkflowDefinition(self, row):
-        log.info("Loading WorkflowDefinition")
-
         # Create the workflow steps
         steps_string = row["steps"]
         workflow_step_ids = []
