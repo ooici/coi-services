@@ -24,7 +24,7 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from interface.objects import ProcessStateEnum, StreamConfiguration
 
 
-from pyon.public import RT, PRED, CFG
+from pyon.public import RT, OT, PRED, CFG
 from nose.plugins.attrib import attr
 from ooi.logging import log
 import unittest
@@ -342,6 +342,7 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             self.assertIn('stream_config', config)
             self.assertIn('driver_config', config)
             self.assertIn('foo', config['driver_config'])
+            self.assertIn('ports', config['driver_config'])
             self.assertEqual('bar', config['driver_config']['foo'])
             self.assertIn('process_type', config['driver_config'])
             self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
@@ -356,6 +357,10 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
                 self.assertIn(inst_device_id, config['children'])
                 verify_instrument_config(config['children'][inst_device_id], inst_device_id)
 
+            if config['driver_config']['ports']:
+                self.assertTrue( isinstance(config['driver_config']['ports'], dict) )
+
+
 
         def verify_parent_config(config, parent_device_id, child_device_id, inst_device_id=None):
             for key in required_config_keys:
@@ -363,6 +368,7 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertIn('process_type', config['driver_config'])
+            self.assertIn('ports', config['driver_config'])
             self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
             self.assertEqual({'resource_id': parent_device_id}, config['agent'])
             self.assertIn('aparam_alerts_config', config)
@@ -370,6 +376,9 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             self.assertIn('stream_config', config)
             for key in ['startup_config']:
                 self.assertEqual({}, config[key])
+
+            if config['driver_config']['ports']:
+                self.assertTrue( isinstance(config['driver_config']['ports'], dict) )
 
             self.assertIn(child_device_id, config['children'])
             verify_child_config(config['children'][child_device_id], child_device_id, inst_device_id)
@@ -407,6 +416,22 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
             self.addCleanup(self.DP.suspend_data_product_persistence, dp_id)
+
+
+            #deployment creation
+            site_obj = IonObject(RT.PlatformSite, name='sitePlatform')
+            site_id = self.OMS.create_platform_site(platform_site=site_obj)
+
+            platform_port_obj= IonObject(OT.PlatformPort,   reference_designator = 'Site1-platformid-03-devid',
+                                                            port_type=2,
+                                                            ip_address=0)
+
+            deployment_obj = IonObject(RT.Deployment,
+                                        name='TestDeployment',
+                                        description='some new deployment',
+                                        port_assignments={platform_device_id:platform_port_obj})
+
+            deploy_id = self.OMS.create_deployment(deployment=deployment_obj, site_id=site_id, device_id=platform_device_id)
 
             # assignments
             self.RR2.assign_platform_agent_instance_to_platform_device_with_has_agent_instance(platform_agent_instance_id, platform_device_id)
