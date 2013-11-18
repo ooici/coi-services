@@ -20,7 +20,7 @@ class OOIReferenceDesignator(object):
         # Type asset
         # Example: CE01ISSM-MF004-01-DOSTAD999
         self.marine_io = None
-        self.array, self.site, self.subsite, self.node_type, self.node_seq, self.port, self.inst_class, self.inst_series, self.inst_seq = None, None, None, None, None, None, None, None, None
+        self.array, self.site, self.subsite, self.node_type, self.node_seq, self.port, self.inst_class, self.inst_series, self.inst_seq, self.inst_seriesseq = None, None, None, None, None, None, None, None, None, None
         self.site_rd, self.subsite_rd, self.node_rd, self.port_rd, self.inst_rd, self.series_rd, self.subseries_rd = None, None, None, None, None, None, None
         # Type dataproduct
         self.dataproduct = None
@@ -49,6 +49,7 @@ class OOIReferenceDesignator(object):
                     self.series_rd = self.inst_class + self.inst_series
                     self.subseries_rd = self.inst_class + self.inst_series + "01"  # !!! Underspecified !!!
                     self.rd_subtype = "instrument"
+                    self.inst_seriesseq = rdstr[18:]
                 if self.port:
                     self.port_rd = rdstr[:17]
                     self.rd_subtype = self.rd_subtype or "port"
