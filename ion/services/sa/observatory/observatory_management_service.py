@@ -382,13 +382,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if site_id:
             site_obj = self.RR2.read(site_id)
             if site_obj:
-                self.RR2.assign_deployment_to_site_with_has_deployment(deployment_id, site_id)
+                self.assign_site_to_deployment(site_id=site_id, deployment_id=deployment_id)
 
         if device_id:
 
             device_obj = self.RR2.read(device_id)
             if device_obj:
-                self.RR2.assign_deployment_to_device_with_has_deployment(deployment_id, device_id)
+                self.assign_device_to_deployment(device_id=device_id, deployment_id=deployment_id)
 
         return deployment_id
 
