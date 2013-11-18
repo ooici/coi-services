@@ -15,15 +15,15 @@ from ooi.logging import log
 
 from pyon.core import bootstrap
 from pyon.core.exception import NotFound, BadRequest
+from pyon.core.object import IonObjectSerializer
 from pyon.ion.resource import PRED, RT, OT
 from pyon.util.containers import get_ion_ts, dict_merge
 
 from ion.agents.instrument.driver_process import DriverProcessType
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
-
 from ion.core.ooiref import OOIReferenceDesignator
-from pyon.core.object import IonObjectSerializer
+
 
 class AgentConfigurationBuilderFactory(object):
 
@@ -504,18 +504,30 @@ class AgentConfigurationBuilder(object):
         ret = {}
 
         log.debug("retrieve the associated device")
-        device_obj = self.RR2.find_subject(subject_type=lu[PRED.hasAgentInstance],
-                                           predicate=PRED.hasAgentInstance,
-                                           object=self.agent_instance_obj._id)
+        res_types = lu[PRED.hasAgentInstance]
+        if not hasattr(res_types, "__iter__"):
+            res_types = [res_types]
 
-        ret[lu[PRED.hasAgentInstance]]= device_obj
+        device_obj = None
+        for res_type in res_types:
+            try:
+                device_obj = self.RR2.find_subject(subject_type=res_type,
+                                                   predicate=PRED.hasAgentInstance,
+                                                   object=self.agent_instance_obj._id)
+                break
+            except NotFound:
+                pass
+        if not device_obj:
+            raise NotFound("Could not find a Device for AgentInstance %s" % self.agent_instance_obj._id)
+
+        ret[lu[PRED.hasAgentInstance]] = device_obj   # Note: can be a tuple key
         device_id = device_obj._id
 
         log.debug("%s '%s' connected to %s '%s' (L4-CI-SA-RQ-363)",
                   lu[PRED.hasAgentInstance],
                   str(device_id),
-                  type(self.agent_instance_obj).__name__,
-                  str(self.agent_instance_obj._id))
+                  self.agent_instance_obj.type_,
+                  self.agent_instance_obj._id)
 
 #        log.debug("retrieve the model associated with the device")
 #        model_obj = self.RR2.find_object(subject=device_id,
@@ -603,8 +615,8 @@ class ExternalDatasetAgentConfigurationBuilder(AgentConfigurationBuilder):
 
     def _lookup_means(self):
         agent_lookup_means = {}
-        agent_lookup_means[PRED.hasAgentInstance]   = RT.InstrumentDevice
-        agent_lookup_means[PRED.hasModel]           = RT.InstrumentModel
+        agent_lookup_means[PRED.hasAgentInstance]   = (RT.InstrumentDevice, RT.PlatformDevice)
+        agent_lookup_means[PRED.hasModel]           = (RT.InstrumentModel, RT.PlatformModel)
         agent_lookup_means[PRED.hasAgentDefinition] = RT.ExternalDatasetAgent
 
         return agent_lookup_means
