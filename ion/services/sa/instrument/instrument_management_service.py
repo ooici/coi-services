@@ -347,10 +347,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
         Agent instance must first be created and associated with a instrument device
-        Launch the instument agent instance and return the id
+        Launch the instrument agent instance and return the id
         """
-
-        instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
+        instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
+        if instrument_agent_instance_obj.type_ == RT.ExternalDatasetAgentInstance:
+            log.info("IMS.start_instrument_agent_instance() is=%s is ExternalDatasetAgentInstance - forwarding to DAMS", instrument_agent_instance_id)
+            return self.DAMS.start_external_dataset_agent_instance(instrument_agent_instance_id)
+        elif instrument_agent_instance_obj.type_ != RT.InstrumentAgentInstance:
+            raise BadRequest("Expected a InstrumentAgentInstance for the resource %s, but received type %s" %
+                            (instrument_agent_instance_id, instrument_agent_instance_obj.type_))
 
         # launch the port agent before verifying anything.
         # if agent instance doesn't validate, port agent won't care and will be available for when it does validate
@@ -512,15 +517,24 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         Deactivate the instrument agent instance
         """
+        instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
+        if instrument_agent_instance_obj.type_ == RT.ExternalDatasetAgentInstance:
+            log.info("IMS.stop_instrument_agent_instance() id=%s is ExternalDatasetAgentInstance - forwarding to DAMS", instrument_agent_instance_id)
+            return self.DAMS.stop_external_dataset_agent_instance(instrument_agent_instance_id)
+        elif instrument_agent_instance_obj.type_ != RT.InstrumentAgentInstance:
+            raise BadRequest("Expected a InstrumentAgentInstance for the resource %s, but received type %s" %
+                            (instrument_agent_instance_id, instrument_agent_instance_obj.type_))
+
         try:
-            instance_obj, device_id = self.stop_agent_instance(instrument_agent_instance_id, RT.InstrumentDevice)
+            instance_obj, device_id = self._stop_agent_instance(instrument_agent_instance_id,
+                                                                RT.InstrumentDevice, instrument_agent_instance_obj)
 
         except BadRequest as e:
             #
             # stopping the instrument agent instance failed, but try at least
             # to stop the port agent:
             #
-            log.error("Exception in stop_agent_instance: %s", e)
+            log.error("Exception in _stop_agent_instance: %s", e)
             log.debug("Trying to stop the port agent anyway ...")
             instance_obj = self.RR2.read(instrument_agent_instance_id)
             self._stop_port_agent(instance_obj.port_agent_config)
@@ -537,11 +551,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             self.RR2.update(producer_obj)
 
 
-    def stop_agent_instance(self, agent_instance_id, device_type):
+    def _stop_agent_instance(self, agent_instance_id, device_type, agent_instance_obj=None):
         """
         Deactivate an agent instance, return device ID
         """
-        agent_instance_obj = self.RR2.read(agent_instance_id)
+        if agent_instance_obj is None:
+            agent_instance_obj = self.RR2.read(agent_instance_id)
 
         device_id = self.RR2.find_subject(subject_type=device_type,
                                           predicate=PRED.hasAgentInstance,
@@ -949,10 +964,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         Agent instance must first be created and associated with a platform device
         Launch the platform agent instance and return the id
         """
+        platform_agent_instance_obj = self.RR2.read(platform_agent_instance_id)
+        if platform_agent_instance_obj.type_ == RT.ExternalDatasetAgentInstance:
+            log.info("IMS.start_platform_agent_instance() id=%s with ExternalDatasetAgentInstance - forwarding to DAMS", platform_agent_instance_id)
+            return self.DAMS.start_external_dataset_agent_instance(platform_agent_instance_id)
+        elif platform_agent_instance_obj.type_ != RT.PlatformAgentInstance:
+            raise BadRequest("Expected a InstrumentAgentInstance for the resource %s, but received type %s" %
+                            (platform_agent_instance_id, platform_agent_instance_obj.type_))
+
         configuration_builder = PlatformAgentConfigurationBuilder(self.clients)
         launcher = AgentLauncher(self.clients.process_dispatcher)
 
-        platform_agent_instance_obj = self.read_platform_agent_instance(platform_agent_instance_id)
 
         configuration_builder.set_agent_instance_object(platform_agent_instance_obj)
         config = configuration_builder.prepare()
@@ -977,7 +999,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         Deactivate the platform agent instance
         """
-        self.stop_agent_instance(platform_agent_instance_id, RT.PlatformDevice)
+        platform_agent_instance_obj = self.RR2.read(platform_agent_instance_id)
+        if platform_agent_instance_obj.type_ == RT.ExternalDatasetAgentInstance:
+            log.info("IMS.stop_platform_agent_instance() id=%s is ExternalDatasetAgentInstance - forwarding to DAMS", platform_agent_instance_id)
+            return self.DAMS.stop_external_dataset_agent_instance(platform_agent_instance_id)
+        elif platform_agent_instance_obj.type_ != RT.PlatformAgentInstance:
+            raise BadRequest("Expected a InstrumentAgentInstance for the resource %s, but received type %s" %
+                            (platform_agent_instance_id, platform_agent_instance_obj.type_))
+
+        self._stop_agent_instance(platform_agent_instance_id, RT.PlatformDevice, platform_agent_instance_obj)
 
 
 
