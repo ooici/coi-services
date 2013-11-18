@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from ooi import logging
 
 __author__ = 'Maurice Manning, Ian Katz, Michael Meisinger'
 
@@ -375,6 +376,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         try:
             config_builder.set_agent_instance_object(instrument_agent_instance_obj)
             config = config_builder.prepare()
+            
+            if log.isEnabledFor(logging.TRACE):
+                log.trace("start_instrument_agent_instance for instance '%s' (%s) got config: %s",
+                          instrument_agent_instance_obj.name,
+                          instrument_agent_instance_obj._id,
+                          config)
         except:
             self._stop_port_agent(instrument_agent_instance_obj.port_agent_config)
             log.error('failed to launch', exc_info=True)

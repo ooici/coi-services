@@ -396,9 +396,15 @@ class AgentConfigurationBuilder(object):
             agent_config['driver_config']['process_type'] = (DriverProcessType.PYTHON_MODULE,)
 
 
-        if log.isEnabledFor(logging.INFO):
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("AgentConfigBuilder for device '%s' (%s) returning config: %s",
+                      self._get_device().name,
+                      self._get_device()._id,
+                      agent_config)
+        elif log.isEnabledFor(logging.INFO):
             tree = self._summarize_children(agent_config)
             log.info("Children of %s are %s", self.agent_instance_obj.name, tree)
+
 
         self.generated_config = True
 
