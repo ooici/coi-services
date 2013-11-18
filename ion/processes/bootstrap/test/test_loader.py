@@ -69,6 +69,7 @@ class TestLoaderAlgo(PyonTestCase):
         self.assertEqual('temp', out['value_id'])
         self.assertEqual(3, len(out))
 
+TEST_PATH = TESTED_DOC
 
 class TestLoader(IonIntegrationTestCase):
 
@@ -136,8 +137,8 @@ class TestLoader(IonIntegrationTestCase):
     @attr('PRELOAD')
     def test_betademo_valid(self):
         """ make sure can load asset DB """
-        self._preload_scenario("BETA,R2_DEMO,RSN_OMS", path="master")
-        self._preload_ooi(path="master")
+        self._preload_scenario("BETA,R2_DEMO,RSN_OMS", path=TEST_PATH)
+        self._preload_ooi(path=TEST_PATH)
 
         # check that deployment port assignments subobject  created correctly
 
@@ -167,7 +168,7 @@ class TestLoader(IonIntegrationTestCase):
             is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self._preload_cfg("res/preload/r2_ioc/config/ooi_alpha.yml", path="master")
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_alpha.yml", path=TEST_PATH)
 
     @attr('PRELOAD')
     def test_beta_valid(self):
@@ -175,7 +176,7 @@ class TestLoader(IonIntegrationTestCase):
             is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self._preload_cfg("res/preload/r2_ioc/config/ooi_beta.yml", path="master")
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_beta.yml", path=TEST_PATH)
 
     @attr('PRELOAD')
     def test_incremental(self):
@@ -183,13 +184,13 @@ class TestLoader(IonIntegrationTestCase):
             is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self._preload_cfg("res/preload/r2_ioc/config/ooi_load_config.yml", path="master")
-        self._preload_scenario("OOIR2_DEMO", path="master", idmap=True)
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_load_config.yml", path=TEST_PATH)
+        self._preload_scenario("OOIR2_DEMO", path=TEST_PATH, idmap=True)
 
         dp_list1,_ = self.rr.find_resources(restype=RT.DataProduct, id_only=True)
         ia_list1,_ = self.rr.find_resources(restype=RT.InstrumentAgent, id_only=True)
 
-        self._preload_cfg("res/preload/r2_ioc/config/ooi_instruments.yml", path="master")
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_instruments.yml", path=TEST_PATH)
 
         ia_list2,_ = self.rr.find_resources(restype=RT.InstrumentAgent, id_only=True)
         self.assertGreater(len(ia_list2), len(ia_list1))
@@ -197,14 +198,14 @@ class TestLoader(IonIntegrationTestCase):
         self.assertGreater(len(dp_list2), len(dp_list1))
         id_list2,_ = self.rr.find_resources(restype=RT.InstrumentDevice, id_only=True)
 
-        self._preload_ooi(path="master")
+        self._preload_ooi(path=TEST_PATH)
 
         dp_list3,_ = self.rr.find_resources(restype=RT.DataProduct, id_only=True)
         self.assertGreater(len(dp_list3), len(dp_list2))
         id_list3,_ = self.rr.find_resources(restype=RT.InstrumentDevice, id_only=True)
         self.assertEquals(len(id_list3), len(id_list2))
 
-        self._preload_ooi(path="master")
+        self._preload_ooi(path=TEST_PATH)
 
         dp_list4,_ = self.rr.find_resources(restype=RT.DataProduct, id_only=True)
         self.assertEquals(len(dp_list4), len(dp_list3))
