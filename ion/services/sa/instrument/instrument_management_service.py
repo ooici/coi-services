@@ -2175,6 +2175,26 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         resource_data.associations['PlatformAgentInstance'].group = {'group_by': 'PlatformModel',
                                                                      'resources': {papmassoc.o:pa_to_pai[papmassoc.s] for papmassoc in pa_to_pm}}
 
+        # prepare grouping for EDAI
+        eda_to_pm   = [a for a in self.RR2.find_associations(predicate='hasModel') if a.st=='ExternalDatasetAgent']
+        edai_to_eda  = self.RR2.find_associations(predicate='hasAgentDefinition')
+        all_edai, _ = self.RR2.find_resources('ExternalDatasetAgentInstance', id_only=True)
+
+        # discussions indicate we want to only show unassociated PAIs or PAIs associated with this PD
+        # this is a list of all PAIs resids currently associated to an PD, not including this current PD we're preparing for
+        cur_pd_to_edai_without_this = [a.o for a in self.RR2.find_associations(predicate='hasAgentInstance') if a.st=='PlatformDevice' and a.s != platform_device_id]
+        allowed_list = list(set(all_edai).difference(set(cur_pd_to_edai_without_this)))
+        def allowed(edai):
+            return edai in allowed_list
+
+        eda_to_edai = defaultdict(list)
+        for a in edai_to_eda:
+            if allowed(a.s):
+                eda_to_edai[a.o].append(a.s)
+
+        resource_data.associations['ExternalDatasetAgentInstance'].group = {'group_by': 'PlatformModel',
+                                                                     'resources': {edapmassoc.o:eda_to_edai[edapmassoc.s] for edapmassoc in eda_to_pm}}
+
         return resource_data
 
     def prepare_instrument_agent_support(self, instrument_agent_id=''):
