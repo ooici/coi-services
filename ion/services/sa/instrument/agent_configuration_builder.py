@@ -7,6 +7,8 @@ __author__ = 'Ian Katz, Michael Meisinger'
 
 import copy
 import tempfile
+import calendar
+import time
 
 from ooi import logging
 from ooi.logging import log
@@ -425,11 +427,27 @@ class AgentConfigurationBuilder(object):
         dev_id = self._get_device()._id
         deployment_objs = self.RR2.find_objects(dev_id, PRED.hasDeployment, RT.Deployment)
 
-        if len(deployment_objs) == 0:
-            return None
-        if len(deployment_objs) > 1:
-            raise BadRequest("Associated device has multiple deployments %s " % str(deployment_objs) )
-        return deployment_objs[0]
+        # find current deployment using time constraints
+        current_time =  int( calendar.timegm(time.gmtime()) )
+
+        for d in deployment_objs:
+            # find deployment start and end time
+            time_constraint = None
+            for constraint in d.constraint_list:
+                if constraint.type_ == OT.TemporalBounds:
+                    if time_constraint:
+                        log.warn('deployment %s has more than one time constraint (using first)', d.name)
+                    else:
+                        time_constraint = constraint
+            if time_constraint:
+                # a time constraint was provided, check if the current time is in this window
+                if int(time_constraint.start_datetime) < current_time < int(time_constraint.end_datetime) :
+                    log.debug('_collect_deployment found current deployment start time: %s, end time: %s   current time:  %s    deployment: %s ',
+                              time_constraint.start_datetime, time_constraint.end_datetime, current_time, d)
+
+                    return d
+
+        return None
 
     def _validate_reference_designator(self, port_assignments):
         #validate that each reference designator is valid / parseable

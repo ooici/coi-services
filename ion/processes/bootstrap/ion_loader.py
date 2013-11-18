@@ -94,7 +94,7 @@ from coverage_model.parameter import ParameterContext
 from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
 
 from interface import objects
-from interface.objects import StreamAlertType
+from interface.objects import StreamAlertType, PortTypeEnum
 
 from ooi.timer import Accumulator, Timer
 stats = Accumulator(persist=True)
@@ -3314,9 +3314,9 @@ Reason: %s
 
             for dev_id, port_asgn_info in port_assigments.iteritems():
                 platform_port = IonObject(OT.PlatformPort,
-                                         reference_designator=port_asgn_info['reference_designator'],
-                                         port_type=port_asgn_info['port_type'],
-                                         ip_address=port_asgn_info['ip_address'])
+                                         reference_designator=port_asgn_info.get("reference_designator", ""),
+                                         port_type=port_asgn_info.get("port_type", PortTypeEnum.NONE),
+                                         ip_address=port_asgn_info.get("ip_address", "") )
                 device_resrc_id = self.resource_ids[dev_id]
                 assignments[device_resrc_id] = platform_port
 
