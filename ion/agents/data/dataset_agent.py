@@ -36,6 +36,7 @@ from pyon.util.containers import get_safe
 from pyon.ion.stream import StandaloneStreamPublisher
 
 from ion.agents.instrument.exceptions import InstrumentStateException
+from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.instrument_agent import InstrumentAgent
 from ion.core.includes.mi import DriverEvent
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -46,6 +47,17 @@ from coverage_model import ParameterDictionary
 EGG_CACHE_DIR='/tmp/eggs%d' % os.getpid()
 EGG_CACHE=EggCache(EGG_CACHE_DIR)
 DSA_STATE_KEY = 'dsa_state'
+
+class DataSetAgentCapability(BaseEnum):
+    INITIALIZE = ResourceAgentEvent.INITIALIZE
+    RESET = ResourceAgentEvent.RESET
+    GO_ACTIVE = ResourceAgentEvent.GO_ACTIVE
+    GO_INACTIVE = ResourceAgentEvent.GO_INACTIVE
+    RUN = ResourceAgentEvent.RUN
+    CLEAR = ResourceAgentEvent.CLEAR
+    PAUSE = ResourceAgentEvent.PAUSE
+    RESUME = ResourceAgentEvent.RESUME
+    GO_COMMAND = ResourceAgentEvent.GO_COMMAND
 
 class DataSetAgent(InstrumentAgent):
     """
@@ -343,6 +355,9 @@ class DataSetAgent(InstrumentAgent):
 
         super(DataSetAgent, self)._async_driver_event_sample(val, ts)
 
+    def _filter_capabilities(self, events):
+        events_out = [x for x in events if DataSetAgentCapability.has(x)]
+        return events_out
 
 class FactorialRetryCalculator(object):
     """
