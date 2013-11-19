@@ -1,0 +1,7 @@
+* Sea-Bird SBE52 MP Data File *
+
+*** Starting profile number 3 ***
+07/26/2013 21:01:03
+GPS1:
+GPS2:
+ 10.5914,  4.1870,  161.06,   2693.0

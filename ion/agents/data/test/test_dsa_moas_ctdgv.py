@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.data.test.test_hypm_ctd_0_0_1
-@file ion/agents/data/test_hypm_ctd_0_0_1.py
+@package ion.agents.data.test.test_moas_ctdgv
+@file ion/agents/data/test_moas_ctdgv
 @author Bill French
-@brief End to end testing for hypm ctd version 0.0.1
+@brief End to end testing for moas ctdgv
 """
 
 __author__ = 'Bill French'
@@ -31,9 +31,9 @@ class HypmCTDTest(DatasetAgentTestCase):
     """
     def setUp(self):
         self.test_config.initialize(
-            instrument_device_name = 'CTDPF',
-            preload_scenario= 'CTDPF',
-            stream_name= 'ctdpf_parsed',
+            instrument_device_name = 'CTDGV',
+            preload_scenario= 'GLIDER,CTDGV',
+            stream_name= 'ggldr_ctdgv_delayed',
 
             # Uncomment this line to load driver from a locak repository
             #mi_repo = '/Users/wfrench/Workspace/code/wfrench/marine-integrations'
@@ -46,26 +46,31 @@ class HypmCTDTest(DatasetAgentTestCase):
         Verify file import and connection ids
         """
         self.assert_initialize()
-        self.assert_set_pubrate(0)
 
-        self.create_sample_data("hypm_ctdpf/test_data_1.txt", "DATA0003.txt")
-        self.create_sample_data("hypm_ctdpf/test_data_4.txt", "DATA0004.txt")
+        self.create_sample_data("moas_ctdgv/file_1.mrg", "unit_363_2013_245_6_6.mrg")
+        self.create_sample_data("moas_ctdgv/file_2.mrg", "unit_363_2013_245_10_6.mrg")
 
-        granules = self.get_samples(self.test_config.stream_name, 9)
-        self.assert_data_values(granules, 'hypm_ctdpf/merged_result.yml')
+        granules = self.get_samples(self.test_config.stream_name, 4)
+        self.assert_data_values(granules, 'moas_ctdgv/merged.result.yml')
+
+
 
     def test_large_file(self):
         """
         Verify a large file import with no buffering
         """
         self.assert_initialize()
-        self.assert_set_pubrate(5)
 
-        self.create_sample_data("hypm_ctdpf/DAT0003.txt", "DAT004.txt")
-        self.get_samples(self.test_config.stream_name, sample_count=436, timeout=120)
+        self.create_sample_data("moas_ctdgv/unit_363_2013_199_0_0.mrg", "unit_363_2013_199_0_0.mrg")
+        gevent.sleep(10)
         self.assert_sample_queue_size(self.test_config.stream_name, 0)
 
-        self.assert_reset()
+        self.create_sample_data("moas_ctdgv/unit_363_2013_199_1_0.mrg", "unit_363_2013_199_1_0.mrg")
+        gevent.sleep(10)
+        self.assert_sample_queue_size(self.test_config.stream_name, 0)
 
-    def test_capabilities(self):
-        self.assert_agent_capabilities()
+        self.create_sample_data("moas_ctdgv/unit_363_2013_245_6_6.mrg", "unit_363_2013_245_6_6.mrg")
+        self.get_samples(self.test_config.stream_name, 171, 180)
+        self.assert_sample_queue_size(self.test_config.stream_name, 1)
+
+
