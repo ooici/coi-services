@@ -17,9 +17,11 @@ from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
+from pyon.util.file_sys import FileSystem
 from pyon.public import IonObject, RT, CFG
 from pyon.util.containers import DotDict
 from pydap.client import open_url
+import os
 import unittest
 import numpy as np
 import time
@@ -43,19 +45,23 @@ class TestDMExtended(DMTestCase):
 
 
         rdt = self.ph.get_rdt(stream_def_id)
-        rdt['time'] = np.arange(20)
-        rdt['temp'] = np.arange(20)
+        t = np.arange(3600)
+        np.random.shuffle(t)
+        rdt['time'] = t
+        rdt['temp'] = np.arange(3600)
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id,rdt)
         dataset_monitor.event.wait(10)
 
-        from pydap.client import open_url
+        #from pydap.client import open_url
         pydap_host = CFG.get_safe('server.pydap.host','localhost')
         pydap_port = CFG.get_safe('server.pydap.port',8001)
         url = 'http://%s:%s/%s' %(pydap_host, pydap_port, dataset_id)
         ds = open_url(url)
-        ds['temp']['temp'][:]
+
+        breakpoint(locals(), globals())
+        #ds['temp']['temp'][:]
 
     def make_array_data_product(self):
         pdict_id = self.ph.crete_simple_array_pdict()
@@ -196,26 +202,14 @@ class TestDMExtended(DMTestCase):
         '''
         Copies the datasets.xml to /tmp
         '''
-        import os
-        datasets_xml_path =CFG.get_safe('server.pydap.datasets_xml_path', "RESOURCE:ext/datasets.xml")
-        os.copy(datasets_xml_path, '/tmp/')
+        from shutil import copyfile
+        datasets_xml_path = CFG.get_safe('server.pydap.datasets_xml_path', "RESOURCE:ext/datasets.xml")
+        filename = datasets_xml_path.split('/')[-1]
+        base = '/'.join(datasets_xml_path.split('/')[:-1])
+        real_path = FileSystem.get_extended_url(base)
+        real_path = os.path.join(real_path,filename)
+        copyfile(real_path, '/tmp/datasets.xml')
 
-    def launch_ui_facepage(self, data_product_id):
-        '''
-        Opens the UI face page on localhost for a particular data product
-        '''
-        from subprocess import call
-        call(['open', 'http://localhost:3000/DataProduct/face/%s/' % data_product_id])
-
-    def strap_erddap(self):
-        '''
-        Copies the datasets.xml to /tmp
-        '''
-        import os
-        datasets_xml_path =CFG.get_safe('server.pydap.datasets_xml_path', "RESOURCE:ext/datasets.xml")
-        os.copy(datasets_xml_path, '/tmp/')
-
-    
     def create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
         workflow_def_ids,_ = self.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
@@ -826,7 +820,7 @@ class TestDMExtended(DMTestCase):
         data_product_id = self.make_ctd_data_product()
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
 
-        cov = DatasetManagementService._get_simplex_coverage(dataset_id)
+        cov = DatasetManagementService._get_simplex_coverage(dataset_id, mode='w')
         cov.insert_timesteps(22000)
         value_array = np.arange(22000)
         cov.set_parameter_values('time', value_array)
@@ -836,6 +830,7 @@ class TestDMExtended(DMTestCase):
 
 
         #self.data_retriever.retrieve(dataset_id)
+        self.strap_erddap()
         breakpoint(locals(), globals())
 
 
