@@ -41,7 +41,9 @@ STD_INDEXES  = {
     '%s_devices_index' % get_sys_name().lower()         : [RT.SensorDevice, RT.PlatformDevice, RT.InstrumentDevice],
     '%s_models_index' % get_sys_name().lower()          : [RT.SensorModel, RT.PlatformModel, RT.InstrumentModel, RT.ExternalDatasetModel, 
                                                             RT.DataSourceModel],
-    '%s_data_products_index' % get_sys_name().lower()   : [RT.DataProduct],
+    '%s_data_products_index' % get_sys_name().lower()   : [RT.DataProduct,RT.DataProcess,RT.Deployment,RT.InstrumentDevice,RT.InstrumentModel,RT.InstrumentAgentInstance,
+                                                           RT.InstrumentAgent,RT.PlatformDevice,RT.PlatformModel,RT.PlatformAgentInstance,RT.PlatformAgent,RT.PlatformSite,
+                                                           RT.Observatory,RT.UserRole,RT.Org,RT.Attachment,RT.ExternalDatasetAgent,RT.ExternalDatasetAgentInstance],
     '%s_searches_and_catalogs' % get_sys_name().lower() : [RT.Index, RT.Catalog],
     '%s_users_index' % get_sys_name().lower()           : [RT.UserInfo]
 }
