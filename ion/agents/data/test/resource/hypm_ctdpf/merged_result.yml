@@ -1,0 +1,73 @@
+# Result data after parsing test_data_1.txt and test_data_4.txt
+
+# Seeing some odd rounding issues when the preload parameter is a float32
+
+header:
+  stream_name: ctdpf_parsed
+
+data:
+  - _index: 1
+    _new_sequence: True
+    internal_timestamp: '2013-07-26T21:01:03'
+    #temperature: 4.1870
+    #conductivity: 10.5914
+    #pressure: 161.06
+    #oxygen: 2693.0
+  - _index: 2
+    _new_sequence: False
+    internal_timestamp: '2013-07-26T21:01:03'
+    #conductivity: 20.5914
+    #temperature: 4.1870
+    #pressure: 161.06
+    #oxygen:  2693.0
+
+  - _index: 3
+    internal_timestamp: '2013-07-26T21:01:04'
+    #conductivity: 21.5912
+    #temperature: 4.1875
+    #pressure: 161.06
+    #oxygen:  2709.0
+
+  - _index: 4
+    internal_timestamp: '2013-07-26T21:01:05'
+    #conductivity: 22.5912
+    #temperature: 4.1870
+    #pressure: 161.08
+    #oxygen:  2716.1
+
+  - _index: 5
+    internal_timestamp: '2013-07-26T21:01:06'
+    #conductivity: 23.5913
+    #temperature: 4.1872
+    #pressure: 161.09
+    oxygen:  2723.5
+
+  - _index: 6
+    _new_sequence: False
+    internal_timestamp: '2013-07-26T21:01:07'
+    conductivity: 24.5912
+    #temperature: 4.1869
+    #pressure: 161.10
+    oxygen:  2727.3
+
+  - _index: 7
+    internal_timestamp: '2013-07-26T21:01:08'
+    conductivity: 25.5912
+    #temperature: 4.1867
+    #pressure: 161.10
+    oxygen:  2731.8
+
+  - _index: 8
+    internal_timestamp: '2013-07-26T21:01:09'
+    conductivity: 26.5914
+    #temperature: 4.1870
+    #pressure: 161.09
+    oxygen:  2733.4
+
+  - _index: 9
+    internal_timestamp: '2013-07-26T21:01:10'
+    conductivity: 27.5913
+    #temperature: 4.1866
+    #pressure: 161.08
+    oxygen:  2738.1
+

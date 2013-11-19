@@ -1,0 +1,36 @@
+header:
+  stream_name: ctdpf_parsed
+
+data:
+    - _index: 1
+      _new_sequence: True
+      internal_timestamp: '2013-07-26T21:01:03.0'
+      temperature: 4.1870
+      conductivity: 10.5914
+      pressure: 161.06
+      oxygen: 2693.0
+    - _index: 2
+      internal_timestamp: '2013-07-26T21:01:04.0Z'
+      temperature: 4.1871
+      conductivity: 10.5915
+      pressure: 161.07
+      oxygen: 2693.1
+    - _index: 3
+      internal_timestamp: '2013-07-26T21:01:05.0Z'
+      temperature: 4.1872
+      conductivity: 10.5916
+      pressure: 161.08
+      oxygen: 2693.2
+    - _index: 4
+      _new_sequence: True
+      internal_timestamp: '2013-07-26T21:01:06.0Z'
+      temperature: 4.1873
+      conductivity: 10.5917
+      pressure: 161.09
+      oxygen: 2693.3
+    - _index: 5
+      internal_timestamp: '2013-07-26T21:01:07.0Z'
+      temperature: 4.1874
+      conductivity: 10.5918
+      pressure: 161.10
+      oxygen: 2693.4

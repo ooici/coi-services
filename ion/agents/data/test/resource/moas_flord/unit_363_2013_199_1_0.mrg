@@ -1,0 +1,30 @@
+dbd_label: DBD_ASC(dinkum_binary_data_ascii)file
+encoding_ver: 2
+num_ascii_tags: 14
+all_sensors: 0
+filename: unit_363-2013-199-1-0
+the8x3_filename: 00370000
+filename_extension: sbd
+filename_label: unit_363-2013-199-1-0-sbd(00370000)
+mission_name: initial.mi
+fileopen_time: Fri_Jul_19_20:41:10_2013
+sensors_per_cycle: 28
+num_label_lines: 3
+num_segments: 1
+segment_filename_0: unit_363-2013-199-1-0
+c_battpos c_wpt_lat c_wpt_lon m_battpos m_coulomb_amphr_total m_coulomb_current m_depth m_de_oil_vol m_gps_lat m_gps_lon m_lat m_lon m_pitch m_present_secs_into_mission m_present_time m_speed m_water_vx m_water_vy x_low_power_status sci_flbb_bb_units sci_flbb_chlor_units sci_m_present_secs_into_mission sci_m_present_time sci_oxy4_oxygen sci_oxy4_saturation sci_water_cond sci_water_pressure sci_water_temp 
+in lat lon in amp-hrs amp m cc lat lon lat lon rad sec timestamp m/s m/s m/s nodim nodim ug/l sec timestamp um % s/m bar degc 
+4 8 8 4 4 4 4 4 8 8 8 8 4 4 8 4 4 4 4 4 4 4 8 4 4 4 4 4 
+0.7 0 0 0.703308 6.65 2.07189 0 259.151 69696969 69696969 4137.1168 -7032.2887 -0.0418879 0 1374266428.8125 0 0 0 4 NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN 0 0 NaN NaN NaN NaN NaN 69696969 69696969 NaN NaN NaN 49.018 1374266477.71475 NaN 0 0 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN 5005.5407 -14427.2967 NaN NaN NaN 87.122 1374266515.81836 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN 5005.54070011616 -14427.2966998943 NaN NaN NaN NaN NaN 5005.5408 -14427.2965 NaN NaN NaN 91.848 1374266520.54367 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN 5005.5406 -14427.2965 NaN NaN NaN 96.958 1374266525.65381 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN 5005.54070011616 -14427.2966998943 NaN NaN NaN NaN NaN 5005.5409 -14427.2964 NaN NaN NaN 101.867 1374266530.56198 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN 5005.541 -14427.2964 NaN NaN NaN 106.748 1374266535.44351 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN 5005.54070011616 -14427.2966998943 NaN NaN NaN NaN NaN 5005.5411 -14427.2968 NaN NaN NaN 111.717 1374266540.41287 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN 5005.54070011616 -14427.2966998943 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 121.548 1374266550.24356 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 126.032 1374266554.03217 NaN NaN NaN NaN 0 0 126.032 1374266554.03217 0 0 0 0 0 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 130.834 1374266558.83417 NaN NaN NaN NaN 0 0 130.834 1374266558.83417 0 0 0 0 0 
+NaN 5005.54070011616 -14427.2966998943 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 166.797 1374266595.49255 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN 5005.54070011616 -14427.2966998943 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 234.545 1374266663.2406 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 

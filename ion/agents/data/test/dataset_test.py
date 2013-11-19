@@ -17,6 +17,8 @@ from pyon.core.bootstrap import get_service_registry
 
 # 3rd party imports.
 import os
+import sys
+import pprint
 from gevent.event import AsyncResult
 import gevent
 import shutil
@@ -28,6 +30,9 @@ from pyon.ion.stream import StandaloneStreamSubscriber
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 
 # Pyon unittest support.
+from ion.util.agent_launcher import AgentLauncher
+from ion.agents.data.result_set import ResultSet
+from ion.agents.instrument.common import BaseEnum
 from pyon.util.int_test import IonIntegrationTestCase
 
 # Pyon Object Serialization
@@ -37,6 +42,7 @@ from pyon.core.object import IonObjectSerializer
 from pyon.core.exception import BadRequest, Conflict, Timeout, ResourceError
 from pyon.core.exception import IonException
 from pyon.core.exception import ConfigNotFound
+from pyon.core.exception import NotFound, ServerError
 
 # Agent imports.
 from pyon.util.context import LocalContextMixin
@@ -44,26 +50,24 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 
-# Driver imports.
-from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
-from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 
 from ion.services.dm.test.dm_test_case import breakpoint
-from ion.processes.data.import_dataset import ImportDataset
 from pyon.public import RT, log, PRED
+
+from ion.services.dm.utility.granule_utils import time_series_domain
+from interface.objects import DataProduct
+from interface.objects import AgentCapability
+from interface.objects import CapabilityType
 
 # Objects and clients.
 from interface.objects import AgentCommand
-from interface.objects import CapabilityType
-from interface.objects import AgentCapability
-from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from ion.services.sa.instrument.agent_configuration_builder import ExternalDatasetAgentConfigurationBuilder
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceDependentClients
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 # Alarms.
 from pyon.public import IonObject
-from interface.objects import StreamAlertType, AggregateStatusType
 
 from ooi.timer import Timer
 
@@ -117,7 +121,14 @@ PRELOAD_CATEGORIES = [
     #'Scheduler',
     #'Reference',                        # No resource
     ]
-PRELOAD_CATEGORIES = None
+#PRELOAD_CATEGORIES = None
+
+class AgentCapabilityType(BaseEnum):
+    AGENT_COMMAND = 'agent_command'
+    AGENT_PARAMETER = 'agent_parameter'
+    RESOURCE_COMMAND = 'resource_command'
+    RESOURCE_INTERFACE = 'resource_interface'
+    RESOURCE_PARAMETER = 'resource_parameter'
 
 class FakeProcess(LocalContextMixin):
     """
@@ -131,39 +142,33 @@ class DatasetAgentTestConfig(object):
     """
     test config object.
     """
-    dsa_module  = None
-    dsa_class   = None
-
     instrument_device_name = None
+
+    # If set load the driver from this repo instead of the egg
+    mi_repo = None
 
     data_dir    = "/tmp/dsatest"
     test_resource_dir = None
 
-    dataset_agent_resource_id = '123xyz'
-    dataset_agent_name = 'Agent007'
-    dataset_agent_module = 'mi.idk.instrument_agent'
-    dataset_agent_class = 'InstrumentAgent'
-
     preload_scenario = None
+    stream_name = None
+    exchange_name = 'science_data'
 
     def initialize(self, *args, **kwargs):
 
         log.debug("initialize with %s", kwargs)
 
-        self.dsa_module = kwargs.get('dsa_module', self.dsa_module)
-        self.dsa_class  = kwargs.get('dsa_class', self.dsa_class)
         self.data_dir   = kwargs.get('data_dir', self.data_dir)
-
-        self.dataset_agent_resource_id = kwargs.get('dataset_agent_resource_id', self.dataset_agent_resource_id)
-        self.dataset_agent_name = kwargs.get('dataset_agent_name', self.dataset_agent_name)
-        self.dataset_agent_module = kwargs.get('dataset_agent_module', self.dataset_agent_module)
-        self.dataset_agent_class = kwargs.get('dataset_agent_class', self.dataset_agent_class)
 
         self.instrument_device_name = kwargs.get('instrument_device_name', self.instrument_device_name)
 
         self.preload_scenario = kwargs.get('preload_scenario', self.preload_scenario)
 
         self.test_resource_dir = kwargs.get('test_resource_dir', os.path.join(self.test_base_dir(), 'resource'))
+
+        self.mi_repo = kwargs.get('mi_repo', self.mi_repo)
+        self.stream_name = kwargs.get('stream_name', self.stream_name)
+        self.exchange_name = kwargs.get('exchange_name', self.exchange_name)
 
     def verify(self):
         """
@@ -174,6 +179,9 @@ class DatasetAgentTestConfig(object):
 
         if not self.test_resource_dir:
             raise ConfigNotFound("missing test_resource_dir")
+
+        if not self.stream_name:
+            raise ConfigNotFound("missing stream_name")
 
     def test_base_dir(self):
         """
@@ -196,6 +204,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         Define agent config, start agent.
         Start agent client.
         """
+
         self._dsa_client = None
 
         # Ensure we have a good test configuration
@@ -213,22 +222,23 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         log.info('Loading additional scenarios')
         self._load_params()
 
-        # Start data subscribers
-        self._build_stream_config()
-        self._start_data_subscribers()
-
         # Start a resource agent client to talk with the instrument agent.
         log.info('starting DSA process')
         self._dsa_client = self._start_dataset_agent_process()
+        log.debug("Client created: %s", type(self._dsa_client))
         self.addCleanup(self.assert_reset)
         log.info('test setup complete')
+
+        # Start data subscribers
+        self._start_data_subscribers()
+        self.addCleanup(self._stop_data_subscribers)
 
     ###
     #   Test/Agent Startup Helpers
     ###
     def _load_params(self):
         """
-        Load specific instrument specific parameters from preload
+        Do a second round of preload with instrument specific scenarios
         """
         scenario = None
         categories = None
@@ -263,7 +273,25 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
             ))
 
     def _start_dataset_agent_process(self):
-        # Create agent config.
+        """
+        Launch the agent process and store the configuration.  Tried
+        to emulate the same process used by import_data.py
+        """
+        (instrument_device, dsa_instance) = self._get_dsa_instance()
+        self._driver_config = dsa_instance.driver_config
+
+        self._update_dsa_config(dsa_instance)
+
+        self.clear_sample_data()
+
+        # Return a resource agent client
+        return self._get_dsa_client(instrument_device, dsa_instance)
+
+    def _get_dsa_instance(self):
+        """
+        Find the dsa instance in preload and return an instance of that object
+        :return:
+        """
         name = self.test_config.instrument_device_name
         rr = self.container.resource_registry
 
@@ -282,16 +310,68 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
                                      predicate=PRED.hasAgentInstance,
                                      object_type=RT.ExternalDatasetAgentInstance)
 
-        log.debug("dsa_instance found: %s", dsa_instance)
-        self._driver_config = dsa_instance.driver_config
+        log.info("dsa_instance found: %s", dsa_instance)
 
-        self.clear_sample_data()
+        return (instrument_device, dsa_instance)
 
-        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-        proc_id = self.damsclient.start_external_dataset_agent_instance(dsa_instance._id)
-        client = ResourceAgentClient(instrument_device._id, process=FakeProcess())
+    def _update_dsa_config(self, dsa_instance):
+        """
+        Update the dsa configuration prior to loading the agent.  This is where we can
+        alter production configurations for use in a controlled test environment.
+        """
+        rr = self.container.resource_registry
 
-        return client
+        dsa_obj = rr.read_object(
+            object_type=RT.ExternalDatasetAgent, predicate=PRED.hasAgentDefinition, subject=dsa_instance._id, id_only=False)
+
+        log.info("dsa agent found: %s", dsa_obj)
+
+        # If we don't want to load from an egg then we need to
+        # alter the driver config read from preload
+        if self.test_config.mi_repo is not None:
+            dsa_obj.driver_uri = None
+            # Strip the custom namespace
+            dsa_obj.driver_module = ".".join(dsa_obj.driver_module.split('.')[1:])
+
+            log.info("saving new dsa agent config: %s", dsa_obj)
+            rr.update(dsa_obj)
+
+            if not self.test_config.mi_repo in sys.path: sys.path.insert(0, self.test_config.mi_repo)
+
+            log.debug("Driver module: %s", dsa_obj.driver_module)
+            log.debug("MI Repo: %s", self.test_config.mi_repo)
+            log.trace("Sys Path: %s", sys.path)
+
+    def _get_dsa_client(self, instrument_device, dsa_instance):
+        """
+        Launch the agent and return a client
+        """
+        fake_process = FakeProcess()
+        fake_process.container = self.container
+
+        clients = DataAcquisitionManagementServiceDependentClients(fake_process)
+        config_builder = ExternalDatasetAgentConfigurationBuilder(clients)
+
+        try:
+            config_builder.set_agent_instance_object(dsa_instance)
+            self.agent_config = config_builder.prepare()
+            log.trace("Using dataset agent configuration: %s", pprint.pformat(self.agent_config))
+        except Exception as e:
+            log.error('failed to launch: %s', e, exc_info=True)
+            raise ServerError('failed to launch')
+
+        dispatcher = ProcessDispatcherServiceClient()
+        launcher = AgentLauncher(dispatcher)
+
+        log.debug("Launching agent process!")
+
+        process_id = launcher.launch(self.agent_config, config_builder._get_process_definition()._id)
+        if not process_id:
+            raise ServerError("Launched external dataset agent instance but no process_id")
+        config_builder.record_launch_parameters(self.agent_config)
+
+        launcher.await_launch(10.0)
+        return ResourceAgentClient(instrument_device._id, process=FakeProcess())
 
     ###
     #   Data file helpers
@@ -437,72 +517,60 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
     ###############################################################################
     # Data stream helpers.
     ###############################################################################
-
-    def _build_stream_config(self):
-        """
-        """
-        # Create a pubsub client to create streams.
-        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-        dataset_management = DatasetManagementServiceClient()
-
-        encoder = IonObjectSerializer()
-
-        # Create streams and subscriptions for each stream named in driver.
-        self._stream_config = {}
-
-        stream_name = 'ctdpf_parsed'
-        param_dict_name = 'ctdpf_parsed'
-        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
-        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-        stream_def = pubsub_client.read_stream_definition(stream_def_id)
-        stream_def_dict = encoder.serialize(stream_def)
-        pd = stream_def.parameter_dictionary
-        stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
-                                                exchange_point='science_data',
-                                                stream_definition_id=stream_def_id)
-        stream_config = dict(routing_key=stream_route.routing_key,
-                                 exchange_point=stream_route.exchange_point,
-                                 stream_id=stream_id,
-                                 parameter_dictionary=pd,
-                                 stream_def_dict=stream_def_dict)
-        self._stream_config[stream_name] = stream_config
-
     def _start_data_subscribers(self):
-        """
-        """
-        # Create a pubsub client to create streams.
-        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+        # A callback for processing subscribed-to data.
+        def recv_data(message, stream_route, stream_id):
+            if self._samples_received.get(stream_id) is None:
+                self._samples_received[stream_id] = []
+
+            log.info('Received parsed data on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
+            self._samples_received[stream_id].append(message)
 
         # Create streams and subscriptions for each stream named in driver.
         self._data_subscribers = []
-        self._samples_received = []
-        self._raw_samples_received = []
-        self._async_sample_result = AsyncResult()
-        self._async_raw_sample_result = AsyncResult()
+        self._samples_received = {}
+        self._stream_id_map = {}
+        stream_config = self.agent_config['stream_config']
 
-        # A callback for processing subscribed-to data.
-        def recv_data(message, stream_route, stream_id):
-            log.info('Received parsed data on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
-            self._samples_received.append(message)
+        log.info("starting data subscribers")
 
-        from pyon.util.containers import create_unique_identifier
+        for stream_name in stream_config.keys():
+            log.debug("Starting data subscriber for stream '%s'", stream_name)
+            stream_id = stream_config[stream_name]['stream_id']
+            self._stream_id_map[stream_name] = stream_id
+            self._start_data_subscriber(stream_config[stream_name], recv_data)
 
-        stream_name = 'ctdpf_parsed'
-        parsed_config = self._stream_config[stream_name]
-        stream_id = parsed_config['stream_id']
-        exchange_name = create_unique_identifier("%s_queue" %
-                    stream_name)
-        self._purge_queue(exchange_name)
-        sub = StandaloneStreamSubscriber(exchange_name, recv_data)
+    def _start_data_subscriber(self, config, callback):
+        """
+        Setup and start a data subscriber
+        """
+        exchange_point = config['exchange_point']
+        stream_id = config['stream_id']
+
+        sub = StandaloneStreamSubscriber(exchange_point, callback)
         sub.start()
         self._data_subscribers.append(sub)
-        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
+
+        pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+        sub_id = pubsub_client.create_subscription(name=exchange_point, stream_ids=[stream_id])
         pubsub_client.activate_subscription(sub_id)
         sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
 
-    def _purge_queue(self, queue):
-        xn = self.container.ex_manager.create_xn_queue(queue)
-        xn.purge()
+    def make_data_product(self, pdict_name, dp_name, available_fields=None):
+        self.pubsub_management = PubsubManagementServiceClient()
+        if available_fields is None: available_fields = []
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(pdict_name, id_only=True)
+        stream_def_id = self.pubsub_management.create_stream_definition('%s stream_def' % dp_name, parameter_dictionary_id=pdict_id, available_fields=available_fields or None)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+        dp_obj = DataProduct(name=dp_name)
+        dp_obj.temporal_domain = tdom
+        dp_obj.spatial_domain = sdom
+        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+        return data_product_id
 
     def _stop_data_subscribers(self):
         for subscriber in self._data_subscribers:
@@ -514,6 +582,60 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
                     pass
                 pubsub_client.delete_subscription(subscriber.subscription_id)
             subscriber.stop()
+
+    def get_samples(self, stream_name, sample_count = 1, timeout = 10):
+        """
+        listen on a stream until 'sample_count' samples are read and return
+        a list of all samples read.  If the required number of samples aren't
+        read then throw an exception.
+
+        Note that this method does not clear the sample queue for the stream.
+        This should be done explicitly by the caller.  However, samples that
+        are consumed by this method are removed.
+
+        @raise SampleTimeout - if the required number of samples aren't read
+        """
+        to = gevent.Timeout(timeout)
+        to.start()
+        done = False
+        result = []
+        i = 0
+
+        log.debug("Fetch %s sample(s) from stream '%s'" % (sample_count, stream_name))
+
+        stream_id = self._stream_id_map.get(stream_name)
+        log.debug("Stream ID Map: %s ", self._stream_id_map)
+        self.assertIsNotNone(stream_id, msg="Unable to find stream name '%s'" % stream_name)
+
+        try:
+            while(not done):
+                if(self._samples_received.has_key(stream_id) and
+                   len(self._samples_received.get(stream_id))):
+                    log.trace("get_samples() received sample #%d!", i)
+                    result.append(self._samples_received[stream_id].pop(0))
+                    i += 1
+
+                    if i >= sample_count:
+                        done = True
+
+                else:
+                    log.debug("No samples in %s. Sleep a bit to wait for the data queue to fill up.", stream_name)
+                    gevent.sleep(1)
+
+        except Timeout:
+            log.error("Failed to get %d records from %s.  received: %d", sample_count, stream_name, i)
+            self.fail("Failed to read samples from stream %s", stream_name)
+        finally:
+            to.cancel()
+            return result
+
+    def remove_sample_dir(self):
+        """
+        Remove the sample dir and all files
+        """
+        data_dir = self.create_data_dir()
+        self.clear_sample_data()
+        os.rmdir(data_dir)
 
     ###
     #   Common assert methods
@@ -595,3 +717,303 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
             state = self._dsa_client.get_agent_state()
 
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+    def assert_data_values(self, granules, dataset_definition_file):
+        """
+        Verify granules match the granules defined in the definition file
+        """
+        rs_file = self._get_source_data_file(dataset_definition_file)
+        rs = ResultSet(rs_file)
+
+        self.assertTrue(rs.verify(granules), msg="Failed data validation.  See log for details")
+
+    def assert_sample_queue_size(self, stream_name, size):
+        """
+        verify a sample queue is the size we expect it to be.
+        """
+        # Sleep a couple seconds to ensure the
+        gevent.sleep(2)
+
+        stream_id = self._stream_id_map.get(stream_name)
+        length = 0
+        if stream_id in self._samples_received:
+            length = len(self._samples_received[stream_id])
+        self.assertEqual(length, size, msg="Queue size != expected size (%d != %d)" % (length, size))
+
+    def assert_set_pubrate(self, rate):
+        """
+        Set the pubrate for the parsed data stream.  Set to 0 for
+        no buffering
+        """
+        self.assertIsInstance(rate, (int, float))
+        self.assertGreaterEqual(rate, 0)
+
+        expected_pubrate = {self.test_config.stream_name: rate}
+
+        retval = self._dsa_client.set_agent({'pubrate': expected_pubrate})
+
+        retval = self._dsa_client.get_agent(['pubrate'])
+        expected_pubrate_result = {'pubrate': expected_pubrate}
+        self.assertEqual(retval, expected_pubrate_result)
+
+    def assert_agent_command(self, command, args=None, timeout=None):
+        """
+        Verify an agent command
+        @param command: driver command to execute
+        @param args: kwargs to pass to the agent command object
+        """
+        cmd = AgentCommand(command=command, kwargs=args)
+        retval = self._dsa_client.execute_agent(cmd, timeout=timeout)
+
+    def assert_resource_command(self, command, args=None, timeout=None):
+        """
+        Verify a resource command
+        @param command: driver command to execute
+        @param args: kwargs to pass to the agent command object
+        """
+        cmd = AgentCommand(command=command, kwargs=args)
+        retval = self._dsa_client.execute_resource(cmd)
+
+    def assert_agent_capabilities(self):
+        """
+        Verify capabilities throughout the agent lifecycle
+        """
+        capabilities = {
+            AgentCapabilityType.AGENT_COMMAND: self._common_agent_commands(ResourceAgentState.UNINITIALIZED),
+            AgentCapabilityType.AGENT_PARAMETER: self._common_agent_parameters(),
+            AgentCapabilityType.RESOURCE_COMMAND: None,
+            AgentCapabilityType.RESOURCE_INTERFACE: None,
+            AgentCapabilityType.RESOURCE_PARAMETER: None,
+        }
+
+        ###
+        # DSA State INACTIVE
+        ###
+
+        log.debug("Initialize DataSet agent")
+        self.assert_agent_command(ResourceAgentEvent.INITIALIZE)
+        self.assert_state_change(ResourceAgentState.INACTIVE)
+        self.assert_capabilities(capabilities)
+
+        ###
+        # DSA State IDLE
+        ###
+
+        log.debug("DataSet agent go active")
+        capabilities[AgentCapabilityType.AGENT_COMMAND] = self._common_agent_commands(ResourceAgentState.IDLE)
+        self.assert_agent_command(ResourceAgentEvent.GO_ACTIVE)
+        self.assert_state_change(ResourceAgentState.IDLE)
+        self.assert_capabilities(capabilities)
+
+        ###
+        # DSA State COMMAND
+        ###
+
+        log.debug("DataSet agent run")
+        capabilities[AgentCapabilityType.AGENT_COMMAND] = self._common_agent_commands(ResourceAgentState.COMMAND)
+        capabilities[AgentCapabilityType.RESOURCE_COMMAND] = ['DRIVER_EVENT_START_AUTOSAMPLE']
+        capabilities[AgentCapabilityType.RESOURCE_PARAMETER] = self._common_resource_parameters()
+        self.assert_agent_command(ResourceAgentEvent.RUN)
+        self.assert_state_change(ResourceAgentState.COMMAND)
+        self.assert_capabilities(capabilities)
+
+
+        ###
+        # DSA State STREAMING
+        ###
+        capabilities[AgentCapabilityType.AGENT_COMMAND] = self._common_agent_commands(ResourceAgentState.STREAMING)
+        capabilities[AgentCapabilityType.RESOURCE_COMMAND] = ['DRIVER_EVENT_STOP_AUTOSAMPLE']
+        capabilities[AgentCapabilityType.RESOURCE_PARAMETER] = self._common_resource_parameters()
+        self.assert_start_sampling()
+        self.assert_capabilities(capabilities)
+
+
+        ###
+        # DSA State LOST_CONNECTION
+        ###
+        capabilities[AgentCapabilityType.AGENT_COMMAND] = self._common_agent_commands(ResourceAgentState.LOST_CONNECTION)
+        capabilities[AgentCapabilityType.RESOURCE_COMMAND] = None
+        capabilities[AgentCapabilityType.RESOURCE_PARAMETER] = None
+        self.assert_agent_command(ResourceAgentEvent.RESET)
+        self.assert_state_change(ResourceAgentState.UNINITIALIZED)
+
+        self.remove_sample_dir()
+        self.assert_initialize(final_state=ResourceAgentState.COMMAND)
+        self.assert_resource_command('DRIVER_EVENT_START_AUTOSAMPLE')
+        self.assert_state_change(ResourceAgentState.LOST_CONNECTION, 90)
+
+    def assert_capabilities(self, capabilities):
+        '''
+        Verify that all capabilities are available for a give state
+
+        @todo: Currently resource interface not implemented because it requires
+               a submodule update and some of the submodules are in release
+               states.  So for now, no resource interfaces
+
+        @param: dictionary of all the different capability types that are
+        supposed to be there. i.e.
+        {
+          agent_command = ['DO_MY_COMMAND'],
+          agent_parameter = ['foo'],
+          resource_command = None,
+          resource_interface = None,
+          resource_parameter = None,
+        }
+        '''
+        def sort_capabilities(caps_list):
+            '''
+            sort a return value into capability buckets.
+            @retval agt_cmds, agt_pars, res_cmds, res_iface, res_pars
+            '''
+            agt_cmds = []
+            agt_pars = []
+            res_cmds = []
+            res_iface = []
+            res_pars = []
+
+            if len(caps_list)>0 and isinstance(caps_list[0], AgentCapability):
+                agt_cmds = [x.name for x in caps_list if x.cap_type==CapabilityType.AGT_CMD]
+                agt_pars = [x.name for x in caps_list if x.cap_type==CapabilityType.AGT_PAR]
+                res_cmds = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_CMD]
+                #res_iface = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_IFACE]
+                res_pars = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_PAR]
+
+            elif len(caps_list)>0 and isinstance(caps_list[0], dict):
+                agt_cmds = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.AGT_CMD]
+                agt_pars = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.AGT_PAR]
+                res_cmds = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_CMD]
+                #res_iface = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_IFACE]
+                res_pars = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_PAR]
+
+            agt_cmds.sort()
+            agt_pars.sort()
+            res_cmds.sort()
+            res_iface.sort()
+            res_pars.sort()
+
+            return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
+
+        if(not capabilities.get(AgentCapabilityType.AGENT_COMMAND)):
+            capabilities[AgentCapabilityType.AGENT_COMMAND] = []
+        if(not capabilities.get(AgentCapabilityType.AGENT_PARAMETER)):
+            capabilities[AgentCapabilityType.AGENT_PARAMETER] = []
+        if(not capabilities.get(AgentCapabilityType.RESOURCE_COMMAND)):
+            capabilities[AgentCapabilityType.RESOURCE_COMMAND] = []
+        if(not capabilities.get(AgentCapabilityType.RESOURCE_INTERFACE)):
+            capabilities[AgentCapabilityType.RESOURCE_INTERFACE] = []
+        if(not capabilities.get(AgentCapabilityType.RESOURCE_PARAMETER)):
+            capabilities[AgentCapabilityType.RESOURCE_PARAMETER] = []
+
+
+        expected_agent_cmd = capabilities.get(AgentCapabilityType.AGENT_COMMAND)
+        expected_agent_cmd.sort()
+        expected_agent_param = self._common_agent_parameters()
+        expected_agent_param.sort()
+        expected_res_cmd = capabilities.get(AgentCapabilityType.RESOURCE_COMMAND)
+        expected_res_cmd.sort()
+        expected_res_param = capabilities.get(AgentCapabilityType.RESOURCE_PARAMETER)
+        expected_res_param.sort()
+        expected_res_int = capabilities.get(AgentCapabilityType.RESOURCE_INTERFACE)
+        expected_res_int.sort()
+
+        # go get the active capabilities
+        retval = self._dsa_client.get_capabilities()
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_capabilities(retval)
+
+        log.debug("Agent Commands: %s ", str(agt_cmds))
+        log.debug("Compared to: %s", expected_agent_cmd)
+        log.debug("Agent Parameters: %s ", str(agt_pars))
+        log.debug("Compared to: %s", expected_agent_param)
+        log.debug("Resource Commands: %s ", str(res_cmds))
+        log.debug("Compared to: %s", expected_res_cmd)
+        log.debug("Resource Interface: %s ", str(res_iface))
+        log.debug("Compared to: %s", expected_res_int)
+        log.debug("Resource Parameter: %s ", str(res_pars))
+        log.debug("Compared to: %s", expected_res_param)
+
+        # Compare to what we are supposed to have
+        self.assertEqual(expected_agent_cmd, agt_cmds)
+        self.assertEqual(expected_agent_param, agt_pars)
+        self.assertEqual(expected_res_cmd, res_cmds)
+        self.assertEqual(expected_res_int, res_iface)
+        self.assertEqual(expected_res_param, res_pars)
+
+    def _common_resource_parameters(self):
+        '''
+        list of common resource parameters
+        @return: list of resource parameters
+        '''
+        return ['batched_particle_count', 'publisher_polling_interval', 'records_per_second']
+
+    def _common_agent_parameters(self):
+        '''
+        list of common agent parameters
+        @return: list of agent parameters
+        '''
+        return ['aggstatus', 'alerts', 'driver_name', 'driver_pid', 'example', 'pubrate', 'streams']
+
+    def _common_agent_commands(self, agent_state):
+        '''
+        list of common agent parameters for a agent state
+        @return: list of agent parameters
+        @raise: KeyError for undefined agent state
+        '''
+        capabilities = {
+            ResourceAgentState.UNINITIALIZED: [
+                ResourceAgentEvent.GO_ACTIVE,
+                ResourceAgentEvent.RESET,
+            ],
+            ResourceAgentState.IDLE: [
+                ResourceAgentEvent.GO_INACTIVE,
+                ResourceAgentEvent.RESET,
+                ResourceAgentEvent.RUN,
+            ],
+            ResourceAgentState.COMMAND: [
+                ResourceAgentEvent.CLEAR,
+                ResourceAgentEvent.RESET,
+                ResourceAgentEvent.GO_INACTIVE,
+                ResourceAgentEvent.PAUSE
+            ],
+            ResourceAgentState.STREAMING: [
+                ResourceAgentEvent.RESET,
+                ResourceAgentEvent.GO_INACTIVE
+            ],
+
+            ResourceAgentState.LOST_CONNECTION: [
+                ResourceAgentEvent.RESET,
+                ResourceAgentEvent.GO_INACTIVE
+            ]
+        }
+
+        return capabilities[agent_state]
+
+    def assert_state_change(self, target_agent_state, timeout=10):
+        """
+        Verify the agent and resource states change as expected within the timeout
+        Fail if the state doesn't change to the expected state.
+        @param target_agent_state: State we expect the agent to be in
+        @param timeout: how long to wait for the driver to change states
+        """
+        to = gevent.Timeout(timeout)
+        to.start()
+        done = False
+        agent_state = None
+
+        try:
+            while(not done):
+
+                agent_state = self._dsa_client.get_agent_state()
+                log.error("Current agent state: %s", agent_state)
+
+                if(agent_state == target_agent_state):
+                    log.debug("Current state match: %s", agent_state)
+                    done = True
+
+                if not done:
+                    log.debug("state mismatch, waiting for state to transition.")
+                    gevent.sleep(1)
+        except Timeout:
+            log.error("Failed to transition agent state to %s, current state: %s", target_agent_state, agent_state)
+            self.fail("Failed to transition state.")
+        finally:
+            to.cancel()

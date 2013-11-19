@@ -1,0 +1,46 @@
+# Result data after parsing file_1 and file_2
+
+header:
+  stream_name: ggldr_ctdgv_delayed
+
+data:
+  - _index: 1
+    _new_sequence: True
+    internal_timestamp: '2013-09-05T02:47:21.82962Z'
+    m_present_time: 1378349241.82962
+    m_present_secs_into_mission: 121147
+    sci_m_present_time: 1378349241.82962
+    sci_m_present_secs_into_mission: 121147
+    sci_water_cond: 4.03096
+    sci_water_pressure: 0.021
+    sci_water_temp: 15.3683
+  - _index: 2
+    _new_sequence: False
+    internal_timestamp: '2013-09-05T02:48:22.10907Z'
+    m_present_time: 1378349302.10907
+    m_present_secs_into_mission: 121207
+    sci_m_present_time: 1378349302.10907
+    sci_m_present_secs_into_mission: 121207
+    sci_water_cond: 4.03113
+    sci_water_pressure: 0.093
+    sci_water_temp: 15.3703
+  - _index: 3
+    _new_sequence: True
+    internal_timestamp: '2013-09-05T02:49:22.3978Z'
+    m_present_time: 1378349362.3978
+    m_present_secs_into_mission: 121267
+    sci_m_present_time: 1378349362.3978
+    sci_m_present_secs_into_mission: 121267
+    sci_water_cond: 4.03143
+    sci_water_pressure: 0.386
+    sci_water_temp: 15.3727
+  - _index: 4
+    _new_sequence: True
+    internal_timestamp: '2013-09-05T02:50:22.87961Z'
+    m_present_time: 1378349422.87961
+    m_present_secs_into_mission: 121328
+    sci_m_present_time: 1378349422.87961
+    sci_m_present_secs_into_mission: 121328
+    sci_water_cond: 4.00949
+    sci_water_pressure: 0.83
+    sci_water_temp: 15.136
