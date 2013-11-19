@@ -1,7 +1,8 @@
 import re
 import os
 import numpy as np
-import urllib
+import numexpr as ne
+from urllib import unquote
 from pyon.util.log import log
 from email.utils import formatdate
 from stat import ST_MTIME
@@ -10,7 +11,7 @@ from coverage_model.coverage import AbstractCoverage
 from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType 
 from coverage_model.parameter_types import CategoryType, BooleanType, ParameterFunctionType, SparseConstantType
 from coverage_model.parameter_functions import ParameterFunctionException
-from pydap.model import DatasetType,BaseType, GridType
+from pydap.model import DatasetType,BaseType, GridType, SequenceType
 from pydap.handlers.lib import BaseHandler
 from pyon.public import CFG
 import time
@@ -120,14 +121,12 @@ class Handler(BaseHandler):
             attrs['long_name'] = pc.display_name
         return attrs
 
-    def get_data(self,cov, name, slice_):
+    def get_data(self,cov, name, bitmask):
         #pc = cov.get_parameter_context(name)
         try:
-            data_dict = cov.get_value_dictionary(param_list=[name], domain_slice=slice_)
-            data = data_dict[name]
+            data = cov._range_value[name][:][bitmask]
         except ParameterFunctionException:
-            time_vector = self.get_time_data(cov,slice_)
-            data = np.empty(time_vector.shape, dtype='object')
+            data = np.empty(cov.num_timesteps, dtype='object')
         data = np.asanyarray(data) 
         if not data.shape:
             data.shape = (1,)
@@ -136,11 +135,10 @@ class Handler(BaseHandler):
     def get_time_data(self, cov, slice_):
         return self.get_data(cov, cov.temporal_parameter_name, slice_)
 
-    def make_grid(self, response, name, data, time_data, attrs, time_attrs, dims, ttype):
-        grid = GridType(name=name)
-        grid[name] = BaseType(name=name, data=data, type=ttype, attributes=attrs, dimensions=dims, shape=data.shape)
-        grid[dims[0]] = BaseType(name=dims[0], data=time_data, type=time_data.dtype.char, attributes=time_attrs, dimensions=dims, shape=time_data.shape)
-        return grid    
+    def make_series(self, response, name, data, attrs, ttype):
+        base_type = BaseType(name=name, data=data, type=ttype, attributes=attrs)
+        #grid[dims[0]] = BaseType(name=dims[0], data=time_data, type=time_data.dtype.char, attributes=time_attrs, dimensions=dims, shape=time_data.shape)
+        return base_type    
 
     def filter_data(self, data):
         if len(data.shape) > 1:
@@ -189,75 +187,85 @@ class Handler(BaseHandler):
             data = np.asanyarray(['None' for d in data])
         return data
 
-    def get_dataset(self, cov, fields, fill_index, dataset, response):
-        for var in fields:
-            while var:
-                name, slice_ = var.pop(0)
-                name = urllib.unquote(name)
-                
-                slice_ = self.update_slice_object(slice_, fill_index)
-                if slice_ is None:
-                    continue
-                pc = cov.get_parameter_context(name)
-                try:
-                    param = cov.get_parameter(name)
+    def get_bitmask(self, cov, fields, slices, selectors):
+        '''
+        returns a bitmask appropriate to the values
+        '''
+        bitmask = np.ones(cov.num_timesteps, dtype=np.bool)
+        for selector in selectors:
+            field, operator, value = self.parse_selectors(selector)
+            if operator is None:
+                continue
+            values = cov._range_value[field][:]
+            expression = ' '.join(['values', operator, value])
+            bitmask = bitmask & ne.evaluate(expression)
+
+        return bitmask
+
+    def get_dataset(self, cov, fields, slices, selectors, dataset, response):
+        seq = SequenceType('data')
+        bitmask = self.get_bitmask(cov, fields, slices, selectors)
+        for name in fields:
+            # Strip the data. from the field
+            if name.startswith('data.'):
+                name = name[5:]
+            pc = cov.get_parameter_context(name)
+            if re.match(r'.*_[a-z0-9]{32}', name):
+                continue # Let's not do this
+            try:
+                data = self.get_data(cov, name, bitmask)
+                attrs  = self.get_attrs(cov, name)
+                if isinstance(pc.param_type, QuantityType):
+                    data, dtype = self.filter_data(data)
+                    seq[name] = self.make_series(response, name, data, attrs, dtype)
+                elif isinstance(pc.param_type, ConstantType):
+                    data, dtype = self.filter_data(data)
+                    seq[name] = self.make_series(response, name, data, attrs, dtype)
+                elif isinstance(pc.param_type, ConstantRangeType):
+                    #start = time.time()
+                    #convert to string
+                    try:
+                        #scalar case
+                        if data.shape == (2,):
+                            data = np.atleast_1d('_'.join([str(data[0]), str(data[1])]))
+                        else:
+                            for i,d in enumerate(data):
+                                f = [str(d[0]),str(d[1])]
+                                data[i] = '_'.join(f)
+                    except Exception, e:
+                        data = np.asanyarray(['None' for d in data])
+                    seq[name] = self.make_series(response, name, data, attrs, 'S')
+                elif isinstance(pc.param_type,BooleanType):
+                    data, dtype = self.filter_data(data)
+                    seq[name] = self.make_series(response, name, data, attrs, dtype)
+                elif isinstance(pc.param_type,CategoryType):
+                    data, dtype = self.filter_data(data)
+                    #start = time.time()
+                    seq[name] = self.make_series(response, name, data, attrs, dtype)
+                elif isinstance(pc.param_type,ArrayType):
+                    data, dtype = self.filter_data(data)
+                    seq[name] = self.make_series(response, name, data, attrs, dtype)
+
+                elif isinstance(pc.param_type,RecordType):
+                    data, dtype = self.filter_data(data)
+                    seq[name] = self.make_series(response, name, data, attrs, dtype)
+
+                elif isinstance(pc.param_type, ParameterFunctionType):
+                    data, dtype = self.filter_data(data)
+                    seq[name] = self.make_series(response, name, data, attrs, dtype)
+
+                elif isinstance(pc.param_type, SparseConstantType):
+                    data, dtype = self.filter_data(data)
+                #dataset[name] = self.make_series(response, name, data, attrs, dtype)
+#                elif param.is_coordinate and cov.temporal_parameter_name == name:
+#                        dataset[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs, shape=data.shape)
+#                    else:
+#                        log.error("Unhandled parameter for parameter (%s) type: %s", name, pc.param_type.__class__.__name__)
                     
-                    data = self.get_data(cov, name, slice_)
-                    time_data = self.get_time_data(cov, slice_)
-
-                    time_attrs  = self.get_attrs(cov, name)
-                    attrs  = self.get_attrs(cov, name)
-                    dims = (cov.temporal_parameter_name,)
-                    if isinstance(pc.param_type, QuantityType) and not param.is_coordinate and cov.temporal_parameter_name != name:
-                        data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                    elif isinstance(pc.param_type, ConstantType):
-                        data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                    elif isinstance(pc.param_type, ConstantRangeType):
-                        #start = time.time()
-                        #convert to string
-                        try:
-                            #scalar case
-                            if data.shape == (2,):
-                                data = np.atleast_1d('_'.join([str(data[0]), str(data[1])]))
-                            else:
-                                for i,d in enumerate(data):
-                                    f = [str(d[0]),str(d[1])]
-                                    data[i] = '_'.join(f)
-                        except Exception, e:
-                            data = np.asanyarray(['None' for d in data])
-                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, 'S')                
-                    elif isinstance(pc.param_type,BooleanType):
-                        data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                    elif isinstance(pc.param_type,CategoryType):
-                        data, dtype = self.filter_data(data)
-                        #start = time.time()
-                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                    elif isinstance(pc.param_type,ArrayType):
-                        data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-
-                    elif isinstance(pc.param_type,RecordType):
-                        data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-
-                    elif isinstance(pc.param_type, ParameterFunctionType):
-                        data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-
-                    elif isinstance(pc.param_type, SparseConstantType):
-                        data, dtype = self.filter_data(data)
-                        dataset[name] = self.make_grid(response, name, data, time_data, attrs, time_attrs, dims, dtype)
-                    elif param.is_coordinate and cov.temporal_parameter_name == name:
-                        dataset[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs, shape=data.shape)
-                    else:
-                        log.error("Unhandled parameter for parameter (%s) type: %s", name, pc.param_type.__class__.__name__)
-                        
-                except Exception, e:
-                    log.exception('Problem reading cov %s %s', cov.name, e)
-                    continue
+            except Exception, e:
+                log.exception('Problem reading cov %s %s', cov.name, e)
+                continue
+            dataset['data'] = seq
         return dataset
 
     def value_encoding_to_dap_type(self, value_encoding):
@@ -270,42 +278,91 @@ class Handler(BaseHandler):
         return dt
 
     def dap_type(self, context):
-        if isinstance(context.param_type, (ConstantRangeType, CategoryType, RecordType)):
+        if isinstance(context.param_type, (ArrayType, ConstantRangeType, CategoryType, RecordType)):
             return 'S'
         return self.value_encoding_to_dap_type(context.param_type.value_encoding)
 
     def handle_dds(self, coverage, dataset, fields):
         cov = coverage
-        try:
-            time_name = coverage.temporal_parameter_name
-            time_context = coverage.get_parameter_context(time_name)
-            time_attrs = self.get_attrs(cov, time_name)
-            time_base = BaseType(time_name, type=self.dap_type(time_context), attributes=time_attrs, dimensions=(time_name,), shape=(coverage.num_timesteps,))
-            dataset[time_name] = time_base
-            
-        except:
-            log.exception('Problem reading cov %s', str(cov))
-            raise # Can't do much without time
+        seq = SequenceType('data')
 
-        for var in fields:
-            while var:
-                name, slice_ = var.pop(0)
-                name = urllib.unquote(name)
-                if name == time_name:
-                    continue # Already added to the dataset
-                try:
-                    grid = GridType(name=name)
-                    context = coverage.get_parameter_context(name)
-                    attrs = self.get_attrs(cov, name)
+        for name in fields:
+            # Strip the data. from the field
 
-                    grid[name] = BaseType(name=name, type=self.dap_type(context), attributes=attrs, dimensions=(time_name,), shape=(coverage.num_timesteps,))
-                    grid[cov.temporal_parameter_name] = time_base
-                    dataset[name] = grid
-                except Exception:
-                    log.exception('Problem reading cov %s', str(cov))
-                    continue
+            if name.startswith('data.'):
+                name = name[5:]
+                
+            if re.match(r'.*_[a-z0-9]{32}', name):
+                continue # Let's not do this
+            try:
+                context = coverage.get_parameter_context(name)
+                attrs = self.get_attrs(cov, name)
+
+                #grid[name] = BaseType(name=name, type=self.dap_type(context), attributes=attrs, dimensions=(time_name,), shape=(coverage.num_timesteps,))
+                seq[name] = BaseType(name=name, type=self.dap_type(context), attributes=attrs, shape=(coverage.num_timesteps,))
+                #grid[cov.temporal_parameter_name] = time_base
+            except Exception:
+                log.exception('Problem reading cov %s', str(cov))
+                continue
+        dataset['data'] = seq
         return dataset
 
+
+    def parse_query_string(self,query_string):
+        tokens = query_string.split('&')
+        fields = []
+        selectors = []
+        slices = []
+        dap_selection_operators = ['<', '<=', '>', '>=', '=', '!=', '=~']
+        slice_operators = ['[', ':', ']']
+        for token in tokens:
+            token = unquote(token)
+            if not token: # ignore the case where the url ends in nothing or a &
+                continue
+            token_identified = False
+            for selector in dap_selection_operators:
+                if selector in token:
+                    selectors.append(token)
+                    token_identified = True
+                    break
+            for operator in slice_operators:
+                if operator in token:
+                    slices.append(token)
+                    token_identified = True
+                    break
+            if not token_identified:
+                fields = token.split(',')
+
+        return fields, slices, selectors
+
+    def parse_slices(self,slice_operator):
+        pivot = slice_operator.find('[')
+        field = slice_operator[:pivot]
+        slicer = slice_operator[pivot:]
+        # Strip away the outer []s
+        slicer = slicer[1:-1]
+        # Separte the slice into tokens separated by :
+        start,stride,stop = slicer.split(':')
+        start = int(start)
+        stride = int(stride)
+        stop = int(stop)+1
+        slice_ = slice(start,stride,stop)
+        return field, slice_
+
+    def parse_selectors(self, selector):
+        matches = re.match(r'([a-zA-Z0-9-_\.]+)(<=|<|>=|>|=~|!=|=)(.*)', selector)
+        field, operator, value = matches.groups()
+        value = value.replace('"','')
+        value = value.replace("'",'')
+        if 'data.' in field: # strip away the data prefix
+            field = field[5:]
+        if operator is '=':
+            operator = '=='
+        elif operator is '=~':
+            return None,None,None
+
+        return field, operator, value
+    
     @request_profile(CFG.get_safe('server.pydap.profile_enabled', True))
     @exception_wrapper
     def parse_constraints(self, environ):
@@ -318,33 +375,25 @@ class Handler(BaseHandler):
         atts = {}
         atts['title'] = coverage.name
         dataset = DatasetType(coverage.name) #, attributes=atts)
-        fields, queries = environ['pydap.ce']
         response = environ['pydap.response']
 
-        queries = filter(bool, queries)  # fix for older version of pydap
+        if response == 'dods':
+            query_string = environ['QUERY_STRING']
+            fields, slices, selectors = self.parse_query_string(query_string)
+        elif response in ('dds', 'das'):
+            fields = [] # All fields
+            slices = []
+            selectors = []
 
         all_vars = coverage.list_parameters()
         
-        fill_index = -1
         if not fields:
-            fields = [[(name, ())] for name in all_vars]
+            fields = all_vars
         if response == "dods":
-            time_context = coverage.get_parameter_context(coverage.temporal_parameter_name)
-            time_fill_value = time_context.fill_value
-            time_data = coverage.get_parameter_values(coverage.temporal_parameter_name)
-            try:
-                fill_index = np.where(time_data == time_fill_value)[0][0]
-            except IndexError:
-                pass
-
-            # If no fields have been explicitly requested, of if the sequence
-            # has been requested directly, return all variables.
-            
-            dataset = self.get_dataset(coverage, fields, fill_index, dataset, response)
+            dataset = self.get_dataset(coverage, fields, slices, selectors, dataset, response)
 
         elif response in ('dds', 'das'):
             self.handle_dds(coverage, dataset, fields)
-
         return dataset
     
     def none_to_str(self, data):
