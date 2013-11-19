@@ -482,7 +482,13 @@ class DatasetManagementService(BaseDatasetManagementService):
             vcov.replace_reference_coverage(ccov_pth)
         elif isinstance(vcov.reference_coverage, ComplexCoverage):
             log.info('Appending simplex coverage to complex coverage')
-            vcov.reference_coverage.append_reference_coverage(scov_pth)
+            #vcov.reference_coverage.append_reference_coverage(scov_pth)
+            dir_path = vcov.reference_coverage.persistence_dir
+            vcov.close()
+            ccov = AbstractCoverage.load(dir_path, mode='a')
+            ccov.append_reference_coverage(scov_pth)
+            ccov.refresh()
+            ccov.close()
         vcov.refresh()
         vcov.close()
 
