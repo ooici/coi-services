@@ -113,28 +113,29 @@ class RegistrationProcessTest(IonIntegrationTestCase):
 
         for i in xrange(3): # Do it three times to test that the cache doesn't corrupt the requests/responses
             ds = open_url(url)
-            np.testing.assert_array_equal(ds['time'][:], np.arange(10))
+
+            np.testing.assert_array_equal(list(ds['data']['time']), np.arange(10))
             untested = []
             for k,v in rdt.iteritems():
                 if k==rdt.temporal_parameter:
                     continue
                 context = rdt.context(k)
                 if isinstance(context.param_type, QuantityType):
-                    np.testing.assert_array_equal(ds[k][k][:][0], rdt[k])
+                    np.testing.assert_array_equal(list(ds['data'][k]), rdt[k])
                 elif isinstance(context.param_type, ArrayType):
                     if context.param_type.inner_encoding is None:
                         values = np.empty(rdt[k].shape, dtype='O')
                         for i,obj in enumerate(rdt[k]):
                             values[i] = str(obj)
-                        np.testing.assert_array_equal(ds[k][k][:][0], values)
+                        np.testing.assert_array_equal(list(ds['data'][k]), values)
                     elif len(rdt[k].shape)>1:
                         values = np.empty(rdt[k].shape[0], dtype='O')
                         for i in xrange(rdt[k].shape[0]):
                             values[i] = ','.join(map(lambda x : str(x), rdt[k][i].tolist()))
                 elif isinstance(context.param_type, ConstantType):
-                    np.testing.assert_array_equal(ds[k][k][:][0], rdt[k])
+                    np.testing.assert_array_equal(list(ds['data'][k]), rdt[k])
                 elif isinstance(context.param_type, CategoryType):
-                    np.testing.assert_array_equal(ds[k][k][:][0], rdt[k])
+                    np.testing.assert_array_equal(list(ds['data'][k]), rdt[k])
                 else:
                     untested.append('%s (%s)' % (k,context.param_type))
             if untested:
