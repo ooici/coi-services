@@ -15,15 +15,14 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-
+from interface.objects import PortTypeEnum
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import NotFound, BadRequest
-from pyon.public import RT, PRED
+from pyon.public import RT, OT, PRED
 #from mock import Mock, patch
 from pyon.util.ion_time import IonTime
 from nose.plugins.attrib import attr
-from pyon.public import OT
 
 
 import datetime
@@ -429,13 +428,13 @@ class TestDeployment(IonIntegrationTestCase):
         instrument_site_id   = [self.RR2.create(any_old(RT.InstrumentSite,
                                                 {"planned_uplink_port":
                                                      IonObject(OT.PlatformPort,
-                                                               reference_designator="instport_%d" % (i+1))}))
+                                                               reference_designator="GA01SUMO-FI003-0%s-CTDMO0999" % (i+1) )}))
                                 for i in range(9)]
 
         platform_site_id     = [self.RR2.create(any_old(RT.PlatformSite,
                                                 {"planned_uplink_port":
                                                     IonObject(OT.PlatformPort,
-                                                              reference_designator="platport_%d" % (i+1))}))
+                                                              reference_designator="GA01SUMO-FI003-0%s-CTDMO0888" % (i+1))}))
                                 for i in range(4)]
 
 
@@ -493,12 +492,18 @@ class TestDeployment(IonIntegrationTestCase):
                              self.RR2.find_instrument_model_of_instrument_site_using_has_model(instrument_site_id[i]))
 
 
+        # OOIReferenceDesignator format: GA01SUMO-FI003-03-CTDMO0999  (site-platform_id-port-device_id)
+
         port_assignments = {}
         for p in range(3):
-            port_assignments[platform_device_id[p]] = "platport_%d" % (p+1)
+            ref_desig = "GA01SUMO-FI003-0%s-CTDMO0888" % (p+1)
+            pp_obj = IonObject(OT.PlatformPort, reference_designator=ref_desig, port_type= PortTypeEnum.PAYLOAD, ip_address=str(p) )
+            port_assignments[platform_device_id[p]] = pp_obj
             for i in range(3):
+                ref_desig = "GA01SUMO-FI003-0%s-CTDMO0999" % ((p*3)+i+1)
+                pp_obj = IonObject(OT.PlatformPort, reference_designator=ref_desig, port_type= PortTypeEnum.PAYLOAD, ip_address=str(p) )
                 idx = instrument_at(p, i)
-                port_assignments[instrument_device_id[idx]] = "instport_%d" % (idx+1)
+                port_assignments[instrument_device_id[idx]] = pp_obj
 
         deployment_id = self.RR2.create(any_old(RT.Deployment,
                 {"context": deployment_context,
@@ -536,16 +541,12 @@ class TestDeployment(IonIntegrationTestCase):
 
         elif OT.CabledNodeDeploymentContext == deployment_context_type:
             expected_platforms = [1]
-            expected_instruments = [3, 4, 5]
 
             # verify proper associations
             for i, d in enumerate(platform_device_id):
                 self.assertEqual(i in expected_platforms,
                                  d in self.RR2.find_platform_device_ids_of_platform_site_using_has_device(platform_site_id[i]))
 
-            for i, d in enumerate(instrument_device_id):
-                self.assertEqual(i in expected_instruments,
-                                 d in self.RR2.find_instrument_device_ids_of_instrument_site_using_has_device(instrument_site_id[i]))
 
         # site and device are no longer collected using four lists (expecting two to be empty, the other two to match)
         # so these assertions no longer have the same meaning
