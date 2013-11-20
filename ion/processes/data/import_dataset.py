@@ -59,12 +59,13 @@ class DataAgentControl(ImmediateProcess):
                 log.debug("Looking for an ExternalDataset with name %s", dataset_name)
                 objects,_ = rr.find_resources(RT.ExternalDataset, name=dataset_name, id_only=False)
             elif device_name:
-                log.debug("Looking for an InstrumentDevice or PlatformDevice with name %s", dataset_name)
+                log.debug("Looking for an InstrumentDevice with name %s", device_name)
                 objects,_ = rr.find_resources(RT.InstrumentDevice, name=device_name, id_only=False)
                 if not objects:
+                    log.debug("Looking for a PlatformDevice with name %s", device_name)
                     objects,_ = rr.find_resources(RT.PlatformDevice, name=device_name, id_only=False)
             elif agent_name:
-                log.debug("Looking for an ExternalDatasetAgentInstance with name %s", dataset_name)
+                log.debug("Looking for an ExternalDatasetAgentInstance with name %s", agent_name)
                 objects,_ = rr.find_resources(RT.ExternalDatasetAgentInstance, name=agent_name, id_only=False)
 
             if not objects:
