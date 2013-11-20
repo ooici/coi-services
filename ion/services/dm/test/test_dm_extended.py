@@ -286,7 +286,7 @@ class TestDMExtended(DMTestCase):
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
 
 
-        breakpoint(locals())
+        breakpoint(locals(), globals())
 
 
     @attr('UTIL')

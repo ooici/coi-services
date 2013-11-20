@@ -891,21 +891,21 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         data_product = DataProduct()
         dp_id, _ = self.rr.create(data_product)
         
-        search_string = "search 'ts_created' time from '%s' to '%s' from 'data_products_index'" % (past, future)
+        search_string = "search 'type_' is 'DataProduct' from 'data_products_index' and search 'ts_created' time from '%s' to '%s' from 'data_products_index'" % (past, future)
 
         results = self.poll(9, self.discovery.parse,search_string)
 
         self.assertIsNotNone(results,'Results not found')
 
-        self.assertTrue(results[0]['_id'] == dp_id)
+        self.assertIn(dp_id, results)
         
-        search_string = "search 'ts_created' time from '%s' from 'data_products_index'" % past
+        search_string = "search 'type_' is 'DataProduct' from 'data_products_index' and search 'ts_created' time from '%s' from 'data_products_index'" % past
 
         results = self.poll(9, self.discovery.parse,search_string)
 
         self.assertIsNotNone(results,'Results not found')
 
-        self.assertTrue(results[0]['_id'] == dp_id)
+        self.assertIn(dp_id, results)
 
         
     @skipIf(not use_es, 'No ElasticSearch')
@@ -1054,8 +1054,8 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         data_product_search = 'search "name" is "*" from "data_products_index" and has "%s"' % param_id
         results = self.poll(9, self.discovery.parse, data_product_search)
-        print results
-        self.assertEquals(results[0], dp_id)
+        self.assertIn(dp_id, results)
+        #self.assertEquals(results[0], dp_id)
 
         
 
