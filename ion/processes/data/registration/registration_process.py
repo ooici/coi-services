@@ -18,6 +18,7 @@ import os
 import urllib
 import xml.dom.minidom
 import StringIO
+import re
 
 class RegistrationProcess(StandaloneProcess):
 
@@ -136,7 +137,8 @@ class RegistrationProcess(StandaloneProcess):
 
             if not (len(dims) == 1 and dims[0] == vars[0]):
                 dataset_element = doc.createElement('dataset')
-                dataset_element.setAttribute('type', 'EDDGridFromDap')
+                #dataset_element.setAttribute('type', 'EDDGridFromDap')
+                dataset_element.setAttribute('type', 'EDDTableFromDapSequence')
                 dataset_element.setAttribute('datasetID', product_id)
                 dataset_element.setAttribute('active', 'True')
 
@@ -152,6 +154,11 @@ class RegistrationProcess(StandaloneProcess):
                     text_node = doc.createTextNode('5')
                 reload_element.appendChild(text_node)
                 dataset_element.appendChild(reload_element)
+                
+                outer_element = doc.createElement('outerSequenceName')
+                text_node = doc.createTextNode('data')
+                outer_element.appendChild(text_node)
+                dataset_element.appendChild(outer_element)
 
                 if self.CFG.get_safe('server.erddap.dataset_caching',True):
                     refresh_interval = self.CFG.get_safe('server.erddap.refresh_interval', 30000)
@@ -185,6 +192,8 @@ class RegistrationProcess(StandaloneProcess):
 
                 for var_name in vars:
                     var = cov.get_parameter_context(var_name)
+                    if re.match(r'.*_[a-z0-9]{32}', var.name):
+                        continue # Let's not do this
                     
                     units = "unknown"
                     if hasattr(var,'uom') and var.uom:
