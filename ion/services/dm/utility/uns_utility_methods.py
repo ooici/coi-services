@@ -374,10 +374,11 @@ def get_event_computed_attributes(event):
         summary = get_event_summary(event)
         evt_computed.event_summary = summary
 
-        spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'type_', 'origin', 'origin_type', 'ts_created', 'base_types']]
-        evt_computed.special_attributes = ", ".join(spc_attrs)
+        # The following is unused apparently
+        #spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'type_', 'origin', 'origin_type', 'ts_created', 'base_types']]
+        #evt_computed.special_attributes = ", ".join(spc_attrs)
 
-        evt_computed.event_attributes_formatted = pprint.pformat(event.__dict__)
+        #evt_computed.event_attributes_formatted = pprint.pformat(event.__dict__)
     except Exception as ex:
         log.exception("Error computing EventComputedAttributes for event %s: %s", event, ex)
 

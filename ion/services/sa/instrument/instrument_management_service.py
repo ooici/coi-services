@@ -1585,14 +1585,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # retrieve the statuses for the instrument
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
                                                                                     extended_instrument.computed)
-        #TODO: THIS SHOULD BE REFACTORED IN R3 when devices are aligned!!!
-        #if there is no instrument agent then check if there is a dataset agent linked and put that link in this slot
-        if not extended_instrument.instrument_agent and extended_instrument.instrument_model:
-            datasetagent_objs, _ = self.clients.resource_registry.find_subjects(subject_type=RT.ExternalDatasetAgent, predicate=PRED.hasModel, object=extended_instrument.instrument_model, id_only=False)
-            if datasetagent_objs:
-                extended_instrument.instrument_agent = datasetagent_objs[0]
-
-        #retrieve the aggregate status for the instrument
+        # retrieve the aggregate status for the instrument
         status_values = [ extended_instrument.computed.communications_status_roll_up,
                           extended_instrument.computed.data_status_roll_up,
                           extended_instrument.computed.location_status_roll_up,
@@ -1614,7 +1607,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return extended_instrument
 
 
-    #functions for INSTRUMENT computed attributes -- currently bogus values returned
+    # functions for INSTRUMENT computed attributes -- currently bogus values returned
 
     def get_last_data_received_datetime(self, instrument_device_id):
         # not currently available from device or agent
@@ -1823,6 +1816,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             extended_platform.connected_device_info.append(info_dict)
 
         # JIRA OOIION948: REMOVE THIS BLOCK WHEN FIXED
+        # Note: probably fixed by now, add back special decorator
         # add portals, sites related to platforms (SHOULD HAPPEN AUTOMATICALLY USING THE COMPOUND ASSOCIATION)
         if extended_platform.deployed_site and not extended_platform.portals:
             extended_platform.portals = RR2.find_objects(subject=extended_platform.deployed_site._id, predicate=PRED.hasSite, id_only=False)
@@ -1843,7 +1837,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
 
-        # Building status
+        # Building status - for PlatformAgents only (not ExternalDatasetAgent)
         # @TODO: clean this UP!!!
         child_device_ids = device_relations.keys()
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
@@ -1865,7 +1859,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # TODO: why don't we just use the immediate device children? child_objs
         ids =[i._id if i else None for i in extended_platform.portal_instruments]
         extended_platform.computed.portal_status = csl(ids)
-        log.debug('%d portals, %d instruments, %d status: %r', len(extended_platform.portals), len(extended_platform.portal_instruments), len(extended_platform.computed.portal_status.value), ids)
+        log.debug('%d portals, %d instruments, %d status: %r', len(extended_platform.portals),
+                  len(extended_platform.portal_instruments), len(extended_platform.computed.portal_status.value), ids)
 
         rollx_builder = RollXBuilder(self)
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
@@ -1899,7 +1894,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.platform_device_extension.crush')
 
         # add UI details for deployments
-        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients, instruments=extended_platform.instrument_devices, instrument_status=extended_platform.computed.instrument_status.value)
+        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients,
+                instruments=extended_platform.instrument_devices, instrument_status=extended_platform.computed.instrument_status.value)
         if t:
             t.complete_step('ims.platform_device_extension.deploy')
             stats.add(t)
