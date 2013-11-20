@@ -317,7 +317,8 @@ class DatasetManagementService(BaseDatasetManagementService):
         if parameters is not None:
             retval = {}
             for p in parameters:
-                retval[p] = doc['bounds'][p]
+                if p in doc['bounds']:
+                    retval[p] = doc['bounds'][p]
             return retval
 
         return doc['bounds']

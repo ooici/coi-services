@@ -176,9 +176,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         rough_size = 0
         for k,v in rdt.iteritems():
             v = v[:].flatten()
-            bounds[k] = (np.min(v), np.max(v))
+            if v.dtype.char not in ('S', 'O', 'U', 'V'):
+                bounds[k] = (np.min(v), np.max(v))
+                last_values[k] = v[-1]
             extents[k] = len(rdt)
-            last_values[k] = v[-1]
             rough_size += len(rdt) * 4
 
         doc = {'bounds':bounds, 'extents':extents, 'last_values':last_values, 'size': rough_size}
@@ -207,15 +208,16 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
                 continue
 
             v = v[:].flatten() # Get the numpy representation (dense array).
+            if v.dtype.char not in ('S', 'O', 'U', 'V'):
+                l_min = np.min(v)
+                l_max = np.max(v)
+                o_min, o_max = bounds[k]
+                bounds[k] = (min(l_min, o_min), max(l_max, o_max))
+                last_values[k] = v[-1]
             # Update the bounds
-            l_min = np.min(v)
-            l_max = np.max(v)
-            o_min, o_max = bounds[k]
-            bounds[k] = (min(l_min, o_min), max(l_max, o_max))
             # Increase the extents
             extents[k] = extents[k] + len(rdt)
             # How about the last value?
-            last_values[k] = v[-1]
 
             rough_size += len(rdt) * 4
         # Sanitize it
