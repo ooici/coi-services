@@ -122,7 +122,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         dataset_id = self.create_dataset(pdict_id)
 
-        self.get_datastore(dataset_id)
+        # self.get_datastore(dataset_id)
         self.i += 1
         return stream_id, route, stream_def_id, dataset_id
 

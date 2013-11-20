@@ -2616,8 +2616,75 @@ Reason: %s
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
 
     def _load_InstrumentAgentInstance_OOI(self):
-        # TODO: Create these resources and associate them
-        pass
+        """Create InstrumentAgentInstance and ExternalDatasetAgentInstance (!!) for instruments with agents present.
+        Supports incremental preload"""
+        inst_objs = self.ooi_loader.get_type_assets("instrument")
+        node_objs = self.ooi_loader.get_type_assets("node")
+        class_objs = self.ooi_loader.get_type_assets("class")
+        series_objs = self.ooi_loader.get_type_assets("series")
+
+        for ooi_id, inst_obj in inst_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(ooi_id)
+            node_obj = node_objs[ooi_rd.node_rd]
+            if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
+                continue
+            if not self._match_filter(ooi_id[:2]):
+                continue
+
+            node_id = ooi_id[:14]
+            if not node_obj.get('is_platform', False):
+                node_id = node_obj.get('platform_id')
+                node_obj = node_objs[node_id]
+                if not node_obj.get('is_platform', False):
+                    log.warn("Node %s is not a platform!!" % node_id)
+
+            series_obj = series_objs[ooi_rd.series_rd]
+            ia_code = series_obj["ia_code"]
+            iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
+            dart_code = series_obj["dart_code"]
+            dagent_res_obj = self._get_resource_obj(dart_code, True) if dart_code else None
+            idev_id = ooi_id + "_ID"
+
+            if iagent_res_obj:
+                newrow = {}
+                iai_id = ooi_id + "_IAI"
+                newrow[COL_ID] = iai_id
+                newrow['iai/name'] = "Instrumetn agent instance for %s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
+                newrow['iai/description'] = "Instrument agent instance %s device #01" % ooi_id
+                newrow['iai/reference_urls'] = ''
+                newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
+                newrow['instrument_agent_id'] = "IA_" + ia_code
+                newrow['instrument_device_id'] = idev_id
+                newrow['comms_device_address'] = ""
+                newrow['comms_device_port'] = ""
+                newrow['comms_server_address'] = ""
+                newrow['comms_server_port'] = ""
+                newrow['comms_server_cmd_port'] = ""
+                newrow['alerts'] = ""
+                newrow['startup_config'] = ""
+                newrow['agent_config'] = ""
+
+                if not self._resource_exists(newrow[COL_ID]):
+                    self._load_InstrumentAgentInstance(newrow)
+
+            elif dagent_res_obj:
+                newrow = {}
+                edai_id = ooi_id + "_EDAI"
+                newrow[COL_ID] = edai_id
+                newrow['ai/name'] = "Data agent instance for %s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
+                newrow['ai/description'] = "Instrument agent instance %s device #01" % ooi_id
+                newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
+                newrow['agent_id'] = dart_code
+                newrow['device_id'] = idev_id
+                newrow['dataset_id'] = ""
+                newrow['driver_config'] = ""
+                newrow['harvester_config'] = ""
+                newrow['parser_config'] = ""
+                newrow['records_per_granule'] = "50"
+
+                if not self._resource_exists(newrow[COL_ID]):
+                    self._load_ExternalDatasetAgentInstance(newrow)
+
 
     def _load_ExternalDataProvider(self, row):
         contacts = self._get_contacts(row, field='contact_id')
@@ -2711,27 +2778,6 @@ Reason: %s
     def _load_ExternalDatasetAgent_OOI(self):
         # Nothing to do here. These rows are created manually
         pass
-        # agent_objs = self.ooi_loader.get_type_assets("instagent")
-        #
-        # for ooi_id, agent_obj in agent_objs.iteritems():
-        #     if agent_obj.get('active', False):
-        #
-        #         # TODO: Filter based on model use
-        #         #if not self._match_filter(ooi_id[:2]):
-        #         #    continue
-        #
-        #         ia_id = "IA_" + ooi_id
-        #         if self._get_resource_obj(ia_id):
-        #             newrow = {}
-        #             newrow[COL_ID] = ia_id
-        #             series_list = agent_obj.get('series_list', [])
-        #             series_list = [sid for sid in series_list if self._get_resource_obj(sid)]
-        #             newrow['instrument_model_ids'] = ",".join(series_list)
-        #             #newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
-        #             newrow['org_ids'] = ""
-        #             newrow['lcstate'] = "DEPLOYED_AVAILABLE"
-        #
-        #             self._load_InstrumentAgent_ext(newrow)
 
     def _load_ExternalDatasetAgentInstance(self, row):
         # Generate the data product and associate it to the ExternalDataset or device source

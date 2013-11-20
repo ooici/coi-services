@@ -493,7 +493,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         return event
 
-    def get_recent_events(self, resource_id='', limit=10000):
+    def get_recent_events(self, resource_id='', limit=2000):
         """
         Get recent events for use in extended resource computed attribute
         @param resource_id str
