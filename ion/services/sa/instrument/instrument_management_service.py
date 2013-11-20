@@ -1585,14 +1585,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # retrieve the statuses for the instrument
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
                                                                                     extended_instrument.computed)
-        #TODO: THIS SHOULD BE REFACTORED IN R3 when devices are aligned!!!
-        #if there is no instrument agent then check if there is a dataset agent linked and put that link in this slot
-        if not extended_instrument.instrument_agent and extended_instrument.instrument_model:
-            datasetagent_objs, _ = self.clients.resource_registry.find_subjects(subject_type=RT.ExternalDatasetAgent, predicate=PRED.hasModel, object=extended_instrument.instrument_model, id_only=False)
-            if datasetagent_objs:
-                extended_instrument.instrument_agent = datasetagent_objs[0]
-
-        #retrieve the aggregate status for the instrument
+        # retrieve the aggregate status for the instrument
         status_values = [ extended_instrument.computed.communications_status_roll_up,
                           extended_instrument.computed.data_status_roll_up,
                           extended_instrument.computed.location_status_roll_up,
@@ -1614,7 +1607,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return extended_instrument
 
 
-    #functions for INSTRUMENT computed attributes -- currently bogus values returned
+    # functions for INSTRUMENT computed attributes -- currently bogus values returned
 
     def get_last_data_received_datetime(self, instrument_device_id):
         # not currently available from device or agent
