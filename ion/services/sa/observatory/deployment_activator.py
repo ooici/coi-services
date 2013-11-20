@@ -9,6 +9,7 @@ import copy
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.resource import PRED, RT, OT
+from ion.core.ooiref import OOIReferenceDesignator
 
 from ooi.logging import log
 from pyon.util.containers import get_ion_ts
@@ -621,7 +622,6 @@ class DeploymentActivator(DeploymentOperator):
 
         portref_of_device = self.deployment_obj.port_assignments
 
-
         def _merge_helper(acc, site_ptr, dev_ptr, unmatched_list):
             """
             given 2 trees, try to match up all their children.  assume roots already matched
@@ -629,37 +629,43 @@ class DeploymentActivator(DeploymentOperator):
             dev_id  = dev_ptr["_id"]
             site_id = site_ptr["_id"]
             if not dev_ptr["model"] in site_ptr["models"]:
-                raise BadRequest("Attempted to assign device '%s' to a site that doesn't support its model" % dev_id)
+                log.warning("Attempted to assign device '%s' to a site '%s' that doesn't support its model", dev_id, site_id)
 
             if dev_id in unmatched_list: unmatched_list.remove(dev_id)
             acc.append((site_id, dev_id))
+            log.debug('Add to matched list  site_id:  %s   dev_id: %s', site_id, dev_id)
+
 
             site_of_portref = dict([(v["uplink_port"], k) for k, v in site_ptr["children"].iteritems()])
 
             for child_dev_id, child_dev_ptr in dev_ptr["children"].iteritems():
+
                 if not child_dev_id in portref_of_device:
-                    raise BadRequest("No platform port information specified for device %s" % child_dev_id)
+                    log.warning("No platform port information specified for device %s" % child_dev_id)
                 dev_port = portref_of_device[child_dev_id]
 
                 #check that a PlatformPort object is provided
                 if dev_port.type_ != OT.PlatformPort:
-                    raise BadRequest("No platform port information specified for device %s" % child_dev_id)
+                    log.warning("No platform port information specified for device %s" % child_dev_id)
 
-                child_site_ptr = ''
-                if not dev_port in site_of_portref:
-                    pass
+                ooi_rd = OOIReferenceDesignator(dev_port.reference_designator)
+                if ooi_rd.error:
+                   log.warning("Invalid OOIReferenceDesignator ( %s ) specified for device %s", dev_port.reference_designator, child_dev_id)
+                if not ooi_rd.port:
+                    log.warning("Invalid OOIReferenceDesignator ( %s ) specified for device %s, could not retrieve port", dev_port.reference_designator, child_dev_id)
+
+                if dev_port.reference_designator in site_of_portref:
+                    child_site_id = site_of_portref[dev_port.reference_designator]
+                    child_site_ptr = site_ptr["children"][child_site_id]
+                    acc, unmatched_list = _merge_helper(acc[:], child_site_ptr, child_dev_ptr, unmatched_list[:])
+
+                else:
+                    log.warning("Couldn't find a port on site %s (%s) called '%s'", site_ptr["name"],  site_id, dev_port)
 
                     # this check is to match the ref_designator in the deployment object with the ref_designator in the target site
                     #todo add ref_designators to the Sites in preload to match intended deployments
 
-                    #raise BadRequest("Couldn't find a port on site %s (%s) called '%s'" % (site_ptr["name"],
-                    #                                                                       site_id,
-                    #                                                                       dev_port))
-                else:
-                    child_site_id = site_of_portref[dev_port]
-                    child_site_ptr = site_ptr["children"][child_site_id]
 
-                acc, unmatched_list = _merge_helper(acc[:], child_site_ptr, child_dev_ptr, unmatched_list[:])
 
             return acc, unmatched_list
 
