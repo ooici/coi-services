@@ -21,13 +21,16 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
-from interface.objects import ProcessStateEnum, StreamConfiguration
+from interface.objects import ProcessStateEnum, StreamConfiguration, PortTypeEnum
 
 
 from pyon.public import RT, OT, PRED, CFG
 from nose.plugins.attrib import attr
 from ooi.logging import log
 import unittest
+import time
+import calendar
+
 DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
 
 
@@ -393,7 +396,7 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
         #todo: create org and figure out which agent resource needs to get assigned to it
 
 
-        def _make_platform_agent_structure(agent_config=None):
+        def _make_platform_agent_structure(name='', agent_config=None):
             if None is agent_config: agent_config = {}
 
             # instance creation
@@ -422,14 +425,21 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             site_obj = IonObject(RT.PlatformSite, name='sitePlatform')
             site_id = self.OMS.create_platform_site(platform_site=site_obj)
 
-            platform_port_obj= IonObject(OT.PlatformPort,   reference_designator = 'Site1-platformid-03-devid',
-                                                            port_type=2,
+            # find current deployment using time constraints
+            current_time =  int( calendar.timegm(time.gmtime()) )
+            # two years on either side of current time
+            start = current_time - 63115200
+            end = current_time + 63115200
+            temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=str(start), end_datetime=str(end))
+            platform_port_obj= IonObject(OT.PlatformPort, reference_designator = 'GA01SUMO-FI003-09-CTDMO0999',
+                                                            port_type=PortTypeEnum.UPLINK,
                                                             ip_address=0)
-
             deployment_obj = IonObject(RT.Deployment,
-                                        name='TestDeployment',
-                                        description='some new deployment',
-                                        port_assignments={platform_device_id:platform_port_obj})
+                                       name='TestPlatformDeployment_' + name,
+                                       description='some new deployment',
+                                       context=IonObject(OT.CabledNodeDeploymentContext),
+                                       constraint_list=[temporal_bounds],
+                                       port_assignments={platform_device_id:platform_port_obj})
 
             deploy_id = self.OMS.create_deployment(deployment=deployment_obj, site_id=site_id, device_id=platform_device_id)
 
@@ -466,6 +476,29 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
             self.addCleanup(self.DP.suspend_data_product_persistence, dp_id)
 
+            #deployment creation
+            site_obj = IonObject(RT.InstrumentSite, name='siteInstrument')
+            site_id = self.OMS.create_instrument_site(instrument_site =site_obj)
+
+            # find current deployment using time constraints
+            current_time =  int( calendar.timegm(time.gmtime()) )
+            # two years on either side of current time
+            start = current_time - 63115200
+            end = current_time + 63115200
+            temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=str(start), end_datetime=str(end))
+            platform_port_obj= IonObject(OT.PlatformPort, reference_designator = 'GA01SUMO-FI003-08-CTDMO0888',
+                                                            port_type=PortTypeEnum.PAYLOAD,
+                                                            ip_address=0)
+            deployment_obj = IonObject(RT.Deployment,
+                                       name='TestDeployment for Cabled Instrument',
+                                       description='some new deployment',
+                                       context=IonObject(OT.CabledInstrumentDeploymentContext),
+                                       constraint_list=[temporal_bounds],
+                                       port_assignments={instrument_device_id:platform_port_obj})
+
+            deploy_id = self.OMS.create_deployment(deployment=deployment_obj, site_id=site_id, device_id=instrument_device_id)
+
+
             # assignments
             self.RR2.assign_instrument_agent_instance_to_instrument_device_with_has_agent_instance(instrument_agent_instance_id, instrument_device_id)
             self.RR2.assign_instrument_agent_to_instrument_agent_instance_with_has_agent_definition(instrument_agent_id, instrument_agent_instance_id)
@@ -481,7 +514,7 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
         self.assertRaises(AssertionError, config_builder.p.prepare, will_launch=False)
 
         log.debug("Making the structure for a platform agent, which will be the child")
-        platform_agent_instance_child_id, _, platform_device_child_id  = _make_platform_agent_structure()
+        platform_agent_instance_child_id, _, platform_device_child_id  = _make_platform_agent_structure(name='child')
         platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
 
         log.debug("Preparing a valid agent instance launch, for config only")
@@ -492,7 +525,7 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
 
 
         log.debug("Making the structure for a platform agent, which will be the parent")
-        platform_agent_instance_parent_id, _, platform_device_parent_id  = _make_platform_agent_structure()
+        platform_agent_instance_parent_id, _, platform_device_parent_id  = _make_platform_agent_structure(name='parent')
         platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
 
         log.debug("Testing child-less parent as a child config")
