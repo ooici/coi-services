@@ -422,10 +422,9 @@ class AgentConfigurationBuilder(object):
 
         log.debug('completed agent start')
 
-    def _collect_deployment(self):
+    def _collect_deployment(self, device_id=None):
 
-        dev_id = self._get_device()._id
-        deployment_objs = self.RR2.find_objects(dev_id, PRED.hasDeployment, RT.Deployment)
+        deployment_objs = self.RR2.find_objects(device_id, PRED.hasDeployment, RT.Deployment)
 
         # find current deployment using time constraints
         current_time =  int( calendar.timegm(time.gmtime()) )
@@ -444,7 +443,6 @@ class AgentConfigurationBuilder(object):
                 if int(time_constraint.start_datetime) < current_time < int(time_constraint.end_datetime) :
                     log.debug('_collect_deployment found current deployment start time: %s, end time: %s   current time:  %s    deployment: %s ',
                               time_constraint.start_datetime, time_constraint.end_datetime, current_time, d)
-
                     return d
 
         return None
@@ -468,13 +466,13 @@ class AgentConfigurationBuilder(object):
 
         return
 
-    def _serialize_port_assigments(self, port_assignments):
-
+    def _serialize_port_assigments(self, port_assignments=None):
         serializer = IonObjectSerializer()
         serialized_port_assignments = {}
-        for device_id, platform_port in port_assignments.iteritems():
-            flatpp = serializer.serialize(platform_port)
-            serialized_port_assignments[device_id] = flatpp
+        if isinstance(port_assignments, dict):
+            for device_id, platform_port in port_assignments.iteritems():
+                flatpp = serializer.serialize(platform_port)
+                serialized_port_assignments[device_id] = flatpp
 
         return serialized_port_assignments
 
@@ -675,10 +673,10 @@ class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
         port_assignments = {}
 
         #find the associated Deployment resource for this device
-        deployment_obj = self._collect_deployment()
+        deployment_obj = self._collect_deployment(self._get_device()._id)
         if deployment_obj:
             self._validate_reference_designator(deployment_obj.port_assignments)
-            port_assignments = self._serialize_port_assigments(deployment_obj.port_assignments)
+            port_assignments = self._serialize_port_assigments(deployment_obj.port_assignments )
 
         instrument_agent_instance_obj = self.agent_instance_obj
 
@@ -726,13 +724,25 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         driver_config = super(PlatformAgentConfigurationBuilder, self)._generate_driver_config()
 
         #add port assignments
-        port_assignments = {}
+        port_assignments_raw = {}
 
         #find the associated Deployment resource for this device
-        deployment_obj = self._collect_deployment()
+        deployment_obj = self._collect_deployment(self._get_device()._id)
         if deployment_obj:
             self._validate_reference_designator(deployment_obj.port_assignments)
-            port_assignments = self._serialize_port_assigments(deployment_obj.port_assignments)
+            port_assignments_raw.update( deployment_obj.port_assignments)
+
+        child_device_ids = self._build_child_list()
+
+        #Deployment info for all children must be added to the driver_config of the platform
+        for dev_id in child_device_ids:
+            deployment_obj = self._collect_deployment(dev_id)
+            if deployment_obj:
+                self._validate_reference_designator(deployment_obj.port_assignments)
+                port_assignments_raw.update(deployment_obj.port_assignments)
+
+        port_assignments = self._serialize_port_assigments(port_assignments_raw)
+        log.debug(' port assignments for platform  %s', port_assignments)
 
         # Create driver config.
         add_driver_config = {
@@ -748,25 +758,7 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         """
         log.debug("_generate_children for %s", self.agent_instance_obj.name)
 
-        dev_id = self._get_device()._id
-
-        log.debug("Getting child platform device ids")
-        if self._use_network_parent():
-            log.debug("Using hasNetworkParnet")
-            assocs = self.RR2.filter_cached_associations(PRED.hasNetworkParent, lambda a: dev_id == a.o)
-            child_pdevice_ids = [a.s for a in assocs]
-        else:
-            log.debug("Using hasDevice")
-            child_pdevice_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(self._get_device()._id)
-        log.debug("found platform device ids: %s", child_pdevice_ids)
-
-        log.debug("Getting child instrument device ids")
-        child_idevice_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(self._get_device()._id)
-        log.debug("found instrument device ids: %s", child_idevice_ids)
-
-        child_device_ids = child_idevice_ids + child_pdevice_ids
-
-        log.debug("combined device ids: %s", child_device_ids)
+        child_device_ids = self._build_child_list()
 
         ConfigurationBuilder_factory = AgentConfigurationBuilderFactory(self.clients, self.RR2)
 
@@ -797,3 +789,26 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
             ret[d] = ConfigurationBuilder.prepare(will_launch=False)
 
         return ret
+
+
+    def _build_child_list(self):
+        dev_id = self._get_device()._id
+
+        log.debug("Getting child platform device ids")
+        if self._use_network_parent():
+            log.debug("Using hasNetworkParnet")
+            assocs = self.RR2.filter_cached_associations(PRED.hasNetworkParent, lambda a: dev_id == a.o)
+            child_pdevice_ids = [a.s for a in assocs]
+        else:
+            log.debug("Using hasDevice")
+            child_pdevice_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(self._get_device()._id)
+        log.debug("found platform device ids: %s", child_pdevice_ids)
+
+        log.debug("Getting child instrument device ids")
+        child_idevice_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(self._get_device()._id)
+        log.debug("found instrument device ids: %s", child_idevice_ids)
+
+        child_device_ids = child_idevice_ids + child_pdevice_ids
+
+        log.debug("combined device ids: %s", child_device_ids)
+        return child_device_ids
