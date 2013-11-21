@@ -28,7 +28,7 @@ class AgentLauncher(object):
         if isinstance(agent_config, dict) and "instance_id" in agent_config:
             agent_instance_id = agent_config.get("instance_id", None)
             log.debug("Save the agent spawn config to the object store")
-            obj_id = "agent_spawncfg_" + agent_instance_id
+            obj_id = "agent_spawncfg_%s" % agent_instance_id
 
             obj_store = bootstrap.container_instance.object_store
             try:
@@ -37,7 +37,7 @@ class AgentLauncher(object):
                 pass
             obj_store.create_doc(agent_config, obj_id)
 
-            config_ref = "objects:" + obj_id
+            config_ref = "objects:%s/" % obj_id
             launch_config = {'process': {'config_ref': config_ref}}
         else:
             launch_config = agent_config
