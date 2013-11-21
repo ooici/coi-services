@@ -20,7 +20,8 @@ Prepare for start:
 Start the services container with Container UI:
 > bin/pycc -fc -r res/deploy/r2deploy.yml --mx
 
-Preload ALPHA setup (with UI, OOI assets, demo resources); this can take many minutes to complete before executing the next cmd:
+Preload ALPHA setup (with UI, OOI assets, demo resources); this can take many minutes to complete. Add path=master
+to run against the master Google spreadsheet:
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_alpha.yml
 
 Start the UI (in ion-ux, virtualenv prepared as documented):
@@ -28,7 +29,7 @@ Start the UI (in ion-ux, virtualenv prepared as documented):
 
 
 Demo steps (using ALPHA preload):
-===========================================
+=================================
 
 Go to "CI Bench Test Facility", choose "Platforms", select "Low Power JBox - RSN Bench Testing"
 - From commands menu, select command
@@ -42,14 +43,11 @@ Go to "CI Bench Test Facility", choose "Instruments", select "CTD Simulator"
 Individual preload commands:
 ============================
 
-Preload system UI only
+Preload system UI definitions
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path='http://userexperience.oceanobservatories.org/database-exports/Candidates'
 
-Preload system resources (base setup, without OOI resources or UI)
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA attachments=res/preload/r2_ioc/attachments
-
-Preload system resources (base demo setup, without OOI resources or UI)
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA,R2_DEMO attachments=res/preload/r2_ioc/attachments
+Preload quick demo/test system resources (without OOI resources or UI)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BETA
 
 Preload OOI assets (bulk mode)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load assets=res/preload/r2_ioc/ooi_assets loadooi=True bulk=True
@@ -112,3 +110,14 @@ Datastore work:
 
 Dump the contents of the resource registry as XLSX file in ./interface/resources_<timestamp>.
 > bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=dumpres
+
+
+Testing with OOI Data:
+======================
+
+- Create directory /tmp/dsatest
+- Copy some *.mrg files from test_data/global_glider into /tmp/dsatest
+- Edit the External Dataset Agent Instance resource and set driver_config to:
+  {"startup_config":{"parser":{},"harvester":{"directory":"/tmp/dsatest","pattern":"unit*.mrg"}},"max_records":50}
+- Activate persistence for parsed data product (in stack menu)
+- Start instrument (data) agent and execute INITIALIZE, GO_ACTIVE, RUN, AUTOSAMPLE

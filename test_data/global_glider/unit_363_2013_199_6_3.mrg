@@ -1,0 +1,23 @@
+dbd_label: DBD_ASC(dinkum_binary_data_ascii)file
+encoding_ver: 2
+num_ascii_tags: 14
+all_sensors: 0
+filename: unit_363-2013-199-6-3
+the8x3_filename: 00420003
+filename_extension: sbd
+filename_label: unit_363-2013-199-6-3-sbd(00420003)
+mission_name: TRANSIT.MI
+fileopen_time: Sat_Jul_20_16:04:28_2013
+sensors_per_cycle: 28
+num_label_lines: 3
+num_segments: 1
+segment_filename_0: unit_363-2013-199-6-3
+c_battpos c_wpt_lat c_wpt_lon m_battpos m_coulomb_amphr_total m_coulomb_current m_depth m_de_oil_vol m_gps_lat m_gps_lon m_lat m_lon m_pitch m_present_secs_into_mission m_present_time m_speed m_water_vx m_water_vy x_low_power_status sci_flbb_bb_units sci_flbb_chlor_units sci_m_present_secs_into_mission sci_m_present_time sci_oxy4_oxygen sci_oxy4_saturation sci_water_cond sci_water_pressure sci_water_temp 
+in lat lon in amp-hrs amp m cc lat lon lat lon rad sec timestamp m/s m/s m/s nodim nodim ug/l sec timestamp um % s/m bar degc 
+4 8 8 4 4 4 4 4 8 8 8 8 4 4 8 4 4 4 4 4 4 4 8 4 4 4 4 4 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 61903.8 1374336224.80704 NaN NaN NaN NaN 0 0 61903.8 1374336224.80704 0 0 0 0 0 
+0.7 5006 -14427 0.689462 10.2564 0.290344 0 260.267 5005.0994 -14426.5395 5005.99255534057 -14426.9961018004 0.39968 61903.6 1374336225.427 0.192775 -0.0373688 0.0581152 3 NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 61903.6 1374336225.427 NaN NaN NaN 3 NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 61907.4 1374336228.41089 NaN NaN NaN NaN 0 0 61907.4 1374336228.41089 0 0 0 0 0 
+0.7 NaN NaN 0.689462 10.2647 0.27075 0 260.282 NaN NaN NaN NaN NaN 62053.3 1374336375.08789 NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 
+NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 62247.8 1374336569.61945 NaN NaN NaN 3 NaN NaN NaN NaN NaN NaN NaN NaN NaN 
