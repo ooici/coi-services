@@ -555,6 +555,7 @@ class AgentConfigurationBuilder(object):
 
         #retrieve the output products
         data_product_objs = self.RR2.find_objects(device_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
+        ret[RT.DataProduct] = data_product_objs
 
         if not data_product_objs:
             raise NotFound("No output Data Products attached to this Device " + str(device_id))
