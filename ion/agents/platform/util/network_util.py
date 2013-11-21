@@ -509,7 +509,9 @@ class NetworkUtil(object):
             _add_attrs_to_platform_node(attributes.itervalues(), pn)
 
             # ports:
-            _add_ports_to_platform_node(ports.itervalues(), pn)
+            # remove until network checkpoint needs are defined.
+            # port info can be retrieve from active deployment
+            #_add_ports_to_platform_node(ports.itervalues(), pn)
 
             # children:
             for child_CFG in CFG.get("children", {}).itervalues():
