@@ -885,3 +885,13 @@ class TestDMExtended(DMTestCase):
         data_product_id = self.create_data_product('CTDBP-NO Parsed', stream_def_id=stream_def_id)
         self.activate_data_product(data_product_id)
         breakpoint(locals(), globals())
+
+    @attr("INT")
+    def test_empty_dataset(self):
+        data_product_id = self.make_ctd_data_product()
+
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+
+        bounds = self.dataset_management.dataset_temporal_bounds(dataset_id)
+        self.assertEquals(bounds, {})
+
