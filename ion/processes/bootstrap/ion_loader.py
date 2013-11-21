@@ -5,13 +5,13 @@
     @see https://github.com/ooici/coi-services/blob/master/README_DEMO
 
     Examples (see also README_DEMO linked above):
-      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master scenario=R2_DEMO
-      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc/R2PreloadedResources.xlsx scenario=R2_DEMO
-      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls" scenario=R2_DEMO
-      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master scenario=BETA
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc/R2PreloadedResources.xlsx scenario=BETA
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls" scenario=BETA
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=BETA
 
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
-      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path=https://userexperience.oceanobservatories.org/database-exports/
 
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master assets=res/preload/r2_ioc/ooi_assets scenario=R2_DEMO loadooi=True
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True assets=res/preload/r2_ioc/ooi_assets
@@ -25,25 +25,26 @@
     Options:
       cfg= Path to a preload config file that allows scripted preload runs with defined params
       op= the basic operation to execute (e.g. load, loadui, parseui, deleteooi)
-      bulk= if True, uses RR bulk insert operations to load, not service calls
-      debug= if True, allows a few shortcuts to perform faster loads
       path= override location (dir, GoogleDoc or XLSX file) for preload rows (default is TESTED_DOC; "master" is recognized)
-      attachments= override location to get file attachments (default is path)
+      attachments= override location to get file attachments (default is path + '/attachments')
       ui_path= override location to get UI preload files (default is path + '/ui_assets')
       assets= override location to get OOI asset file (default is path + '/ooi_assets')
+      assetmappings= override location for OOI mapping spreadsheet (default is GoogleDoc)
       categories= list of categories to import
       excludecategories= list of categories to NOT import
       clearcols= list of column names to clear (set to empty string) before preloading
-      loadooi= if True (default is False) loads resources based on OOI assets and ooiuntil argument
       loadui= if True (default is False) loads the UI spec
+      loadooi= if True (default is False) loads resources based on OOI assets and ooiuntil argument
       parseooi= if True (default is False) reads and parses OOI asset information
-      idmap= if True, the IDMap category is used to substitute preload ids (used in certain OOI preload runs)
-      assetmappings= override location for OOI mapping spreadsheet (default is GoogleDoc)
+
+      idmap= if True, the IDMap category is used to substitute preload ids
       ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
-      ooiexclude= synonymous to excludecategories. Don't use
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       ooiparams= if True (default is False) create links to OOI parameter definitions
       ooipartial= if True (default is False) creates resources (data products etc) even if not all inputs are there
+
+      debug= if True, allows shortcuts to perform faster loads (where possible)
+      bulk= if True, uses RR bulk insert operations to load, not service calls
       exportui= if True, writes interface/ui_specs.json with UI object
       revert= if True (and debug==True) remove all new resources and associations created if preload fails
 
@@ -116,12 +117,11 @@ MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfS
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
 TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dDM4MHNOZjd1eHV3Z3JqbmdfTEJzLXc&output=xls"
-
-#
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
 DEFAULT_ASSETS_PATH = "res/preload/r2_ioc/ooi_assets"
+DEFAULT_ATTACHMENTS_PATH = "res/preload/r2_ioc/attachments"
 
 # URL of the mapping spreadsheet for OOI assets
 OOI_MAPPING_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVUeDdoUTU0b0NFQ1dCVDhuUjY0THc&output=xls"
@@ -266,7 +266,10 @@ class IONLoader(ImmediateProcess):
         self.path = config.get("path", None) or TESTED_DOC # handle case where path is explicitly set to None
         if self.path=='master':
             self.path = MASTER_DOC
-        self.attachment_path = config.get("attachments", self.path + '/attachments')
+        self.attachment_path = config.get("attachments", None)
+        if not self.attachment_path:
+            self.attachment_path = DEFAULT_ATTACHMENTS_PATH if self.path.startswith('http') or self.path.endswith('xlsx') else self.path + '/attachments'
+
         self.asset_path = config.get("assets", None)
         if not self.asset_path:
             self.asset_path = DEFAULT_ASSETS_PATH if self.path.startswith('http') or self.path.endswith('xlsx') else self.path + "/ooi_assets"
@@ -2807,7 +2810,7 @@ Reason: %s
             svc_client.assign_external_dataset_agent_instance_to_device(edai_id, device_id, headers=headers)
 
     def _load_ExternalDatasetAgentInstance_OOI(self):
-        # TBD create for dataset agent instruments
+        # @see _load_InstrumentAgentInstance_OOI
         pass
 
     # -------------------------------------------------------------------------
@@ -2879,8 +2882,11 @@ Reason: %s
         if gcrs_id:
             res_obj.geospatial_coordinate_reference_system = self.resource_ids[gcrs_id]
         parent_id = None
-        if row['parent'] and row['parent'] in self.resource_ids:
-            parent_id = self.resource_ids[row['parent']]
+        if row['parent']:
+            if row['parent'] in self.resource_ids:
+                parent_id = self.resource_ids[row['parent']]
+            else:
+                log.warn("DataProduct %s parent reference %s not found", row[COL_ID], parent_id)
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
 
@@ -2897,19 +2903,20 @@ Reason: %s
             # Create and associate Stream
             # Create and associate Dataset
         else:
-            svc_client = self._get_service_client("data_product_management")
+            dpms_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]] if row["stream_def_id"] else None
             if stream_definition_id:
-                res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id,
-                        parent_data_product_id=parent_id,
-                    headers=headers)
+                res_id = dpms_client.create_data_product(data_product=res_obj,
+                                                         stream_definition_id=stream_definition_id,
+                                                         parent_data_product_id=parent_id,
+                                                         headers=headers)
             else:
-                res_id = svc_client.create_data_product_(data_product=res_obj,
-                                                        headers=headers)
+                res_id = dpms_client.create_data_product_(data_product=res_obj,
+                                                          headers=headers)
             self._register_id(row[COL_ID], res_id, res_obj)
 
             if not self.debug and get_typed_value(row['persist_data'], targettype="bool"):
-                svc_client.activate_data_product_persistence(res_id, headers=headers)
+                dpms_client.activate_data_product_persistence(res_id, headers=headers)
 
         self._resource_assign_org(row, res_id)
         self._resource_advance_lcs(row, res_id)
@@ -3057,7 +3064,7 @@ Reason: %s
             if num_dp_generated:
                 log.debug(" ...generated %s data products", num_dp_generated)
 
-        # II. Instrument data products (raw, parsed, engineering, science L0, L1, L2)
+        # II. Instrument data products (raw, parsed, engineering, derived science L0, L1, L2)
         for inst_id, inst_obj in inst_objs.iteritems():
             num_dp_generated = 0
             ooi_rd = OOIReferenceDesignator(inst_id)
@@ -3078,8 +3085,11 @@ Reason: %s
             iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
             dart_code = series_obj["dart_code"]
             dagent_res_obj = self._get_resource_obj(dart_code, True) if dart_code else None
+            ia_enabled = iagent_res_obj and series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
+            dart_enabled = dagent_res_obj and series_obj.get("dart_exists", False)
 
-            parsed_pdict_id = ""
+            parsed_pdict_id, parsed_id = "", ""
+            # (1) Generate stream DataProducts (raw, parsed, engineering)
             if iagent_res_obj or dagent_res_obj:
                 log.debug("Generating DataProducts for %s from instrument/data agent %s streams and SAF", inst_id,
                           ia_code if iagent_res_obj else dart_code)
@@ -3100,6 +3110,7 @@ Reason: %s
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
                         parsed_pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
+                        parsed_id = dp_id
                     else:
                         if scfg.stream_type == StreamConfigurationType.PARSED:
                             log.warn("Instrument %s (agent %s) has more than one PARSED stream: %s (first pdict id=%s)",
@@ -3111,21 +3122,17 @@ Reason: %s
                     newrow['contact_ids'] = ''
                     newrow['geo_constraint_id'] = const_id1
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                    newrow['persist_data'] = 'False'       # TODO: This may need be True
+                    newrow['persist_data'] = 'False'  # Set persist_data to false - no ingestion worker
+                    newrow['parent'] = ''
+                    newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
                     pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                     strdef_id = self._create_dp_stream_def(inst_id, pdict_id, scfg.stream_name)
-                    ia_enabled = iagent_res_obj and series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
-                    dart_enabled = dagent_res_obj and series_obj.get("dart_exists", False)
-                    if ia_enabled or dart_enabled:
-                        newrow['stream_def_id'] = strdef_id
-                        newrow['parent'] = ''
-                        newrow['lcstate'] = "DEPLOYED_AVAILABLE"
-                    else:
-                        if ia_enabled:
-                            log.warn("INCONSISTENCY. Should have StreamDefinition for ParamDict %s", scfg.parameter_dictionary_name)
-                        newrow['stream_def_id'] = ''
-                        newrow['parent'] = ''
+                    newrow['stream_def_id'] = strdef_id
+
+                    if not (ia_enabled or dart_enabled):
+                        log.debug("No data product for %s:%s - agent not enabled", inst_id, scfg.stream_name)
+                        continue
 
                     if not self._resource_exists(dp_id):
                         self._load_DataProduct(newrow)
@@ -3138,7 +3145,7 @@ Reason: %s
                 log.debug("Generating DataProducts for %s using SAF and defaults (no streams)", inst_id)
 
                 # There is no agent defined. Just create basic raw and parsed data products
-                # (0) Device Data Product - raw
+                # Raw instrument DataProduct
                 newrow = {}
                 dp_id = inst_id + "_DPI0"
                 newrow[COL_ID] = dp_id
@@ -3159,7 +3166,7 @@ Reason: %s
                     create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice')
                     create_dp_link(dp_id, inst_id)
 
-                # (1) Device Data Product - parsed
+                # Parsed instrument DataProduct
                 newrow = {}
                 dp_id = inst_id + "_DPI1"
                 newrow[COL_ID] = dp_id
@@ -3182,11 +3189,11 @@ Reason: %s
                     create_dp_link(dp_id, inst_id)
 
             else:
-                # There is no agent defined. Wait generating DataProducts
+                # There is no agent defined. Defer generating DataProducts to incremental run
                 #log.debug("Not generating DataProducts for %s - no agent/streams defined", inst_id)
                 pass
 
-            # (3*) Data Product DPS - Level (per site)
+            # (2) Generate derived DataProducts for L0/L1/L2 based on SAF DPS - Level (per site)
             data_product_list = inst_obj.get('data_product_list', [])
             for dptype_id in data_product_list:
                 dp_id = inst_id + "_" + dptype_id + "_DPID"
@@ -3255,18 +3262,39 @@ Reason: %s
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                newrow['parent'] = inst_id + "_DPI1"
+                newrow['parent'] = parsed_id
                 newrow['persist_data'] = 'False'
 
                 parsed_pdict_obj = self._get_resource_obj(parsed_pdict_id, True)
                 if parsed_pdict_obj:
                     # Find all parameters based on the parsed param dict that belong this this DP (prefix)
                     param_list = ["PD7"]
+                    found_dptype_match = False
                     params = pdict_map[parsed_pdict_obj.name]
                     for param in params:
                         param_obj = self._get_resource_obj(param)
-                        if param_obj.ooi_short_name.startswith(dp_obj['code']):   # TODO: What about the level ambiguity?
+                        if param_obj.ooi_short_name == dptype_id:
+                            # Param match: SAF DPS+level == existing parameter name
                             param_list.append(param)
+                            found_dptype_match = True
+                        elif param_obj.ooi_short_name.startswith(dp_obj['code']):
+                            # Param prefix match: SAF DPS == existing parameter name
+                            # CAUTION: Preload spreadsheet ParamDef "Data Product Identifier" column contains
+                            # non-compliant values e.g. VELPROF-VLN_L0 or VELPROF-PCG.
+                            param_list.append(param)
+                            if param_obj.ooi_short_name.endswith(dp_obj['level']):
+                                # Param match: SAF DPS+level == existing parameter name plus extension
+                                # e.g. VELPROF-VLN_L0. This means this DPS has more than 1 value. All OK
+                                found_dptype_match = True
+                            else:
+                                # The prefix is the DPS code but level is ambiguous
+                                # Param DPS match: SAF DPS == existing parameter name
+                                # WARNING: Level is ambiguous. Accept for all levels
+                                pass
+
+                    if len(param_list) <= 1 or not found_dptype_match:
+                        log.debug(" skip DataProduct %s : %s. In SAF but not found in parsed PDICT", inst_id, dptype_id)
+                        continue
 
                     av_fields = ",".join(self._get_resource_obj(pid).name for pid in param_list)
                     strdef_id = self._create_dp_stream_def(inst_id, parsed_pdict_id, dptype_id, av_fields)
@@ -3289,7 +3317,7 @@ Reason: %s
                     create_dp_link(dp_id, inst_id)
 
                 else:
-                    pass  # Ignore this derived data product in case we don't have stream info
+                    pass  # Ignore this derived data product because we don't have parsed param dict
 
             if num_dp_generated:
                 log.debug(" ...generated %s data products", num_dp_generated)

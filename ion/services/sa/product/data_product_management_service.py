@@ -67,6 +67,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
         data_product_id = self.create_data_product_(data_product)
 
+        # WARNING: This creates a Stream as a side effect!!
         self.assign_stream_definition_to_data_product(data_product_id=data_product_id,
                                                       stream_definition_id=stream_definition_id,
                                                       exchange_point=exchange_point)
@@ -74,6 +75,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         if dataset_id and parent_data_product_id:
             raise BadRequest('A parent dataset or parent data product can be specified, not both.')
         if dataset_id and not data_product_id:
+            # TODO: Q: How can this ever be true?
             self.assign_dataset_to_data_product(data_product_id=data_product_id, dataset_id=dataset_id)
         if parent_data_product_id and not dataset_id:
             self.assign_data_product_to_data_product(data_product_id=data_product_id, parent_data_product_id=parent_data_product_id)
@@ -106,9 +108,10 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         validate_is_not_none(data_product_id, 'A data product id must be passed to register a data product')
         validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to assign to a data product')
-        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id) # Validates and checks for param_dict
+
+        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id)  # Validates and checks for param_dict
         parameter_dictionary = stream_def_obj.parameter_dictionary
-        validate_is_not_none(parameter_dictionary , 'A parameter dictionary must be passed to register a data product')
+        validate_is_not_none(parameter_dictionary, 'A parameter dictionary must be passed to register a data product')
         exchange_point = exchange_point or 'science_data'
 
         data_product = self.RR2.read(data_product_id)
@@ -228,9 +231,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product_id    str
         @throws NotFound    object with specified id does not exist
         """
-        #--------------------------------------------------------------------------------
-        # retrieve the data_process object
-        #--------------------------------------------------------------------------------
+        #-----------------------------------------------------------------------------------------
+        # Step 1: Collect related resources
+
         data_product_obj = self.RR2.read(data_product_id)
 
         validate_is_not_none(data_product_obj, "The data product id should correspond to a valid registered data product.")
@@ -245,20 +248,24 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest("Data Product stream is without a stream definition")
         stream_def_id = stream_defs[0]
 
-
-        stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id) # additional read necessary to fill in the pdict
+        stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id)  # additional read necessary to fill in the pdict
 
         parent_data_product_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
-        dataset_ids = []
-        if len(parent_data_product_ids)==1: # This is a child data product
+        if len(parent_data_product_ids) == 1:  # This is a child data product
             raise BadRequest("Child Data Products shouldn't be activated")
-        else:
-            dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
+
+        child_data_product_ids, _ = self.clients.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
 
         temporal_domain, spatial_domain = time_series_domain()
         temporal_domain = temporal_domain.dump()
         spatial_domain = spatial_domain.dump()
-        
+
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
+
+        #-----------------------------------------------------------------------------------------
+        # Step 2: Create and associate Dataset (coverage)
+
+
         if not dataset_ids:
             # No datasets are currently linked which means we need to create a new one
             dataset_id = self.clients.dataset_management.create_dataset(   name= 'dataset_%s' % stream_id,
@@ -269,6 +276,10 @@ class DataProductManagementService(BaseDataProductManagementService):
 
             # link dataset with data product. This creates the association in the resource registry
             self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+
+            # Late binding of dataset with existing child data products
+            for child_dp_id in child_data_product_ids:
+                self.assign_dataset_to_data_product(child_dp_id, dataset_id)
             
             # register the dataset for externalization
 
@@ -282,27 +293,22 @@ class DataProductManagementService(BaseDataProductManagementService):
             dataset_id = dataset_ids[0]
 
 
+        #-----------------------------------------------------------------------------------------
+        # Step 3: Configure and start ingestion with lookup values
 
-        #-----------------------------------------------------------------------------------------
         # grab the ingestion configuration id from the data_product in order to use to persist it
-        #-----------------------------------------------------------------------------------------
         if data_product_obj.dataset_configuration_id:
             ingestion_configuration_id = data_product_obj.dataset_configuration_id
         else:
             ingestion_configuration_id = self.clients.ingestion_management.list_ingestion_configurations(id_only=True)[0]
 
-
-        #--------------------------------------------------------------------------------
         # Identify lookup tables
-        #--------------------------------------------------------------------------------
         config = DotDict()
         if self._has_lookup_values(data_product_id):
             config.process.input_product = data_product_id
             config.process.lookup_docs = self._get_lookup_documents(data_product_id)
 
-        #--------------------------------------------------------------------------------
         # persist the data stream using the ingestion config id and stream id
-        #--------------------------------------------------------------------------------
 
         # find datasets for the data product
         dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
@@ -318,7 +324,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         data_product_obj.dataset_configuration_id = ingestion_configuration_id
         self.update_data_product(data_product_obj)
-
 
 
     def is_persisted(self, data_product_id=''):
@@ -349,7 +354,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(data_product_obj, 'Should not have been empty')
         validate_is_instance(data_product_obj, DataProduct)
 
-        parent_dp_ids, _ = self.clients.resource_registry.find_objects(data_product_id,PRED.hasDataProductParent, id_only=True)
+        parent_dp_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProductParent, id_only=True)
 
         if not data_product_obj.dataset_configuration_id:
             if parent_dp_ids:
@@ -368,7 +373,8 @@ class DataProductManagementService(BaseDataProductManagementService):
             log.debug("stream found")
             validate_is_not_none(stream_id, 'Data Product %s must have one stream associated' % str(data_product_id))
 
-            self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=data_product_obj.dataset_configuration_id)
+            self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id,
+                                                ingestion_configuration_id=data_product_obj.dataset_configuration_id)
 
         except NotFound:
             if data_product_obj.lcstate == LCS.RETIRED:

@@ -343,6 +343,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise
             self.RR2.update(producer_obj)
 
+    def _assert_persistence_on(self, config_builder):
+        if not config_builder or RT.DataProduct not in config_builder.associated_objects:
+           return
+        data_products = config_builder.associated_objects[RT.DataProduct]
+        parsed_dp_id = None
+        for dp in data_products:
+            if dp.processing_level_code == "Parsed":
+                parsed_dp_id = dp._id
+                break
+        if parsed_dp_id:
+            if not self.DPMS.is_persisted(parsed_dp_id):
+                raise BadRequest("Cannot start agent - data product persistence is not activated!")
+        else:
+            log.warn("Cannot determine if persistence is activated for agent instance=%s", config_builder.agent_instance_obj._id)
 
     def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
@@ -379,6 +393,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             self._stop_port_agent(instrument_agent_instance_obj.port_agent_config)
             log.error('failed to launch', exc_info=True)
             raise ServerError('failed to launch')
+
+        # Check that persistence is on
+        self._assert_persistence_on(config_builder)
 
         # Save the config into an object in the object store which will be passed to the agent by the container.
         config_builder.record_launch_parameters(config)
