@@ -801,11 +801,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Save the config into an object in the object store which will be passed to the agent by the container.
         config_builder.record_launch_parameters(config)
 
-        config_ref = "objects:agent_spawncfg_%s/" % external_dataset_agent_instance_id
-        launch_config = {'process':{'config_ref':config_ref}}
-
         launcher = AgentLauncher(self.clients.process_dispatcher)
-        process_id = launcher.launch(launch_config, config_builder._get_process_definition()._id)
+        process_id = launcher.launch(config, config_builder._get_process_definition()._id)
         if not process_id:
             raise ServerError("Launched external dataset agent instance but no process_id")
 

@@ -244,7 +244,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     #@unittest.skip('refactoring')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    #@unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 90}}})
     def test_activateInstrumentSample(self):

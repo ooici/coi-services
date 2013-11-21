@@ -346,6 +346,7 @@ class AgentConfigurationBuilder(object):
         agent_config = dict_merge(self._get_agent().agent_default_config, self.agent_instance_obj.agent_config, True)
 
         # Create agent_config.
+        agent_config['instance_id']        = self.agent_instance_obj._id
         agent_config['instance_name']        = self.agent_instance_obj.name
         agent_config['org_governance_name']  = self._generate_org_governance_name()
         agent_config['device_type']          = self._generate_device_type()
@@ -409,15 +410,6 @@ class AgentConfigurationBuilder(object):
         """
         record process id of the launch
         """
-        log.debug("Save the generated agent config to the object store")
-        obj_id = "agent_spawncfg_" + self.agent_instance_obj._id
-        obj_store = bootstrap.container_instance.object_store
-        try:
-            obj_store.delete_doc(obj_id)
-        except Exception:
-            pass
-        obj_store.create_doc(agent_config, obj_id)
-
         #self.RR2.update(self.agent_instance_obj)
 
         log.debug('completed agent start')

@@ -5,9 +5,11 @@
 @author   Ian Katz
 """
 
+from pyon.core import bootstrap
+from pyon.core.exception import BadRequest
+
 from interface.objects import ProcessSchedule, ProcessRestartMode, ProcessQueueingMode, ProcessStateEnum
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from pyon.core.exception import BadRequest
 
 from ooi.logging import log
 
@@ -23,13 +25,29 @@ class AgentLauncher(object):
         """
         schedule the launch
         """
+        if isinstance(agent_config, dict) and "instance_id" in agent_config:
+            agent_instance_id = agent_config.get("instance_id", None)
+            log.debug("Save the agent spawn config to the object store")
+            obj_id = "agent_spawncfg_%s" % agent_instance_id
+
+            obj_store = bootstrap.container_instance.object_store
+            try:
+                obj_store.delete_doc(obj_id)
+            except Exception:
+                pass
+            obj_store.create_doc(agent_config, obj_id)
+
+            config_ref = "objects:%s/" % obj_id
+            launch_config = {'process': {'config_ref': config_ref}}
+        else:
+            launch_config = agent_config
 
         log.debug("schedule agent process")
         process_schedule = ProcessSchedule(restart_mode=ProcessRestartMode.ABNORMAL,
                                            queueing_mode=ProcessQueueingMode.ALWAYS)
         process_id = self.process_dispatcher_client.schedule_process(process_definition_id=process_definition_id,
                                                                       schedule=process_schedule,
-                                                                      configuration=agent_config)
+                                                                      configuration=launch_config)
 
         log.info("AgentLauncher got process id='%s' from process_dispatcher.schedule_process()", process_id)
         self.process_id = process_id
