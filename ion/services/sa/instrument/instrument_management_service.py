@@ -383,10 +383,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Save the config into an object in the object store which will be passed to the agent by the container.
         config_builder.record_launch_parameters(config)
 
-        config_ref = "objects:agent_spawncfg_%s/" % instrument_agent_instance_id
-        launch_config = {'process':{'config_ref':config_ref}}
-
-        process_id = launcher.launch(launch_config, config_builder._get_process_definition()._id)
+        process_id = launcher.launch(config, config_builder._get_process_definition()._id)
         if not process_id:
             raise ServerError("Launched instrument agent instance but no process_id")
 
@@ -986,10 +983,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Save the config into an object in the object store which will be passed to the agent by the container.
         configuration_builder.record_launch_parameters(config)
 
-        config_ref = "objects:agent_spawncfg_%s/" % platform_agent_instance_id
-        launch_config = {'process':{'config_ref':config_ref}}
-
-        process_id = launcher.launch(launch_config, configuration_builder._get_process_definition()._id)
+        process_id = launcher.launch(config, configuration_builder._get_process_definition()._id)
 
         launcher.await_launch(self._agent_launch_timeout("start_platform_agent_instance"))
 
