@@ -267,6 +267,10 @@ class RegistrationProcess(StandaloneProcess):
 
         cov.close()
 
+        if not result:
+            log.error("Attempted to register empty dataset\nDims: %s\nDatasets: %s", dims, datasets)
+
+
         return result
 
     def get_ioos_category(self, var_name, units):
