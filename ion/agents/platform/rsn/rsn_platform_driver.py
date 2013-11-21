@@ -114,8 +114,10 @@ class RSNPlatformDriver(PlatformDriver):
         parameters = deepcopy(self._param_dict)
         ports_dict = self._driver_config.get('ports',{})
         ports = []
-        for k,v in ports_dict.iteritems():
-            ports.append(v['port_id'])
+        # remove until network checkpoint needs are defined.
+        # port info can be retrieve from active deployment
+        #for k,v in ports_dict.iteritems():
+        #    ports.append(v['port_id'])
         for k,v in parameters.iteritems():
             read_write = v.get('read_write', None)
             if read_write == 'write':
