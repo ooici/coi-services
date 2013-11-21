@@ -325,14 +325,20 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def dataset_bounds_by_axis(self, dataset_id='', axis=None):
         bounds = self.dataset_bounds(dataset_id)
-        return bounds[axis]
+        if bounds and axis and axis in bounds:
+            return bounds[axis]
+        return {}
 
     def dataset_temporal_bounds(self, dataset_id):
         dataset = self.read_dataset(dataset_id)
+        if not dataset:
+            return {}
         pdict = ParameterDictionary.load(dataset.parameter_dictionary)
         temporal_parameter = pdict.temporal_parameter_name
         units = pdict.get_temporal_context().uom
         bounds = self.dataset_bounds(dataset_id)
+        if not bounds:
+            return {}
         bounds = bounds[temporal_parameter or 'time']
         bounds = [TimeUtils.units_to_ts(units, i) for i in bounds]
         return bounds
@@ -357,7 +363,9 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def dataset_extents_by_axis(self, dataset_id='', axis=None):
         extents = self.dataset_extents(dataset_id)
-        return extents[axis]
+        if extents and axis and axis in extents:
+            return extents[axis]
+        return {}
 
     def dataset_size(self,dataset_id='', in_bytes=False):
         self.read_dataset(dataset_id) # Validates proper dataset
