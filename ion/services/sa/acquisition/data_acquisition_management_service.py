@@ -25,6 +25,7 @@ from ion.util.agent_launcher import AgentLauncher
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessRestartMode
 from interface.objects import Parser, DataProducer, InstrumentProducerContext, ExtDatasetProducerContext, DataProcessProducerContext
 from interface.objects import AttachmentType
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
 from interface.services.sa.idata_acquisition_management_service import BaseDataAcquisitionManagementService
 
 
@@ -34,6 +35,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def on_init(self):
         self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+        self.DPMS = DataProductManagementServiceProcessClient(self)   # TODO: Add to clients
 
     # -----------------
     # The following operations register different types of data producers
@@ -767,6 +769,21 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def unassign_external_dataset_agent_instance_from_device(self, external_dataset_agent_instance_id='', device_id=''):
         self.clients.resource_registry.delete_association((device_id, PRED.hasAgentInstance, external_dataset_agent_instance_id))
 
+    def _assert_persistence_on(self, config_builder):
+        if not config_builder or RT.DataProduct not in config_builder.associated_objects:
+           return
+        data_products = config_builder.associated_objects[RT.DataProduct]
+        parsed_dp_id = None
+        for dp in data_products:
+            if dp.processing_level_code == "Parsed":
+                parsed_dp_id = dp._id
+                break
+        if parsed_dp_id:
+            if not self.DPMS.is_persisted(parsed_dp_id):
+                raise BadRequest("Cannot start agent - data product persistence is not activated!")
+        else:
+            log.warn("Cannot determine if persistence is activated for agent instance=%s", config_builder.agent_instance_obj._id)
+
     def start_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
         """Launch an external dataset agent instance process and return its process id.
         Agent instance resource must exist and be associated with an external dataset or device and an agent definition
@@ -797,6 +814,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         except Exception:
             log.error('failed to launch', exc_info=True)
             raise ServerError('failed to launch')
+
+        # Check that persistence is on
+        self._assert_persistence_on(config_builder)
 
         # Save the config into an object in the object store which will be passed to the agent by the container.
         config_builder.record_launch_parameters(config)
