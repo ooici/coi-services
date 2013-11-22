@@ -116,7 +116,7 @@ CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exp
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dDM4MHNOZjd1eHV3Z3JqbmdfTEJzLXc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdHRVMURMQUpPdEp6dzdCMFdpb29aeXc&output=xls"
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
@@ -2180,7 +2180,8 @@ Reason: %s
                 continue
 
             newrow = {}
-            newrow[COL_ID] = node_id + "_PD"
+            platform_id = node_id + "_PD"
+            newrow[COL_ID] = platform_id
             newrow['pd/name'] = "%s" % node_obj.get('name', '')
             newrow['pd/description'] = "Platform %s device #01" % node_id
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
@@ -2202,9 +2203,14 @@ Reason: %s
                 continue
 
             newrow = {}
-            newrow[COL_ID] = node_id + "_PD"
+            platform_id = node_id + "_PD"
+            newrow[COL_ID] = platform_id
             uplink_node = node_obj.get('uplink_node', "")
             newrow['network_parent_id'] = uplink_node + "_PD" if uplink_node and self._get_resource_obj(uplink_node + "_PD") else ""
+
+            if not newrow['network_parent_id'] or self._has_association(self.resource_ids[platform_id],
+                    PRED.hasNetworkParent, self.resource_ids[newrow['network_parent_id']]):
+                continue
 
             self._load_PlatformDevice_ext(newrow)
 
@@ -2485,7 +2491,60 @@ Reason: %s
         self.resource_ids[row['ID']] = res_id
 
     def _load_PlatformAgentInstance_OOI(self):
-        pass
+        """Creates PlatformAgentInstance and ExternalDatasetAgentInstance resources for platforms
+        to load if agent definitions exists. Supports increments."""
+        node_objs = self.ooi_loader.get_type_assets("node")
+
+        for node_id, node_obj in node_objs.iteritems():
+            if not self._before_cutoff(node_obj):
+                continue
+            if not self._match_filter([node_id[:2]]):
+                continue
+
+            ooi_rd = OOIReferenceDesignator(node_id)
+            platform_id = node_id + "_PD"
+            platform_agent_id = "PA_" + ooi_rd.node_type
+            ed_agent_id = "DART_" + ooi_rd.node_type
+
+            pl_agent_obj = self._get_resource_obj(platform_agent_id, True)
+            ed_agent_obj = self._get_resource_obj(ed_agent_id, True)
+
+            if pl_agent_obj:
+                newrow = {}
+                pai_id = node_id + "_PAI"
+                newrow[COL_ID] = pai_id
+                newrow['pai/name'] = "Platform agent instance for %s" % (node_obj['name'])
+                newrow['pai/description'] = "Platform agent instance %s device #01" % node_id
+                newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
+                newrow['platform_agent_id'] = platform_agent_id
+                newrow['platform_device_id'] = platform_id
+                newrow['driver_config'] = ""
+                newrow['platform_id'] = ooi_rd.node_type + ooi_rd.node_seq
+                newrow['agent_device_map'] = ""
+                newrow['agent_streamconfig_map'] = ""
+                newrow['alerts'] = ""
+                newrow['agent_config'] = ""
+
+                if not self._resource_exists(newrow[COL_ID]):
+                    self._load_InstrumentAgentInstance(newrow)
+
+            elif ed_agent_obj:
+                newrow = {}
+                edai_id = node_id + "_EDAI"
+                newrow[COL_ID] = edai_id
+                newrow['ai/name'] = "Data platform agent instance for %s" % (node_obj['name'])
+                newrow['ai/description'] = "Data agent instance %s device #01" % node_id
+                newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
+                newrow['agent_id'] = ed_agent_id
+                newrow['device_id'] = platform_id
+                newrow['dataset_id'] = ""
+                newrow['driver_config'] = ""
+                newrow['harvester_config'] = ""
+                newrow['parser_config'] = ""
+                newrow['records_per_granule'] = "50"
+
+                if not self._resource_exists(newrow[COL_ID]):
+                    self._load_ExternalDatasetAgentInstance(newrow)
 
     def _load_InstrumentAgent(self, row):
         stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
@@ -2652,7 +2711,7 @@ Reason: %s
                 newrow = {}
                 iai_id = ooi_id + "_IAI"
                 newrow[COL_ID] = iai_id
-                newrow['iai/name'] = "Instrumetn agent instance for %s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
+                newrow['iai/name'] = "Instrument agent instance for %s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
                 newrow['iai/description'] = "Instrument agent instance %s device #01" % ooi_id
                 newrow['iai/reference_urls'] = ''
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
@@ -2675,7 +2734,7 @@ Reason: %s
                 edai_id = ooi_id + "_EDAI"
                 newrow[COL_ID] = edai_id
                 newrow['ai/name'] = "Data agent instance for %s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
-                newrow['ai/description'] = "Instrument agent instance %s device #01" % ooi_id
+                newrow['ai/description'] = "Data agent instance %s device #01" % ooi_id
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
                 newrow['agent_id'] = dart_code
                 newrow['device_id'] = idev_id
