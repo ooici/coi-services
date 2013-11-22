@@ -2433,27 +2433,8 @@ Reason: %s
                                                                        headers=headers)
 
     def _load_PlatformAgent_OOI(self):
-        # This will most likely be an entry on the manual spreadsheet
-        ooi_objs = self.ooi_loader.get_type_assets("platformagent")
-        nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
-
-        for ooi_id, ooi_obj in ooi_objs.iteritems():
-            if ooi_obj['agent_type'] == "PlatformAgent":
-                newrow = {}
-                newrow[COL_ID] = ooi_id + "_PA"
-                newrow['pa/name'] = ooi_obj['name']
-                newrow['pa/description'] = "Platform Agent for " + ooi_id
-                node_types = ["%s_PM" % nt for nt in ooi_obj['node_types'].split(',') if self._get_resource_obj("%s_PM" % nt)]
-                newrow['platform_model_ids'] = ','.join(node_types)
-                newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
-                newrow['stream_configurations'] = ""
-                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
-
-                if not self._match_filter(ooi_obj.get('array_list', None)):
-                    continue
-
-                if not self._resource_exists(newrow[COL_ID]):
-                    self._load_PlatformAgent(newrow)
+        # This will be manually defined
+        pass
 
     def _load_PlatformAgentInstance(self, row):
         # construct values for more complex fields
@@ -2494,6 +2475,7 @@ Reason: %s
         """Creates PlatformAgentInstance and ExternalDatasetAgentInstance resources for platforms
         to load if agent definitions exists. Supports increments."""
         node_objs = self.ooi_loader.get_type_assets("node")
+        nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
 
         for node_id, node_obj in node_objs.iteritems():
             if not self._before_cutoff(node_obj):
@@ -2502,14 +2484,21 @@ Reason: %s
                 continue
 
             ooi_rd = OOIReferenceDesignator(node_id)
+
             platform_id = node_id + "_PD"
             platform_agent_id = "PA_" + ooi_rd.node_type
             ed_agent_id = "DART_" + ooi_rd.node_type
+            nodetype_obj = nodetype_objs.get(ooi_rd.node_type, None)
+            pa_code = nodetype_obj.get("pa_code", None) if nodetype_obj else None
+            pagent_res_obj = self._get_resource_obj(pa_code, True) if pa_code else None  # This could be an EDA
+            if pagent_res_obj is None:
+                pagent_res_obj = self._get_resource_obj(platform_agent_id, True) or self._get_resource_obj(ed_agent_id, True)
+            else:
+                platform_agent_id = ed_agent_id = pa_code
+            if not pagent_res_obj:
+                continue
 
-            pl_agent_obj = self._get_resource_obj(platform_agent_id, True)
-            ed_agent_obj = self._get_resource_obj(ed_agent_id, True)
-
-            if pl_agent_obj:
+            if pagent_res_obj.type_ == RT.PlatformAgent:
                 newrow = {}
                 pai_id = node_id + "_PAI"
                 newrow[COL_ID] = pai_id
@@ -2526,9 +2515,9 @@ Reason: %s
                 newrow['agent_config'] = ""
 
                 if not self._resource_exists(newrow[COL_ID]):
-                    self._load_InstrumentAgentInstance(newrow)
+                    self._load_PlatformAgentInstance(newrow)
 
-            elif ed_agent_obj:
+            elif pagent_res_obj.type_ == RT.ExternalDatasetAgent:
                 newrow = {}
                 edai_id = node_id + "_EDAI"
                 newrow[COL_ID] = edai_id
@@ -3065,7 +3054,14 @@ Reason: %s
             nodetype_obj = nodetype_objs.get(ooi_rd.node_type, None)
             pa_code = nodetype_obj.get("pa_code", None) if nodetype_obj else None
             pagent_res_obj = self._get_resource_obj(pa_code, True) if pa_code else None  # This could be an EDA
-            if pagent_res_obj and nodetype_obj:
+            if pagent_res_obj is None:
+                pa_code = "PA_"+ooi_rd.node_type
+                pagent_res_obj = self._get_resource_obj(pa_code, True)
+            if pagent_res_obj is None:
+                pa_code = "DART_"+ooi_rd.node_type
+                pagent_res_obj = self._get_resource_obj(pa_code, True)
+
+            if pagent_res_obj:
                 log.debug("Generating DataProducts for %s from platform agent %s streams and SAF", node_id, pa_code)
                 pastream_configs = pagent_res_obj.stream_configurations if pagent_res_obj else pagent_res_obj.stream_configurations
                 for index, scfg in enumerate(pastream_configs):
