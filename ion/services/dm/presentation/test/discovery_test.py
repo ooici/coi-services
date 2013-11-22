@@ -299,12 +299,12 @@ class DiscoveryUnitTest(PyonTestCase):
         self.discovery.query_request = Mock()
         self.discovery.query_request.return_value = 'test'
 
-        query = {'and':[], 'or':[], 'query':{}}
+        query = {'and':[], 'or':[], 'query':{}, 'limit':50}
 
         retval = self.discovery.request(query)
 
         self.assertTrue(retval=='test')
-        self.discovery.query_request.assert_called_once_with({})
+        self.discovery.query_request.assert_called_once_with({}, limit=1048576, id_only=True)
 
     def test_tier2_request(self):
         result_list = [[0,1,2],[1,2],[0,1,2],[1,2,3,4]]
@@ -319,7 +319,7 @@ class DiscoveryUnitTest(PyonTestCase):
         # Intersection
         #========================
 
-        request = {'and':[{}], 'or':[], 'query':{}}
+        request = {'and':[{}], 'or':[], 'query':{}, 'limit':50}
 
         retval = self.discovery.request(request)
         retval.sort()
@@ -330,7 +330,7 @@ class DiscoveryUnitTest(PyonTestCase):
         # Union
         #========================
 
-        request = {'and':[], 'or':[{}], 'query':{}}
+        request = {'and':[], 'or':[{}], 'query':{}, 'limit':50}
 
         retval = self.discovery.request(request)
         retval.sort()
