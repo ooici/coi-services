@@ -53,13 +53,24 @@ def request_profile(enabled=False):
 class Handler(BaseHandler):
     CACHE_LIMIT = CFG.get_safe('server.pydap.cache_limit', 5)
     CACHE_EXPIRATION = CFG.get_safe('server.pydap.cache_expiration', 5)
+    REQUEST_LIMIT = CFG.get_safe('server.pydap.request_limit', 200) # MB
     _coverages = collections.OrderedDict() # Cache has to be a class var because each handler is initialized per request
 
     extensions = re.compile(r'^.*[0-9A-Za-z\-]{32}',re.IGNORECASE)
 
     def __init__(self, filepath):
         self.filepath = filepath
-        
+
+    def calculate_bytes(self, bitmask, parameter_num):
+        timesteps = np.sum(bitmask)
+        # Assume 8 bytes per variable per timestep
+        count = 8 * parameter_num * timesteps
+        return count
+
+    def is_too_large(self, bitmask, parameter_num):
+        requested = self.calculate_bytes(bitmask, parameter_num)
+        return requested > (self.REQUEST_LIMIT * 1024**2)
+
     def get_numpy_type(self, data):
         data = self.none_to_str(data)
         result = data.dtype.char
@@ -205,6 +216,9 @@ class Handler(BaseHandler):
     def get_dataset(self, cov, fields, slices, selectors, dataset, response):
         seq = SequenceType('data')
         bitmask = self.get_bitmask(cov, fields, slices, selectors)
+        if self.is_too_large(bitmask, len(fields)):
+            log.error('Client request too large. \nFields: %s\nSelectors: %s', fields, selectors)
+            return
         for name in fields:
             # Strip the data. from the field
             if name.startswith('data.'):
