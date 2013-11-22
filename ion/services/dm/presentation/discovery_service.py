@@ -1108,25 +1108,15 @@ class DiscoveryService(BaseDiscoveryService):
         # Check the form of the query
         #==============================
         #@todo: convert to IonObject
-        if not (query.has_key('query') and query.has_key('and') and query.has_key('or')):
+        if not (query.has_key('query') and 
+                query.has_key('and') and
+                query.has_key('or') and
+                query.has_key('limit')):
             raise BadRequest('Improper query request: %s' % query)
 
         query_queue = list()
 
         query = DotDict(query)
-        #================================================
-        # Tier-1 Query
-        #================================================
-
-        if not (query['or'] or query['and']): # Tier-1
-            return self.query_request(query.query)
-
-        #@todo: bulk requests against ES
-        #@todo: filters
-
-        #================================================
-        # Tier-2 Query
-        #================================================
         
         query_queue.append(self.query_request(query.query,limit=self.SEARCH_BUFFER_SIZE, id_only=True))
         
@@ -1148,10 +1138,15 @@ class DiscoveryService(BaseDiscoveryService):
             tmp = self.union(query_queue.pop(), query_queue.pop())
             query_queue.append(tmp)
         
-        if id_only:
-            return query_queue[0]
+        # ---------------------------
+        # Number of results to return
+        # ---------------------------
+        limit = int(query['limit'])
 
-        objects = self.clients.resource_registry.read_mult(query_queue[0])
+        if id_only:
+            return query_queue[0][:limit]
+
+        objects = self.clients.resource_registry.read_mult(query_queue[0][:limit])
         return objects
 
 
