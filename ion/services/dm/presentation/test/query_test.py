@@ -109,8 +109,6 @@ class QueryLanguageUnitTest(PyonTestCase):
         self.assertTrue(struct.query.field == 'field')
         self.assertTrue(struct.query.value == 'value')
         self.assertTrue(struct.query.index == 'index')
-        #self.assertTrue(struct.query.order == {'blah' : 'asc'})
-        #self.assertTrue(struct.query.limit == 2)
         self.assertTrue(struct.order == {'blah' : 'asc'})
         self.assertTrue(struct.limit == 2)
 
@@ -120,8 +118,6 @@ class QueryLanguageUnitTest(PyonTestCase):
         self.assertTrue(struct.query.field == 'field')
         self.assertTrue(struct.query.value == 'value')
         self.assertTrue(struct.query.index == 'index')
-        #self.assertTrue(struct.query.order == {'blah' : 'asc'})
-        #self.assertTrue(struct.query.limit == 2)
         self.assertTrue(struct.order == {'blah' : 'asc'})
         self.assertTrue(struct.limit == 2)
 
@@ -162,8 +158,6 @@ class QueryLanguageUnitTest(PyonTestCase):
         cases = [
             ( "SEARCH 'model' IS 'abc*' FROM 'models' AND BELONGS TO 'platformDeviceID'", 
                 {'and':[{'association':'platformDeviceID'}], 'or':[], 'query':{'field':'model', 'value':'abc*', 'index':'models'}}),
-#            ( "SEARCH 'model' IS 'sbc*' FROM 'devices' ORDER BY 'name' LIMIT 30 AND BELONGS TO 'platformDeviceID'", 
-#                {'and':[{'association':'platformDeviceID'}],'or':[],'query':{'field':'model', 'value':'sbc*', 'index':'devices', 'order':{'name':'asc'}, 'limit':30}}),
             ( "SEARCH 'model' IS 'sbc*' FROM 'devices' AND BELONGS TO 'platformDeviceID' ORDER BY 'name' LIMIT 30", 
                 {'and':[{'association':'platformDeviceID'}],'or':[],'query':{'field':'model', 'value':'sbc*', 'index':'devices'}, 'order':{'name':'asc'}, 'limit':30}),
             ( "SEARCH 'runtime' VALUES FROM 1. TO 100 FROM 'devices' AND BELONGS TO 'RSN'",
