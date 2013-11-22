@@ -214,6 +214,7 @@ class TestObservatoryUtil(IonUnitTestCase):
 
     assoc_list3 = [
         ['DP_1', 'hasSource', 'ID_1'],
+        ['DP_1', 'hasSource', 'IS_1'],
         ['DP_2', 'hasSource', 'ID_1'],
         ['DP_3', 'hasSource', 'ID_1'],
         ['DP_3', 'hasSource', 'PD_1'],
