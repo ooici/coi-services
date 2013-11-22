@@ -194,13 +194,13 @@ class QueryLanguage(object):
         # <query-parameter>  ::= <order-paramater> | <limit-parameter>
         #--------------------------------------------------------------------------------------
         limit_parameter = CaselessLiteral("LIMIT") + integer
-        limit_parameter.setParseAction(lambda x: self.frame.update({'limit' : int(x[1])}))
+        limit_parameter.setParseAction(lambda x: self.json_query.update({'limit' : int(x[1])}))
         depth_parameter = CaselessLiteral("DEPTH") + integer
         depth_parameter.setParseAction(lambda x: self.frame.update({'depth' : int(x[1])}))
         order_parameter = CaselessLiteral("ORDER") + CaselessLiteral("BY") + limited_string
-        order_parameter.setParseAction(lambda x: self.frame.update({'order' : {x[2] : 'asc'}}))
+        order_parameter.setParseAction(lambda x: self.json_query.update({'order' : {x[2] : 'asc'}}))
         offset_parameter = CaselessLiteral("SKIP") + integer
-        offset_parameter.setParseAction(lambda x : self.frame.update({'offset' : int(x[1])}))
+        offset_parameter.setParseAction(lambda x : self.json_query.update({'offset' : int(x[1])}))
         query_parameter = limit_parameter | order_parameter | offset_parameter
 
         #--------------------------------------------------------------------------------------
@@ -210,7 +210,7 @@ class QueryLanguage(object):
         # <owner-query>       ::= "HAS" <resource-id> [ <depth-parameter> ]
         # <query>             ::= <search-query> | <association-query> | <collection-query> | <owner-query>
         #--------------------------------------------------------------------------------------
-        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | fuzzy_query | match_query | vertical_bounds | time_bounds | time_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
+        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | fuzzy_query | match_query | vertical_bounds | time_bounds | time_query | geo_query) + CaselessLiteral("FROM") + index_name
         # Add the field to the frame object
         search_query.setParseAction(lambda x : self.frame.update({'field' : x[1]}))
         collection_query = CaselessLiteral("IN") + collection_id
@@ -240,7 +240,7 @@ class QueryLanguage(object):
         # Add an OR operation to the json_query and clear the frame
         union.setParseAction(lambda x : self.or_frame())
 
-        self.sentence = primary_query + (intersection ^ union)*(0,None)
+        self.sentence = primary_query + (intersection ^ union)*(0,None) + query_parameter*(0,None)
 
     def push_frame(self):
         self.json_query['query'] = self.frame
