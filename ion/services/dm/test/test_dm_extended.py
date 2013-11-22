@@ -821,9 +821,12 @@ class TestDMExtended(DMTestCase):
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
 
         cov = DatasetManagementService._get_simplex_coverage(dataset_id, mode='w')
-        cov.insert_timesteps(22000)
-        value_array = np.arange(22000)
-        cov.set_parameter_values('time', value_array)
+        size = 3600 * 24 * 7
+        cov.insert_timesteps(size)
+        value_array = np.arange(size)
+        random_array = np.arange(size)
+        np.random.shuffle(random_array)
+        cov.set_parameter_values('time', random_array)
         cov.set_parameter_values('temp', value_array)
         cov.set_parameter_values('conductivity', value_array)
         cov.set_parameter_values('pressure', value_array)
