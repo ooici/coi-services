@@ -5,6 +5,7 @@
 __author__ = 'Michael Meisinger, Maurice Manning, Ian Katz'
 
 
+from pyon.core import bootstrap
 from pyon.core.exception import BadRequest
 from pyon.public import RT, PRED
 
@@ -14,9 +15,9 @@ from interface.objects import DeviceStatusType
 class ObservatoryUtil(object):
     def __init__(self, process=None, container=None, enhanced_rr=None):
         self.process = process
-        self.container = container if container else process.container
+        self.container = container or bootstrap.container_instance
         self.RR2 = enhanced_rr
-        self.RR = enhanced_rr or self.container.resource_registry
+        self.RR = enhanced_rr or self.container.resource_registry if self.container else None
 
 
     # -------------------------------------------------------------------------
