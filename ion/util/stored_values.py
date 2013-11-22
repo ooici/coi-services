@@ -37,6 +37,10 @@ class StoredValueManager(object):
         doc = self.store.read_doc(doc_key)
         return doc
 
+    def read_value_mult(self, doc_keys, strict=False):
+        doc_list = self.store.read_doc_mult(doc_keys, strict=strict)
+        return doc_list
+
     def delete_stored_value(self, doc_key):
         self.store.delete_doc(doc_key)
 
