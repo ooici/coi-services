@@ -9,7 +9,10 @@ from gevent.event import Event
 from pyon.event.event import EventSubscriber
 from pyon.ion.process import StandaloneProcess
 from pyon.util.async import spawn
+from pyon.util.containers import named_any
 from pyon.public import log
+
+PROCESS_PLUGINS = [("DeviceStateManager", "ion.processes.event.device_state.DeviceStateManager", {})]
 
 
 class EventPersister(StandaloneProcess):
@@ -46,6 +49,17 @@ class EventPersister(StandaloneProcess):
 
         # The event subscriber
         self.event_sub = None
+
+        # Registered event process plugins
+        self.process_plugins = {}
+        for plugin_name, plugin_cls, plugin_args in PROCESS_PLUGINS:
+            try:
+                plugin = named_any(plugin_cls)(**plugin_args)
+                self.process_plugins[plugin_name]= plugin
+                log.info("Loaded event processing plugin %s (%s)", plugin_name, plugin_cls)
+            except Exception as ex:
+                log.error("Cannot instantiate event processing plugin %s (%s): %s", plugin_name, plugin_cls, ex)
+
 
     def on_start(self):
         # Persister thread
@@ -122,7 +136,10 @@ class EventPersister(StandaloneProcess):
 
                 self.events_to_persist = [self.event_queue.get() for x in xrange(self.event_queue.qsize())]
 
-                self._persist_events(self.events_to_persist)
+                try:
+                    self._persist_events(self.events_to_persist)
+                finally:
+                    self._process_events(self.events_to_persist)
                 self.events_to_persist = None
                 self.failure_count = 0
             except Exception as ex:
@@ -135,6 +152,13 @@ class EventPersister(StandaloneProcess):
     def _persist_events(self, event_list):
         if event_list:
             self.container.event_repository.put_events(event_list)
+
+    def _process_events(self, event_list):
+        for plugin_name, plugin in self.process_plugins.iteritems():
+            try:
+                plugin.process_events(event_list)
+            except Exception as ex:
+                log.exception("Error processing events in plugin %s", plugin_name)
 
     def _log_events(self, events):
         events_str = pprint.pformat([event.__dict__ for event in events]) if events else ""
@@ -149,3 +173,10 @@ class EventPersister(StandaloneProcess):
                 self.container.event_repository.find_events(limit=1)
             except Exception as ex:
                 log.exception("Failed to refresh events views")
+
+
+class EventProcessor(object):
+    """Callback interface for event processors"""
+
+    def process_events(self, event_list):
+        raise NotImplemented("Must override")
