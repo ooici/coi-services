@@ -16,6 +16,7 @@ class ObservatoryUtil(object):
         self.process = process
         self.container = container if container else process.container
         self.RR2 = enhanced_rr
+        self.RR = enhanced_rr or self.container.resource_registry
 
 
     # -------------------------------------------------------------------------
@@ -115,7 +116,7 @@ class ObservatoryUtil(object):
         if id_only:
             child_site_dict = dict(zip(matchlist, [None]*len(matchlist)))
         else:
-            all_res = self.container.resource_registry.read_mult(matchlist) if matchlist else []
+            all_res = self.RR.read_mult(matchlist) if matchlist else []
             child_site_dict = dict(zip([res._id for res in all_res], all_res))
 
         return child_site_dict, ancestors
@@ -258,28 +259,26 @@ class ObservatoryUtil(object):
     # -------------------------------------------------------------------------
     # Finding data products
 
-    def get_device_data_products(self, device_list, assoc_list=None):
+    def get_resource_data_products(self, res_list, assoc_list=None):
         """
-        Returns a dict of device_id mapped to data product id based on hasSource association.
+        Returns a dict of resource id mapped to data product id based on hasSource association.
         """
-        device_dps = self._get_device_data_products(assoc_list=assoc_list)
+        device_dps = self._get_data_products_by_source(assoc_list=assoc_list)
         res_dps = {}
-        for dev_id in device_list:
+        for dev_id in res_list:
             res_dps[dev_id] = device_dps.get(dev_id, None)
         return res_dps
 
-    def _get_device_data_products(self, assoc_list=None):
+    def _get_data_products_by_source(self, assoc_list=None):
         """
-        Returns a dict of device_id mapped to data product id based on hasSource association.
+        Returns a dict of resource_id (site/device) mapped to data product id based on hasSource association.
         """
         data_products = {}
         if not assoc_list:
             assoc_list = self._get_predicate_assocs(PRED.hasSource)
         for assoc in assoc_list:
             if assoc.st == RT.DataProduct:
-                if assoc.o not in data_products:
-                    data_products[assoc.o] = []
-                data_products[assoc.o].append(assoc.s)
+                data_products.setdefault(assoc.o, []).append(assoc.s)
         return data_products
 
     def get_site_data_products(self, res_id, res_type=None, include_sites=False, include_devices=False, include_data_products=False):
@@ -296,36 +295,37 @@ class ObservatoryUtil(object):
                 "device_data_products": A dict mapping device_id to data_product_id
                 "data_product_resources": A dict mapping data_product_id to DataProduct resource object
         """
+        res_obj = None
         if not res_type:
-            res_obj = self.container.resource_registry.read(res_id)
+            res_obj = self.RR.read(res_id)
             res_type = res_obj._get_type()
 
         device_list = []
+        child_sites, site_devices, site_ancestors = None, None, None
         if res_type in [RT.Org, RT.Observatory, RT.Subsite, RT.PlatformSite, RT.InstrumentSite]:
             if res_type == RT.Org:
                 child_sites, site_ancestors = self.get_child_sites(org_id=res_id, include_parents=False, id_only=not include_devices)
             else:
                 child_sites, site_ancestors = self.get_child_sites(parent_site_id=res_id, include_parents=False, id_only=not include_devices)
-                child_sites[res_id] = self.container.resource_registry.read(res_id) if include_data_products else None
+                child_sites[res_id] = res_obj or self.RR.read(res_id) if include_sites else None
 
             site_devices = self.get_device_relations(child_sites.keys())
             device_list = [tup[1] for key,dev_list in site_devices.iteritems() if dev_list for tup in dev_list]
 
         elif res_type in [RT.PlatformDevice, RT.InstrumentDevice]:
-            child_sites, site_devices, site_ancestors = None, None, None
-
             # See if current device has child devices
             device_list = self.get_child_devices(res_id)
 
         else:
             raise BadRequest("Unsupported resource type: %s" % res_type)
 
-        device_dps = self.get_device_data_products(device_list)
-        device_objs = self.container.resource_registry.read_mult(device_list) if include_devices else None
+        res_list = device_list + child_sites.keys() if child_sites is not None else []
+        device_dps = self.get_resource_data_products(res_list)
+        device_objs = self.RR.read_mult(device_list) if include_devices else None
 
         if include_data_products:
             dpid_list = [dp_id for device_id, dp_list in device_dps.iteritems() if dp_list is not None for dp_id in dp_list if dp_id is not None]
-            dpo_list = self.container.resource_registry.read_mult(dpid_list)
+            dpo_list = self.RR.read_mult(dpid_list)
             dp_objs = dict(zip(dpid_list, dpo_list))
         else:
             dp_objs = None

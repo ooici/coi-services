@@ -829,8 +829,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         result_dict = {}
 
         RR2 = EnhancedResourceRegistryClient(self.RR)
+        RR2.cache_resources(RT.Observatory)
+        RR2.cache_resources(RT.PlatformSite)
+        RR2.cache_resources(RT.InstrumentSite)
+        RR2.cache_resources(RT.PlatformDevice)
+        RR2.cache_resources(RT.InstrumentDevice)
         outil = ObservatoryUtil(self, enhanced_rr=RR2)
-        parent_resource_objs = self.RR.read_mult(parent_resource_ids)
+        parent_resource_objs = RR2.read_mult(parent_resource_ids)
         res_by_id = dict(zip(parent_resource_ids, parent_resource_objs))
 
         # Loop thru all the provided site ids and create the result structure
@@ -1390,7 +1395,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.platform_models = retrieve_model_objs(extended_org.platforms, RT.PlatformDevice)
 
         log.debug("time to make the rollups")
-        _, site_children = self.outil.get_child_sites(org_id=org_id, id_only=False)
+        outil = ObservatoryUtil(self, enhanced_rr=RR2)
+        _, site_children = outil.get_child_sites(org_id=org_id, id_only=False)
         all_device_statuses = self._get_master_status_table(RR2, site_children.keys())
 
         log.debug("site status rollup")
@@ -1477,7 +1483,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     # based on return a site rollup dict corresponding to a site in the site_id_list
     def _get_site_rollup_dict(self, RR2, master_status_table, site_id):
 
-        attr1, underlings = self.outil.get_child_sites(parent_site_id=site_id, id_only=True)
+        outil = ObservatoryUtil(self, enhanced_rr=RR2)
+        attr1, underlings = outil.get_child_sites(parent_site_id=site_id, id_only=True)
 
         def collect_all_children(site_id, child_site_struct, child_list):
             #walk the tree of site children and put all site ids (all the way down the hierarchy) into one list

@@ -185,7 +185,7 @@ class BootstrapExchange(BootstrapPlugin):
             if xn.queue in rem_queues:
                 rem_queues.remove(xn.queue)
             else:
-                log.warn("BootstrapExchange restart: RR XN %s, type %s, id %s NOT FOUND in queues", xn.queue, xn.xn_type, xn._id)
+                log.warn("BootstrapExchange restart: RR XN %s, type %s NOT FOUND in queues", xn.queue, xn.xn_type)
 
         # get list of service name possibilities
         svc_objs, _ = process.container.resource_registry.find_resources(RT.ServiceDefinition)
