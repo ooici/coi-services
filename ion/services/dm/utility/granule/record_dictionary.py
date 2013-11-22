@@ -144,16 +144,29 @@ class RecordDictionaryTool(object):
 
 
     def fetch_lookup_values(self):
+        doc_keys = []
         for lv in self._lookup_values():
             context = self.context(lv)
             if context.document_key:
                 document_key = context.document_key
                 if '$designator' in context.document_key and 'reference_designator' in self._stream_config:
                     document_key = document_key.replace('$designator',self._stream_config['reference_designator'])
-                svm = StoredValueManager(Container.instance)
-                try:
-                    doc = svm.read_value(document_key)
-                except NotFound:
+                doc_keys.append(document_key)
+
+        lookup_docs = {}
+        if doc_keys:
+            svm = StoredValueManager(Container.instance)
+            doc_list = svm.read_value_mult(doc_keys)
+            lookup_docs = dict(zip(doc_keys, doc_list))
+
+        for lv in self._lookup_values():
+            context = self.context(lv)
+            if context.document_key:
+                document_key = context.document_key
+                if '$designator' in context.document_key and 'reference_designator' in self._stream_config:
+                    document_key = document_key.replace('$designator',self._stream_config['reference_designator'])
+                doc = lookup_docs[document_key]
+                if doc is None:
                     log.debug('Reference Document for %s not found', document_key)
                     continue
                 if context.lookup_value in doc:
