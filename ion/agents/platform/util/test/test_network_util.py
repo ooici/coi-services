@@ -248,9 +248,9 @@ class Test(IonUnitTestCase):
                                                                                                                                   'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
                                                                                                                                   'oms_uri': 'embsimulator',
                                                                                                                                   'ports': {'LJ01D_port_1': {'network': 'LJ01D_port_1_IP',
-                                                                                                                                                             'port_id': 'LJ01D_port_1'},
+                                                                                                                                                             'port_id': '1'},
                                                                                                                                             'LJ01D_port_2': {'network': 'LJ01D_port_2_IP',
-                                                                                                                                                             'port_id': 'LJ01D_port_2'}}},
+                                                                                                                                                             'port_id': '2'}}},
                                                                                                                 'children': {},
                                                                                                                 }
                                                               }
