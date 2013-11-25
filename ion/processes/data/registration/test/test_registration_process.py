@@ -51,9 +51,9 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         for n in metadata.childNodes:
             if n.nodeType != 3:
                 if n.attributes["name"].value == "title":
-                    self.assertEquals('product_name', n.childNodes[0].nodeValue)
+                    self.assertIn('product_name', n.childNodes[0].nodeValue)
                 if n.attributes["name"].value == "institution":
-                    self.assertEquals('OOI', n.childNodes[0].nodeValue)
+                    self.assertIn('OOI', n.childNodes[0].nodeValue)
                 if n.attributes["name"].value == "infoUrl":
                     self.assertIn(self.rp.pydap_url+cov.name, n.childNodes[0].nodeValue)
         parameters = []
