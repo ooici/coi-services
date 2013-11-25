@@ -127,7 +127,7 @@ class HelperTestMixin:
             cls.ATTR_NAMES = ['input_voltage', 'input_bus_current']
             cls.WRITABLE_ATTR_NAMES = ['input_bus_current']
 
-            cls.PORT_ID = 'LJ01D_port_1'
+            cls.PORT_ID = '1'
             cls.INSTRUMENT_ID = 'LJ01D_port_1_instrument_1'
         else:
             print("PLAT_NETWORK undefined -> using base platform: %r" % cls.PLATFORM_ID)

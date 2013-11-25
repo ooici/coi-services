@@ -29,6 +29,8 @@ from pyon.util.containers import DotDict
 from pyon.util.unit_test import IonUnitTestCase
 from nose.plugins.attrib import attr
 
+import unittest
+
 
 @attr('UNIT', group='sa')
 class Test(IonUnitTestCase):
@@ -65,6 +67,7 @@ class Test(IonUnitTestCase):
             plat_map = [('R', ''), ('a', 'R'), ('a', 'x')]
             NetworkUtil.create_node_network(plat_map)
 
+    @unittest.skip('Skip until ooiion-1495 is addressed.')
     def test_serialization_deserialization(self):
         # create NetworkDefinition object by de-serializing the simulated network:
         ndef = NetworkUtil.deserialize_network_definition(
@@ -248,9 +251,9 @@ class Test(IonUnitTestCase):
                                                                                                                                   'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
                                                                                                                                   'oms_uri': 'embsimulator',
                                                                                                                                   'ports': {'LJ01D_port_1': {'network': 'LJ01D_port_1_IP',
-                                                                                                                                                             'port_id': 'LJ01D_port_1'},
+                                                                                                                                                             'port_id': '1'},
                                                                                                                                             'LJ01D_port_2': {'network': 'LJ01D_port_2_IP',
-                                                                                                                                                             'port_id': 'LJ01D_port_2'}}},
+                                                                                                                                                             'port_id': '2'}}},
                                                                                                                 'children': {},
                                                                                                                 }
                                                               }

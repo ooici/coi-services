@@ -7,11 +7,13 @@
 @brief   Some constants for responses from platform agents/drivers.
 """
 
+from ion.agents.instrument.common import BaseEnum
+
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-class NormalResponse(object):
+class NormalResponse(BaseEnum):
     INSTRUMENT_DISCONNECTED       = 'OK_INSTRUMENT_DISCONNECTED'
     PORT_TURNED_ON                = 'OK_PORT_TURNED_ON'
     PORT_ALREADY_ON               = 'OK_PORT_ALREADY_ON'
@@ -19,7 +21,7 @@ class NormalResponse(object):
     PORT_ALREADY_OFF              = 'OK_PORT_ALREADY_OFF'
 
 
-class InvalidResponse(object):
+class InvalidResponse(BaseEnum):
     PLATFORM_ID                   = 'INVALID_PLATFORM_ID'
     ATTRIBUTE_ID                  = 'INVALID_ATTRIBUTE_ID'
     ATTRIBUTE_VALUE_OUT_OF_RANGE  = 'ERROR_ATTRIBUTE_VALUE_OUT_OF_RANGE'

@@ -195,7 +195,7 @@ class PlatformDriver(object):
         """
         return deepcopy(self._resource_schema)
 
-    def connect(self):
+    def connect(self, recursion=None):
         """
         To be implemented by subclass.
         Establishes communication with the platform device.
@@ -204,7 +204,7 @@ class PlatformDriver(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def disconnect(self):
+    def disconnect(self, recursion=None):
         """
         To be implemented by subclass.
         Ends communication with the platform device.
@@ -444,7 +444,9 @@ class PlatformDriver(object):
                       self._platform_id, self.get_driver_state(),
                       str(args), str(kwargs)))
 
-        self.connect()
+        recursion = kwargs.get('recursion', None)
+
+        self.connect(recursion=recursion)
         result = next_state = PlatformDriverState.CONNECTED
 
         return next_state, result
@@ -478,7 +480,9 @@ class PlatformDriver(object):
                       self._platform_id, self.get_driver_state(),
                       str(args), str(kwargs)))
 
-        result = self.disconnect()
+        recursion = kwargs.get('recursion', None)
+
+        result = self.disconnect(recursion=recursion)
         next_state = PlatformDriverState.DISCONNECTED
 
         return next_state, result
