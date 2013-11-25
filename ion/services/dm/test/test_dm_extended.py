@@ -749,8 +749,6 @@ class TestDMExtended(DMTestCase):
 
         extent = self.dataset_management.dataset_extents_by_axis(dataset_id, 'time')
         self.assertEquals(extent, 34)
-        self.preload_ui()
-        self.launch_ui_facepage(data_product_id)
 
     @attr('INT')
     def test_ccov_domain_slicing(self):
