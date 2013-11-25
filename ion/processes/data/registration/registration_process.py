@@ -160,12 +160,13 @@ class RegistrationProcess(StandaloneProcess):
                 outer_element.appendChild(text_node)
                 dataset_element.appendChild(outer_element)
 
-                if self.CFG.get_safe('server.erddap.dataset_caching',True):
-                    refresh_interval = self.CFG.get_safe('server.erddap.refresh_interval', 30000)
-                    update_element = doc.createElement('updateEveryNMillis')
-                    text_node = doc.createTextNode(str(refresh_interval))
-                    update_element.appendChild(text_node)
-                    dataset_element.appendChild(update_element)
+                # No longer applicable
+                #if self.CFG.get_safe('server.erddap.dataset_caching',True):
+                    #refresh_interval = self.CFG.get_safe('server.erddap.refresh_interval', 30000)
+                    #update_element = doc.createElement('updateEveryNMillis')
+                    #text_node = doc.createTextNode(str(refresh_interval))
+                    #update_element.appendChild(text_node)
+                    #dataset_element.appendChild(update_element)
                 
 
                 add_attributes_element = doc.createElement('addAttributes')
