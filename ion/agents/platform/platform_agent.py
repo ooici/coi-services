@@ -453,6 +453,11 @@ class PlatformAgent(ResourceAgent):
         #
         if 'ports' in self._driver_config:
             ports = self._driver_config['ports']
+
+            # Remove this device from the ports information, the driver does not use this
+            platform_port = self._driver_config['ports'].pop(self.resource_id, None)
+            log.debug('_validate_configuration removed platform port info from ports config for driver.  dev_id:  %s   platform_port: %s', self.resource_id, platform_port)
+
             self._platform_ports = ports
             log.debug("%r: platform ports taken from driver_config: %s",
                       self._platform_id, self._platform_ports)
@@ -630,22 +635,25 @@ class PlatformAgent(ResourceAgent):
         self._configure_driver()
         log.debug("%r: _initialize_this_platform completed.", self._platform_id)
 
-    def _go_active_this_platform(self):
+    def _go_active_this_platform(self, recursion=None):
         """
         Connects the driver
         and resets stream publisher connection id and index.
         """
         log.debug("%r: triggering driver event CONNECT", self._platform_id)
-        self._trigger_driver_event(PlatformDriverEvent.CONNECT)
+
+        kwargs = dict(recursion=recursion)
+        self._trigger_driver_event(PlatformDriverEvent.CONNECT, **kwargs)
 
         self._asp.reset_connection()
 
-    def _go_inactive_this_platform(self):
+    def _go_inactive_this_platform(self, recursion=None):
         """
         Disconnects the driver.
         """
         log.debug("%r: triggering driver event DISCONNECT")
-        self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
+        kwargs = dict(recursion=recursion)
+        self._trigger_driver_event(PlatformDriverEvent.DISCONNECT, **kwargs)
 
     def _run_this_platform(self):
         """
@@ -2545,7 +2553,7 @@ class PlatformAgent(ResourceAgent):
         """
 
         # first myself
-        self._go_active_this_platform()
+        self._go_active_this_platform(recursion=recursion)
 
         # then instruments and sub-platforms
         if recursion:

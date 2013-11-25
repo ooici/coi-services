@@ -74,6 +74,31 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         self._run_startup_commands()
 
+    def test_single_deployed_platform(self):
+        #
+        # Tests the launch and shutdown of a single platform (no instruments).
+        #
+        self._set_receive_timeout()
+
+        p_root = self._create_single_platform()
+        platform_site_id, platform_deployment_id = self._create_platform_site_and_deployment(p_root.platform_device_id )
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+
+        self._run_startup_commands()
+
+        # verify the instrument has moved to COMMAND by the platform:
+        _pa_client = self._create_resource_agent_client(p_root.platform_device_id)
+        state = _pa_client.get_agent_state()
+        log.debug("platform state: %s", state)
+        self.assertEquals(ResourceAgentState.COMMAND, state)
+
+        ports = self._get_ports()
+        log.info("_get_ports = %s", ports)
+        for dev_id, state_dict in ports.iteritems():
+            self.assertEquals(state_dict['state'], None)
+
     def test_hierarchy(self):
         #
         # Tests the launch and shutdown of a small platform topology (no instruments).
@@ -100,6 +125,32 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         self._run_startup_commands()
 
+
+    def test_single_platform_with_an_instrument_and_deployments(self):
+        #
+        # basic test of launching a single platform with an instrument
+        #
+        self._set_receive_timeout()
+
+        p_root = self._set_up_single_platform_with_some_instruments(['SBE37_SIM_01'])
+
+        i_obj = self._setup_instruments['SBE37_SIM_01']
+
+        platform_site_id, platform_deployment_id = self._create_platform_site_and_deployment(p_root.platform_device_id )
+
+        instrument_site_id, instrument_deployment_id = self._create_instrument_site_and_deployment(platform_site_id=platform_site_id, instrument_device_id=i_obj.instrument_device_id)
+
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+
+        self._run_startup_commands()
+
+        ports = self._get_ports()
+        log.info("_get_ports after startup= %s", ports)
+        # the deployment should have turned port 1 on, but port 2 should still be off
+        self.assertEquals(ports['1']['state'], 'ON')
+        self.assertEquals(ports['2']['state'], None)
 
     def test_single_platform_with_instruments_streaming(self):
         #

@@ -307,9 +307,9 @@ network:
                 group: pressure
                 monitor_cycle_seconds: 4
               ports:
-              - port_id: LJ01D_port_1
+              - port_id: '1'
                 network: LJ01D_port_1_IP
-              - port_id: LJ01D_port_2
+              - port_id: '2'
                 network: LJ01D_port_2_IP
         - platform_id: LV01C
           platform_types: []
