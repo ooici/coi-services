@@ -54,7 +54,7 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from pyon.ion.stream import StandaloneStreamSubscriber
 
 from pyon.util.context import LocalContextMixin
-from pyon.public import RT, PRED, CFG
+from pyon.public import RT, OT, PRED, CFG
 
 from nose.plugins.attrib import attr
 
@@ -65,6 +65,7 @@ from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand, ProcessStateEnum
 from interface.objects import StreamConfiguration
 from interface.objects import StreamAlertType, AggregateStatusType
+from interface.objects import PortTypeEnum
 
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
@@ -86,6 +87,7 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 
 import os
 import time
+import calendar
 import copy
 import pprint
 
@@ -701,6 +703,79 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         p_obj.stream_id = stream_id
         p_obj.pid = None  # known when process launched
         return p_obj
+
+    def _create_platform_site_and_deployment(self, platform_device_id=None, ):
+
+
+        log.debug('_create_platform_site_and_deployment  platform_device_id: %s', platform_device_id)
+
+        site_object = IonObject(RT.PlatformSite, name='PlatformSite1')
+        platform_site_id = self.OMS.create_platform_site(platform_site=site_object, parent_id='')
+        log.debug('_create_platform_site_and_deployment  site id: %s', platform_site_id)
+
+        #create supporting objects for the Deployment resource
+        # 1. temporal constraint
+        # find current deployment using time constraints
+        current_time =  int( calendar.timegm(time.gmtime()) )
+        # two years on either side of current time
+        start = current_time - 63115200
+        end = current_time + 63115200
+        temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=str(start), end_datetime=str(end))
+        # 2. PlatformPort object which defines device to port map
+        platform_port_obj= IonObject(OT.PlatformPort, reference_designator = 'GA01SUMO-FI003-01-CTDMO0999',
+                                                        port_type=PortTypeEnum.UPLINK,
+                                                        ip_address='0')
+
+        # now create the Deployment
+        deployment_obj = IonObject(RT.Deployment,
+                                   name='TestPlatformDeployment',
+                                   description='some new deployment',
+                                   context=IonObject(OT.CabledNodeDeploymentContext),
+                                   constraint_list=[temporal_bounds],
+                                   port_assignments={platform_device_id:platform_port_obj})
+
+        platform_deployment_id = self.OMS.create_deployment(deployment=deployment_obj, site_id=platform_site_id, device_id=platform_device_id)
+        log.debug('_create_platform_site_and_deployment  deployment_id: %s', platform_deployment_id)
+
+        deploy_obj2 = self.OMS.read_deployment(platform_deployment_id)
+        log.debug('_create_platform_site_and_deployment  deploy_obj2 : %s', deploy_obj2)
+        return platform_site_id, platform_deployment_id
+
+
+    def _create_instrument_site_and_deployment(self, platform_site_id=None, instrument_device_id=None):
+
+        site_object = IonObject(RT.InstrumentSite, name='InstrumentSite1')
+        instrument_site_id = self.OMS.create_instrument_site(instrument_site=site_object, parent_id=platform_site_id)
+        log.debug('_create_instrument_site_and_deployment  site id: %s', instrument_site_id)
+
+
+        #create supporting objects for the Deployment resource
+        # 1. temporal constraint
+        # find current deployment using time constraints
+        current_time =  int( calendar.timegm(time.gmtime()) )
+        # two years on either side of current time
+        start = current_time - 63115200
+        end = current_time + 63115200
+        temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=str(start), end_datetime=str(end))
+        # 2. PlatformPort object which defines device to port map
+        platform_port_obj= IonObject(OT.PlatformPort, reference_designator = 'GA01SUMO-FI003-01-CTDMO0999',
+                                                        port_type=PortTypeEnum.PAYLOAD,
+                                                        ip_address='0')
+
+        # now create the Deployment
+        deployment_obj = IonObject(RT.Deployment,
+                                   name='TestInstrumentDeployment',
+                                   description='some new deployment',
+                                   context=IonObject(OT.CabledInstrumentDeploymentContext),
+                                   constraint_list=[temporal_bounds],
+                                   port_assignments={instrument_device_id:platform_port_obj})
+
+        instrument_deployment_id = self.OMS.create_deployment(deployment=deployment_obj, site_id=instrument_site_id, device_id=instrument_device_id)
+        log.debug('_create_instrument_site_and_deployment  deployment_id: %s', instrument_deployment_id)
+
+        deploy_obj2 = self.OMS.read_deployment(instrument_deployment_id)
+        log.debug('_create_instrument_site_and_deployment  deploy_obj2 : %s', deploy_obj2)
+        return instrument_site_id, instrument_deployment_id
 
     def _create_platform(self, platform_id, parent_platform_id=None):
         """
