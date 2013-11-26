@@ -493,13 +493,15 @@ class UserNotificationService(BaseUserNotificationService):
 
         return event
 
-    def get_recent_events(self, resource_id='', limit=2000):
+    def get_recent_events(self, resource_id='', limit=0):
         """
         Get recent events for use in extended resource computed attribute
         @param resource_id str
-        @param limit int
+        @param limit int (if 0 is given
         @retval ComputedListValue with value list of 4-tuple with Event objects
         """
+        if limit == 0:
+            limit = int(self.CFG.get_safe("service.user_notification.max_events_limit", 1000))
         return self.get_events(resource_id=resource_id, limit=limit, offset=0)
 
     def get_events(self, resource_id='', limit=10, offset=0):
