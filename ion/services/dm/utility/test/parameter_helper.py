@@ -645,17 +645,17 @@ class ParameterHelper(object):
         temp_ctxt.uom = 'deg_C'
         temp_ctxt.ooi_short_name = 'TEMPWAT'
         temp_ctxt.display_name = 'Temperature'
-        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp_sample', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
-        contexts['temp'] = temp_ctxt, temp_ctxt_id
+        contexts['temp_sample'] = temp_ctxt, temp_ctxt_id
         
         cond_ctxt = ParameterContext('cond_sample', param_type=ArrayType(inner_encoding='float64'))
         cond_ctxt.uom = 'deg_C'
         cond_ctxt.ooi_short_name = 'CONDWAT'
         cond_ctxt.display_anme = 'Conductivity'
-        cond_ctxt_id = self.dataset_management.create_parameter_context(name='cond', parameter_context=cond_ctxt.dump(), ooi_short_name='CONDWAT')
+        cond_ctxt_id = self.dataset_management.create_parameter_context(name='cond_sample', parameter_context=cond_ctxt.dump(), ooi_short_name='CONDWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, cond_ctxt_id)
-        contexts['cond'] = cond_ctxt, cond_ctxt_id
+        contexts['cond_sample'] = cond_ctxt, cond_ctxt_id
 
         func = self.create_matrix_offset_function()
         func.param_map = {'x':'temp_sample', 'y':'cond_sample'}
