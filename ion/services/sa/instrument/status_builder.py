@@ -85,22 +85,30 @@ class AgentStatusBuilder(object):
 
 
     # get a lookup table that includes child_agg_status + the parent device status as dev_id -> {AggStatusType: DeviceStatusType}
-    def get_cumulative_status_dict(self, device_id):
-        h_agent, reason = self.get_device_agent(device_id)
-        log.trace("Got h_agent = %s, reason = %s", h_agent, reason)
-        if None is h_agent:
-            log.warn('no agent for device %s, reason=%s', device_id, reason)
-            return None, reason
+    def get_cumulative_status_dict(self, device_id, child_device_ids=None, status_dict=None):
 
-        # read child agg status
-        try:
-            #retrieve the platform status from the platform agent
-            this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
-            log.debug("this_status for %s is %s", device_id, this_status)
 
-        except Unauthorized:
-            log.warn("The requester does not have the proper role to access the status of this agent")
-            return None, "InstrumentDevice(get_agent) has been denied"
+        if status_dict and status_dict.has_key(device_id):
+            this_status = status_dict[device_id]
+        else:
+
+            h_agent, reason = self.get_device_agent(device_id)
+            log.trace("Got h_agent = %s, reason = %s", h_agent, reason)
+            if None is h_agent:
+                log.warn('no agent for device %s, reason=%s', device_id, reason)
+                return None, reason
+
+            # read child agg status
+            try:
+                #retrieve the platform status from the platform agent
+                this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
+                print '############### get_agent agg_status:'
+                print str(this_status)
+                log.debug("this_status for %s is %s", device_id, this_status)
+
+            except Unauthorized:
+                log.warn("The requester does not have the proper role to access the status of this agent")
+                return None, "InstrumentDevice(get_agent) has been denied"
 
         out_status = {device_id: this_status}
 
@@ -125,9 +133,12 @@ class AgentStatusBuilder(object):
 
 
     #return this aggregate status, reason for fail, dict of device_id -> agg status
-    def get_device_rollup_statuses_and_child_agg_status(self, device_id, child_device_ids=None, warn_missing=True):
+    def get_device_rollup_statuses_and_child_agg_status(self, device_id, child_device_ids=None, warn_missing=True,
+                                                        status_dict=None):
 
-        master_status_dict, reason = self.get_cumulative_status_dict(device_id)
+
+
+        master_status_dict, reason = self.get_cumulative_status_dict(device_id,status_dict=status_dict)
 
         log.debug("Got master_status_dict = %s, reason = %s", master_status_dict, reason)
         if None is master_status_dict:
@@ -172,10 +183,12 @@ class AgentStatusBuilder(object):
 
 
     # child_device_ids is None for instruments, a list for platforms
-    def add_device_rollup_statuses_to_computed_attributes(self, device_id, extension_computed, child_device_ids=None):
+    def add_device_rollup_statuses_to_computed_attributes(self, device_id, extension_computed, child_device_ids=None,
+                                                          status_dict=None):
 
         rollup_statuses, reason, child_agg_status = self.get_device_rollup_statuses_and_child_agg_status(device_id,
-                                                                                                     child_device_ids)
+                                                                                                     child_device_ids,
+                                                                                                     status_dict=status_dict)
         log.debug("Got rollup_statuses = %s, reason = %s", rollup_statuses, reason)
 
         if None is rollup_statuses:
