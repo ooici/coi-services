@@ -28,6 +28,7 @@ from uuid import uuid4
 
 import os
 import numpy as np
+import re
 
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
@@ -180,8 +181,11 @@ class DatasetManagementService(BaseDatasetManagementService):
     def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report='', units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map='', standard_name='', ooi_short_name='', precision='', visible=True):
         
         validate_true(name, 'Name field may not be empty')
+
         validate_is_instance(parameter_context, dict, 'parameter_context field is not dictable.')
+        name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
         parameter_context = self.numpy_walk(parameter_context)
+        parameter_context['name'] = name
         pc_res = ParameterContextResource(name=name, parameter_context=parameter_context, description=description)
         pc_res.reference_urls = reference_urls or []
         pc_res.parameter_type = parameter_type

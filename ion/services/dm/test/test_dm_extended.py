@@ -949,7 +949,7 @@ class TestDMExtended(DMTestCase):
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(10)
-        rdt['ice-cream'] = np.arange(10)
+        rdt['ice_cream'] = np.arange(10)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         self.assertTrue(dataset_monitor.event.wait(30))
 
