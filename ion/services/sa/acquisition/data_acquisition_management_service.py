@@ -773,16 +773,22 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if not config_builder or RT.DataProduct not in config_builder.associated_objects:
            return
         data_products = config_builder.associated_objects[RT.DataProduct]
-        parsed_dp_id = None
-        for dp in data_products:
-            if dp.processing_level_code == "Parsed":
-                parsed_dp_id = dp._id
-                break
-        if parsed_dp_id:
-            if not self.DPMS.is_persisted(parsed_dp_id):
-                raise BadRequest("Cannot start agent - data product persistence is not activated!")
+        if config_builder._get_device().type_ == RT.PlatformDevice:
+            for dp in data_products:
+                if self.DPMS.is_persisted(dp._id):
+                    return
+            raise BadRequest("Cannot start agent - data product persistence is not activated!")
         else:
-            log.warn("Cannot determine if persistence is activated for agent instance=%s", config_builder.agent_instance_obj._id)
+            parsed_dp_id = None
+            for dp in data_products:
+                if dp.processing_level_code == "Parsed":
+                    parsed_dp_id = dp._id
+                    break
+            if parsed_dp_id:
+                if not self.DPMS.is_persisted(parsed_dp_id):
+                    raise BadRequest("Cannot start agent - data product persistence is not activated!")
+            else:
+                log.warn("Cannot determine if persistence is activated for agent instance=%s", config_builder.agent_instance_obj._id)
 
     def start_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
         """Launch an external dataset agent instance process and return its process id.

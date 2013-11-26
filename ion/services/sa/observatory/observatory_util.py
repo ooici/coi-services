@@ -311,21 +311,22 @@ class ObservatoryUtil(object):
                 child_sites[res_id] = res_obj or self.RR.read(res_id) if include_sites else None
 
             site_devices = self.get_device_relations(child_sites.keys())
-            device_list = [tup[1] for key,dev_list in site_devices.iteritems() if dev_list for tup in dev_list]
+            device_list = list({tup[1] for key,dev_list in site_devices.iteritems() if dev_list for tup in dev_list})
 
         elif res_type in [RT.PlatformDevice, RT.InstrumentDevice]:
             # See if current device has child devices
-            device_list = self.get_child_devices(res_id)
+            device_list = list(set(self.get_child_devices(res_id)))
 
         else:
             raise BadRequest("Unsupported resource type: %s" % res_type)
 
-        res_list = device_list + child_sites.keys() if child_sites is not None else []
-        device_dps = self.get_resource_data_products(res_list)
         device_objs = self.RR.read_mult(device_list) if include_devices else None
 
+        res_list = device_list + child_sites.keys() if child_sites is not None else []
+        device_dps = self.get_resource_data_products(res_list)
+
         if include_data_products:
-            dpid_list = [dp_id for device_id, dp_list in device_dps.iteritems() if dp_list is not None for dp_id in dp_list if dp_id is not None]
+            dpid_list = list({dp_id for device_id, dp_list in device_dps.iteritems() if dp_list is not None for dp_id in dp_list if dp_id is not None})
             dpo_list = self.RR.read_mult(dpid_list)
             dp_objs = dict(zip(dpid_list, dpo_list))
         else:
