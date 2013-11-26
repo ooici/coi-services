@@ -134,10 +134,16 @@ class Handler(BaseHandler):
 
     def get_data(self,cov, name, bitmask):
         #pc = cov.get_parameter_context(name)
-        try:
-            data = cov._range_value[name][:][bitmask]
-        except ParameterFunctionException:
-            data = np.empty(cov.num_timesteps, dtype='object')
+        if isinstance(cov._range_dictionary[name].param_type, ArrayType):
+            try:
+                data = cov.get_value_dictionary([name])[name][bitmask]
+            except ParameterFunctionException:
+                data = np.empty(cov.num_timesteps, dtype='object')
+        else:
+            try:
+                data = cov._range_value[name][:][bitmask]
+            except ParameterFunctionException:
+                data = np.empty(cov.num_timesteps, dtype='object')
         data = np.asanyarray(data) 
         if not data.shape:
             data.shape = (1,)
