@@ -306,8 +306,8 @@ class AgentConfigurationBuilder(object):
                                                     'stream_definition_ref' : stream_def_id,
                                                     'stream_def_dict'       : stream_def_dict,  # This is very large
                                                     'exchange_point'        : stream_route.exchange_point,
-                                                    # TODO: This is redundant and very large - the param dict is in the stream_def_dict ???
-                                                    'parameter_dictionary'  : stream_def.parameter_dictionary,
+                                                    # This is redundant and very large - the param dict is in the stream_def_dict
+                                                    #'parameter_dictionary'  : stream_def.parameter_dictionary,
 
                     }
         if len(stream_config) < len(streams_dict):
