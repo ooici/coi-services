@@ -694,9 +694,8 @@ class TestDMExtended(DMTestCase):
 
         ds = open_url(url)
 
-        temp_sample, time = ds['temp_sample']
-        temp_values, dim = temp_sample[0]
-        np.testing.assert_array_equal(temp_values, np.array(['0.0,1.0,2.0,3.0']))
+        temp_sample = list(ds['data']['temp_sample'])[0]
+        self.assertEquals(temp_sample, '0.0,1.0,2.0,3.0')
 
     @attr('INT')
     def test_ingest_metadata(self):
