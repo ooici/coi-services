@@ -435,14 +435,14 @@ class TestPlatformLaunch(BaseIntTestPlatform):
                              retval.status,
                              "platform computed.%s was not PROVIDED: %s" % (attr, retval.reason))
 
-
+        """
         print "communications_status_roll_up", p_extended.computed.communications_status_roll_up
         print "data_status_roll_up", p_extended.computed.data_status_roll_up
         print "location_status_roll_up", p_extended.computed.location_status_roll_up
         print "power_status_roll_up", p_extended.computed.power_status_roll_up
         print "rsn_network_child_device_status", p_extended.computed.rsn_network_child_device_status
         print "rsn_network_rollup", p_extended.computed.rsn_network_rollup
-
+        """
 
         # test extended attributes of site
 

@@ -88,8 +88,8 @@ class AgentStatusBuilder(object):
     def get_cumulative_status_dict(self, device_id, child_device_ids=None, status_dict=None):
 
 
-        if status_dict and status_dict.has_key(device_id):
-            this_status = status_dict[device_id]
+        if status_dict and device_id in status_dict:
+            this_status = status_dict.get(device_id, {})
         else:
 
             h_agent, reason = self.get_device_agent(device_id)
@@ -102,8 +102,6 @@ class AgentStatusBuilder(object):
             try:
                 #retrieve the platform status from the platform agent
                 this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
-                print '############### get_agent agg_status:'
-                print str(this_status)
                 log.debug("this_status for %s is %s", device_id, this_status)
 
             except Unauthorized:
