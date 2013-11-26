@@ -8,6 +8,8 @@ from pyon.core import bootstrap
 from pyon.public import log, OT
 from pyon.util.containers import get_ion_ts
 
+from interface.objects import DeviceStatusType, AggregateStatusType
+
 STATE_PREFIX = "state_"
 RECOGNIZED_EVENTS = {OT.ResourceAgentStateEvent,
                      OT.DeviceStatusEvent,
@@ -88,14 +90,15 @@ class DeviceStateManager(object):
             device_state["dev_status"]["values"] = event.values
             device_state["dev_status"]["ts_changed"] = event.ts_created
         elif event.type_ == OT.DeviceAggregateStatusEvent:
-            device_state["agg_status"]["status"] = event.status
-            device_state["agg_status"]["time_stamps"] = event.time_stamps
-            device_state["agg_status"]["prev_status"] = event.prev_status
-            device_state["agg_status"]["status_name"] = event.status_name
-            device_state["agg_status"]["roll_up_status"] = event.roll_up_status
-            device_state["agg_status"]["valid_values"] = event.valid_values
-            device_state["agg_status"]["values"] = event.values
-            device_state["agg_status"]["ts_changed"] = event.ts_created
+            status_name = event.status_name
+            status =  device_state["agg_status"].get(status_name, {})
+            status["status"] = event.status
+            status["time_stamps"] = event.time_stamps
+            status["prev_status"] = event.prev_status
+            status["roll_up_status"] = event.roll_up_status
+            status["valid_values"] = event.valid_values
+            status["values"] = event.values
+            status["ts_changed"] = event.ts_created
         elif event.type_ == OT.DeviceStatusAlertEvent:
             device_state["dev_alert"]["status"] = event.status
             device_state["dev_alert"]["sub_type"] = event.sub_type
@@ -128,18 +131,39 @@ class DeviceStateManager(object):
                                         values=[],
                                         value_id="",
                                         ts_changed=""),
-                         dev_status=dict(status=0,
+                         dev_status=dict(status=DeviceStatusType.STATUS_UNKNOWN,
                                          time_stamps=[],
                                          valid_values=[],
                                          values=[],
                                          ts_changed=""),
-                         agg_status=dict(status=0,
-                                         time_stamps=[],
-                                         prev_status=0,
-                                         status_name=0,
-                                         roll_up_status=False,
-                                         valid_values=[],
-                                         values=[],
-                                         ts_changed=""),
-                         )
+                         agg_status={AggregateStatusType.AGGREGATE_DATA: dict(status=DeviceStatusType.STATUS_UNKNOWN,
+                                                                              time_stamps=[],
+                                                                              prev_status=0,
+                                                                              roll_up_status=False,
+                                                                              valid_values=[],
+                                                                              values=[],
+                                                                              ts_changed=""),
+                                     AggregateStatusType.AGGREGATE_COMMS: dict(status=DeviceStatusType.STATUS_UNKNOWN,
+                                                                               time_stamps=[],
+                                                                               prev_status=0,
+                                                                               roll_up_status=False,
+                                                                               valid_values=[],
+                                                                               values=[],
+                                                                               ts_changed=""),
+                                     AggregateStatusType.AGGREGATE_POWER: dict(status=DeviceStatusType.STATUS_UNKNOWN,
+                                                                               time_stamps=[],
+                                                                               prev_status=0,
+                                                                               roll_up_status=False,
+                                                                               valid_values=[],
+                                                                               values=[],
+                                                                               ts_changed=""),
+                                     AggregateStatusType.AGGREGATE_LOCATION: dict(status=DeviceStatusType.STATUS_UNKNOWN,
+                                                                                  time_stamps=[],
+                                                                                  prev_status=0,
+                                                                                  roll_up_status=False,
+                                                                                  valid_values=[],
+                                                                                  values=[],
+                                                                                  ts_changed=""),
+                                     },
+        )
         return new_state
