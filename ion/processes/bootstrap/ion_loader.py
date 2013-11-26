@@ -419,7 +419,7 @@ class IONLoader(ImmediateProcess):
                 length = len(contents)
                 self._parse_xls(contents, scenarios)
                 break
-            except:
+            except Exception:
                 log.warn("Failed to parse preload document (read %d bytes)", length, exc_info=True)
         if not self.object_definitions:
             raise iex.BadRequest("failed to read and parse URL %d times" % HTTP_RETRIES)
@@ -712,7 +712,7 @@ class IONLoader(ImmediateProcess):
             obj_class = named_any("interface.objects.%s" % objtype)
             self.obj_classes[objtype] = obj_class
             return obj_class
-        except:
+        except Exception:
             log.error('failed to find class for type %s' % objtype)
 
     def _get_service_client(self, service):
@@ -1523,7 +1523,7 @@ class IONLoader(ImmediateProcess):
 
         try:
             self._read_reference(parser_id, path)
-        except:
+        except Exception:
             log.exception("Failed to load reference %s at %s", name, path)
             return
 
@@ -1928,7 +1928,7 @@ Reason: %s
             log.exception(e.message)
             self._conflict_report(row['ID'], row['Name'], e.message)
             return
-        except:
+        except Exception:
             log.exception('Could not load the following parameter definition: %s', row)
             return
 
@@ -3092,7 +3092,7 @@ Reason: %s
                         num_dp_generated += 1
 
                         create_dp_link(dp_id, node_id + "_PD", 'PlatformDevice', do_bulk=False)
-                        create_dp_link(dp_id, node_id, do_bulk=False)
+                        create_dp_link(dp_id, node_id, do_bulk=False)   # Site link (even without active deployment)
 
             elif self.ooipartial:
                 newrow = {}
@@ -3194,7 +3194,7 @@ Reason: %s
                         num_dp_generated += 1
 
                         create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice', do_bulk=False)
-                        create_dp_link(dp_id, inst_id, do_bulk=False)
+                        create_dp_link(dp_id, inst_id, do_bulk=False)   # Site link (even without active deployment)
 
             elif self.ooipartial:
                 log.debug("Generating DataProducts for %s using SAF and defaults (no streams)", inst_id)
@@ -3361,7 +3361,7 @@ Reason: %s
                     num_dp_generated += 1
 
                     create_dp_link(dp_id, inst_id + "_ID", do_bulk=False)
-                    create_dp_link(dp_id, inst_id, do_bulk=False)
+                    create_dp_link(dp_id, inst_id, do_bulk=False)   # Site link
 
                 elif self.ooipartial:
                     newrow['stream_def_id'] = ''
@@ -3437,7 +3437,7 @@ Reason: %s
             path = "%s/%s" % (self.attachment_path, filename)
             with open(path, "rb") as f:
                 att_obj.content = f.read()
-        except:
+        except Exception:
             # warn instead of fail here
             log.warn("Failed to open attachment file: %s", filename, exc_info=True)
 
@@ -3490,8 +3490,6 @@ Reason: %s
         constraints = self._get_constraints(row, type='Deployment')
         coordinate_name = row['coordinate_system']
         context_type = row['context_type']
-
-
         context = IonObject(context_type)
 
         platform_port = None
@@ -3556,6 +3554,8 @@ Reason: %s
             if self._resource_exists(node_id + "_DEP"):
                 continue
 
+            ooi_rd = OOIReferenceDesignator(node_id)
+
             # Create a TemporalBounds constraint
             constrow = {}
             const_id1 = node_id + "_constd"
@@ -3570,19 +3570,24 @@ Reason: %s
             newrow[COL_ID] = node_id + "_DEP"
             newrow['site_id'] = node_id
             newrow['device_id'] = node_id + "_PD"
-            # TODO: Activating a Deployment in preload is probably a shortcut. This should be an operator action!
             newrow['activate'] = "FALSE"
             newrow['d/name'] = "Deployment of platform " + node_id
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-            newrow['context_type'] = 'CabledNodeDeploymentContext'
             newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
-            # TODO: If RSN primary node (past), activate and set to DEPLOYED
+            if self._is_cabled(ooi_rd):
+                newrow['context_type'] = 'CabledNodeDeploymentContext'
+            elif ooi_rd.node_type in ("AV", "GL"):
+                newrow['context_type'] = 'MobileAssetDeploymentContext'
+            else:
+                newrow['context_type'] = 'RemotePlatformDeploymentContext'
 
-            log.debug("Create (not activated) Deployment for PD %s", node_id)
+            # TODO: Activate past deployments (e.g. RSN primary node)
+
+            log.debug("Create (not activated) Deployment for PD %s (%s)", node_id, newrow['context_type'])
             self._load_Deployment(newrow)
 
         # II. Instrument deployments (RSN and cabled EA only)
@@ -3612,8 +3617,6 @@ Reason: %s
             newrow[COL_ID] = inst_id + "_DEP"
             newrow['site_id'] = inst_id
             newrow['device_id'] = inst_id + "_ID"
-            # TODO: Activating a Deployment in preload is probably a shortcut. This should be an operator action!
-            #newrow['activate'] = "TRUE"
             newrow['activate'] = "FALSE"
             newrow['d/name'] = "Deployment of instrument " + inst_id
             newrow['d/description'] = ""
