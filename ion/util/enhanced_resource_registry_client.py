@@ -59,7 +59,7 @@ class EnhancedResourceRegistryClient(object):
 
     def __init__(self, rr_client):
         self.id = id(self)
-        log.info("EnhancedResourceRegistryClient[%s] init", self.id)
+        log.debug("EnhancedResourceRegistryClient[%s] init", self.id)
         self.RR = rr_client
 
         log.debug("Generating lookup tables for %s resources and their labels", len(RT.values()))

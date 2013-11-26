@@ -347,16 +347,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not config_builder or RT.DataProduct not in config_builder.associated_objects:
            return
         data_products = config_builder.associated_objects[RT.DataProduct]
-        parsed_dp_id = None
-        for dp in data_products:
-            if dp.processing_level_code == "Parsed":
-                parsed_dp_id = dp._id
-                break
-        if parsed_dp_id:
-            if not self.DPMS.is_persisted(parsed_dp_id):
-                raise BadRequest("Cannot start agent - data product persistence is not activated!")
+        if config_builder._get_device().type_ == RT.PlatformDevice:
+            for dp in data_products:
+                if self.DPMS.is_persisted(dp._id):
+                    return
+            raise BadRequest("Cannot start agent - data product persistence is not activated!")
         else:
-            log.warn("Cannot determine if persistence is activated for agent instance=%s", config_builder.agent_instance_obj._id)
+            parsed_dp_id = None
+            for dp in data_products:
+                if dp.processing_level_code == "Parsed":
+                    parsed_dp_id = dp._id
+                    break
+            if parsed_dp_id:
+                if not self.DPMS.is_persisted(parsed_dp_id):
+                    raise BadRequest("Cannot start agent - data product persistence is not activated!")
+            else:
+                log.warn("Cannot determine if persistence is activated for agent instance=%s", config_builder.agent_instance_obj._id)
 
     def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
@@ -996,6 +1002,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         platform_device_obj = configuration_builder._get_device()
         log.debug("start_platform_agent_instance: device is %s connected to platform agent instance %s (L4-CI-SA-RQ-363)",
                   str(platform_device_obj._id),  str(platform_agent_instance_id))
+
+        # Check that persistence is on
+        self._assert_persistence_on(configuration_builder)
 
         # Save the config into an object in the object store which will be passed to the agent by the container.
         configuration_builder.record_launch_parameters(config)

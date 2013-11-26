@@ -42,7 +42,7 @@ class DeploymentOperatorFactory(object):
         new_object_type = self.creation_type()
 
         # a bundled, integrated platform
-        if OT.RemotePlatformDeploymentContext == deployment_context_type:
+        if deployment_context_type in (OT.RemotePlatformDeploymentContext, OT.MobileAssetDeploymentContext):
             return new_object_type(self.clients,
                                    deployment_obj,
                                    allow_children=True,
