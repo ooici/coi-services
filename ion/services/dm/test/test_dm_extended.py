@@ -937,3 +937,23 @@ class TestDMExtended(DMTestCase):
         #self.preload_ui()
         breakpoint(locals(), globals())
 
+    @attr("UTIL")
+    def test_illegal_char(self):
+        pdict_id = self.ph.create_illegal_char_pdict()
+        stream_def_id = self.create_stream_definition('illegal_char', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ICE Cream', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(10)
+        rdt['ice-cream'] = np.arange(10)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.event.wait(30))
+
+        self.strap_erddap()
+        breakpoint(locals(), globals())
+
+

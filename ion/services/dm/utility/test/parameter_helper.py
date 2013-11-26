@@ -677,6 +677,31 @@ class ParameterHelper(object):
 
         return pdict_id
     
+    def create_illegal_char(self):
+        contexts = {}
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 1900-01-01'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = (t_ctxt, t_ctxt_id)
+
+        i_ctxt = ParameterContext('ice-cream', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        i_ctxt.uom = '1'
+        i_ctxt_id = self.dataset_management.create_parameter_context(name='ice-cream', parameter_context=i_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, i_ctxt_id)
+        contexts['ice-cream'] = (i_ctxt, i_ctxt_id)
+
+        return contexts
+
+    def create_illegal_char_pdict(self):
+        # TODO: Create the QC Functions here
+        contexts = self.create_illegal_char()
+        context_ids = [i[1] for i in contexts.itervalues()]
+        pdict_id = self.dataset_management.create_parameter_dictionary('illegal_char', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+
+        return pdict_id
+    
     def create_simple_qc(self):
         contexts = {}
         types_manager = TypesManager(self.dataset_management,None,None)
