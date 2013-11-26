@@ -896,3 +896,45 @@ class TestDMExtended(DMTestCase):
         bounds = self.dataset_management.dataset_temporal_bounds(dataset_id)
         self.assertEquals(bounds, {})
 
+    @attr("UTIL")
+    def test_overlapping_repeating(self):
+        data_product_id, stream_def_id = self.make_array_data_product()
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        
+        # Throw some data 
+        rdt['time'] = np.arange(20, 40) 
+        rdt['temp_sample'] = np.random.random(20 * 20).reshape(20,20)
+        rdt['cond_sample'] = np.array(range(20) * 20).reshape(20,20)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc1', connection_index='1')
+
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+
+        # Throw some overlapping data and preceeding on the same coverage
+
+        rdt['time'] = np.arange(5,25)
+        rdt['temp_sample'] = np.random.random(20 * 20).reshape(20,20)
+        rdt['cond_sample'] = np.array(range(20) * 20).reshape(20,20)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc1', connection_index='2')
+
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+
+
+        # Throw in even more overlapping data on the complex coverage
+        rdt['time'] = np.arange(20)
+        rdt['temp_sample'] = np.random.random(20 * 20).reshape(20,20)
+        rdt['cond_sample'] = np.array(range(20) * 20).reshape(20,20)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc2', connection_index='1')
+
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+
+        self.strap_erddap()
+        #self.preload_ui()
+        breakpoint(locals(), globals())
+

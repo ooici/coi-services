@@ -136,7 +136,9 @@ class Handler(BaseHandler):
         #pc = cov.get_parameter_context(name)
         if isinstance(cov._range_dictionary[name].param_type, ArrayType):
             try:
-                data = cov.get_value_dictionary([name])[name][bitmask]
+                vdict = cov.get_value_dictionary([name])
+                idxs = np.where(bitmask)[0]
+                data = vdict[name][idxs]
             except ParameterFunctionException:
                 data = np.empty(cov.num_timesteps, dtype='object')
         else:
