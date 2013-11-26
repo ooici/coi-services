@@ -38,12 +38,21 @@ from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTe
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import instruments_dict
 
 from pyon.agent.agent import ResourceAgentState
+from pyon.util.context import LocalContextMixin
 
 from unittest import skip
 from mock import patch
 from pyon.public import log, CFG
 import unittest
 import os
+
+class FakeProcess(LocalContextMixin):
+    """
+    A fake process used because the test case is not an ion process.
+    """
+    name = ''
+    id=''
+    process_type = ''
 
 
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
@@ -126,6 +135,108 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self.addCleanup(self._run_shutdown_commands)
 
         self._run_startup_commands()
+
+    def test_ims_instrument_status(self):
+        #
+        # test the access of instrument aggstatus via ims and the object store
+        #
+        #bin/nosetests -s -v --nologcapture ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_ims_instrument_status
+
+
+        p_root = self._set_up_single_platform_with_some_instruments(['SBE37_SIM_01'])
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+
+        self._run_startup_commands()
+
+        i_obj1 = self._get_instrument('SBE37_SIM_01')
+        #check that the instrument is in streaming mode.
+        _ia_client1 = self._create_resource_agent_client(i_obj1.instrument_device_id)
+        state1 = _ia_client1.get_agent_state()
+        self.assertEqual(state1, 'RESOURCE_AGENT_STATE_COMMAND')
+
+        retval = _ia_client1.get_agent(['aggstatus'])['aggstatus']
+        self.assertEqual(retval, {1: 2, 2: 2, 3: 2, 4: 2})
+        device_id = i_obj1['instrument_device_id']
+        self.assertIsInstance(device_id, str)
+        self.assertTrue(len(device_id)>0)
+
+        dev_ext = self.IMS.get_instrument_device_extension(instrument_device_id=device_id)
+        """
+        Computed attributed have these roll up statuses:
+        'communications_status_roll_up': ComputedIntValue({'status': 1, 'reason': None, 'value': 2})
+        'power_status_roll_up': ComputedIntValue({'status': 1, 'reason': None, 'value': 2})
+        'data_status_roll_up': ComputedIntValue({'status': 1, 'reason': None, 'value': 2})
+        'location_status_roll_up': ComputedIntValue({'status': 1, 'reason': None, 'value': 2})
+        """
+
+        """
+        State list returned by DeviceStateManger
+        [{
+             '_rev': '3-f0b9dd9bf4867d22f610795666908bb2',
+             'dev_alert': {
+                 'status': 0,
+                 'stream_name': '',
+                 'name': '',
+                 'time_stamps': [],
+                 'valid_values': [],
+                 'values': [],
+                 'value_id': '',
+                 'ts_changed': ''},
+             'ts_updated': '1385483661666',
+             'state': {
+                 'current': 'RESOURCE_AGENT_STATE_INACTIVE',
+                 'prior': 'RESOURCE_AGENT_STATE_UNINITIALIZED',
+                 'ts_changed': '1385483660164'},
+             'dev_status': {
+                 'status': 1,
+                 'values': [],
+                 'valid_values': [],
+                 'ts_changed': '',
+                 'time_stamps': []},
+             'res_state': {
+                 'current': 'DRIVER_STATE_UNKNOWN',
+                 'prior': 'DRIVER_STATE_DISCONNECTED',
+                 'ts_changed': '1385483661209'},
+             'agg_status': {
+                 '1': {
+                     'status': 2,
+                     'time_stamps': [],
+                     'prev_status': 1,
+                     'roll_up_status': False,
+                     'valid_values': [],
+                     'values': [],
+                     'ts_changed': '1385483656870'},
+                 '3': {
+                     'status': 2,
+                     'time_stamps': [],
+                     'prev_status': 1,
+                     'roll_up_status': False,
+                     'valid_values': [],
+                     'values': [],
+                     'ts_changed': '1385483656892'},
+                 '2': {
+                     'status': 2,
+                     'time_stamps': [],
+                     'prev_status': 1,
+                     'roll_up_status': False,
+                     'valid_values': [],
+                     'values': [],
+                     'ts_changed': '1385483656876'},
+                 '4': {
+                     'status': 2,
+                     'time_stamps': [],
+                     'prev_status': 1,
+                     'roll_up_status': False,
+                     'valid_values': [],
+                     'values': [],
+                     'ts_changed': '1385483656908'}},
+             '_id': 'state_8de3301b10384e72bb3d09d2222150b9',
+             'ts_created': '1385483657596',
+             'device_id': '8de3301b10384e72bb3d09d2222150b9'}
+        ]
+        """
 
 
     def test_single_platform_with_an_instrument_and_deployments(self):
@@ -231,6 +342,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         log.debug("instrument state: %s", instr_state)
         self.assertEquals(ResourceAgentState.COMMAND, instr_state)
 
+
     def test_13_platforms_and_1_instrument(self):
         #
         # Test with network of 13 platforms and 1 instrument.
@@ -325,14 +437,14 @@ class TestPlatformLaunch(BaseIntTestPlatform):
                              retval.status,
                              "platform computed.%s was not PROVIDED: %s" % (attr, retval.reason))
 
-
+        """
         print "communications_status_roll_up", p_extended.computed.communications_status_roll_up
         print "data_status_roll_up", p_extended.computed.data_status_roll_up
         print "location_status_roll_up", p_extended.computed.location_status_roll_up
         print "power_status_roll_up", p_extended.computed.power_status_roll_up
         print "rsn_network_child_device_status", p_extended.computed.rsn_network_child_device_status
         print "rsn_network_rollup", p_extended.computed.rsn_network_rollup
-
+        """
 
         # test extended attributes of site
 

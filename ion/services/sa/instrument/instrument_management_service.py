@@ -1590,6 +1590,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not instrument_device_id:
             raise BadRequest("The instrument_device_id parameter is empty")
 
+        from ion.processes.event.device_state import DeviceStateManager
+        dsm = DeviceStateManager()
+        device_ids_of_interest = [instrument_device_id]
+        state_list = dsm.read_states(device_ids_of_interest)
+
+        status_dict = {}
+        for x in state_list:
+            status = {}
+            for k, v in x['agg_status'].iteritems():
+                status[int(k)] = v['status']
+            status_dict[x['device_id']] = status
+
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_instrument = extended_resource_handler.create_extended_resource_container(
@@ -1604,7 +1616,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # retrieve the statuses for the instrument
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
-                                                                                    extended_instrument.computed)
+                                                                                    extended_instrument.computed,
+                                                                                    status_dict=status_dict)
         # retrieve the aggregate status for the instrument
         status_values = [ extended_instrument.computed.communications_status_roll_up,
                           extended_instrument.computed.data_status_roll_up,
@@ -1860,12 +1873,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Building status - for PlatformAgents only (not ExternalDatasetAgent)
         # @TODO: clean this UP!!!
         child_device_ids = device_relations.keys()
+        ### agent_status_builder
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
                                                                                     extended_platform.computed,
                                                                                     portal_instrument_ids)
-
+        ### agent_status_builder
         statuses, reason = self.agent_status_builder.get_cumulative_status_dict(platform_device_id)
         def csl(device_id_list):
+            ### agent_status_builder
             return self.agent_status_builder.compute_status_list(statuses, device_id_list)
 
         extended_platform.computed.instrument_status = csl([dev._id for dev in extended_platform.instrument_devices])
@@ -1886,6 +1901,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
         if t:
             t.complete_step('ims.platform_device_extension.top')
+
+        ### agent_status_builder
         net_stats, ancestors = rollx_builder.get_network_hierarchy(top_platformnode_id,
                                                                    lambda x: self.agent_status_builder.get_aggregate_status_of_device(x))
         if t:
@@ -1901,11 +1918,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
                                                                               reason="Could not find parent network node")
         else:
+            ### agent_status_builder
             parent_node_statuses = [self.agent_status_builder.get_status_of_device(x) for x in parent_node_device_ids]
             rollup_values = {}
             for astkey, astname in AggregateStatusType._str_map.iteritems():
                 log.debug("collecting all %s values to crush", astname)
                 single_type_list = [nodestat.get(astkey, DeviceStatusType.STATUS_UNKNOWN) for nodestat in parent_node_statuses]
+                 ### agent_status_builder
                 rollup_values[astkey] = self.agent_status_builder._crush_status_list(single_type_list)
 
             extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
