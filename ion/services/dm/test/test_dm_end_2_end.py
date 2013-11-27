@@ -673,6 +673,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         publisher.publish(granule)
         self.assertTrue(dataset_monitor.event.wait(20))
 
+    @unittest.skip('Gap support disabled')
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_thorough_gap_analysis(self):
