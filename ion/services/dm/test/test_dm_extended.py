@@ -198,7 +198,7 @@ class TestDMExtended(DMTestCase):
         from subprocess import call
         call(['open', 'http://localhost:3000/DataProduct/face/%s/' % data_product_id])
 
-    def strap_erddap(self):
+    def strap_erddap(self, data_product_id=None):
         '''
         Copies the datasets.xml to /tmp
         '''
@@ -209,6 +209,9 @@ class TestDMExtended(DMTestCase):
         real_path = FileSystem.get_extended_url(base)
         real_path = os.path.join(real_path,filename)
         copyfile(real_path, '/tmp/datasets.xml')
+        if data_product_id:
+            with open('/tmp/erddap/flag/%s' % data_product_id, 'a'):
+                pass
 
     def create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
