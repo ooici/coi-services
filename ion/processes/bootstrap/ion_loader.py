@@ -243,6 +243,9 @@ class IONLoader(ImmediateProcess):
                 if docstr:
                     log.debug("Step info: "+ docstr)
                 step_config_override = dict(step_cfg.get("config", {}))
+                # Add override with any direct process spawn args
+                if hasattr(self, "_proc_spawn_cfg"):
+                    dict_merge(step_config_override, self._proc_spawn_cfg, inplace=True)
                 log.debug("Step config override: %s", step_config_override)
                 # Build config for step based on container CFG
                 step_config = copy.deepcopy(self.CFG)
@@ -1625,19 +1628,24 @@ class IONLoader(ImmediateProcess):
 
             # The following MUST be defined before any skip is made, because later resources use these references
             const_id1 = ''
-            if ooi_obj.get('latitude', None) or ooi_obj.get('longitude', None) or ooi_obj.get('depth_subsite', None):
+            if ooi_obj.get('latitude', None) or ooi_obj.get('longitude', None):
                 const_id1 = ooi_id + "_const1"
                 constrow = {}
                 constrow[COL_ID] = const_id1
                 constrow['type'] = 'geospatial'
-                constrow['south'] = ooi_obj['latitude'] or '0.0'
-                constrow['north'] = ooi_obj['latitude'] or '0.0'
-                constrow['west'] = ooi_obj['longitude'] or '0.0'
-                constrow['east'] = ooi_obj['longitude'] or '0.0'
+                lat = (ooi_obj.get('latitude', None) or '0.0').split(",", 1)  # Allow ranges
+                lon = (ooi_obj.get('longitude', None) or '0.0').split(",", 1)
+                dep = (ooi_obj.get('depth_subsite', None) or '0.0').split(",", 1)
+                constrow['south'] = lat[0]
+                constrow['north'] = lat[-1]
+                constrow['west'] = lon[0]
+                constrow['east'] = lon[-1]
                 constrow['vertical_direction'] = 'depth'
-                constrow['top'] = ooi_obj['depth_subsite'] or '0.0'
-                constrow['bottom'] = ooi_obj['depth_subsite'] or '0.0'
+                constrow['top'] = dep[0]
+                constrow['bottom'] = dep[-1]
                 self._load_Constraint(constrow)
+                if not all([constrow['south'], constrow['north'], constrow['west'], constrow['east']]):
+                    log.warn("Instrument %s invalid geospatial constraint: %s", ooi_id, constrow)
             elif ooi_obj.get('is_platform', False):
                 ss = subsite_objs[ooi_rd.subsite_rd]
                 ss_mod = ssite_objs[ss['ssite']]
@@ -1751,19 +1759,19 @@ class IONLoader(ImmediateProcess):
 
             # The following MUST be defined before any skip is made, because later resources use these references
             constrow = {}
-            const_id1 = ''
-            if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
-                const_id1 = inst_id + "_const1"
-                constrow[COL_ID] = const_id1
-                constrow['type'] = 'geospatial'
-                constrow['south'] = inst_obj['latitude'] or '0.0'
-                constrow['north'] = inst_obj['latitude'] or '0.0'
-                constrow['west'] = inst_obj['longitude'] or '0.0'
-                constrow['east'] = inst_obj['longitude'] or '0.0'
-                constrow['vertical_direction'] = 'depth'
-                constrow['top'] = inst_obj['depth_port_min'] or '0.0'
-                constrow['bottom'] = inst_obj['depth_port_max'] or '0.0'
-                self._load_Constraint(constrow)
+            const_id1 = inst_id + "_const1"
+            constrow[COL_ID] = const_id1
+            constrow['type'] = 'geospatial'
+            constrow['south'] = inst_obj.get('latitude', None) or '0.0'
+            constrow['north'] = inst_obj.get('latitude', None) or '0.0'
+            constrow['west'] = inst_obj.get('longitude', None) or '0.0'
+            constrow['east'] = inst_obj.get('longitude', None) or '0.0'
+            constrow['vertical_direction'] = 'depth'
+            constrow['top'] = inst_obj.get('depth_port_min', None) or '0.0'
+            constrow['bottom'] = inst_obj.get('depth_port_max', None) or '0.0'
+            self._load_Constraint(constrow)
+            if not all([constrow['south'], constrow['north'], constrow['west'], constrow['east']]):
+                log.warn("Instrument %s invalid geospatial constraint: %s", inst_id, constrow)
 
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
@@ -3068,9 +3076,10 @@ Reason: %s
                 continue
 
             const_id1 = ''
-            if node_obj.get('latitude', None) or node_obj.get('longitude', None) or node_obj.get('depth_subsite', None):
-                # At this point, the constraint was already added with the PlatformSite
+            if node_id + "_const1" in self.constraint_defs:
                 const_id1 = node_id + "_const1"
+            else:
+                log.warn("Could not determine geospatial constraint for %s", node_id)
 
             nodetype_obj = nodetype_objs.get(ooi_rd.node_type, None)
             pa_code = nodetype_obj.get("pa_code", None) if nodetype_obj else None
@@ -3158,9 +3167,11 @@ Reason: %s
                 continue
 
             const_id1 = ''
-            if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
+            if inst_id + "_const1" in self.constraint_defs:
                 # At this point, the constraint was already added with the InstrumentSite
                 const_id1 = inst_id + "_const1"
+            else:
+                log.warn("Could not determine geospatial constraint for %s", inst_id)
 
             ia_code = series_obj["ia_code"]
             iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
