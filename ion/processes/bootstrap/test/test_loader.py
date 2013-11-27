@@ -315,3 +315,10 @@ class TestLoader(IonIntegrationTestCase):
         entries ,_ = self.container.resource_registry.find_resources(RT.SchedulerEntry, id_only=False)
         self.assertGreaterEqual(len(entries), 1)
 
+    @attr('PRELOAD')
+    def test_ooi_preload_valid(self):
+        """ make sure R2_DEMO scenario in master google doc
+            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
+            NOTE: test will pass/fail based on current google doc, not just code changes.
+        """
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_alpha.yml", path=TEST_PATH)

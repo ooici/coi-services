@@ -107,7 +107,7 @@ class OOILoader(object):
                 reader = csv.DictReader(csv_doc, delimiter=',')
             else:
                 filename = "%s/%s.csv" % (self.asset_path, category)
-                log.debug("Loading category %s from file %s", category, filename)
+                #log.debug("Loading category %s from file %s", category, filename)
                 try:
                     csvfile = open(filename, "rb")
                     for i in xrange(9):
@@ -134,8 +134,8 @@ class OOILoader(object):
         if self.warnings:
             log.warn("WARNINGS:\n%s", "\n".join(["%s: %s" % (a, b) for a, b in self.warnings]))
 
-        for ot, oo in self.ooi_objects.iteritems():
-            log.info("Type %s has %s entries", ot, len(oo))
+        log.info("Found entries: %s", ", ".join(["%s: %s" % (ot, len(self.ooi_objects[ot])) for ot in sorted(self.ooi_objects.keys())]))
+
             #import pprint
             #pprint.pprint(oo)
             #log.debug("Type %s has %s attributes", ot, self.ooi_obj_attrs[ot])
@@ -488,13 +488,15 @@ class OOILoader(object):
         code = row['Code']
         name = row['Name']
         pa_code = row['PA Code']
+        platform_family = row['Platform Family']
+        platform_type = row['Platform Type']
 
         # Only add new stuff from spreadsheet
         if code not in self.ooi_objects['nodetype']:
             self._add_object_attribute('nodetype',
                 code, None, None, name=name)
         self._add_object_attribute('nodetype',
-            code, None, None, pa_code=pa_code)
+            code, None, None, pa_code=pa_code, platform_family=platform_family, platform_type=platform_type)
 
     def _parse_PlatformAgents(self, row):
         code = row['Code']
