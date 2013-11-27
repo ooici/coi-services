@@ -299,12 +299,12 @@ class DiscoveryUnitTest(PyonTestCase):
         self.discovery.query_request = Mock()
         self.discovery.query_request.return_value = 'test'
 
-        query = {'and':[], 'or':[], 'query':{}, 'limit':50}
+        query = {'query':{}}
 
         retval = self.discovery.request(query)
 
         self.assertTrue(retval=='test')
-        self.discovery.query_request.assert_called_once_with({}, limit=1048576, id_only=True)
+        self.discovery.query_request.assert_called_once_with({}, limit=1048576)
 
     def test_tier2_request(self):
         result_list = [[0,1,2],[1,2],[0,1,2],[1,2,3,4]]
@@ -319,7 +319,7 @@ class DiscoveryUnitTest(PyonTestCase):
         # Intersection
         #========================
 
-        request = {'and':[{}], 'or':[], 'query':{}, 'limit':50}
+        request = {'and':[{}], 'or':[], 'query':{}}
 
         retval = self.discovery.request(request)
         retval.sort()
@@ -330,7 +330,7 @@ class DiscoveryUnitTest(PyonTestCase):
         # Union
         #========================
 
-        request = {'and':[], 'or':[{}], 'query':{}, 'limit':50}
+        request = {'and':[], 'or':[{}], 'query':{}}
 
         retval = self.discovery.request(request)
         retval.sort()
@@ -588,7 +588,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         search_string = "search 'type_' is 'Dataset' from 'resources_index' and belongs to '%s'" % dp_id
 
-        results = self.poll(5, self.discovery.parse,search_string)
+        results = self.poll(5, self.discovery.parse,search_string,id_only=True)
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(ds_id in results)
     
@@ -676,7 +676,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         search_string = "search 'name' is '*' from '%s' and in '%s'" %(view_id, collection_id)
 
-        results = self.poll(9, self.discovery.parse,search_string)
+        results = self.poll(9, self.discovery.parse,search_string,id_only=True)
 
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0] == site_id, '%s' % results)
@@ -893,7 +893,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         
         search_string = "search 'type_' is 'DataProduct' from 'data_products_index' and search 'ts_created' time from '%s' to '%s' from 'data_products_index'" % (past, future)
 
-        results = self.poll(9, self.discovery.parse,search_string)
+        results = self.poll(9, self.discovery.parse,search_string,id_only=True)
 
         self.assertIsNotNone(results,'Results not found')
 
@@ -901,7 +901,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         
         search_string = "search 'type_' is 'DataProduct' from 'data_products_index' and search 'ts_created' time from '%s' from 'data_products_index'" % past
 
-        results = self.poll(9, self.discovery.parse,search_string)
+        results = self.poll(9, self.discovery.parse,search_string,id_only=True)
 
         self.assertIsNotNone(results,'Results not found')
 
@@ -1053,7 +1053,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         param_id = results[0]['_id']
 
         data_product_search = 'search "name" is "*" from "data_products_index" and has "%s"' % param_id
-        results = self.poll(9, self.discovery.parse, data_product_search)
+        results = self.poll(9, self.discovery.parse, data_product_search,id_only=True)
         self.assertIn(dp_id, results)
         #self.assertEquals(results[0], dp_id)
 
