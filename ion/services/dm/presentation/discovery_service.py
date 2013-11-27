@@ -29,6 +29,7 @@ import heapq
 
 class DiscoveryService(BaseDiscoveryService):
     SEARCH_BUFFER_SIZE=CFG.get_safe('service.discovery.search_buffer_size', 1048576)
+    MAX_SEARCH_RESULTS=CFG.get_safe('service.discovery.max_search_results', 250)
 
     """
     class docstring
@@ -1108,22 +1109,28 @@ class DiscoveryService(BaseDiscoveryService):
         # Check the form of the query
         #==============================
         #@todo: convert to IonObject
-        if not (query.has_key('query') and 
-                query.has_key('and') and
-                query.has_key('or') and
-                query.has_key('limit')):
+        if not (query.has_key('query')):
             raise BadRequest('Improper query request: %s' % query)
+
+        # ---------------------------
+        # Number of results to return
+        # ---------------------------
+        limit = int(query.get('limit',self.MAX_SEARCH_RESULTS))
 
         query_queue = list()
 
         query = DotDict(query)
-        
+       
+        # -- former tier-1 (no and/or) search, returns an elasticsearch object
+        if (len(query.get('and',[])) + len(query.get('or',[])) == 0 ):
+            return self.query_request(query.query,limit=self.SEARCH_BUFFER_SIZE)[:limit]
+ 
         query_queue.append(self.query_request(query.query,limit=self.SEARCH_BUFFER_SIZE, id_only=True))
         
         #==================
         # Intersection
         #==================
-        for q in query['and']:
+        for q in query.get('and',[]):
             query_queue.append(self.query_request(q, limit=self.SEARCH_BUFFER_SIZE, id_only=True))
         while len(query_queue) > 1:
             tmp = self.intersect(query_queue.pop(), query_queue.pop())
@@ -1132,17 +1139,12 @@ class DiscoveryService(BaseDiscoveryService):
         #==================
         # Union
         #==================
-        for q in query['or']:
+        for q in query.get('or',[]):
             query_queue.append(self.query_request(q, limit=self.SEARCH_BUFFER_SIZE, id_only=True))
         while len(query_queue) > 1:
             tmp = self.union(query_queue.pop(), query_queue.pop())
             query_queue.append(tmp)
         
-        # ---------------------------
-        # Number of results to return
-        # ---------------------------
-        limit = int(query['limit'])
-
         if id_only:
             return query_queue[0][:limit]
 
