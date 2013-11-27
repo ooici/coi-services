@@ -3074,7 +3074,8 @@ Reason: %s
                     newrow['dp/name'] = "Platform %s stream '%s' data product" % (node_id, scfg.stream_name)
                     newrow['dp/description'] = "Platform %s data product" % node_id
                     newrow['dp/ooi_product_name'] = ""
-                    newrow['dp/processing_level_code'] = ""
+                    newrow['dp/processing_level_code'] = "N/A"
+                    newrow['dp/quality_control_level'] = "N/A"
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
                     newrow['contact_ids'] = ''
                     newrow['geo_constraint_id'] = const_id1
@@ -3100,7 +3101,8 @@ Reason: %s
                 newrow['dp/name'] = "Parsed - platform " + node_id
                 newrow['dp/description'] = "Platform %s data product" % node_id
                 newrow['dp/ooi_product_name'] = ""
-                newrow['dp/processing_level_code'] = ""
+                newrow['dp/processing_level_code'] = "N/A"
+                newrow['dp/quality_control_level'] = "N/A"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
@@ -3160,10 +3162,12 @@ Reason: %s
                         newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Raw"
+                        newrow['dp/quality_control_level'] = "N/A"
                     elif scfg.stream_type == StreamConfigurationType.PARSED and not parsed_pdict_id:
                         newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
+                        newrow['dp/quality_control_level'] = "a"
                         parsed_pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                         parsed_id = dp_id
                     else:
@@ -3172,6 +3176,8 @@ Reason: %s
                                      inst_id, ia_code or dart_code, scfg.stream_name, parsed_pdict_id)
                         newrow['dp/description'] = "Instrument %s data product: engineering data" % inst_id
                         newrow['dp/ooi_product_name'] = ""
+                        newrow['dp/processing_level_code'] = "N/A"
+                        newrow['dp/quality_control_level'] = "N/A"
 
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
                     newrow['contact_ids'] = ''
@@ -3208,6 +3214,7 @@ Reason: %s
                 newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
                 newrow['dp/ooi_product_name'] = ""
                 newrow['dp/processing_level_code'] = "Parsed"
+                newrow['dp/quality_control_level'] = "a"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
@@ -3229,6 +3236,7 @@ Reason: %s
                 newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                 newrow['dp/ooi_product_name'] = ""
                 newrow['dp/processing_level_code'] = "Raw"
+                newrow['dp/quality_control_level'] = "N/A"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
@@ -3309,6 +3317,13 @@ Reason: %s
                 newrow['dp/qc_spketest'] = dp_obj.get('Spike Test (SPKETST) QC', "")
                 newrow['dp/qc_stuckvl'] = dp_obj.get('Stuck Value Test (STUCKVL) QC', "")
                 newrow['dp/qc_trndtst'] = dp_obj.get('Trend Test (TRNDTST) QC', "")
+                if any([True for val in [newrow['dp/qc_cmbnflg'], newrow['dp/qc_condcmp'], newrow['dp/qc_glblrng'],
+                                         newrow['dp/qc_gradtst'], newrow['dp/qc_interp1'], newrow['dp/qc_loclrng'],
+                                         newrow['dp/qc_modulus'], newrow['dp/qc_polyval'], newrow['dp/qc_solarel'],
+                                         newrow['dp/qc_spketest'], newrow['dp/qc_stuckvl'], newrow['dp/qc_trndtst']] if val == "applicable"]):
+                    newrow['dp/quality_control_level'] = "b"
+                else:
+                    newrow['dp/quality_control_level'] = "a"
                 newrow['dp/dps_dcn'] = dp_obj.get('DPS DCN(s)', "")
                 newrow['dp/flow_diagram_dcn'] = dp_obj.get('Processing Flow Diagram DCN(s)', "")
                 newrow['dp/doors_l2_requirement_num'] = dp_obj.get('DOORS L2 Science Requirement #(s)', "")
