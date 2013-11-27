@@ -722,8 +722,6 @@ class TestDMExtended(DMTestCase):
 
         temp_sample = list(ds['data']['temp_sample'])[0]
         self.assertEquals(temp_sample, '0.0,1.0,2.0,3.0')
-        self.strap_erddap(data_product_id)
-        breakpoint(locals(), globals())
 
     @attr('INT')
     def test_ingest_metadata(self):
