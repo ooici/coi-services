@@ -645,17 +645,17 @@ class ParameterHelper(object):
         temp_ctxt.uom = 'deg_C'
         temp_ctxt.ooi_short_name = 'TEMPWAT'
         temp_ctxt.display_name = 'Temperature'
-        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp_sample', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
-        contexts['temp'] = temp_ctxt, temp_ctxt_id
+        contexts['temp_sample'] = temp_ctxt, temp_ctxt_id
         
         cond_ctxt = ParameterContext('cond_sample', param_type=ArrayType(inner_encoding='float64'))
         cond_ctxt.uom = 'deg_C'
         cond_ctxt.ooi_short_name = 'CONDWAT'
         cond_ctxt.display_anme = 'Conductivity'
-        cond_ctxt_id = self.dataset_management.create_parameter_context(name='cond', parameter_context=cond_ctxt.dump(), ooi_short_name='CONDWAT')
+        cond_ctxt_id = self.dataset_management.create_parameter_context(name='cond_sample', parameter_context=cond_ctxt.dump(), ooi_short_name='CONDWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, cond_ctxt_id)
-        contexts['cond'] = cond_ctxt, cond_ctxt_id
+        contexts['cond_sample'] = cond_ctxt, cond_ctxt_id
 
         func = self.create_matrix_offset_function()
         func.param_map = {'x':'temp_sample', 'y':'cond_sample'}
@@ -673,6 +673,31 @@ class ParameterHelper(object):
         contexts = self.create_simple_array()
         context_ids = [i[1] for i in contexts.itervalues()]
         pdict_id = self.dataset_management.create_parameter_dictionary('simple_array', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+
+        return pdict_id
+    
+    def create_illegal_char(self):
+        contexts = {}
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 1900-01-01'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = (t_ctxt, t_ctxt_id)
+
+        i_ctxt = ParameterContext('ice-cream', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        i_ctxt.uom = '1'
+        i_ctxt_id = self.dataset_management.create_parameter_context(name='ice-cream', parameter_context=i_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, i_ctxt_id)
+        contexts['ice-cream'] = (i_ctxt, i_ctxt_id)
+
+        return contexts
+
+    def create_illegal_char_pdict(self):
+        # TODO: Create the QC Functions here
+        contexts = self.create_illegal_char()
+        context_ids = [i[1] for i in contexts.itervalues()]
+        pdict_id = self.dataset_management.create_parameter_dictionary('illegal_char', parameter_context_ids=context_ids, temporal_context='time')
         self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 
         return pdict_id
