@@ -25,6 +25,7 @@ import os
 import unittest
 import numpy as np
 import time
+import gevent
 
 class TestDMExtended(DMTestCase):
     '''
@@ -178,6 +179,16 @@ class TestDMExtended(DMTestCase):
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'load', 'instrument':'CTDGV'})
 
+    def preload_vel3d_cd(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,VEL3D_C'
+        config.path = 'master'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
     def stop_ctdgv(self):
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'stop', 'instrument':'CTDGV'})
 
@@ -198,6 +209,14 @@ class TestDMExtended(DMTestCase):
         from subprocess import call
         call(['open', 'http://localhost:3000/DataProduct/face/%s/' % data_product_id])
 
+    def launch_device_facepage(self, instrument_device_id):
+        '''
+        Opens the UI face page on localhost for a particular instrument device
+        '''
+        from subprocess import call
+        call(['open', 'http://localhost:3000/InstrumentDevice/face/%s/' % instrument_device_id])
+
+
     def strap_erddap(self, data_product_id=None):
         '''
         Copies the datasets.xml to /tmp
@@ -212,6 +231,10 @@ class TestDMExtended(DMTestCase):
         if data_product_id:
             with open('/tmp/erddap/flag/%s' % data_product_id, 'a'):
                 pass
+
+        gevent.sleep(5)
+        from subprocess import call
+        call(['open', 'http://localhost:9000/erddap/tabledap/%s.html' % data_product_id])
 
     def create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
@@ -662,7 +685,7 @@ class TestDMExtended(DMTestCase):
         # Send it to google_dt transform, verify output
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = np.arange(2208988800, 2208988810)
+        rdt['time'] = np.arange(2208988800, 2208988801, .1)
         rdt['temp_sample'] = np.arange(10*4).reshape(10,4)
         rdt['cond_sample'] = np.arange(10*4).reshape(10,4)
 
@@ -879,6 +902,11 @@ class TestDMExtended(DMTestCase):
         self.assertTrue(dataset_monitor.event.wait(30))
         dataset_monitor.event.clear()
 
+        self.preload_ui()
+        self.strap_erddap(data_product_id)
+        self.launch_ui_facepage(data_product_id)
+        breakpoint(locals(), globals())
+
     @attr("UTIL")
     def test_sptest(self):
         self.preload_sptest()
@@ -959,4 +987,12 @@ class TestDMExtended(DMTestCase):
         self.strap_erddap()
         breakpoint(locals(), globals())
 
+
+    @attr("UTIL")
+    def test_vel3d_cd(self):
+        self.preload_vel3d_cd()
+        instrument_devices, _ = self.container.resource_registry.find_resources_ext(alt_id='ID21', alt_id_ns='PRE')
+        instrument_device_id = instrument_devices[0]._id
+        self.launch_device_facepage(instrument_device_id)
+        breakpoint(locals(), globals())
 

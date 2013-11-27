@@ -74,7 +74,11 @@ def populate_rdt(rdt, vals):
                 found_preferred_timestamp = True
 
     for k,v in data_arrays.iteritems():
-        rdt[k] = numpy.array(v)
+        try:
+            rdt[k] = numpy.array(v)
+        except ValueError:
+            log.error("Couldn't set %s as %s", k, repr(v))
+            raise
 
     return rdt
 
