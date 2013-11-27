@@ -25,6 +25,7 @@ from coverage_model.parameter import ParameterDictionary
 
 from ion.agents.port.port_agent_process import PortAgentProcess
 from ion.agents.platform.platform_agent import PlatformAgentState
+from ion.processes.event.device_state import DeviceStateManager
 from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder, \
@@ -41,7 +42,7 @@ from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryC
 from ion.util.resource_lcs_policy import AgentPolicy, ResourceLCSPolicy, ModelPolicy, DevicePolicy
 
 from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedDictValue
-from interface.objects import AggregateStatusType, DeviceStatusType
+from interface.objects import DeviceStatusType, AggregateStatusType
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 
@@ -1590,18 +1591,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not instrument_device_id:
             raise BadRequest("The instrument_device_id parameter is empty")
 
-        from ion.processes.event.device_state import DeviceStateManager
-        dsm = DeviceStateManager()
-        device_ids_of_interest = [instrument_device_id]
-        state_list = dsm.read_states(device_ids_of_interest)
-
-        status_dict = {}
-        for x in state_list:
-            status = {}
-            for k, v in x['agg_status'].iteritems():
-                status[int(k)] = v['status']
-            status_dict[x['device_id']] = status
-
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_instrument = extended_resource_handler.create_extended_resource_container(
@@ -1614,28 +1603,47 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if t:
             t.complete_step('ims.instrument_device_extension.container')
 
-        # retrieve the statuses for the instrument
-        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
-                                                                                    extended_instrument.computed,
-                                                                                    status_dict=status_dict)
-        # retrieve the aggregate status for the instrument
-        status_values = [ extended_instrument.computed.communications_status_roll_up,
-                          extended_instrument.computed.data_status_roll_up,
-                          extended_instrument.computed.location_status_roll_up,
-                          extended_instrument.computed.power_status_roll_up  ]
-        status = self.agent_status_builder._crush_status_list(status_values)
+        try:
+            # Prefetch persisted status from object store for all devices of interest (one here)
+            dsm = DeviceStateManager()
+            device_ids_of_interest = [instrument_device_id]
+            state_list = dsm.read_states(device_ids_of_interest)
+            status_dict = {}
+            for dev_id, dev_state in zip(device_ids_of_interest, state_list):
+                status = {AggregateStatusType.AGGREGATE_DATA: DeviceStatusType.STATUS_UNKNOWN,
+                          AggregateStatusType.AGGREGATE_COMMS: DeviceStatusType.STATUS_UNKNOWN,
+                          AggregateStatusType.AGGREGATE_POWER: DeviceStatusType.STATUS_UNKNOWN,
+                          AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_UNKNOWN}
+                if dev_state is not None:
+                    for k, v in dev_state['agg_status'].iteritems():
+                        status[int(k)] = v['status']
+                status_dict[dev_id] = status
 
-        log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
-        if t:
-            t.complete_step('ims.instrument_device_extension.rollup')
+            # retrieve the statuses for the instrument
+            self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
+                                                                                        extended_instrument.computed,
+                                                                                        status_dict=status_dict)
+            # retrieve the aggregate status for the instrument
+            status_values = [ extended_instrument.computed.communications_status_roll_up,
+                              extended_instrument.computed.data_status_roll_up,
+                              extended_instrument.computed.location_status_roll_up,
+                              extended_instrument.computed.power_status_roll_up  ]
+            status = self.agent_status_builder._crush_status_list(status_values)
 
-        # add UI details for deployments in same order as deployments
-        extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients,
-                                                                   instruments=[extended_instrument.resource],
-                                                                   instrument_status=[status])
-        if t:
-            t.complete_step('ims.instrument_device_extension.deploy')
-            stats.add(t)
+            log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
+            if t:
+                t.complete_step('ims.instrument_device_extension.rollup')
+
+            # add UI details for deployments in same order as deployments
+            extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients,
+                                                                       instruments=[extended_instrument.resource],
+                                                                       instrument_status=[status])
+            if t:
+                t.complete_step('ims.instrument_device_extension.deploy')
+                stats.add(t)
+
+        except Exception as ex:
+            log.exception("Cannot build instrument %s status", instrument_device_id)
 
         return extended_instrument
 
