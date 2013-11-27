@@ -42,6 +42,7 @@
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       ooiparams= if True (default is False) create links to OOI parameter definitions
       ooipartial= if True (default is False) creates resources (data products etc) even if not all inputs are there
+      ooiactivate= if True (default is True) activate deployments/persistence for assets actually deployed in the past
 
       debug= if True, allows shortcuts to perform faster loads (where possible)
       bulk= if True, uses RR bulk insert operations to load, not service calls
@@ -321,6 +322,7 @@ class IONLoader(ImmediateProcess):
             self.idmap = bool(config.get("idmap", False))           # Substitute column values in rows
             self.ooiparams = bool(config.get("ooiparams", False))   # Hook up with loaded OOI params
             self.ooipartial = bool(config.get("ooipartial", False))  # Load partially defined resources
+            self.ooiactivate = bool(config.get("ooiactivate", True))  # Activate deployments and persistence
             self.parseooi = config.get("parseooi", False)
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
@@ -829,6 +831,11 @@ class IONLoader(ImmediateProcess):
         else:
             return True
 
+    def _is_deployed(self, ooi_obj):
+        deploy_date = ooi_obj.get("deploy_date", None)
+        return deploy_date and deploy_date <= datetime.datetime.now()
+
+
     def _basic_resource_create(self, row, restype, prefix, svcname, svcop,
                                constraints=None, constraint_field='constraint_list',
                                contacts=None, contact_field='contacts',
@@ -1294,6 +1301,8 @@ class IONLoader(ImmediateProcess):
             newrow['pm/name'] = ooi_obj['name']
             newrow['pm/description'] = "Node Type: %s" % ooi_id
             newrow['pm/alt_ids'] = "['OOI:" + ooi_id + "_PM" + "']"
+            newrow['pm/platform_family'] = ooi_obj['platform_family'] or ooi_obj['name']
+            newrow['pm/platform_type'] = ooi_obj['platform_type']
             newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
 
             if not self._resource_exists(newrow[COL_ID]):
@@ -1400,6 +1409,8 @@ class IONLoader(ImmediateProcess):
                                geospatial_longitude_limit_west=float(row['west']),
                                geospatial_vertical_min=vmin,
                                geospatial_vertical_max=vmax)
+        if not all([row['north'], row['south'], row['east'], row['west']]):
+            log.warn("Geospatial constraint %s has empty values: %s", row[COL_ID], constraint)
         return constraint
 
     def _create_temporal_constraint(self, row):
@@ -1610,13 +1621,9 @@ class IONLoader(ImmediateProcess):
         ssite_objs = self.ooi_loader.get_type_assets("ssite")
 
         def _load_platform(ooi_id, ooi_obj):
-            if not self._before_cutoff(ooi_obj):
-                return
-            if self._resource_exists(ooi_id):
-                return
-
             ooi_rd = OOIReferenceDesignator(ooi_id)
 
+            # The following MUST be defined before any skip is made, because later resources use these references
             const_id1 = ''
             if ooi_obj.get('latitude', None) or ooi_obj.get('longitude', None) or ooi_obj.get('depth_subsite', None):
                 const_id1 = ooi_id + "_const1"
@@ -1639,6 +1646,11 @@ class IONLoader(ImmediateProcess):
                 ss = subsite_objs[ooi_obj.get('platform_id', '')[:8]]
                 ss_mod = ssite_objs[ss['ssite']]
                 const_id1 = ss_mod['rd'] + "_const1"
+
+            if not self._before_cutoff(ooi_obj):
+                return
+            if self._resource_exists(ooi_id):
+                return
 
             newrow = {}
             newrow[COL_ID] = ooi_id
@@ -1736,9 +1748,8 @@ class IONLoader(ImmediateProcess):
         for inst_id, inst_obj in inst_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(inst_id)
             node_obj = node_objs[ooi_rd.node_rd]
-            if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
-                continue
 
+            # The following MUST be defined before any skip is made, because later resources use these references
             constrow = {}
             const_id1 = ''
             if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
@@ -1753,6 +1764,9 @@ class IONLoader(ImmediateProcess):
                 constrow['top'] = inst_obj['depth_port_min'] or '0.0'
                 constrow['bottom'] = inst_obj['depth_port_max'] or '0.0'
                 self._load_Constraint(constrow)
+
+            if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
+                continue
 
             class_obj = class_objs[ooi_rd.inst_class]
             series_obj = series_objs[ooi_rd.series_rd]
@@ -2176,6 +2190,7 @@ Reason: %s
         new_node_ids = set()
 
         for node_id, node_obj in node_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(node_id)
             if not self._before_cutoff(node_obj):
                 continue
 
@@ -2186,10 +2201,13 @@ Reason: %s
             newrow['pd/description'] = "Platform %s device #01" % node_id
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
             newrow['platform_model_id'] = node_id[9:11] + "_PM"
-            newrow['contact_ids'] = ''
+            newrow['contact_ids'] = "%s_DEV_1,%s_DEV_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
             newrow['network_parent_id'] = ""
             newrow['platform_device_id'] = ""
-            newrow['lcstate'] = "PLANNED_AVAILABLE"
+            if self._is_deployed(node_obj):
+                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+            else:
+                newrow['lcstate'] = "PLANNED_AVAILABLE"
 
             if not self._match_filter([node_id[:2]]):
                 continue
@@ -2291,8 +2309,11 @@ Reason: %s
             # else:
             #     newrow['platform_device_id'] = node_id + "_PD"
             newrow['platform_device_id'] = node_id + "_PD"
-            newrow['contact_ids'] = ''
-            newrow['lcstate'] = "PLANNED_AVAILABLE"
+            newrow['contact_ids'] = "%s_DEV_1,%s_DEV_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
+            if self._is_deployed(inst_obj):
+                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+            else:
+                newrow['lcstate'] = "PLANNED_AVAILABLE"
 
             if not self._match_filter(ooi_id[:2]):
                 continue
@@ -3077,11 +3098,14 @@ Reason: %s
                     newrow['dp/processing_level_code'] = "N/A"
                     newrow['dp/quality_control_level'] = "N/A"
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
-                    newrow['contact_ids'] = ''
+                    newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                     newrow['geo_constraint_id'] = const_id1
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                     newrow['parent'] = ''
-                    newrow['persist_data'] = 'False'
+                    if self._is_deployed(node_obj) and self.ooiactivate:
+                        newrow['persist_data'] = 'True'
+                    else:
+                        newrow['persist_data'] = 'False'
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
                     pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
@@ -3104,7 +3128,7 @@ Reason: %s
                 newrow['dp/processing_level_code'] = "N/A"
                 newrow['dp/quality_control_level'] = "N/A"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
-                newrow['contact_ids'] = ''
+                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = ''
@@ -3180,10 +3204,13 @@ Reason: %s
                         newrow['dp/quality_control_level'] = "N/A"
 
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                    newrow['contact_ids'] = ''
+                    newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                     newrow['geo_constraint_id'] = const_id1
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                    newrow['persist_data'] = 'False'  # Set persist_data to false - no ingestion worker
+                    if self._is_deployed(inst_obj) and self.ooiactivate:
+                        newrow['persist_data'] = 'True'
+                    else:
+                        newrow['persist_data'] = 'False'
                     newrow['parent'] = ''
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
@@ -3216,7 +3243,7 @@ Reason: %s
                 newrow['dp/processing_level_code'] = "Parsed"
                 newrow['dp/quality_control_level'] = "a"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                newrow['contact_ids'] = ''
+                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = 'StreamDef23'        # Hardcoded to preload row value!!
@@ -3238,7 +3265,7 @@ Reason: %s
                 newrow['dp/processing_level_code'] = "Raw"
                 newrow['dp/quality_control_level'] = "N/A"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                newrow['contact_ids'] = ''
+                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = ''
@@ -3329,7 +3356,7 @@ Reason: %s
                 newrow['dp/doors_l2_requirement_num'] = dp_obj.get('DOORS L2 Science Requirement #(s)', "")
                 newrow['dp/doors_l2_requirement_text'] = dp_obj.get('DOORS L2 Science Requirement Text', "")
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                newrow['contact_ids'] = ''
+                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['parent'] = parsed_id
@@ -3585,7 +3612,10 @@ Reason: %s
             newrow[COL_ID] = node_id + "_DEP"
             newrow['site_id'] = node_id
             newrow['device_id'] = node_id + "_PD"
-            newrow['activate'] = "FALSE"
+            if self._is_deployed(node_obj) and self.ooiactivate:
+                newrow['activate'] = "TRUE"
+            else:
+                newrow['activate'] = "FALSE"
             newrow['d/name'] = "Deployment of platform " + node_id
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
@@ -3602,7 +3632,7 @@ Reason: %s
 
             # TODO: Activate past deployments (e.g. RSN primary node)
 
-            log.debug("Create (not activated) Deployment for PD %s (%s)", node_id, newrow['context_type'])
+            log.debug("Create activate=%s Deployment for PD %s", newrow['activate'], node_id)
             self._load_Deployment(newrow)
 
         # II. Instrument deployments (RSN and cabled EA only)
@@ -3632,7 +3662,10 @@ Reason: %s
             newrow[COL_ID] = inst_id + "_DEP"
             newrow['site_id'] = inst_id
             newrow['device_id'] = inst_id + "_ID"
-            newrow['activate'] = "FALSE"
+            if self._is_deployed(inst_obj) and self.ooiactivate:
+                newrow['activate'] = "TRUE"
+            else:
+                newrow['activate'] = "FALSE"
             newrow['d/name'] = "Deployment of instrument " + inst_id
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
@@ -3641,8 +3674,7 @@ Reason: %s
             newrow['context_type'] = 'CabledInstrumentDeploymentContext'
             newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
-            #log.debug("Create & activate Deployment for ID %s", inst_id)
-            log.debug("Create (not activated) Deployment for ID %s", inst_id)
+            log.debug("Create activate=%s Deployment for ID %s", newrow['activate'], inst_id)
             self._load_Deployment(newrow)
 
     def _load_Scheduler(self, row):
@@ -3659,7 +3691,7 @@ Reason: %s
             list_of_strings = times_of_day_string.strip().split(',')
             for string in list_of_strings:
                 HH, MM, SS = string.strip().split(':')
-                times_of_day.append( {'hour':HH, 'minute':MM, 'second':SS} )
+                times_of_day.append({'hour': HH, 'minute': MM, 'second': SS})
 
             expires = row['expires']
             tag = client.create_time_of_day_timer(times_of_day=times_of_day,  expires=expires, event_origin=event_origin, event_subtype=event_subtype)
