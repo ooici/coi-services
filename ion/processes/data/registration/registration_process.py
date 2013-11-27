@@ -254,8 +254,15 @@ class RegistrationProcess(StandaloneProcess):
                     att_element = doc.createElement('att')
                     att_element.setAttribute('name', 'units')
                     text_node = doc.createTextNode(units)
+
                     att_element.appendChild(text_node)
                     add_attributes_element.appendChild(att_element)
+                    if 'seconds' in units and 'since' in units:
+                        att_element = doc.createElement('att')
+                        att_element.setAttribute('name', 'time_precision')
+                        text_node = doc.createTextNode('1970-01-01T00:00:00.000Z')
+                        att_element.appendChild(text_node)
+                        add_attributes_element.appendChild(att_element)
 
                     data_element.appendChild(add_attributes_element)
                     dataset_element.appendChild(data_element)
