@@ -92,7 +92,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         self.lookup_docs = self.CFG.get_safe('process.lookup_docs',[])
         self.input_product = self.CFG.get_safe('process.input_product','')
         self.qc_enabled = self.CFG.get_safe('process.qc_enabled', True)
-        self.ignore_gaps = self.CFG.get_safe('service.ingestion.ignore_gaps', False)
+        self.ignore_gaps = self.CFG.get_safe('service.ingestion.ignore_gaps', True)
+        if not self.ignore_gaps:
+            log.warning("Gap handling is not supported in release 2")
+        self.ignore_gaps = True
         self.new_lookups = Queue()
         self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent, callback=self._add_lookups, auto_delete=True)
         self.add_endpoint(self.lookup_monitor)
