@@ -475,6 +475,12 @@ class OOILoader(object):
             uplink_port=row['Uplink Port'],
             deployment_start=row['Start Deployment Cruise'],
         )
+        if row["lat"]:
+            node_entry["latitude"] = row["lat"]
+        if row["lon"]:
+            node_entry["longitude"] = row["lon"]
+        if row["depth_min"] or row["depth_max"]:
+            node_entry["depth_subsite"] = str(row["depth_min"]) + "," + str(row["depth_max"])
         self._add_object_attribute('node',
             ooi_rd, None, None, **node_entry)
         self._add_object_attribute('node',
@@ -702,7 +708,7 @@ class OOILoader(object):
                 name = subsites[node_id[:8]]['name'] + " - " + nodetypes[node_id[9:11]]['name']
                 node_obj['name'] = name
             if not node_obj.get('latitude', None):
-                pass
+                log.warn("Node %s has no geospatial info", node_id)
 
             pagent_type = node_obj.get('platform_agent_type', "")
             pagent_obj = pagent_objs.get(pagent_type, None)
@@ -744,13 +750,18 @@ class OOILoader(object):
             pagent_type = node_obj['platform_agent_type']
             pagent_obj = pagent_objs[pagent_type]
 
+            # Make sure geospatial values are set or inherited from node
+            inst_obj['latitude'] = inst_obj['latitude'] or node_obj['latitude']
+            inst_obj['longitude'] = inst_obj['longitude'] or node_obj['longitude']
+            inst_obj['depth_port_min'] = inst_obj['depth_port_min'] or node_obj['depth_subsite'].split(",", 1)[0]
+            inst_obj['depth_port_max'] = inst_obj['depth_port_max'] or node_obj['depth_subsite'].split(",", 1)[-1]
+
             instrument_agent_rt = (pagent_obj['rt_data_path'] == "Direct") and series_obj['ia_exists']
             data_agent_rt = (pagent_obj['rt_data_path'] == "File Transfer") and series_obj['dart_exists']
             data_agent_recovery = pagent_obj['rt_data_acquisition'] == "Partial" or not (series_obj['ia_exists'] or series_obj['dart_exists'])
             inst_obj['ia_rt_data'] = instrument_agent_rt
             inst_obj['da_rt'] = data_agent_rt
             inst_obj['da_pr'] = data_agent_recovery
-
 
 
     def get_marine_io(self, ooi_rd_str):

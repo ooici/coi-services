@@ -81,6 +81,9 @@ class TestLoader(IonIntegrationTestCase):
         self.rr = self.container.resource_registry
 
     def _perform_preload(self, load_cfg):
+        load_cfg["ui_path"] = "res/preload/r2_ioc/ui_assets"
+        load_cfg["path"] = "R2PreloadedResources.xlsx"
+        load_cfg["assetmappings"] = "OOIPreload.xlsx"
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=load_cfg)
 
     def _preload_instrument(self, inst_scenario):
@@ -98,20 +101,21 @@ class TestLoader(IonIntegrationTestCase):
                         )
         self._perform_preload(load_cfg)
 
-    def _preload_cfg(self, cfg, path=TESTED_DOC):
+    def _preload_cfg(self, cfg, path=TEST_PATH):
         load_cfg = dict(cfg=cfg,
                         path=path)
         self._perform_preload(load_cfg)
 
-    def _preload_scenario(self, scenario, path=TESTED_DOC, idmap=False):
+    def _preload_scenario(self, scenario, path=TEST_PATH, idmap=False, **kwargs):
         load_cfg = dict(op="load",
                         scenario=scenario,
                         attachments="res/preload/r2_ioc/attachments",
                         path=path,
                         idmap=idmap)
+        load_cfg.update(kwargs)
         self._perform_preload(load_cfg)
 
-    def _preload_ooi(self, path=TESTED_DOC):
+    def _preload_ooi(self, path=TEST_PATH):
         load_cfg = dict(op="load",
                         loadooi=True,
                         assets="res/preload/r2_ioc/ooi_assets",
@@ -119,6 +123,8 @@ class TestLoader(IonIntegrationTestCase):
                         ooiuntil="12/31/2013",
                         )
         self._perform_preload(load_cfg)
+
+    # -------------------------------------------------------------------------
 
     @attr('PRELOAD')
     def test_ui_valid(self):
@@ -161,22 +167,6 @@ class TestLoader(IonIntegrationTestCase):
             for dev_id, platform_port in dply_obj.port_assignments.iteritems():
                 # all values in the port assignments dict should be PlatformPort objects
                 self.assertEquals(platform_port.type_, OT.PlatformPort)
-
-    @attr('PRELOAD')
-    def test_alpha_valid(self):
-        """ make sure R2_DEMO scenario in master google doc
-            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
-            NOTE: test will pass/fail based on current google doc, not just code changes.
-        """
-        self._preload_cfg("res/preload/r2_ioc/config/ooi_alpha.yml", path=TEST_PATH)
-
-    @attr('PRELOAD')
-    def test_beta_valid(self):
-        """ make sure R2_DEMO scenario in master google doc
-            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
-            NOTE: test will pass/fail based on current google doc, not just code changes.
-        """
-        self._preload_cfg("res/preload/r2_ioc/config/ooi_beta.yml", path=TEST_PATH)
 
     @attr('PRELOAD')
     def test_incremental(self):
@@ -316,9 +306,47 @@ class TestLoader(IonIntegrationTestCase):
         self.assertGreaterEqual(len(entries), 1)
 
     @attr('PRELOAD')
-    def test_ooi_preload_valid(self):
+    def test_alpha_valid(self):
         """ make sure R2_DEMO scenario in master google doc
             is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
         self._preload_cfg("res/preload/r2_ioc/config/ooi_alpha.yml", path=TEST_PATH)
+
+    @attr('PRELOAD')
+    def test_beta_valid(self):
+        """ make sure R2_DEMO scenario in master google doc
+            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
+            NOTE: test will pass/fail based on current google doc, not just code changes.
+        """
+        self._preload_cfg("res/preload/r2_ioc/config/ooi_beta.yml", path=TEST_PATH)
+
+        failure_list = []
+
+        def add_failure(res_obj, msg):
+            fail_msg = "%s[%s/%s]: %s" % (res_obj.type_, res_obj._id, res_obj.name, msg)
+            failure_list.append(fail_msg)
+
+        log.warn("Starting preload assertions now")
+
+        res_objs, res_keys = self.rr.find_resources_ext(alt_id_ns="PRE", id_only=False)
+
+        log.info("Found %s preloaded resources", len(res_objs))
+
+        dp_objs = [res for res in res_objs if res.type_ == RT.DataProduct]
+
+        log.info("Checking %s DataProducts", len(dp_objs))
+        for dp in dp_objs:
+            if not all([dp.geospatial_bounds.geospatial_latitude_limit_north,
+                dp.geospatial_bounds.geospatial_latitude_limit_south,
+                dp.geospatial_bounds.geospatial_longitude_limit_east,
+                dp.geospatial_bounds.geospatial_longitude_limit_west]):
+                add_failure(dp, "geospatial_bounds location invalid: %s" % dp.geospatial_bounds)
+            #if not all([dp.geospatial_bounds.geospatial_vertical_min,
+            #    dp.geospatial_bounds.geospatial_vertical_max]):
+            #    add_failure(dp, "geospatial_bounds vertical invalid: %s" % dp.geospatial_bounds)
+
+        if failure_list:
+            fail_msg = "Preload assertions violated:\n" + "\n".join(f for f in failure_list)
+            self.fail(fail_msg)
+
