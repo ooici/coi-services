@@ -544,6 +544,13 @@ class VisualizationService(BaseVisualizationService):
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
 
+        # DEBUG *** Try to locate the processing_level_code variable for a data product. Get the object first
+        dp_obj = self.clients.resource_registry.read(data_product_id)
+        if dp_obj and hasattr(dp_obj, 'processing_level_code'):
+            dp_meta_data['processing_level_code'] = dp_obj.processing_level_code
+        else:
+            dp_meta_data['processing_level_code'] = ""
+
         # get the dataset_id and dataset associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, True)
 
