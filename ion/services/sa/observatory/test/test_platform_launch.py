@@ -9,6 +9,7 @@
 from interface.objects import ComputedIntValue, ComputedValueAvailability, ComputedListValue, ComputedDictValue
 from ion.services.sa.test.helpers import any_old
 from pyon.ion.resource import RT
+from interface.objects import AggregateStatusType, DeviceStatusType
 
 __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 __license__ = 'Apache 2.0'
@@ -154,88 +155,50 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         state1 = _ia_client1.get_agent_state()
         self.assertEqual(state1, 'RESOURCE_AGENT_STATE_COMMAND')
 
+        # Grab instrument aggstatus aparam.
         retval = _ia_client1.get_agent(['aggstatus'])['aggstatus']
-        self.assertEqual(retval, {1: 2, 2: 2, 3: 2, 4: 2})
+
+        # Assert all status types are OK.
+        self.assertEqual(retval, {AggregateStatusType.AGGREGATE_COMMS: DeviceStatusType.STATUS_OK,
+                                  AggregateStatusType.AGGREGATE_DATA: DeviceStatusType.STATUS_OK,
+                                  AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_OK,
+                                  AggregateStatusType.AGGREGATE_POWER: DeviceStatusType.STATUS_OK})
+
+        # Assert we have a valid device id.
         device_id = i_obj1['instrument_device_id']
         self.assertIsInstance(device_id, str)
         self.assertTrue(len(device_id)>0)
 
+        # Get the device extension and construct a rollup dictionary.
         dev_ext = self.IMS.get_instrument_device_extension(instrument_device_id=device_id)
-        """
-        Computed attributed have these roll up statuses:
-        'communications_status_roll_up': ComputedIntValue({'status': 1, 'reason': None, 'value': 2})
-        'power_status_roll_up': ComputedIntValue({'status': 1, 'reason': None, 'value': 2})
-        'data_status_roll_up': ComputedIntValue({'status': 1, 'reason': None, 'value': 2})
-        'location_status_roll_up': ComputedIntValue({'status': 1, 'reason': None, 'value': 2})
-        """
 
-        """
-        State list returned by DeviceStateManger
-        [{
-             '_rev': '3-f0b9dd9bf4867d22f610795666908bb2',
-             'dev_alert': {
-                 'status': 0,
-                 'stream_name': '',
-                 'name': '',
-                 'time_stamps': [],
-                 'valid_values': [],
-                 'values': [],
-                 'value_id': '',
-                 'ts_changed': ''},
-             'ts_updated': '1385483661666',
-             'state': {
-                 'current': 'RESOURCE_AGENT_STATE_INACTIVE',
-                 'prior': 'RESOURCE_AGENT_STATE_UNINITIALIZED',
-                 'ts_changed': '1385483660164'},
-             'dev_status': {
-                 'status': 1,
-                 'values': [],
-                 'valid_values': [],
-                 'ts_changed': '',
-                 'time_stamps': []},
-             'res_state': {
-                 'current': 'DRIVER_STATE_UNKNOWN',
-                 'prior': 'DRIVER_STATE_DISCONNECTED',
-                 'ts_changed': '1385483661209'},
-             'agg_status': {
-                 '1': {
-                     'status': 2,
-                     'time_stamps': [],
-                     'prev_status': 1,
-                     'roll_up_status': False,
-                     'valid_values': [],
-                     'values': [],
-                     'ts_changed': '1385483656870'},
-                 '3': {
-                     'status': 2,
-                     'time_stamps': [],
-                     'prev_status': 1,
-                     'roll_up_status': False,
-                     'valid_values': [],
-                     'values': [],
-                     'ts_changed': '1385483656892'},
-                 '2': {
-                     'status': 2,
-                     'time_stamps': [],
-                     'prev_status': 1,
-                     'roll_up_status': False,
-                     'valid_values': [],
-                     'values': [],
-                     'ts_changed': '1385483656876'},
-                 '4': {
-                     'status': 2,
-                     'time_stamps': [],
-                     'prev_status': 1,
-                     'roll_up_status': False,
-                     'valid_values': [],
-                     'values': [],
-                     'ts_changed': '1385483656908'}},
-             '_id': 'state_8de3301b10384e72bb3d09d2222150b9',
-             'ts_created': '1385483657596',
-             'device_id': '8de3301b10384e72bb3d09d2222150b9'}
-        ]
-        """
+        dev_ext_rollup_dict = {
+            AggregateStatusType.AGGREGATE_COMMS : dev_ext.computed.communications_status_roll_up['value'],
+            AggregateStatusType.AGGREGATE_DATA : dev_ext.computed.power_status_roll_up['value'],
+            AggregateStatusType.AGGREGATE_LOCATION : dev_ext.computed.data_status_roll_up['value'],
+            AggregateStatusType.AGGREGATE_POWER : dev_ext.computed.location_status_roll_up['value']
+        }
 
+        # Assert the rollup dictionary is same as the aparam.
+        self.assertEqual(retval, dev_ext_rollup_dict)
+
+    def test_ims_platform_status(self):
+        #
+        # test the access of instrument aggstatus via ims and the object store
+        #
+        #bin/nosetests -s -v --nologcapture ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_ims_platform_status
+
+
+        p_root = self._set_up_single_platform_with_some_instruments(['SBE37_SIM_01', 'SBE37_SIM_02'])
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+
+        self._run_startup_commands()
+
+        platform_device_id = p_root['platform_device_id']
+
+        dev_ext = self.IMS.get_platform_device_extension(platform_device_id=platform_device_id)
 
     def test_single_platform_with_an_instrument_and_deployments(self):
         #
