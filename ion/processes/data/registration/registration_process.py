@@ -159,6 +159,11 @@ class RegistrationProcess(StandaloneProcess):
             outer_element.appendChild(text_node)
             dataset_element.appendChild(outer_element)
 
+            default_element = doc.createElement('defaultDataQuery')
+            text_node = doc.createTextNode('&amp;time&gt;=1970-01-01')
+            default_element.appendChild(text_node)
+            dataset_element.appendChild(default_element)
+
             # No longer applicable
             #if self.CFG.get_safe('server.erddap.dataset_caching',True):
                 #refresh_interval = self.CFG.get_safe('server.erddap.refresh_interval', 30000)
