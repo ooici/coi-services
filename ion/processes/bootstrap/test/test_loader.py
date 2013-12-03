@@ -81,9 +81,9 @@ class TestLoader(IonIntegrationTestCase):
         self.rr = self.container.resource_registry
 
     def _perform_preload(self, load_cfg):
-        load_cfg["ui_path"] = "res/preload/r2_ioc/ui_assets"
-        load_cfg["path"] = "R2PreloadedResources.xlsx"
-        load_cfg["assetmappings"] = "OOIPreload.xlsx"
+        #load_cfg["ui_path"] = "res/preload/r2_ioc/ui_assets"
+        #load_cfg["path"] = "R2PreloadedResources.xlsx"
+        #load_cfg["assetmappings"] = "OOIPreload.xlsx"
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=load_cfg)
 
     def _preload_instrument(self, inst_scenario):
