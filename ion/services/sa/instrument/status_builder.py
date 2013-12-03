@@ -88,15 +88,17 @@ class AgentStatusBuilder(object):
     def get_cumulative_status_dict(self, device_id, child_device_ids=None, status_dict=None):
 
 
+
+        h_agent, reason = self.get_device_agent(device_id)
+        log.trace("Got h_agent = %s, reason = %s", h_agent, reason)
+        if None is h_agent:
+            log.warn('no agent for device %s, reason=%s', device_id, reason)
+            return None, reason
+
         if status_dict and device_id in status_dict:
             this_status = status_dict.get(device_id, {})
         else:
 
-            h_agent, reason = self.get_device_agent(device_id)
-            log.trace("Got h_agent = %s, reason = %s", h_agent, reason)
-            if None is h_agent:
-                log.warn('no agent for device %s, reason=%s', device_id, reason)
-                return None, reason
 
             # read child agg status
             try:
