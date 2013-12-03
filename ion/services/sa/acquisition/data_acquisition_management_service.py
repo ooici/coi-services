@@ -847,31 +847,27 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         agent_process_id = ResourceAgentClient._get_agent_process_id(external_dataset_device_ids[0])
 
-        # Cancels the execution of the given process id.
-        self.clients.process_dispatcher.cancel_process(agent_process_id)
-
-        # Save the process state
-        agent_instance_res = self.clients.resource_registry.read(external_dataset_agent_instance_id)
-        old_state = None
         try:
-            old_state,_ = self.container.state_repository.get_state(agent_process_id)
-            old_state["_prior_agent_process_id"] = agent_process_id
-        except NotFound:
-            log.warn("Could not find process state for agent instance %s", external_dataset_agent_instance_id)
+            # Cancels the execution of the given process id.
+            self.clients.process_dispatcher.cancel_process(agent_process_id)
 
-        if old_state and isinstance(old_state, dict):
+        finally:
+            # Save the process state
+            agent_instance_res = self.clients.resource_registry.read(external_dataset_agent_instance_id)
+            old_state = None
+            try:
+                old_state,_ = self.container.state_repository.get_state(agent_process_id)
+                old_state["_prior_agent_process_id"] = agent_process_id
+            except NotFound:
+                log.warn("Could not find process state for agent instance %s", external_dataset_agent_instance_id)
+
+            if old_state and isinstance(old_state, dict):
+                agent_instance_res.saved_agent_state = old_state
+            else:
+                agent_instance_res.saved_agent_state = {}
+
             agent_instance_res.saved_agent_state = old_state
-        else:
-            agent_instance_res.saved_agent_state = {}
-
-        agent_instance_res.saved_agent_state = old_state
-        self.clients.resource_registry.update(agent_instance_res)
-
-        try:
-            obj_id = "agent_spawncfg_%s" % external_dataset_agent_instance_id
-            self.container.object_store.delete_doc(obj_id)
-        except Exception as ex:
-            log.warn("Cannot delete agent spawn config for instance %s: %s", external_dataset_agent_instance_id, ex)
+            self.clients.resource_registry.update(agent_instance_res)
 
     def prepare_external_dataset_agent_instance_support(self, external_dataset_agent_instance_id=''):
         #TODO - does this have to be filtered by Org ( is an Org parameter needed )
