@@ -479,8 +479,8 @@ class OOILoader(object):
             node_entry["latitude"] = row["lat"]
         if row["lon"]:
             node_entry["longitude"] = row["lon"]
-        if row["depth_min"] or row["depth_max"]:
-            node_entry["depth_subsite"] = str(row["depth_min"]) + "," + str(row["depth_max"])
+        if row["depth"]:
+            node_entry["depth_subsite"] = row["depth"]
         self._add_object_attribute('node',
             ooi_rd, None, None, **node_entry)
         self._add_object_attribute('node',
