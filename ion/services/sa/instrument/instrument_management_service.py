@@ -600,17 +600,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         else:
             log.debug("Success cancelling agent process")
 
-
         if "pagent_pid" in agent_instance_obj.driver_config:
             agent_instance_obj.driver_config['pagent_pid'] = None
         self.RR2.update(agent_instance_obj)
-
-        try:
-            obj_id = "agent_spawncfg_%s" % agent_instance_id
-            self.container.object_store.delete_doc(obj_id)
-        except Exception as ex:
-            log.warn("Cannot delete agent spawn config for instance %s: %s", agent_instance_id, ex)
-
 
         return agent_instance_obj, device_id
 
