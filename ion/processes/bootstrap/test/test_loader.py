@@ -337,11 +337,14 @@ class TestLoader(IonIntegrationTestCase):
 
         log.info("Checking %s DataProducts", len(dp_objs))
         for dp in dp_objs:
-            if not all([dp.geospatial_bounds.geospatial_latitude_limit_north,
-                dp.geospatial_bounds.geospatial_latitude_limit_south,
-                dp.geospatial_bounds.geospatial_longitude_limit_east,
-                dp.geospatial_bounds.geospatial_longitude_limit_west]):
-                add_failure(dp, "geospatial_bounds location invalid: %s" % dp.geospatial_bounds)
+            pass
+            # Reenable this when we have geospatial coordinates for PNs
+            #if not all([dp.geospatial_bounds.geospatial_latitude_limit_north,
+            #    dp.geospatial_bounds.geospatial_latitude_limit_south,
+            #    dp.geospatial_bounds.geospatial_longitude_limit_east,
+            #    dp.geospatial_bounds.geospatial_longitude_limit_west]):
+            #    add_failure(dp, "geospatial_bounds location invalid: %s" % dp.geospatial_bounds)
+
             #if not all([dp.geospatial_bounds.geospatial_vertical_min,
             #    dp.geospatial_bounds.geospatial_vertical_max]):
             #    add_failure(dp, "geospatial_bounds vertical invalid: %s" % dp.geospatial_bounds)

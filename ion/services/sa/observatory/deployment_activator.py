@@ -600,7 +600,8 @@ class DeploymentActivator(DeploymentOperator):
         device_tree = self.resource_collector.collected_device_tree()
 
         merged_tree_pairs, leftover_devices = self._merge_trees(site_tree, device_tree)
-        if 0 < len(leftover_devices):
+
+        if leftover_devices:
             raise BadRequest("Merging site and device trees resulted in %s unassigned devices" % len(leftover_devices))
 
         return merged_tree_pairs
@@ -636,7 +637,7 @@ class DeploymentActivator(DeploymentOperator):
             log.debug('Add to matched list  site_id:  %s   dev_id: %s', site_id, dev_id)
 
 
-            site_of_portref = dict([(v["uplink_port"], k) for k, v in site_ptr["children"].iteritems()])
+            site_of_portref = {v["uplink_port"]: k for k, v in site_ptr["children"].iteritems()}
 
             for child_dev_id, child_dev_ptr in dev_ptr["children"].iteritems():
 

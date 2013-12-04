@@ -474,17 +474,24 @@ class OOILoader(object):
             uplink_node=row['Uplink Node'],
             uplink_port=row['Uplink Port'],
             deployment_start=row['Start Deployment Cruise'],
+            in_mapping=True,
         )
-        if row["lat"]:
-            node_entry["latitude"] = row["lat"]
-        if row["lon"]:
-            node_entry["longitude"] = row["lon"]
-        if row["depth"]:
-            node_entry["depth_subsite"] = row["depth"]
         self._add_object_attribute('node',
             ooi_rd, None, None, **node_entry)
         self._add_object_attribute('node',
             ooi_rd, 'name', name, change_ok=True)
+
+        node_entry = {}
+        if row["lat"] or row["lon"] or row["depth"]:
+            #log.debug("Use updated geospatial info from mapping spreadsheet for %s", ooi_rd)
+            if row["lat"]:
+                node_entry["latitude"] = row["lat"]
+            if row["lon"]:
+                node_entry["longitude"] = row["lon"]
+            if row["depth"]:
+                node_entry["depth_subsite"] = row["depth"]
+            self._add_object_attribute('node',
+                ooi_rd, None, None, change_ok=True, **node_entry)
 
         # Determine on which arrays the nodetype is used
         self._add_object_attribute('nodetype',
@@ -657,6 +664,23 @@ class OOILoader(object):
             raise Exception("Invalid date string: %s" % datestr)
         return res_date
 
+    def _get_child_devices(self):
+        """Returns a dict of device to child device ids (nodes and instruments)"""
+        node_objs = self.get_type_assets("node")
+        inst_objs = self.get_type_assets("instrument")
+
+        res_tree = {}
+
+        for node_id, node_obj in node_objs.iteritems():
+            parent_id = node_obj.get("parent_id", None)
+            if node_id != parent_id:
+                res_tree.setdefault(parent_id, []).append(node_id)
+        for inst_id, inst_obj in inst_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(inst_id)
+            res_tree.setdefault(ooi_rd.node_rd, []).append(inst_id)
+
+        return res_tree
+
     def _post_process(self):
         node_objs = self.get_type_assets("node")
         nodetypes = self.get_type_assets('nodetype')
@@ -700,13 +724,29 @@ class OOILoader(object):
             osite.update(bbox)
             osite['rd'] = site_rd_list[0]
 
+        self.child_devices = self._get_child_devices()
+
         # Post-process "node" objects:
         # - Make sure all nodes have a name, geospatial coordinates and platform agent connection info
         # - Convert available node First Deploy Date and override date into datetime objects
         for node_id, node_obj in node_objs.iteritems():
+            if not node_obj.get("in_mapping", False):
+                log.warn("Node %s has no entry in mapping spreadsheet", node_id)
             if not node_obj.get('name', None):
                 name = subsites[node_id[:8]]['name'] + " - " + nodetypes[node_id[9:11]]['name']
                 node_obj['name'] = name
+            if not node_obj.get('latitude', None):
+                # Get bbox from child devices
+                ch_nodes = self.child_devices.get(node_id, [])  # This gets child nodes and instruments
+                node_lats = [float(node_objs[nid]["latitude"]) for nid in ch_nodes if node_objs[nid].get("latitude", None)]
+                node_lons = [float(node_objs[nid]["longitude"]) for nid in ch_nodes if node_objs[nid].get("longitude", None)]
+                node_deps = [float(node_objs[nid]["depth_subsite"]) for nid in ch_nodes if node_objs[nid].get("depth_subsite", None)]
+                if not node_obj.get("latitude", None) and node_lats:
+                    node_obj["latitude"] = str(min(node_lats)) + "," + str(max(node_lats))
+                if not node_obj.get("longitude", None) and node_lons:
+                    node_obj["longitude"] = str(min(node_lons)) + "," + str(max(node_lons))
+                if not node_obj.get("depth_subsite", None) and node_deps:
+                    node_obj["depth_subsite"] = str(min(node_deps)) + "," + str(max(node_deps))
             if not node_obj.get('latitude', None):
                 log.warn("Node %s has no geospatial info", node_id)
 
@@ -722,7 +762,7 @@ class OOILoader(object):
 
             if 'deployment_start' not in node_obj:
                 log.warn("Node %s appears not in mapping spreadsheet - inconsistency?!", node_id)
-                # Parse SAF date
+            # Parse SAF date
             node_deploy_date = node_obj.get('First Deployment Date', None)
             node_obj['SAF_deploy_date'] = self._parse_date(node_deploy_date, DEFAULT_MAX_DATE)
             # Parse override date if available or set to SAF date
