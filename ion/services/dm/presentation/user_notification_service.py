@@ -11,7 +11,7 @@ from pyon.util.log import log
 from pyon.util.containers import get_ion_ts
 from pyon.public import RT, PRED, get_sys_name, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
-from pyon.core.governance import ORG_MEMBER_ROLE, GovernanceHeaderValues, has_org_role
+from pyon.core.governance import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, DATA_OPERATOR, OBSERVATORY_OPERATOR, GovernanceHeaderValues, has_org_role
 
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message, get_event_computed_attributes
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
@@ -885,4 +885,22 @@ class UserNotificationService(BaseUserNotificationService):
         if (message['event_type'] == 'ResourceIssueReportedEvent') and (has_org_role(gov_values.actor_roles, 'ION', [ORG_MEMBER_ROLE])):
                     return True, ''
 
-        return False, 'user_notification_service(publish_event) has been denied '
+        resource_id = message.origin
+
+        if message.origin_type == RT.Org:
+            org = self.clients.resource_registry.read(resource_id)
+            if (has_org_role(gov_values.actor_roles, org.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR, DATA_OPERATOR])):
+                    return True, ''
+            else:
+                    return False, 'user does not have appropriate role in %s' % (org.org_governance_name)
+
+        # Allow actor to activate/deactivate deployment in an org where the actor has the appropriate role
+        orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
+        for org in orgs:
+            log.error('org: ' +str(org))
+            if (has_org_role(gov_values.actor_roles, org.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR, DATA_OPERATOR])):
+                log.error('returning true: ')
+                return True, ''
+
+
+        return False, '%s(%s) has been denied since the user is not a member in any org to which the origin id %s belongs ' % (process.name, gov_values.op, resource_id)

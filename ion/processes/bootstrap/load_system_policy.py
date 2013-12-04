@@ -895,7 +895,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
             <Target>
 
-               <Resources>
+                <Resources>
                     <Resource>
                         <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">observatory_management</AttributeValue>
@@ -926,19 +926,39 @@ class LoadSystemPolicy(ImmediateProcess):
             </Target>
 
             <Condition>
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
-
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
-                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+                            </Apply>
+                            <ActionAttributeDesignator
+                                AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
+                                DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </Apply>
-                        <ActionAttributeDesignator
-                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
-                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">activate_deployment</AttributeValue>
+                            </Apply>
+                            <ActionAttributeDesignator
+                                AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
+                                DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </Apply>
+                    </Apply>
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">deactivate_deployment</AttributeValue>
+                            </Apply>
+                            <ActionAttributeDesignator
+                                AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
+                                DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </Apply>
                     </Apply>
                 </Apply>
             </Condition>
-
 
         </Rule> '''
 
@@ -946,6 +966,71 @@ class LoadSystemPolicy(ImmediateProcess):
             'Permit these operations in the Observatory Management Service for role of Observatory Operator or Org Manager',
             policy_text, headers=sa_user_header)
 
+        ##############
+
+
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">observatory_management</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+                <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">activate_deployment</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">deactivate_deployment</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+            </Target>
+
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-function">
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">check_deployment_activation_policy</AttributeValue>
+                    <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
+                </Apply>
+            </Condition>
+        </Rule> '''
+
+        policy_id = policy_client.create_service_access_policy('observatory_management', 'OBS_Permitted_Deployment_Operations',
+            'Permit deployment activation/deactivation in the Observatory Management Service for role of Observatory Operator or Org Manager',
+            policy_text, headers=sa_user_header)
 
 
         ##############
@@ -1011,7 +1096,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
             <Target>
 
-               <Resources>
+                <Resources>
                     <Resource>
                         <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">instrument_management</AttributeValue>
@@ -1141,7 +1226,7 @@ class LoadSystemPolicy(ImmediateProcess):
 
 
         policy_text = '''
-            <Rule RuleId="%s" Effect="Permit">
+        <Rule RuleId="%s" Effect="Permit">
             <Description>
                 %s
             </Description>
@@ -1196,7 +1281,7 @@ class LoadSystemPolicy(ImmediateProcess):
         ##############
 
         policy_text = '''
-            <Rule RuleId="%s" Effect="Permit">
+        <Rule RuleId="%s" Effect="Permit">
             <Description>
                 %s
             </Description>
@@ -1254,6 +1339,18 @@ class LoadSystemPolicy(ImmediateProcess):
                 </Subjects>
 
             </Target>
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">publish_event</AttributeValue>
+                        </Apply>
+                        <ActionAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+                 </Apply>
+            </Condition>
 
         </Rule> '''
 
