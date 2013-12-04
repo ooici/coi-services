@@ -95,6 +95,10 @@ class ResourceRegistryService(BaseResourceRegistryService):
                                                          object=object, assoc_type=assoc_type)
 
     @mask_couch_error
+    def create_association_mult(self, assoc_list=None):
+        return self.resource_registry.create_association_mult(assoc_list=assoc_list)
+
+    @mask_couch_error
     def delete_association(self, association=''):
         return self.resource_registry.delete_association(association=association)
 
