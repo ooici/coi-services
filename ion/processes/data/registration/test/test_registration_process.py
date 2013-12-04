@@ -30,6 +30,7 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         self.resource_registry       = self.container.resource_registry
         
             
+    @unittest.skip('XML formatting not important now, content is already tested')
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_get_dataset_to_xml(self):
