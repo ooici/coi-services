@@ -6,6 +6,7 @@ and the relationships between them"""
 import string
 import time
 from collections import defaultdict
+from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
 
 from ooi.logging import log
 
@@ -1594,3 +1595,23 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     request.name    = udict[k].name
 
         return ret_list
+
+    def check_deployment_activation_policy(self, process, message, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process, resource_id_required=False)
+
+        except Inconsistent, ex:
+            return False, ex.message
+
+        resource_id = message.deployment_id
+
+        # Allow actor to activate/deactivate deployment in an org where the actor has the appropriate role
+        orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
+        for org in orgs:
+            if (has_org_role(gov_values.actor_roles, org.org_governance_name, [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR])):
+                log.error("returning true: "+str(gov_values.actor_roles))
+                return True, ''
+
+
+        return False, '%s(%s) has been denied since the user is not a member in any org to which the deployment id %s belongs ' % (process.name, gov_values.op, resource_id)
