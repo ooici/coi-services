@@ -18,7 +18,7 @@ __license__ = 'Apache 2.0'
 # developer conveniences:
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_instrument.py:Test.test_platform_with_instrument_streaming
 
-from pyon.public import log
+from pyon.public import log, OT, RT
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
@@ -38,12 +38,13 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from pyon.util.containers import DotDict
 
-from interface.objects import AgentCommand, StreamConfiguration, ProcessStateEnum
+from interface.objects import AgentCommand, StreamConfiguration, ProcessStateEnum, PortTypeEnum
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
 from ion.agents.platform.platform_agent import PlatformAgentState, PlatformAgentEvent
@@ -55,7 +56,8 @@ from ion.agents.platform.rsn.test.oms_test_mixin import OmsTestMixin
 
 import unittest
 import pprint
-
+import time
+import calendar
 import gevent
 from gevent.event import AsyncResult
 
@@ -112,13 +114,8 @@ egg = launcher._get_egg(DRV_URI)
 if not egg in sys.path:
     sys.path.insert(0, egg)
 
-# now we can import Mavs4 ProtocolEvent
-#from mi.instrument.nobska.mavs4.ooicore.driver import ProtocolEvent
 
-# ------------------------------------------------------------------------
-
-
-@patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
+@patch.dict(CFG, {'endpoint': {'receive': {'timeout': 300}}})
 class TestPlatformInstrument(BaseIntTestPlatform):
 
     def setUp(self):
@@ -129,16 +126,12 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         log.debug("oms_uri = %s", OMS_URI)
         self.oms = CIOMSClientFactory.create_instance(OMS_URI)
 
-        self._get_platform_attributes()
+        #url = OmsTestMixin.start_http_server()
+        #log.debug("TestPlatformInstrument:setup http url %s", url)
+        #
+        #result = self.oms.event.register_event_listener(url)
+        #log.debug("TestPlatformInstrument:setup register_event_listener result %s", result)
 
-        url = OmsTestMixin.start_http_server()
-        log.info("TestPlatformInstrument:setup http url %s", url)
-
-        result = self.oms.event.register_event_listener(url)
-        log.info("TestPlatformInstrument:setup register_event_listener result %s", result)
-
-#        response = self.oms.port.get_platform_ports('LPJBox_CI_Ben_Hall')
-#        log.info("TestPlatformInstrument:setup get_platform_ports %s", response)
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
@@ -146,6 +139,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
         self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
+        self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
         self.dpclient = DataProductManagementServiceClient(node=self.container.node)
@@ -157,10 +151,11 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         log.debug("Org created: %s", self.org_id)
 
         # see _set_receive_timeout
-        self._receive_timeout = 177
+        self._receive_timeout = 300
 
-        self.instrument_device = ''
-        self.platform_device = ''
+        self.instrument_device_id = ''
+        self.platform_device_id = ''
+        self.platform_site_id = ''
         self.platform_agent_instance_id = ''
         self._pa_client = ''
 
@@ -171,17 +166,8 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
         self.addCleanup(done)
 
-    def _get_platform_attributes(self):
-        attr_infos = self.oms.attr.get_platform_attributes('LPJBox_CI_Ben_Hall')
-        log.debug('_get_platform_attributes: %s', self._pp.pformat(attr_infos))
 
-#        ret_infos = attr_infos['LPJBox_CI_Ben_Hall']
-#        for attrName, attr_defn in ret_infos.iteritems():
-#            attr = AttrNode(attrName, attr_defn)
-#            pnode.add_attribute(attr)
-        return attr_infos
-
-    @unittest.skip('Still in construction...')
+    @unittest.skip('Must be run locally...')
     def test_platform_with_instrument_streaming(self):
         #
         # The following is with just a single platform and the single
@@ -189,53 +175,65 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         #
 
         #load the paramaters and the param dicts necesssary for the VEL3D
+        log.debug( "load params------------------------------------------------------------------------------")
         self._load_params()
 
+        log.debug( " _register_oms_listener------------------------------------------------------------------------------")
+        self._register_oms_listener()
+
         #create the instrument device/agent/mode
+        log.debug( "---------- create_instrument_resources ----------" )
         self._create_instrument_resources()
 
         #create the platform device, agent and instance
+        log.debug( "---------- create_platform_configuration ----------" )
         self._create_platform_configuration('LPJBox_CI_Ben_Hall')
 
-        self.rrclient.create_association(subject=self.platform_device, predicate=PRED.hasDevice, object=self.instrument_device)
+        self.rrclient.create_association(subject=self.platform_device_id, predicate=PRED.hasDevice, object=self.instrument_device_id)
 
-
+        log.debug( "---------- start_platform ----------" )
         self._start_platform()
-#        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._stop_platform)
 
         # get everything in command mode:
         self._ping_agent()
+        log.debug( " ---------- initialize ----------" )
         self._initialize()
 
 
-        _ia_client = ResourceAgentClient(self.instrument_device, process=FakeProcess())
+        _ia_client = ResourceAgentClient(self.instrument_device_id, process=FakeProcess())
         state = _ia_client.get_agent_state()
         log.info("TestPlatformInstrument get_agent_state %s", state)
 
-
+        log.debug( " ---------- go_active ----------" )
         self._go_active()
-#        self._run()
+        state = _ia_client.get_agent_state()
+        log.info("TestPlatformInstrument get_agent_state %s", state)
 
-        gevent.sleep(3)
+        log.debug( "---------- run ----------" )
+        self._run()
 
-        # note that this includes the instrument also getting to the command state
+        gevent.sleep(2)
 
-#        self._stream_instruments()
 
-        # get client to the instrument:
-        # the i_obj is a DotDict with various pieces captured during the
-        # set-up of the instrument, in particular instrument_device_id
-        #i_obj = self._get_instrument(instr_key)
-
-#        log.debug("KK creating ResourceAgentClient")
-#        ia_client = ResourceAgentClient(i_obj.instrument_device_id,
-#                                        process=FakeProcess())
-#        log.debug("KK got ResourceAgentClient: %s", ia_client)
+        log.debug( " ---------- _start_resource_monitoring ----------" )
+        self._start_resource_monitoring()
+        gevent.sleep(2)
 #
 #        # verify the instrument is command state:
 #        state = ia_client.get_agent_state()
-#        log.debug("KK instrument state: %s", state)
-#        self.assertEqual(state, ResourceAgentState.COMMAND)
+#        log.debug(" TestPlatformInstrument get_agent_state: %s", state)
+#        self.assertEqual(state, ResourceAgentState.COMMAND)  _stop_resource_monitoring
+
+        log.debug( " ---------- _stop_resource_monitoring ----------" )
+        self._stop_resource_monitoring()
+        gevent.sleep(2)
+
+
+        log.debug( " ---------- go_inactive ----------" )
+        self._go_inactive()
+        state = _ia_client.get_agent_state()
+        log.info("TestPlatformInstrument get_agent_state %s", state)
 
 
 
@@ -243,11 +241,21 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         self._shutdown()
 
 
+    def _get_platform_attributes(self):
+        log.debug( " ----------get_platform_attributes ----------")
+        attr_infos = self.oms.attr.get_platform_attributes('LPJBox_CI_Ben_Hall')
+        log.debug('_get_platform_attributes: %s', self._pp.pformat(attr_infos))
 
+        attrs = attr_infos['LPJBox_CI_Ben_Hall']
+        for attrid, arrinfo in attrs.iteritems():
+            arrinfo['attr_id'] = attrid
+
+        log.debug('_get_platform_attributes: %s', self._pp.pformat(attrs))
+        return attrs
 
     def _load_params(self):
 
-        log.info("--------------------------------------------------------------------------------------------------------")
+        log.info(" ---------- load_params ----------")
         # load_parameter_scenarios
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
             op="load",
@@ -285,6 +293,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
         driver_config = PLTFRM_DVR_CONFIG
         driver_config['attributes'] = self._get_platform_attributes()    #self._platform_attributes[platform_id]
+
         #OMS returning an error for port.get_platform_ports
         #driver_config['ports']      = self._platform_ports[platform_id]
         log.debug("driver_config: %s", driver_config)
@@ -307,17 +316,17 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         platform_agent_id = self.imsclient.create_platform_agent(platform_agent_obj)
 
         # device creation
-        self.platform_device = self.imsclient.create_platform_device(any_old(RT.PlatformDevice))
+        self.platform_device_id = self.imsclient.create_platform_device(any_old(RT.PlatformDevice))
 
         # data product creation
         dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
         dp_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=self.parsed_stream_def_id)
-        self.damsclient.assign_data_product(input_resource_id=self.platform_device, data_product_id=dp_id)
+        self.damsclient.assign_data_product(input_resource_id=self.platform_device_id, data_product_id=dp_id)
         self.dpclient.activate_data_product_persistence(data_product_id=dp_id)
         self.addCleanup(self.dpclient.delete_data_product, dp_id)
 
         # assignments
-        self.RR2.assign_platform_agent_instance_to_platform_device_with_has_agent_instance(self.platform_agent_instance_id, self.platform_device)
+        self.RR2.assign_platform_agent_instance_to_platform_device_with_has_agent_instance(self.platform_agent_instance_id, self.platform_device_id)
         self.RR2.assign_platform_agent_to_platform_agent_instance_with_has_agent_definition(platform_agent_id, self.platform_agent_instance_id)
         self.RR2.assign_platform_device_to_org_with_has_resource(self.platform_agent_instance_id, self.org_id)
 
@@ -336,7 +345,40 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         #######################################
 
 
-        return
+        log.debug('_create_platform_site_and_deployment  platform_device_id: %s', self.platform_device_id)
+
+        site_object = IonObject(RT.PlatformSite, name='PlatformSite1')
+        self.platform_site_id = self.omsclient.create_platform_site(platform_site=site_object, parent_id='')
+        log.debug('_create_platform_site_and_deployment  site id: %s', self.platform_site_id)
+
+        #create supporting objects for the Deployment resource
+        # 1. temporal constraint
+        # find current deployment using time constraints
+        current_time =  int( calendar.timegm(time.gmtime()) )
+        # two years on either side of current time
+        start = current_time - 63115200
+        end = current_time + 63115200
+        temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=str(start), end_datetime=str(end))
+        # 2. PlatformPort object which defines device to port map
+        platform_port_obj= IonObject(OT.PlatformPort, reference_designator = 'GA01SUMO-FI003-01-CTDMO0999',
+                                                        port_type=PortTypeEnum.UPLINK,
+                                                        ip_address='0')
+
+        # now create the Deployment
+        deployment_obj = IonObject(RT.Deployment,
+                                   name='TestPlatformDeployment',
+                                   description='some new deployment',
+                                   context=IonObject(OT.CabledNodeDeploymentContext),
+                                   constraint_list=[temporal_bounds],
+                                   port_assignments={self.platform_device_id:platform_port_obj})
+
+        platform_deployment_id = self.omsclient.create_deployment(deployment=deployment_obj, site_id=self.platform_site_id, device_id=self.platform_device_id)
+        log.debug('_create_platform_site_and_deployment  deployment_id: %s', platform_deployment_id)
+
+        deploy_obj2 = self.omsclient.read_deployment(platform_deployment_id)
+        log.debug('_create_platform_site_and_deployment  deploy_obj2 : %s', deploy_obj2)
+        return self.platform_site_id, platform_deployment_id
+
 
     def _create_instrument_resources(self):
         # Create InstrumentModel
@@ -368,8 +410,8 @@ class TestPlatformInstrument(BaseIntTestPlatform):
             name='VEL3DDevice',
             description="VEL3DDevice",
             serial_number="12345" )
-        self.instrument_device = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
-        self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, self.instrument_device)
+        self.instrument_device_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
+        self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, self.instrument_device_id)
 
         port_agent_config = {
             'device_addr':  '10.180.80.6',
@@ -391,7 +433,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
             instAgent_id,
-            self.instrument_device)
+            self.instrument_device_id)
         self._start_port_agent(self.imsclient.read_instrument_agent_instance(instAgentInstance_id))
 
         vel3d_b_sample_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('vel3d_b_sample', id_only=True)
@@ -418,7 +460,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
             spatial_domain = sdom)
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=vel3d_b_sample_stream_def_id)
-        self.damsclient.assign_data_product(input_resource_id=self.instrument_device, data_product_id=data_product_id1)
+        self.damsclient.assign_data_product(input_resource_id=self.instrument_device_id, data_product_id=data_product_id1)
         self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
 
@@ -429,7 +471,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
             spatial_domain = sdom)
 
         data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=vel3d_b_engineering_stream_def_id)
-        self.damsclient.assign_data_product(input_resource_id=self.instrument_device, data_product_id=data_product_id2)
+        self.damsclient.assign_data_product(input_resource_id=self.instrument_device_id, data_product_id=data_product_id2)
         self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
 
 
@@ -440,9 +482,38 @@ class TestPlatformInstrument(BaseIntTestPlatform):
             spatial_domain = sdom)
 
         data_product_id3 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
-        self.damsclient.assign_data_product(input_resource_id=self.instrument_device, data_product_id=data_product_id3)
+        self.damsclient.assign_data_product(input_resource_id=self.instrument_device_id, data_product_id=data_product_id3)
         self.dpclient.activate_data_product_persistence(data_product_id=data_product_id3)
 
+        #create instrument site and associated deployment
+        site_object = IonObject(RT.InstrumentSite, name='InstrumentSite1')
+        instrument_site_id = self.omsclient.create_instrument_site(instrument_site=site_object, parent_id=self.platform_site_id)
+        log.debug('_create_instrument_site_and_deployment  site id: %s', instrument_site_id)
+
+
+        #create supporting objects for the Deployment resource
+        # 1. temporal constraint
+        # find current deployment using time constraints
+        current_time =  int( calendar.timegm(time.gmtime()) )
+        # two years on either side of current time
+        start = current_time - 63115200
+        end = current_time + 63115200
+        temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=str(start), end_datetime=str(end))
+        # 2. PlatformPort object which defines device to port map
+        platform_port_obj= IonObject(OT.PlatformPort, reference_designator = 'GA01SUMO-FI003-03-CTDMO0999',
+                                                        port_type=PortTypeEnum.PAYLOAD,
+                                                        ip_address='0')
+
+        # now create the Deployment
+        deployment_obj = IonObject(RT.Deployment,
+                                   name='TestInstrumentDeployment',
+                                   description='some new deployment',
+                                   context=IonObject(OT.CabledInstrumentDeploymentContext),
+                                   constraint_list=[temporal_bounds],
+                                   port_assignments={self.instrument_device_id:platform_port_obj})
+
+        instrument_deployment_id = self.omsclient.create_deployment(deployment=deployment_obj, site_id=instrument_site_id, device_id=self.instrument_device_id)
+        log.debug('_create_instrument_site_and_deployment  deployment_id: %s', instrument_deployment_id)
 
 
 
@@ -483,13 +554,6 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         return self.imsclient.read_instrument_agent_instance(instrument_agent_instance_obj._id)
 
 
-
-
-
-
-
-
-
     def _start_platform(self):
         """
         Starts the given platform waiting for it to transition to the
@@ -512,11 +576,11 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
         # start subscriber:
         sub = EventSubscriber(event_type="ResourceAgentStateEvent",
-                              origin=self.platform_device,
+                              origin=self.platform_device_id,
                               callback=consume_event)
         sub.start()
         log.info("registered event subscriber to wait for state=%r from origin %r",
-                 PlatformAgentState.UNINITIALIZED, self.platform_device)
+                 PlatformAgentState.UNINITIALIZED, self.platform_device_id)
         #self._event_subscribers.append(sub)
         sub._ready_event.wait(timeout=EVENT_TIMEOUT)
 
@@ -530,12 +594,12 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         #wait for start
         agent_instance_obj = self.imsclient.read_platform_agent_instance(agent_instance_id)
         gate = AgentProcessStateGate(self.processdispatchclient.read_process,
-                                     self.platform_device._id,
+                                     self.platform_device_id,
                                      ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(90), "The platform agent instance did not spawn in 90 seconds")
 
         # Start a resource agent client to talk with the agent.
-        self._pa_client = ResourceAgentClient(self.platform_device,
+        self._pa_client = ResourceAgentClient(self.platform_device_id,
                                               name=gate.process_id,
                                               process=FakeProcess())
         log.debug("got platform agent client %s", str(self._pa_client))
@@ -543,3 +607,46 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         ##############################################################
         # wait for the UNINITIALIZED event:
         async_res.get(timeout=self._receive_timeout)
+
+    def _register_oms_listener(self):
+
+        #load the paramaters and the param dicts necesssary for the VEL3D
+        OMS_URI = 'http://alice:1234@10.180.80.10:9021/'
+        log.debug( "---------- connect_to_oms ---------- ")
+        log.debug("oms_uri = %s", OMS_URI)
+        self.oms = CIOMSClientFactory.create_instance(OMS_URI)
+
+        #buddha url
+        url = "http://10.22.88.168:5000/ion-service/oms_event"
+        log.info("test_oms_events_receive:setup http url %s", url)
+
+        result = self.oms.event.register_event_listener(url)
+        log.debug("_register_oms_listener register_event_listener result %s", result)
+
+        #-------------------------------------------------------------------------------------
+        # Set up the subscriber to catch the alert event
+        #-------------------------------------------------------------------------------------
+
+        def callback_for_alert(event, *args, **kwargs):
+            log.debug("caught an OMSDeviceStatusEvent: %s", event)
+            self.catch_alert.put(event)
+
+        self.event_subscriber = EventSubscriber(event_type='OMSDeviceStatusEvent',
+            callback=callback_for_alert)
+
+        self.event_subscriber.start()
+        self.addCleanup(self.event_subscriber.stop)
+
+
+        result = self.oms.event.generate_test_event({'platform_id': 'fake_platform_id', 'message': "fake event triggered from CI using OMS' generate_test_event", 'severity': '3', 'group ': 'power'})
+        log.debug("_register_oms_listener generate_test_event result %s", result)
+
+
+    def _stop_platform(self):
+        try:
+            self.IMS.stop_platform_agent_instance(self.platform_agent_instance_id)
+        except:
+            log.warn(
+                "platform_id=%r: Exception in IMS.stop_platform_agent_instance with "
+                "platform_agent_instance_id = %r. Perhaps already dead.",
+                self.platform_device_id, self.platform_agent_instance_id)

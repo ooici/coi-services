@@ -742,9 +742,12 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         log.debug(' port assignments for platform  %s', port_assignments)
 
         # Create driver config.
-        add_driver_config = {
-            'ports' : port_assignments,
-        }
+        if 'attributes' in driver_config and driver_config['attributes']:
+            add_driver_config = { 'ports' : port_assignments, }
+        else:
+            #attributes should be an empty dict if none are provided
+            add_driver_config = { 'ports' : port_assignments, 'attributes' : {}, }
+
         self._augment_dict("Platform Agent driver_config", driver_config, add_driver_config)
 
         return driver_config
