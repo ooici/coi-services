@@ -2614,7 +2614,7 @@ class PlatformAgent(ResourceAgent):
                             instruments_with_errors=instruments_with_errors)
 
         # then myself:
-        self._go_inactive_this_platform()
+        self._go_inactive_this_platform(recursion=recursion)
         return None
 
     def _run(self, recursion):
