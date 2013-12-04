@@ -4,7 +4,7 @@
 @package ion.agents.platform.resource_monitor
 @file    ion/agents/platform/resource_monitor.py
 @author  Carlos Rueda
-@brief   Platform resource monitoring
+@brief   Platform resource monitoring for a set of attributes having same rate
 """
 
 __author__ = 'Carlos Rueda'
@@ -33,10 +33,14 @@ _STREAM_NAME = "parsed"
 # Since "ION system time" is in milliseconds, this delta is in milliseconds.
 _DELTA_TIME = 10
 
+# _MULT_INTERVAL: for any request, the from_time parameter will be at most
+# _MULT_INTERVAL * _rate_secs in the past wrt current time (OOIION-1372):
+_MULT_INTERVAL = 3
+
 
 class ResourceMonitor(object):
     """
-    Monitor for specific attributes in a given platform.
+    Monitor for specific attributes having the same nominal monitoring rate.
     """
 
     def __init__(self, platform_id, rate_secs, attr_defns,
@@ -64,15 +68,17 @@ class ResourceMonitor(object):
         self._attr_defns = attr_defns
         self._notify_driver_event = notify_driver_event
 
-        # corresponding attribute IDs to be retrieved and "ION System time"
-        # compliant timestamp of last retrieved value for each attribute:
+        # corresponding attribute IDs to be retrieved
         self._attr_ids = []
-        self._last_ts = {}
+        # and "ION System time" compliant timestamp of last retrieved value for
+        # each attribute:
+        self._last_ts_millis = {}
+
         for attr_defn in self._attr_defns:
             if 'attr_id' in attr_defn:
                 attr_id = attr_defn['attr_id']
                 self._attr_ids.append(attr_id)
-                self._last_ts[attr_id] = None
+                self._last_ts_millis[attr_id] = None
             else:
                 log.warn("%r: 'attr_id' key expected in attribute definition: %s",
                          self._platform_id, attr_defn)
@@ -136,18 +142,25 @@ class ResourceMonitor(object):
 
         current_time_secs = current_time_millis() / 1000.0
 
+        # minimum value for the from_time parameter (OOIION-1372):
+        min_from_time = current_time_secs - _MULT_INTERVAL * self._rate_secs
+
         # determine each from_time for the request:
         attrs = []
         for attr_id in self._attr_ids:
-            if self._last_ts[attr_id] is None:
-                # Arbitrarily setting from_time to current system time minus a few seconds:
-                # TODO: determine actual criteria here.
-                win_size_secs = 5
-                from_time = current_time_secs - win_size_secs
+            if self._last_ts_millis[attr_id] is None:
+                # Very first request for this attribute. Use min_from_time:
+                from_time = min_from_time
 
             else:
-                # note that int(x) returns a long object if needed.
-                from_time = int(self._last_ts[attr_id]) + _DELTA_TIME
+                # We've already got values for this attribute. Use the latest
+                # timestamp + _DELTA_TIME as a basis for the new request:
+                from_time_millis = int(self._last_ts_millis[attr_id]) + _DELTA_TIME
+                from_time = from_time_millis / 1000.0
+
+                # but adjust it if it goes too far in the past:
+                if from_time < min_from_time:
+                    from_time = min_from_time
 
             attrs.append((attr_id, from_time))
 
@@ -227,14 +240,14 @@ class ResourceMonitor(object):
         corresponding event to platform agent.
         """
 
-        # update _last_ts for each retrieved attribute:
+        # update _last_ts_millis for each retrieved attribute:
         for attr_id, attr_vals in vals_dict.iteritems():
 
             _, ntp_ts = attr_vals[-1]
 
-            # update _last_ts based on ntp_ts: note that timestamps are reported
+            # update _last_ts_millis based on ntp_ts: note that timestamps are reported
             # in NTP so we need to convert it to ION system time for a subsequent request:
-            self._last_ts[attr_id] = ntp_2_ion_ts(ntp_ts)
+            self._last_ts_millis[attr_id] = ntp_2_ion_ts(ntp_ts)
 
         # finally, notify the values event:
         driver_event = AttributeValueDriverEvent(self._platform_id,
