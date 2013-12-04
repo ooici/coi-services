@@ -89,6 +89,13 @@ class TestDMExtended(DMTestCase):
         config.scenario = 'BETA'
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
+    def preload_alpha(self):
+        config = DotDict()
+        config.cfg = 'res/preload/r2_ioc/config/ooi_alpha.yml'
+        config.path = 'master'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
     
     def preload_tmpsf(self):
         config = DotDict()
@@ -201,6 +208,11 @@ class TestDMExtended(DMTestCase):
         config.ui_path = "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
+    def preload_indexes(self):
+        config = DotDict()
+        config.op = 'clean_bootstrap'
+        self.container.spawn_process('indexer', 'ion.processes.bootstrap.index_bootstrap','IndexBootStrap', config)
     
     def launch_ui_facepage(self, data_product_id):
         '''
@@ -995,4 +1007,10 @@ class TestDMExtended(DMTestCase):
         instrument_device_id = instrument_devices[0]._id
         self.launch_device_facepage(instrument_device_id)
         breakpoint(locals(), globals())
+
+    @attr("UTIL")
+    def test_alpha(self):
+        self.preload_alpha()
+        breakpoint(locals(), globals())
+
 
