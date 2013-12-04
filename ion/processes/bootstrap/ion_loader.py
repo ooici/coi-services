@@ -42,6 +42,7 @@
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       ooiparams= if True (default is False) create links to OOI parameter definitions
       ooipartial= if True (default is False) creates resources (data products etc) even if not all inputs are there
+      ooiactivate= if True (default is True) activate deployments/persistence for assets actually deployed in the past
 
       debug= if True, allows shortcuts to perform faster loads (where possible)
       bulk= if True, uses RR bulk insert operations to load, not service calls
@@ -116,7 +117,7 @@ CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exp
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdHRVMURMQUpPdEp6dzdCMFdpb29aeXc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdGpBeWVHZGU1NFRrWnNoS2xkUDlEM3c&output=xls"
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
@@ -242,6 +243,9 @@ class IONLoader(ImmediateProcess):
                 if docstr:
                     log.debug("Step info: "+ docstr)
                 step_config_override = dict(step_cfg.get("config", {}))
+                # Add override with any direct process spawn args
+                if hasattr(self, "_proc_spawn_cfg"):
+                    dict_merge(step_config_override, self._proc_spawn_cfg, inplace=True)
                 log.debug("Step config override: %s", step_config_override)
                 # Build config for step based on container CFG
                 step_config = copy.deepcopy(self.CFG)
@@ -321,6 +325,7 @@ class IONLoader(ImmediateProcess):
             self.idmap = bool(config.get("idmap", False))           # Substitute column values in rows
             self.ooiparams = bool(config.get("ooiparams", False))   # Hook up with loaded OOI params
             self.ooipartial = bool(config.get("ooipartial", False))  # Load partially defined resources
+            self.ooiactivate = bool(config.get("ooiactivate", True))  # Activate deployments and persistence
             self.parseooi = config.get("parseooi", False)
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
@@ -829,6 +834,11 @@ class IONLoader(ImmediateProcess):
         else:
             return True
 
+    def _is_deployed(self, ooi_obj):
+        deploy_date = ooi_obj.get("deploy_date", None)
+        return deploy_date and deploy_date <= datetime.datetime.now()
+
+
     def _basic_resource_create(self, row, restype, prefix, svcname, svcop,
                                constraints=None, constraint_field='constraint_list',
                                contacts=None, contact_field='contacts',
@@ -1294,6 +1304,8 @@ class IONLoader(ImmediateProcess):
             newrow['pm/name'] = ooi_obj['name']
             newrow['pm/description'] = "Node Type: %s" % ooi_id
             newrow['pm/alt_ids'] = "['OOI:" + ooi_id + "_PM" + "']"
+            newrow['pm/platform_family'] = ooi_obj['platform_family'] or ooi_obj['name']
+            newrow['pm/platform_type'] = ooi_obj['platform_type']
             newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
 
             if not self._resource_exists(newrow[COL_ID]):
@@ -1400,6 +1412,8 @@ class IONLoader(ImmediateProcess):
                                geospatial_longitude_limit_west=float(row['west']),
                                geospatial_vertical_min=vmin,
                                geospatial_vertical_max=vmax)
+        if not all([row['north'], row['south'], row['east'], row['west']]):
+            log.warn("Geospatial constraint %s has empty values: %s", row[COL_ID], constraint)
         return constraint
 
     def _create_temporal_constraint(self, row):
@@ -1610,27 +1624,28 @@ class IONLoader(ImmediateProcess):
         ssite_objs = self.ooi_loader.get_type_assets("ssite")
 
         def _load_platform(ooi_id, ooi_obj):
-            if not self._before_cutoff(ooi_obj):
-                return
-            if self._resource_exists(ooi_id):
-                return
-
             ooi_rd = OOIReferenceDesignator(ooi_id)
 
+            # The following MUST be defined before any skip is made, because later resources use these references
             const_id1 = ''
-            if ooi_obj.get('latitude', None) or ooi_obj.get('longitude', None) or ooi_obj.get('depth_subsite', None):
+            if ooi_obj.get('latitude', None) or ooi_obj.get('longitude', None):
                 const_id1 = ooi_id + "_const1"
                 constrow = {}
                 constrow[COL_ID] = const_id1
                 constrow['type'] = 'geospatial'
-                constrow['south'] = ooi_obj['latitude'] or '0.0'
-                constrow['north'] = ooi_obj['latitude'] or '0.0'
-                constrow['west'] = ooi_obj['longitude'] or '0.0'
-                constrow['east'] = ooi_obj['longitude'] or '0.0'
+                lat = (ooi_obj.get('latitude', None) or '0.0').split(",", 1)  # Allow ranges
+                lon = (ooi_obj.get('longitude', None) or '0.0').split(",", 1)
+                dep = (ooi_obj.get('depth_subsite', None) or '0.0').split(",", 1)
+                constrow['south'] = lat[0]
+                constrow['north'] = lat[-1]
+                constrow['west'] = lon[0]
+                constrow['east'] = lon[-1]
                 constrow['vertical_direction'] = 'depth'
-                constrow['top'] = ooi_obj['depth_subsite'] or '0.0'
-                constrow['bottom'] = ooi_obj['depth_subsite'] or '0.0'
+                constrow['top'] = dep[0]
+                constrow['bottom'] = dep[-1]
                 self._load_Constraint(constrow)
+                if not all([constrow['south'], constrow['north'], constrow['west'], constrow['east']]):
+                    log.warn("Instrument %s invalid geospatial constraint: %s", ooi_id, constrow)
             elif ooi_obj.get('is_platform', False):
                 ss = subsite_objs[ooi_rd.subsite_rd]
                 ss_mod = ssite_objs[ss['ssite']]
@@ -1639,6 +1654,12 @@ class IONLoader(ImmediateProcess):
                 ss = subsite_objs[ooi_obj.get('platform_id', '')[:8]]
                 ss_mod = ssite_objs[ss['ssite']]
                 const_id1 = ss_mod['rd'] + "_const1"
+
+            # We generate all top level platforms
+            if not ooi_obj.get('is_platform', False) and not self._before_cutoff(ooi_obj):
+                return
+            if self._resource_exists(ooi_id):
+                return
 
             newrow = {}
             newrow[COL_ID] = ooi_id
@@ -1679,6 +1700,7 @@ class IONLoader(ImmediateProcess):
             self._load_PlatformSite(newrow)
 
         ooi_objs = self.ooi_loader.get_type_assets("node")
+        # WARNING: Only supports 2 levels of platforms/nodes
         # Pass 1: platform nodes
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             if ooi_obj.get('is_platform', False):
@@ -1736,23 +1758,27 @@ class IONLoader(ImmediateProcess):
         for inst_id, inst_obj in inst_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(inst_id)
             node_obj = node_objs[ooi_rd.node_rd]
+
+            # The following MUST be defined before any skip is made, because later resources use these references
+            constrow = {}
+            const_id1 = inst_id + "_const1"
+            constrow[COL_ID] = const_id1
+            constrow['type'] = 'geospatial'
+            lat = (inst_obj.get('latitude', None) or '0.0').split(",", 1)  # Allow ranges
+            lon = (inst_obj.get('longitude', None) or '0.0').split(",", 1)
+            constrow['south'] = lat[0]
+            constrow['north'] = lat[-1]
+            constrow['west'] = lon[0]
+            constrow['east'] = lon[-1]
+            constrow['vertical_direction'] = 'depth'
+            constrow['top'] = inst_obj.get('depth_port_min', None) or '0.0'
+            constrow['bottom'] = inst_obj.get('depth_port_max', None) or '0.0'
+            self._load_Constraint(constrow)
+            if not all([constrow['south'], constrow['north'], constrow['west'], constrow['east']]):
+                log.warn("Instrument %s invalid geospatial constraint: %s", inst_id, constrow)
+
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
-
-            constrow = {}
-            const_id1 = ''
-            if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
-                const_id1 = inst_id + "_const1"
-                constrow[COL_ID] = const_id1
-                constrow['type'] = 'geospatial'
-                constrow['south'] = inst_obj['latitude'] or '0.0'
-                constrow['north'] = inst_obj['latitude'] or '0.0'
-                constrow['west'] = inst_obj['longitude'] or '0.0'
-                constrow['east'] = inst_obj['longitude'] or '0.0'
-                constrow['vertical_direction'] = 'depth'
-                constrow['top'] = inst_obj['depth_port_min'] or '0.0'
-                constrow['bottom'] = inst_obj['depth_port_max'] or '0.0'
-                self._load_Constraint(constrow)
 
             class_obj = class_objs[ooi_rd.inst_class]
             series_obj = series_objs[ooi_rd.series_rd]
@@ -1768,11 +1794,11 @@ class IONLoader(ImmediateProcess):
             newrow['is/reference_designator'] = inst_id
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-            newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
+            newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
             newrow['instrument_model_ids'] = inst_obj['instrument_model']
-            newrow['parent_site_id'] = inst_id[:14]
+            newrow['parent_site_id'] = ooi_rd.node_rd
 
-            if not self._match_filter(inst_id[:2]):
+            if not self._match_filter(ooi_rd.array):
                 continue
 
             if not self._resource_exists(newrow[COL_ID]):
@@ -2176,7 +2202,10 @@ Reason: %s
         new_node_ids = set()
 
         for node_id, node_obj in node_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(node_id)
             if not self._before_cutoff(node_obj):
+                continue
+            if not self._match_filter([ooi_rd.array]):
                 continue
 
             newrow = {}
@@ -2184,19 +2213,19 @@ Reason: %s
             newrow[COL_ID] = platform_id
             newrow['pd/name'] = "%s" % node_obj.get('name', '')
             newrow['pd/description'] = "Platform %s device #01" % node_id
-            newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
-            newrow['platform_model_id'] = node_id[9:11] + "_PM"
-            newrow['contact_ids'] = ''
+            newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
+            newrow['platform_model_id'] = ooi_rd.node_type + "_PM"
+            newrow['contact_ids'] = "%s_DEV_1,%s_DEV_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
             newrow['network_parent_id'] = ""
-            newrow['platform_device_id'] = ""
-            newrow['lcstate'] = "PLANNED_AVAILABLE"
-
-            if not self._match_filter([node_id[:2]]):
-                continue
+            newrow['platform_device_id'] = ""  # Cannot set here because of nondeterministic load order - see below
+            if self._is_deployed(node_obj):
+                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+            else:
+                newrow['lcstate'] = "PLANNED_AVAILABLE"
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_PlatformDevice(newrow)
-                new_node_ids.add(newrow[COL_ID])
+                new_node_ids.add(node_id)
 
         for node_id, node_obj in node_objs.iteritems():
             if node_id not in new_node_ids:
@@ -2205,12 +2234,18 @@ Reason: %s
             newrow = {}
             platform_id = node_id + "_PD"
             newrow[COL_ID] = platform_id
-            uplink_node = node_obj.get('uplink_node', "")
-            newrow['network_parent_id'] = uplink_node + "_PD" if uplink_node and self._get_resource_obj(uplink_node + "_PD") else ""
 
-            if not newrow['network_parent_id'] or self._has_association(self.resource_ids[platform_id],
-                    PRED.hasNetworkParent, self.resource_ids[newrow['network_parent_id']]):
-                continue
+            # Set parent platform link
+            parent_id = node_obj.get("parent_id", None)
+            if parent_id and parent_id != node_id and not self._has_association(
+                    self.resource_ids[parent_id + "_PD"], PRED.hasDevice, self.resource_ids[platform_id]):
+                newrow['platform_device_id'] = parent_id + "_PD"
+
+            # Set network uplink node
+            uplink_node = node_obj.get('uplink_node', "")
+            if uplink_node and self._get_resource_obj(uplink_node + "_PD") and not self._has_association(
+                    self.resource_ids[platform_id], PRED.hasNetworkParent, self.resource_ids[uplink_node + "_PD"]):
+                newrow['network_parent_id'] = uplink_node + "_PD"
 
             self._load_PlatformDevice_ext(newrow)
 
@@ -2269,32 +2304,35 @@ Reason: %s
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
 
-            node_id = ooi_id[:14]
-            if not node_obj.get('is_platform', False):
-                node_id = node_obj.get('platform_id')
-                node_obj = node_objs[node_id]
-                if not node_obj.get('is_platform', False):
-                    log.warn("Node %s is not a platform!!" % node_id)
+            # Question: This pointed to the platform instead of the most immediate node. Why?
+            #node_id = ooi_rd.node_rd
+            #if not node_obj.get('is_platform', False):
+            #    node_id = node_obj.get('platform_id')
+            #    node_obj = node_objs[node_id]
+            #    if not node_obj.get('is_platform', False):
+            #        log.warn("Node %s is not a platform!!" % node_id)
 
             ooi_rd = OOIReferenceDesignator(ooi_id)
             newrow = {}
             newrow[COL_ID] = ooi_id + "_ID"
-            newrow['id/name'] = "%s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
+            newrow['id/name'] = "%s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_rd.node_rd]['name'])
             newrow['id/description'] = "Instrument %s device #01" % ooi_id
             newrow['id/reference_urls'] = ''
-            newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
+            newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
             newrow['instrument_model_id'] = ooi_rd.series_rd
             # Commented out the following because a bug. Create hasDevice links for ALL instrument to platform now.
-            # # TODO: Only set the following for non cabled instruments
             # if self._is_cabled(ooi_rd):
             #     newrow['platform_device_id'] = ""
             # else:
             #     newrow['platform_device_id'] = node_id + "_PD"
-            newrow['platform_device_id'] = node_id + "_PD"
-            newrow['contact_ids'] = ''
-            newrow['lcstate'] = "PLANNED_AVAILABLE"
+            newrow['platform_device_id'] = ooi_rd.node_rd + "_PD"
+            newrow['contact_ids'] = "%s_DEV_1,%s_DEV_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
+            if self._is_deployed(inst_obj):
+                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+            else:
+                newrow['lcstate'] = "PLANNED_AVAILABLE"
 
-            if not self._match_filter(ooi_id[:2]):
+            if not self._match_filter(ooi_rd.array):
                 continue
 
             if not self._resource_exists(newrow[COL_ID]):
@@ -2362,15 +2400,6 @@ Reason: %s
         DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
         Keeps stream configuration object for use in *AgentInstance categories.
         """
-
-#        alerts = []
-#        if row['alerts']:
-#            for id in row['alerts'].split(','):
-#                copy = dict(self.alerts[id.strip()])
-#                copy['kwargs']['stream_name'] = row['cfg/stream_name']
-#                alerts.append(copy)
-#            row['cfg/alarms'] = repr(alarms)  # _create_object_from_row won't take list directly, tries to eval(str) or raise ValueException
-#            log.trace('adding alarms to StreamConfiguration %s: %r', row[COL_ID], alarms)
         self.row_count += 1
         obj = self._create_object_from_row("StreamConfiguration", row, "cfg/")
         self.stream_config[row['ID']] = obj
@@ -3047,9 +3076,10 @@ Reason: %s
                 continue
 
             const_id1 = ''
-            if node_obj.get('latitude', None) or node_obj.get('longitude', None) or node_obj.get('depth_subsite', None):
-                # At this point, the constraint was already added with the PlatformSite
+            if node_id + "_const1" in self.constraint_defs:
                 const_id1 = node_id + "_const1"
+            else:
+                log.warn("Could not determine geospatial constraint for %s", node_id)
 
             nodetype_obj = nodetype_objs.get(ooi_rd.node_type, None)
             pa_code = nodetype_obj.get("pa_code", None) if nodetype_obj else None
@@ -3074,13 +3104,17 @@ Reason: %s
                     newrow['dp/name'] = "Platform %s stream '%s' data product" % (node_id, scfg.stream_name)
                     newrow['dp/description'] = "Platform %s data product" % node_id
                     newrow['dp/ooi_product_name'] = ""
-                    newrow['dp/processing_level_code'] = ""
+                    newrow['dp/processing_level_code'] = "N/A"
+                    newrow['dp/quality_control_level'] = "N/A"
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
-                    newrow['contact_ids'] = ''
+                    newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                     newrow['geo_constraint_id'] = const_id1
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                     newrow['parent'] = ''
-                    newrow['persist_data'] = 'False'
+                    if self._is_deployed(node_obj) and self.ooiactivate:
+                        newrow['persist_data'] = 'True'
+                    else:
+                        newrow['persist_data'] = 'False'
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
                     pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
@@ -3100,9 +3134,10 @@ Reason: %s
                 newrow['dp/name'] = "Parsed - platform " + node_id
                 newrow['dp/description'] = "Platform %s data product" % node_id
                 newrow['dp/ooi_product_name'] = ""
-                newrow['dp/processing_level_code'] = ""
+                newrow['dp/processing_level_code'] = "N/A"
+                newrow['dp/quality_control_level'] = "N/A"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
-                newrow['contact_ids'] = ''
+                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = ''
@@ -3132,9 +3167,11 @@ Reason: %s
                 continue
 
             const_id1 = ''
-            if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
+            if inst_id + "_const1" in self.constraint_defs:
                 # At this point, the constraint was already added with the InstrumentSite
                 const_id1 = inst_id + "_const1"
+            else:
+                log.warn("Could not determine geospatial constraint for %s", inst_id)
 
             ia_code = series_obj["ia_code"]
             iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
@@ -3160,10 +3197,12 @@ Reason: %s
                         newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Raw"
+                        newrow['dp/quality_control_level'] = "N/A"
                     elif scfg.stream_type == StreamConfigurationType.PARSED and not parsed_pdict_id:
                         newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
+                        newrow['dp/quality_control_level'] = "a"
                         parsed_pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                         parsed_id = dp_id
                     else:
@@ -3172,12 +3211,17 @@ Reason: %s
                                      inst_id, ia_code or dart_code, scfg.stream_name, parsed_pdict_id)
                         newrow['dp/description'] = "Instrument %s data product: engineering data" % inst_id
                         newrow['dp/ooi_product_name'] = ""
+                        newrow['dp/processing_level_code'] = "N/A"
+                        newrow['dp/quality_control_level'] = "N/A"
 
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                    newrow['contact_ids'] = ''
+                    newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                     newrow['geo_constraint_id'] = const_id1
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                    newrow['persist_data'] = 'False'  # Set persist_data to false - no ingestion worker
+                    if self._is_deployed(inst_obj) and self.ooiactivate:
+                        newrow['persist_data'] = 'True'
+                    else:
+                        newrow['persist_data'] = 'False'
                     newrow['parent'] = ''
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
@@ -3208,8 +3252,9 @@ Reason: %s
                 newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
                 newrow['dp/ooi_product_name'] = ""
                 newrow['dp/processing_level_code'] = "Parsed"
+                newrow['dp/quality_control_level'] = "a"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                newrow['contact_ids'] = ''
+                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = 'StreamDef23'        # Hardcoded to preload row value!!
@@ -3229,8 +3274,9 @@ Reason: %s
                 newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                 newrow['dp/ooi_product_name'] = ""
                 newrow['dp/processing_level_code'] = "Raw"
+                newrow['dp/quality_control_level'] = "N/A"
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                newrow['contact_ids'] = ''
+                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = ''
@@ -3268,17 +3314,18 @@ Reason: %s
                         found_num_onnode += 1
                         if found_num_onnode > 1:
                             break
-                found_num_onsite = 0   # Number of instruments of same class on same site
-                for iid,iobj in inst_objs.iteritems():
+                found_num_onplatform = 0   # Number of instruments of same class on same platform
+                for iid, iobj in inst_objs.iteritems():
                     ooi_rd1 = OOIReferenceDesignator(iid)
+                    iplatform = node_objs[node_objs[ooi_rd1.node_rd]["platform_id"]]
                     if found_num_onnode > 1:
-                        if ooi_rd.subsite_rd == ooi_rd1.subsite_rd and ooi_rd1.inst_class == inst_obj['Class'] and \
+                        if platform_obj["id"] ==  iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class'] and \
                                 inst_obj.get("depth_port_min", None) == iobj.get("depth_port_min", None):
-                            found_num_onsite += 1
+                            found_num_onplatform += 1
                     else:
-                        if ooi_rd.subsite_rd == ooi_rd1.subsite_rd and ooi_rd1.inst_class == inst_obj['Class']:
-                            found_num_onsite += 1
-                    if found_num_onsite > 1:
+                        if platform_obj["id"] ==  iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class']:
+                            found_num_onplatform += 1
+                    if found_num_onplatform > 1:
                         break
 
                 if found_num_onnode > 1:
@@ -3286,7 +3333,7 @@ Reason: %s
                     inst_unique = "%s %sm" % (inst_obj['Class'], inst_obj.get("depth_port_min", None) or ooi_rd.inst_seriesseq)
                 else:
                     inst_unique = inst_obj['Class']
-                if found_num_onsite > 1:
+                if found_num_onplatform > 1:
                     inst_unique += " (node %s%s)" % (ooi_rd.node_type, ooi_rd.node_seq)
 
                 dp_name = "%s %s %s %s" % (dp_obj['name'], dp_obj['level'], inst_unique, platform_obj['name'])
@@ -3309,12 +3356,19 @@ Reason: %s
                 newrow['dp/qc_spketest'] = dp_obj.get('Spike Test (SPKETST) QC', "")
                 newrow['dp/qc_stuckvl'] = dp_obj.get('Stuck Value Test (STUCKVL) QC', "")
                 newrow['dp/qc_trndtst'] = dp_obj.get('Trend Test (TRNDTST) QC', "")
+                if any([True for val in [newrow['dp/qc_cmbnflg'], newrow['dp/qc_condcmp'], newrow['dp/qc_glblrng'],
+                                         newrow['dp/qc_gradtst'], newrow['dp/qc_interp1'], newrow['dp/qc_loclrng'],
+                                         newrow['dp/qc_modulus'], newrow['dp/qc_polyval'], newrow['dp/qc_solarel'],
+                                         newrow['dp/qc_spketest'], newrow['dp/qc_stuckvl'], newrow['dp/qc_trndtst']] if val == "applicable"]):
+                    newrow['dp/quality_control_level'] = "b"
+                else:
+                    newrow['dp/quality_control_level'] = "a"
                 newrow['dp/dps_dcn'] = dp_obj.get('DPS DCN(s)', "")
                 newrow['dp/flow_diagram_dcn'] = dp_obj.get('Processing Flow Diagram DCN(s)', "")
                 newrow['dp/doors_l2_requirement_num'] = dp_obj.get('DOORS L2 Science Requirement #(s)', "")
                 newrow['dp/doors_l2_requirement_text'] = dp_obj.get('DOORS L2 Science Requirement Text', "")
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                newrow['contact_ids'] = ''
+                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['parent'] = parsed_id
@@ -3539,6 +3593,33 @@ Reason: %s
         if get_typed_value(row['activate'], targettype="bool"):
             oms.activate_deployment(deployment_id, headers=headers)
 
+
+    def _create_port_assignments(self, device_id, recurse=True):
+        node_objs = self.ooi_loader.get_type_assets("node")
+        inst_objs = self.ooi_loader.get_type_assets("instrument")
+
+        def create_device_port_assignments_cfg(device_obj):
+            dev_alias = device_obj["id"] + ("_PD" if device_obj.get("Class", None) is None else "_ID")
+            if not self._resource_exists(dev_alias):
+                return ""
+            pa_cfg = ["%s.reference_designator:%s" % (dev_alias, device_obj["id"]),
+                      "%s.port_type:%s" % (dev_alias, PortTypeEnum.PAYLOAD),
+                      "%s.ip_address:%s" % (dev_alias, "")]
+            return ",".join(pa_cfg)
+
+        dev_port_assignments = []
+        device_obj = node_objs.get(device_id, None) or inst_objs.get(device_id, None)
+        if device_obj:
+            dev_port_assignments.append(create_device_port_assignments_cfg(device_obj))
+            if recurse:
+                for dev_id in self.ooi_loader.child_devices.get(device_obj["id"], []):
+                    dev_pa = self._create_port_assignments(dev_id)
+                    if dev_pa:
+                        dev_port_assignments.append(dev_pa)
+
+        port_assignments = ",".join(dev_port_assignments)
+        return port_assignments
+
     def _load_Deployment_OOI(self):
         node_objs = self.ooi_loader.get_type_assets("node")
         inst_objs = self.ooi_loader.get_type_assets("instrument")
@@ -3570,7 +3651,10 @@ Reason: %s
             newrow[COL_ID] = node_id + "_DEP"
             newrow['site_id'] = node_id
             newrow['device_id'] = node_id + "_PD"
-            newrow['activate'] = "FALSE"
+            if self._is_deployed(node_obj) and self.ooiactivate and ooi_rd.node_type not in ("FM", ):
+                newrow['activate'] = "TRUE"
+            else:
+                newrow['activate'] = "FALSE"
             newrow['d/name'] = "Deployment of platform " + node_id
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
@@ -3580,14 +3664,15 @@ Reason: %s
 
             if self._is_cabled(ooi_rd):
                 newrow['context_type'] = 'CabledNodeDeploymentContext'
+                #newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=False)
             elif ooi_rd.node_type in ("AV", "GL"):
                 newrow['context_type'] = 'MobileAssetDeploymentContext'
+                #newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=True)
             else:
                 newrow['context_type'] = 'RemotePlatformDeploymentContext'
+                #newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=True)
 
-            # TODO: Activate past deployments (e.g. RSN primary node)
-
-            log.debug("Create (not activated) Deployment for PD %s (%s)", node_id, newrow['context_type'])
+            log.debug("Create activate=%s Deployment for PD %s", newrow['activate'], node_id)
             self._load_Deployment(newrow)
 
         # II. Instrument deployments (RSN and cabled EA only)
@@ -3617,7 +3702,10 @@ Reason: %s
             newrow[COL_ID] = inst_id + "_DEP"
             newrow['site_id'] = inst_id
             newrow['device_id'] = inst_id + "_ID"
-            newrow['activate'] = "FALSE"
+            if self._is_deployed(inst_obj) and self.ooiactivate:
+                newrow['activate'] = "TRUE"
+            else:
+                newrow['activate'] = "FALSE"
             newrow['d/name'] = "Deployment of instrument " + inst_id
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
@@ -3625,9 +3713,9 @@ Reason: %s
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['context_type'] = 'CabledInstrumentDeploymentContext'
             newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+            #newrow['port_assignment'] = self._create_port_assignments(inst_id, recurse=False)
 
-            #log.debug("Create & activate Deployment for ID %s", inst_id)
-            log.debug("Create (not activated) Deployment for ID %s", inst_id)
+            log.debug("Create activate=%s Deployment for ID %s", newrow['activate'], inst_id)
             self._load_Deployment(newrow)
 
     def _load_Scheduler(self, row):
@@ -3644,7 +3732,7 @@ Reason: %s
             list_of_strings = times_of_day_string.strip().split(',')
             for string in list_of_strings:
                 HH, MM, SS = string.strip().split(':')
-                times_of_day.append( {'hour':HH, 'minute':MM, 'second':SS} )
+                times_of_day.append({'hour': HH, 'minute': MM, 'second': SS})
 
             expires = row['expires']
             tag = client.create_time_of_day_timer(times_of_day=times_of_day,  expires=expires, event_origin=event_origin, event_subtype=event_subtype)

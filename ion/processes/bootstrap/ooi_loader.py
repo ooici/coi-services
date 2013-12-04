@@ -107,7 +107,7 @@ class OOILoader(object):
                 reader = csv.DictReader(csv_doc, delimiter=',')
             else:
                 filename = "%s/%s.csv" % (self.asset_path, category)
-                log.debug("Loading category %s from file %s", category, filename)
+                #log.debug("Loading category %s from file %s", category, filename)
                 try:
                     csvfile = open(filename, "rb")
                     for i in xrange(9):
@@ -134,8 +134,8 @@ class OOILoader(object):
         if self.warnings:
             log.warn("WARNINGS:\n%s", "\n".join(["%s: %s" % (a, b) for a, b in self.warnings]))
 
-        for ot, oo in self.ooi_objects.iteritems():
-            log.info("Type %s has %s entries", ot, len(oo))
+        log.info("Found entries: %s", ", ".join(["%s: %s" % (ot, len(self.ooi_objects[ot])) for ot in sorted(self.ooi_objects.keys())]))
+
             #import pprint
             #pprint.pprint(oo)
             #log.debug("Type %s has %s attributes", ot, self.ooi_obj_attrs[ot])
@@ -474,11 +474,24 @@ class OOILoader(object):
             uplink_node=row['Uplink Node'],
             uplink_port=row['Uplink Port'],
             deployment_start=row['Start Deployment Cruise'],
+            in_mapping=True,
         )
         self._add_object_attribute('node',
             ooi_rd, None, None, **node_entry)
         self._add_object_attribute('node',
             ooi_rd, 'name', name, change_ok=True)
+
+        node_entry = {}
+        if row["lat"] or row["lon"] or row["depth"]:
+            #log.debug("Use updated geospatial info from mapping spreadsheet for %s", ooi_rd)
+            if row["lat"]:
+                node_entry["latitude"] = row["lat"]
+            if row["lon"]:
+                node_entry["longitude"] = row["lon"]
+            if row["depth"]:
+                node_entry["depth_subsite"] = row["depth"]
+            self._add_object_attribute('node',
+                ooi_rd, None, None, change_ok=True, **node_entry)
 
         # Determine on which arrays the nodetype is used
         self._add_object_attribute('nodetype',
@@ -488,13 +501,15 @@ class OOILoader(object):
         code = row['Code']
         name = row['Name']
         pa_code = row['PA Code']
+        platform_family = row['Platform Family']
+        platform_type = row['Platform Type']
 
         # Only add new stuff from spreadsheet
         if code not in self.ooi_objects['nodetype']:
             self._add_object_attribute('nodetype',
                 code, None, None, name=name)
         self._add_object_attribute('nodetype',
-            code, None, None, pa_code=pa_code)
+            code, None, None, pa_code=pa_code, platform_family=platform_family, platform_type=platform_type)
 
     def _parse_PlatformAgents(self, row):
         code = row['Code']
@@ -649,6 +664,23 @@ class OOILoader(object):
             raise Exception("Invalid date string: %s" % datestr)
         return res_date
 
+    def _get_child_devices(self):
+        """Returns a dict of device to child device ids (nodes and instruments)"""
+        node_objs = self.get_type_assets("node")
+        inst_objs = self.get_type_assets("instrument")
+
+        res_tree = {}
+
+        for node_id, node_obj in node_objs.iteritems():
+            parent_id = node_obj.get("parent_id", None)
+            if node_id != parent_id:
+                res_tree.setdefault(parent_id, []).append(node_id)
+        for inst_id, inst_obj in inst_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(inst_id)
+            res_tree.setdefault(ooi_rd.node_rd, []).append(inst_id)
+
+        return res_tree
+
     def _post_process(self):
         node_objs = self.get_type_assets("node")
         nodetypes = self.get_type_assets('nodetype')
@@ -692,15 +724,31 @@ class OOILoader(object):
             osite.update(bbox)
             osite['rd'] = site_rd_list[0]
 
+        self.child_devices = self._get_child_devices()
+
         # Post-process "node" objects:
         # - Make sure all nodes have a name, geospatial coordinates and platform agent connection info
         # - Convert available node First Deploy Date and override date into datetime objects
         for node_id, node_obj in node_objs.iteritems():
+            if not node_obj.get("in_mapping", False):
+                log.warn("Node %s has no entry in mapping spreadsheet", node_id)
             if not node_obj.get('name', None):
                 name = subsites[node_id[:8]]['name'] + " - " + nodetypes[node_id[9:11]]['name']
                 node_obj['name'] = name
             if not node_obj.get('latitude', None):
-                pass
+                # Get bbox from child devices
+                ch_nodes = self.child_devices.get(node_id, [])  # This gets child nodes and instruments
+                node_lats = [float(node_objs[nid]["latitude"]) for nid in ch_nodes if node_objs[nid].get("latitude", None)]
+                node_lons = [float(node_objs[nid]["longitude"]) for nid in ch_nodes if node_objs[nid].get("longitude", None)]
+                node_deps = [float(node_objs[nid]["depth_subsite"]) for nid in ch_nodes if node_objs[nid].get("depth_subsite", None)]
+                if not node_obj.get("latitude", None) and node_lats:
+                    node_obj["latitude"] = str(min(node_lats)) + "," + str(max(node_lats))
+                if not node_obj.get("longitude", None) and node_lons:
+                    node_obj["longitude"] = str(min(node_lons)) + "," + str(max(node_lons))
+                if not node_obj.get("depth_subsite", None) and node_deps:
+                    node_obj["depth_subsite"] = str(min(node_deps)) + "," + str(max(node_deps))
+            if not node_obj.get('latitude', None):
+                log.warn("Node %s has no geospatial info", node_id)
 
             pagent_type = node_obj.get('platform_agent_type', "")
             pagent_obj = pagent_objs.get(pagent_type, None)
@@ -714,7 +762,7 @@ class OOILoader(object):
 
             if 'deployment_start' not in node_obj:
                 log.warn("Node %s appears not in mapping spreadsheet - inconsistency?!", node_id)
-                # Parse SAF date
+            # Parse SAF date
             node_deploy_date = node_obj.get('First Deployment Date', None)
             node_obj['SAF_deploy_date'] = self._parse_date(node_deploy_date, DEFAULT_MAX_DATE)
             # Parse override date if available or set to SAF date
@@ -742,13 +790,18 @@ class OOILoader(object):
             pagent_type = node_obj['platform_agent_type']
             pagent_obj = pagent_objs[pagent_type]
 
+            # Make sure geospatial values are set or inherited from node
+            inst_obj['latitude'] = inst_obj['latitude'] or node_obj['latitude']
+            inst_obj['longitude'] = inst_obj['longitude'] or node_obj['longitude']
+            inst_obj['depth_port_min'] = inst_obj['depth_port_min'] or node_obj['depth_subsite'].split(",", 1)[0]
+            inst_obj['depth_port_max'] = inst_obj['depth_port_max'] or node_obj['depth_subsite'].split(",", 1)[-1]
+
             instrument_agent_rt = (pagent_obj['rt_data_path'] == "Direct") and series_obj['ia_exists']
             data_agent_rt = (pagent_obj['rt_data_path'] == "File Transfer") and series_obj['dart_exists']
             data_agent_recovery = pagent_obj['rt_data_acquisition'] == "Partial" or not (series_obj['ia_exists'] or series_obj['dart_exists'])
             inst_obj['ia_rt_data'] = instrument_agent_rt
             inst_obj['da_rt'] = data_agent_rt
             inst_obj['da_pr'] = data_agent_recovery
-
 
 
     def get_marine_io(self, ooi_rd_str):

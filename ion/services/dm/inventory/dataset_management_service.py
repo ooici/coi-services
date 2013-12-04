@@ -450,6 +450,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         pd_res = dms_cli.read_parameter_dictionary_by_name(name=name, id_only=True)
         return cls.get_parameter_dictionary(pd_res)
 
+
+#--------
+
+    def create_parameters_mult(self, parameter_function_list=None, parameter_context_list=None,
+                               parameter_dictionary_list=None, parameter_dictionary_assocs=None):
+        pass
+
 #--------
 
     def _link_pcr_to_pdr(self, pcr_id, pdr_id):
