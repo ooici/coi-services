@@ -38,9 +38,7 @@ class RegistrationProcess(StandaloneProcess):
         self.setup_filesystem(real_path)
 
 
-        self.ux_url = 'http://%s:%s%s' % (self.CFG.get_safe('server.ux.host','localhost'),
-                                           self.CFG.get_safe('server.ux.port', '3000'),
-                                           self.CFG.get_safe('server.ux.webprefix', ''))
+        self.ux_url = self.CFG.get_safe('system.web_ui_url','http://localhost:3000/')
 
     def setup_filesystem(self, path):
         if os.path.exists(os.path.join(path,'datasets.xml')):
@@ -182,7 +180,7 @@ class RegistrationProcess(StandaloneProcess):
 
             atts = {}
             atts['title'] = product_name or urllib.unquote(cov.name)
-            atts['infoUrl'] = self.ux_url + '/DataProduct/face/' + product_id
+            atts['infoUrl'] = self.ux_url + 'DataProduct/face/' + product_id
             atts['institution'] = 'OOI'
             atts['Conventions'] = "COARDS, CF-1.6, Unidata Dataset Discovery v1.0"
             atts['license'] = '''These data were collected by the Ocean Observatory Initiative (OOI) project purely for internal system development purposes during the construction phase of the project and are offered for release to the public with no assurance of data quality, consistency, temporal continuity or additional support. The OOI Program assumes no liability resulting from the use of these data for other than the intended purpose. No data quality assurance steps have been implemented on this data to date.'''
