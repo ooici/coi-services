@@ -37,6 +37,9 @@ class RegistrationProcess(StandaloneProcess):
         self.datasets_xml_path = os.path.join(real_path, filename)
         self.setup_filesystem(real_path)
 
+
+        self.ux_url = self.CFG.get_safe('system.web_ui_url','http://localhost:3000/')
+
     def setup_filesystem(self, path):
         if os.path.exists(os.path.join(path,'datasets.xml')):
             return
@@ -177,10 +180,10 @@ class RegistrationProcess(StandaloneProcess):
 
             atts = {}
             atts['title'] = product_name or urllib.unquote(cov.name)
-            atts['infoUrl'] = self.pydap_url + paths[1]
+            atts['infoUrl'] = self.ux_url + 'DataProduct/face/' + product_id
             atts['institution'] = 'OOI'
             atts['Conventions'] = "COARDS, CF-1.6, Unidata Dataset Discovery v1.0"
-            atts['license'] = '[standard]'
+            atts['license'] = '''These data were collected by the Ocean Observatory Initiative (OOI) project purely for internal system development purposes during the construction phase of the project and are offered for release to the public with no assurance of data quality, consistency, temporal continuity or additional support. The OOI Program assumes no liability resulting from the use of these data for other than the intended purpose. No data quality assurance steps have been implemented on this data to date.'''
             atts['summary'] = cov.name
             atts['cdm_data_type'] = 'Other'
             atts['standard_name_vocabulary'] = 'CF-12'
