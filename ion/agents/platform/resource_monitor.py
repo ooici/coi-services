@@ -140,10 +140,14 @@ class ResourceMonitor(object):
         # CGSN so eventually adjustments may be needed.
         #
 
-        current_time_secs = current_time_millis() / 1000.0
+        # note that the "from_time" parameter in each pair (attr_id, from_time)
+        # for the _get_attribute_values call below, is in millis in UNIX epoch.
+
+        curr_time_millis = current_time_millis()
 
         # minimum value for the from_time parameter (OOIION-1372):
-        min_from_time = current_time_secs - _MULT_INTERVAL * self._rate_secs
+        min_from_time = curr_time_millis - 1000 * _MULT_INTERVAL * self._rate_secs
+        # this corresponds to (_MULT_INTERVAL * self._rate_secs) ago.
 
         # determine each from_time for the request:
         attrs = []
@@ -155,12 +159,14 @@ class ResourceMonitor(object):
             else:
                 # We've already got values for this attribute. Use the latest
                 # timestamp + _DELTA_TIME as a basis for the new request:
-                from_time_millis = int(self._last_ts_millis[attr_id]) + _DELTA_TIME
-                from_time = from_time_millis / 1000.0
+                from_time = int(self._last_ts_millis[attr_id]) + _DELTA_TIME
 
                 # but adjust it if it goes too far in the past:
                 if from_time < min_from_time:
                     from_time = min_from_time
+
+            log.trace("test_resource_monitoring_recent: attr_id=%s, from_time=%s, %s millis ago",
+                      attr_id, from_time, curr_time_millis - from_time)
 
             attrs.append((attr_id, from_time))
 
