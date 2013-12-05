@@ -23,7 +23,7 @@ import unittest
 ###############################################################################
 
 
-@attr('INT', group='mi')
+@attr('INT', group='sa')
 class HypmCTDTest(DatasetAgentTestCase):
     """
     Verify dataset agent can harvest data fails, parse the date, publish,
