@@ -19,6 +19,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_get_set_resources
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_some_commands
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring_recent
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_external_event_dispatch
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_connect_disconnect_instrument
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_check_sync
@@ -50,8 +51,10 @@ from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverState
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.public import IonObject
+from pyon.util.containers import current_time_millis
+from ion.agents.platform.util import ntp_2_ion_ts
 
 from gevent import sleep
 from gevent.event import AsyncResult
@@ -88,7 +91,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             #self.p_root = self._create_small_hierarchy()
             instr_keys = ["SBE37_SIM_01", ]
             self.p_root = self._set_up_small_hierarchy_with_some_instruments(instr_keys)
-            
+
         elif self.PLATFORM_ID == 'LJ01D':
             self.p_root = self._create_single_platform()
 
@@ -302,7 +305,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
 
         def verify_schema(caps_list):
-            
+
             dd_list = ['display_name','description']
             ddt_list = ['display_name','description','type']
             ddvt_list = ['display_name','description','visibility','type']
@@ -310,13 +313,13 @@ class TestPlatformAgent(BaseIntTestPlatform):
             kkvt_res_list = ['display_name', 'description', 'visibility',
                              'type, monitor_cycle_seconds', 'precision',
                              'min_val', 'max_val', 'units', 'group']
-            stream_list = ['tdb', 'tdbtdb']              
-            
+            stream_list = ['tdb', 'tdbtdb']
+
             for x in caps_list:
                 if isinstance(x,dict):
                     x.pop('type_')
                     x = IonObject('AgentCapability', **x)
-                
+
                 try:
                     if x.cap_type == CapabilityType.AGT_CMD:
                         if x['name'] == 'example':
@@ -324,39 +327,39 @@ class TestPlatformAgent(BaseIntTestPlatform):
                         keys = x.schema.keys()
                         for y in ddak_list:
                             self.assertIn(y, keys)
-                        
+
                     elif x.cap_type == CapabilityType.AGT_PAR:
                             if x.name != 'example':
                                 keys = x.schema.keys()
                                 for y in ddvt_list:
                                     self.assertIn(y, keys)
-                            
+
                     elif x.cap_type == CapabilityType.RES_CMD:
                         keys = x.schema.keys()
                         for y in ddak_list:
                             self.assertIn(y, keys)
-                   
+
                     elif x.cap_type == CapabilityType.RES_IFACE:
                         pass
-    
+
                     elif x.cap_type == CapabilityType.RES_PAR:
                         pass
                         #keys = x.schema.keys()
                         #for y in kkvt_res_list:
                         #    self.assertIn(y, keys)
-                            
+
                     elif x.cap_type == CapabilityType.AGT_STATES:
                         for (k,v) in x.schema.iteritems():
                             keys = v.keys()
                             for y in dd_list:
                                 self.assertIn(y, keys)
-                    
+
                     elif x.cap_type == CapabilityType.ALERT_DEFS:
                         for (k,v) in x.schema.iteritems():
                             keys = v.keys()
                             for y in ddt_list:
                                 self.assertIn(y, keys)
-                                    
+
                     elif x.cap_type == CapabilityType.AGT_CMD_ARGS:
                         pass
                         """
@@ -365,7 +368,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
                             for y in ddt_list:
                                 self.assertIn(y, keys)
                         """
-                    
+
                     elif x.cap_type == CapabilityType.AGT_STREAMS:
                         pass
                         #keys = x.schema.keys()
@@ -375,7 +378,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
                 except:
                     print '### ERROR verifying schema for'
                     print x['name']
-                    raise                    
+                    raise
 
         agt_pars_all = [
             'example',
@@ -639,7 +642,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._initialize()   # -> INACTIVE
         self._go_active()    # -> IDLE
         self._reset()        # -> UNINITIALIZED        """
-        
+
         self._initialize()   # -> INACTIVE
         self._go_active()    # -> IDLE
         self._run()          # -> COMMAND
@@ -682,6 +685,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
             self._get_connected_instruments(port_id)
 
     def test_resource_monitoring(self):
+        #
+        # Basic test for resource monitoring: starts monitoring, waits for
+        # a sample to be published, and stops resource monitoring.
+        #
         self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
@@ -695,15 +702,103 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._wait_for_a_data_sample()
         self._stop_resource_monitoring()
 
-        """
-        for x in self._samples_received:
-            print '########################## sample:'
-            rdt = RecordDictionaryTool.load_from_granule(x)
-            fields = rdt.fields
-            for y in fields:
-                print '%s : %s' % (str(y), str(rdt[y]))
-        """
-        
+    def test_resource_monitoring_recent(self):
+        #
+        # https://jira.oceanobservatories.org/tasks/browse/OOIION-1372
+        #
+        # Verifies that the requests for attribute values are always for
+        # the most recent ones, meaning that the retrieved values should *not*
+        # be older than a small multiple of the nominal monitoring rate, even
+        # after a long period in non-monitoring state.
+        # See ResourceMonitor._retrieve_attribute_values
+        #
+
+        # start this test as in test_resource_monitoring()
+        self.test_resource_monitoring()
+        # which completes right after stopping monitoring. We want that initial
+        # start/stop-monitoring phase to make this test more comprehensive.
+        self._assert_state(PlatformAgentState.COMMAND)
+
+        # now, the rest of this test does the following:
+        # - pick an attribute to use as a basis for the time parameters to
+        #   be used in the test
+        # - wait for a while in the current non-monitoring mode
+        # - re-enable monitoring
+        # - wait for a sample to be published
+        # - verify that new received data sample is "recent"
+        # - stop monitoring
+
+        # first, use an attribute (from the root platform being tested) with
+        # a minimal monitoring rate, since that attribute should be reported
+        # in a first sample received after re-enabling the monitoring.
+        attr = None
+        for attr_id, plat_attr in self._platform_attributes[self.PLATFORM_ID].iteritems():
+            if attr is None or \
+               float(plat_attr['monitor_cycle_seconds']) < float(attr['monitor_cycle_seconds']):
+                attr = plat_attr
+
+        self.assertIsNotNone(attr,
+                             "some attribute expected to be defined for %r to "
+                             "actually proceed with this test" % self.PLATFORM_ID)
+
+        attr_id = attr['attr_id']
+        monitor_cycle_seconds = attr['monitor_cycle_seconds']
+        log.info("test_resource_monitoring_recent: using attr_id=%r: monitor_cycle_seconds=%s",
+                 attr_id, monitor_cycle_seconds)
+
+        # sleep for twice the interval defining "recent":
+        from ion.agents.platform.resource_monitor import _MULT_INTERVAL
+        time_to_sleep = 2 * (_MULT_INTERVAL * monitor_cycle_seconds)
+        log.info("test_resource_monitoring_recent: sleeping for %s secs "
+                 "before resuming monitoring", time_to_sleep)
+        sleep(time_to_sleep)
+
+        # reset the variables associated with the _wait_for_a_data_sample call below:
+        self._samples_received = []
+        self._async_data_result = AsyncResult()
+
+        #################################################
+        # re-start monitoring and wait for new sample:
+        log.info("test_resource_monitoring_recent: re-starting monitoring")
+        self._start_resource_monitoring(recursion=False)
+        # should also work with recursion to children but set recursion=False
+        # to avoid wasting the extra time in this test.
+
+        try:
+            self._wait_for_a_data_sample()
+
+            # get current time here (right after receiving sample) for comparison below:
+            curr_time_millis = current_time_millis()
+
+            # verify that the timestamp of the received sample is not too old.
+            # For this, use the minimum of the reported timestamps:
+            rdt = RecordDictionaryTool.load_from_granule(self._samples_received[0])
+            log.trace("test_resource_monitoring_recent: rdt:\n%s", rdt.pretty_print())
+            temporal_parameter_name = rdt.temporal_parameter
+            times = rdt[temporal_parameter_name]
+            log.trace("test_resource_monitoring_recent: times:\n%s", self._pp.pformat(times))
+
+            # minimum reported timestamp (note the NTP -> ION_time conversion):
+            min_reported_time_ntp = min(times)
+            min_reported_time_millis = float(ntp_2_ion_ts(min_reported_time_ntp))
+            log.info("test_resource_monitoring_recent: sample received, min_reported_time_millis=%s",
+                     int(min_reported_time_millis))
+
+            # finally verify that it is actually not older than the small multiple
+            # of monitor_cycle_seconds plus some additional tolerance (which is
+            # arbitrarily set here to 10 secs):
+            lower_limit_millis = \
+                curr_time_millis - 1000 * (_MULT_INTERVAL * monitor_cycle_seconds + 10)
+
+            self.assertGreaterEqual(
+                min_reported_time_millis, lower_limit_millis,
+                "min_reported_time_millis=%s must be >= %s. Diff=%s millis" % (
+                min_reported_time_millis, lower_limit_millis,
+                min_reported_time_millis - lower_limit_millis))
+
+        finally:
+            self._stop_resource_monitoring(recursion=False)
+
     def test_external_event_dispatch(self):
         self._create_network_and_start_root_platform()
 
