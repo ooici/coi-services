@@ -23,8 +23,14 @@ __license__ = 'Apache 2.0'
 
 # developer conveniences:
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_deployed_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_hierarchy
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_hierarchy_recursion_false
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform_with_an_instrument
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_ims_instrument_status
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_ims_platform_status
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform_with_an_instrument_and_deployments
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform_with_instruments_streaming
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_instrument_first_then_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_1_instrument
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_2_instruments
@@ -58,18 +64,18 @@ class FakeProcess(LocalContextMixin):
 @unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestPlatformLaunch(BaseIntTestPlatform):
 
-    def _run_startup_commands(self):
+    def _run_startup_commands(self, recursion=True):
         self._ping_agent()
-        self._initialize()
-        self._go_active()
-        self._run()
+        self._initialize(recursion)
+        self._go_active(recursion)
+        self._run(recursion)
 
-    def _run_shutdown_commands(self):
+    def _run_shutdown_commands(self, recursion=True):
         try:
-            self._go_inactive()
-            self._reset()
+            self._go_inactive(recursion)
+            self._reset(recursion)
         finally:  # attempt shutdown anyway
-            self._shutdown()
+            self._shutdown(True)  # NOTE: shutdown always with recursion=True
 
     def test_single_platform(self):
         #
@@ -121,6 +127,27 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self.addCleanup(self._run_shutdown_commands)
 
         self._run_startup_commands()
+
+    def test_hierarchy_recursion_false(self):
+        #
+        # As with test_hierarchy but with recursion=False.
+        # There are no particular asserts here, but the test should complete
+        # fine and the logs should show that the recursion parameter is properly
+        # reflected with value false in the root platform, except for the
+        # final shutdown as we want a graceful shutdown of the whole hierarchy.
+        #
+        self._set_receive_timeout()
+
+        p_root = self._create_small_hierarchy()
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+
+        def shutdown_commands():
+            self._run_shutdown_commands(recursion=False)
+
+        self.addCleanup(shutdown_commands)
+
+        self._run_startup_commands(recursion=False)
 
     def test_single_platform_with_an_instrument(self):
         #
