@@ -560,6 +560,7 @@ class DiscoveryService(BaseDiscoveryService):
                 field        = query['field'],
                 top_left     = query['top_left'],
                 bottom_right = query['bottom_right'],
+                limit        = limit,
                 id_only      = id_only,
             )
             if query.get('limit'):
