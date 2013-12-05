@@ -976,8 +976,8 @@ class TestDMExtended(DMTestCase):
         self.assertTrue(dataset_monitor.event.wait(30))
         dataset_monitor.event.clear()
 
-        self.strap_erddap()
-        #self.preload_ui()
+        self.strap_erddap(data_product_id)
+        self.preload_ui()
         breakpoint(locals(), globals())
 
     @attr("UTIL")
