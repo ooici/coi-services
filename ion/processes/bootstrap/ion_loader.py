@@ -1686,6 +1686,7 @@ class IONLoader(ImmediateProcess):
             uplink_node = ooi_obj.get('uplink_node', None)
             uplink_port = ooi_obj.get('uplink_port', None)
             if uplink_node and uplink_port:
+                # Case of a manually specified port assignment for RSN nodes
                 if uplink_port.startswith("X"):
                     newrow['ps/planned_uplink_port/port_type'] = "EXPANSION"
                     port_rd = "%s-0%s" % (uplink_node, uplink_port[1:])
@@ -1693,6 +1694,13 @@ class IONLoader(ImmediateProcess):
                     newrow['ps/planned_uplink_port/port_type'] = "PAYLOAD"
                     port_rd = "%s-%s" % (uplink_node, uplink_port)
                 newrow['ps/planned_uplink_port/reference_designator'] = port_rd
+            elif not ooi_obj.get('is_platform', False):
+                # Case of a CG assembly and NOT platform level node
+                newrow['ps/planned_uplink_port/port_type'] = "ASSEMBLY"
+                newrow['ps/planned_uplink_port/reference_designator'] = ooi_obj.get('parent_id', '')
+            else:
+                newrow['ps/planned_uplink_port/port_type'] = "NONE"
+                newrow['ps/planned_uplink_port/reference_designator'] = ""
 
             if not self._match_filter(ooi_id[:2]):
                 return
@@ -3595,6 +3603,9 @@ Reason: %s
 
 
     def _create_port_assignments(self, device_id, recurse=True):
+        if "OVERRIDE UNTIL FIXED":
+            return ""
+
         node_objs = self.ooi_loader.get_type_assets("node")
         inst_objs = self.ooi_loader.get_type_assets("instrument")
 
@@ -3664,13 +3675,13 @@ Reason: %s
 
             if self._is_cabled(ooi_rd):
                 newrow['context_type'] = 'CabledNodeDeploymentContext'
-                #newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=False)
+                newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=False)
             elif ooi_rd.node_type in ("AV", "GL"):
                 newrow['context_type'] = 'MobileAssetDeploymentContext'
-                #newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=True)
+                newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=True)
             else:
                 newrow['context_type'] = 'RemotePlatformDeploymentContext'
-                #newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=True)
+                newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=True)
 
             log.debug("Create activate=%s Deployment for PD %s", newrow['activate'], node_id)
             self._load_Deployment(newrow)
@@ -3713,7 +3724,7 @@ Reason: %s
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['context_type'] = 'CabledInstrumentDeploymentContext'
             newrow['lcstate'] = "DEPLOYED_AVAILABLE"
-            #newrow['port_assignment'] = self._create_port_assignments(inst_id, recurse=False)
+            newrow['port_assignment'] = self._create_port_assignments(inst_id, recurse=False)
 
             log.debug("Create activate=%s Deployment for ID %s", newrow['activate'], inst_id)
             self._load_Deployment(newrow)
