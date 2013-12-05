@@ -1212,6 +1212,12 @@ class PlatformAgent(ResourceAgent):
     def _get_recursion_parameter(self, method_name, *args, **kwargs):
         """
         Utility to extract the 'recursion' parameter.
+
+        @param method_name   for logging purposes
+        @param *args         as received by FSM handler (not used)
+        @param *kwargs       as received by FSM handler
+        @return              The boolean value of the 'recursion' parameter in
+                             kwargs; True by default.
         """
         recursion = kwargs.get('recursion', None)
         if recursion is None:
@@ -2982,7 +2988,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_uninitialized_initialize", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_uninitialized_initialize", *args, **kwargs)
 
         next_state = PlatformAgentState.INACTIVE
         result = self._initialize(recursion)
@@ -3000,7 +3006,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_inactive_reset", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_inactive_reset", *args, **kwargs)
 
         next_state = PlatformAgentState.UNINITIALIZED
         result = self._reset(recursion)
@@ -3017,7 +3023,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_inactive_go_active", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_inactive_go_active", *args, **kwargs)
 
         next_state = PlatformAgentState.IDLE
         result = self._go_active(recursion)
@@ -3035,7 +3041,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_idle_reset", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_idle_reset", *args, **kwargs)
 
         next_state = PlatformAgentState.UNINITIALIZED
         result = self._reset(recursion)
@@ -3052,7 +3058,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_idle_go_inactive", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_idle_go_inactive", *args, **kwargs)
 
         next_state = PlatformAgentState.INACTIVE
         result = self._go_inactive(recursion)
@@ -3069,7 +3075,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_idle_run", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_idle_run", *args, **kwargs)
 
         next_state = PlatformAgentState.COMMAND
         result = self._run(recursion)
@@ -3087,7 +3093,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_stopped_reset", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_stopped_reset", *args, **kwargs)
 
         next_state = PlatformAgentState.UNINITIALIZED
         result = self._reset(recursion)
@@ -3104,7 +3110,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                       self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_stopped_go_inactive", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_stopped_go_inactive", *args, **kwargs)
 
         next_state = PlatformAgentState.INACTIVE
         result = self._go_inactive(recursion)
@@ -3122,7 +3128,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_stopped_resume", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_stopped_resume", *args, **kwargs)
 
         next_state = PlatformAgentState.COMMAND
         result = self._resume(recursion)
@@ -3140,7 +3146,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_stopped_clear", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_stopped_clear", *args, **kwargs)
 
         next_state = PlatformAgentState.IDLE
         result = self._clear(recursion)
@@ -3161,7 +3167,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_command_reset", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_command_reset", *args, **kwargs)
 
         next_state = PlatformAgentState.UNINITIALIZED
         result = self._reset(recursion)
@@ -3179,7 +3185,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_command_clear", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_command_clear", *args, **kwargs)
 
         next_state = PlatformAgentState.IDLE
         result = self._clear(recursion)
@@ -3197,7 +3203,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_command_pause", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_command_pause", *args, **kwargs)
 
         next_state = PlatformAgentState.STOPPED
         result = self._pause(recursion)
@@ -3314,7 +3320,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_command_start_resource_monitoring", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_start_resource_monitoring", *args, **kwargs)
 
         try:
             result = self._start_resource_monitoring(recursion)
@@ -3335,7 +3341,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_command_stop_resource_monitoring", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_stop_resource_monitoring", *args, **kwargs)
 
         try:
             result = self._stop_resource_monitoring(recursion)
@@ -3412,7 +3418,7 @@ class PlatformAgent(ResourceAgent):
             return None, None
 
         if self._state_when_lost == PlatformAgentState.MONITORING:
-            recursion = self._get_recursion_parameter("_handler_lost_connection_autoreconnect", args, kwargs)
+            recursion = self._get_recursion_parameter("_handler_lost_connection_autoreconnect", *args, **kwargs)
             self._start_resource_monitoring(recursion)
 
         next_state = self._state_when_lost
@@ -3429,7 +3435,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                       self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_lost_connection_reset", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_lost_connection_reset", *args, **kwargs)
 
         next_state = PlatformAgentState.UNINITIALIZED
         result = self._reset(recursion)
@@ -3446,7 +3452,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                       self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_lost_connection_go_inactive", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_lost_connection_go_inactive", *args, **kwargs)
 
         next_state = PlatformAgentState.INACTIVE
         result = self._go_inactive(recursion)
@@ -3484,7 +3490,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                       self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_shutdown", args, kwargs)
+        recursion = self._get_recursion_parameter("_handler_shutdown", *args, **kwargs)
 
         next_state = PlatformAgentState.UNINITIALIZED
         result = self._shutdown(recursion)
@@ -3632,4 +3638,3 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.AUTORECONNECT, self._handler_lost_connection_autoreconnect)
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GO_INACTIVE, self._handler_lost_connection_go_inactive)
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
-
