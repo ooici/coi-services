@@ -4,7 +4,7 @@
 @package ion.agents.platform.platform_resource_monitor
 @file    ion/agents/platform/platform_resource_monitor.py
 @author  Carlos Rueda
-@brief   Platform resource monitoring
+@brief   Platform resource monitoring handling for all the associated attributes
 """
 
 __author__ = 'Carlos Rueda'
