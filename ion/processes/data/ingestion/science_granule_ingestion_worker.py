@@ -223,6 +223,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
             # How about the last value?
 
             rough_size += len(rdt) * 4
+            doc['size'] = rough_size
         # Sanitize it
         doc = numpy_walk(doc)
         object_store.update_doc(doc)
