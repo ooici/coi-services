@@ -174,6 +174,11 @@ class VizTransformHighChartsAlgorithm(SimpleGranuleTransformFunction):
             # Handle arrays by spliting them them in to individual parameters
             context = rdt.context(field)
             if (isinstance(context.param_type, ArrayType) or isinstance(context.param_type,ParameterFunctionType)) and len(rdt_field.shape)>1:
+
+                # Ignore any field with array dimensionality greater than 2 for now.
+                if len(rdt_field.shape)>2:
+                    continue
+
                 if (rdt_field.dtype == 'string' or rdt_field.dtype not in hc_allowed_numerical_types):
                     for i in xrange(rdt_field.shape[1]):
                         series = {}
