@@ -2,22 +2,22 @@
 
 """Helper for observatory and device computed attributes, including aggregate status values"""
 
-__author__ = 'Michael Meisinger, Maurice Manning, Ian Katz'
-
+__author__ = 'Michael Meisinger, Maurice Manning'
 
 from pyon.core import bootstrap
 from pyon.core.exception import BadRequest
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, log
 
-from interface.objects import DeviceStatusType
+from interface.objects import DeviceStatusType, AggregateStatusType
 
 
 class ObservatoryUtil(object):
-    def __init__(self, process=None, container=None, enhanced_rr=None):
+    def __init__(self, process=None, container=None, enhanced_rr=None, device_status_mgr=None):
         self.process = process
         self.container = container or bootstrap.container_instance
         self.RR2 = enhanced_rr
         self.RR = enhanced_rr or self.container.resource_registry if self.container else None
+        self.device_status_mgr = device_status_mgr
 
 
     # -------------------------------------------------------------------------
@@ -178,6 +178,9 @@ class ObservatoryUtil(object):
         return sites
 
     def get_child_devices(self, device_id, assoc_list=None):
+        """Returns a dict of keys device_id and all children of device_id to
+        lists of 3-tuples (parent type, child id, child type
+        """
         child_devices = self._get_child_devices(assoc_list=assoc_list)
         all_children = set([device_id])
         def add_children(dev_id):
@@ -189,8 +192,9 @@ class ObservatoryUtil(object):
         for dev_id in list(child_devices.keys()):
             if dev_id not in all_children:
                 del child_devices[dev_id]
-        if device_id not in child_devices:
-            child_devices[device_id] = []
+        for dev_id in all_children:
+            if dev_id not in child_devices:
+                child_devices[dev_id] = []
         return child_devices
 
     def _get_child_devices(self, assoc_list=None):
@@ -226,36 +230,6 @@ class ObservatoryUtil(object):
         return parent_id
 
 
-    def _consolidate_status(self, statuses, warn_if_unknown=False):
-        """Intelligently merge statuses with current value"""
-
-        # Any critical means all critical
-        if DeviceStatusType.STATUS_CRITICAL in statuses:
-            return DeviceStatusType.STATUS_CRITICAL
-
-        # Any warning means all warning
-        if DeviceStatusType.STATUS_WARNING in statuses:
-            return DeviceStatusType.STATUS_WARNING
-
-        # Any unknown is fine unless some are ok -- then it's a warning
-        if DeviceStatusType.STATUS_OK in statuses:
-            if DeviceStatusType.STATUS_UNKNOWN in statuses and warn_if_unknown:
-                return DeviceStatusType.STATUS_WARNING
-            else:
-                return DeviceStatusType.STATUS_OK
-
-        # 0 results are OK, 0 or more are unknown
-        return DeviceStatusType.STATUS_UNKNOWN
-
-    def _rollup_statuses(self, status_list):
-        """For a list of child status dicts, compute the rollup statuses"""
-        rollup_status = {}
-        rollup_status['power'] = self._consolidate_status([stat['power'] for stat in status_list])
-        rollup_status['comms'] = self._consolidate_status([stat['comms'] for stat in status_list])
-        rollup_status['data'] = self._consolidate_status([stat['data'] for stat in status_list])
-        rollup_status['loc'] = self._consolidate_status([stat['loc'] for stat in status_list])
-        rollup_status['agg'] = self._consolidate_status(rollup_status.values())
-        return rollup_status
 
     # -------------------------------------------------------------------------
     # Finding data products
@@ -342,3 +316,173 @@ class ObservatoryUtil(object):
         )
 
         return res_dict
+
+
+    # -------------------------------------------------------------------------
+    # Status roll up
+
+    def get_status_roll_ups(self, res_id, res_type=None, include_structure=False):
+        """
+        For given parent device/site/org res_id compute the status roll ups.
+        The result is a dict of id with value dict of status values.
+        Includes all parents of given site as well.
+        """
+        if not res_type:
+            res_obj = self.container.resource_registry.read(res_id)
+            res_type = res_obj._get_type()
+
+        def get_site_status(site_id, status_rollup, site_ancestors, site_devices, status_by_device):
+            """For one site, compute the aggregate status and recurse to child sites if necessary"""
+            if site_id in status_rollup:
+                return status_rollup[site_id]   # If known return and don't recompute
+
+            ch_stat_list = []  # Status dicts to roll up into current
+            if site_ancestors.get(site_id, None):
+                for ch_id in site_ancestors[site_id]:
+                    ch_status = get_site_status(ch_id, status_rollup, site_ancestors, site_devices, status_by_device)
+                    status_rollup[ch_id] = ch_status
+                    ch_stat_list.append(ch_status)
+
+            # See if there is a device deployed -  include into rollup in addition to child sites
+            # Note: Only look at this device status, not roll-up status of all child devices
+            device_info = site_devices.get(site_id, None)
+            if device_info:
+                if len(device_info) == 1:
+                    device_id = device_info[0][1]
+                    d_status = self._compute_status(device_id, status_by_device)
+                    status_rollup[device_id] = d_status
+                    ch_stat_list.append(d_status)
+                else:
+                    raise BadRequest("More than one device found for site %s" % site_id)
+
+            status_rollup[site_id] = self._rollup_statuses(ch_stat_list)
+            return status_rollup[site_id]
+
+        def get_device_status(device_id, status_rollup, child_devices, status_by_device):
+            """For one device, compute the aggregate status and recurse to child devices if necessary"""
+
+            if device_id in status_rollup:
+                return status_rollup[device_id]
+
+            ch_stat_list = []
+            if child_devices.get(device_id, None):
+                for _,ch_id,_ in child_devices[device_id]:
+                    ch_status = get_device_status(ch_id, status_rollup, child_devices, status_by_device)
+                    status_rollup[ch_id] = ch_status
+                    ch_stat_list.append(ch_status)
+
+            d_status = self._compute_status(device_id, status_by_device)
+            ch_stat_list.append(d_status)
+
+            status_rollup[device_id] = self._rollup_statuses(ch_stat_list)
+            return status_rollup[device_id]
+
+
+        # Do the status rollup work. Different modes dependent on type of resource (org, site, device)
+        if res_type in {RT.Org, RT.Observatory, RT.Subsite, RT.PlatformSite, RT.InstrumentSite}:
+            if res_type == RT.Org:
+                child_sites, site_ancestors = self.get_child_sites(org_id=res_id, id_only=not include_structure)
+            else:
+                child_sites, site_ancestors = self.get_child_sites(parent_site_id=res_id, id_only=not include_structure)
+
+            site_devices = self.get_device_relations(child_sites.keys())
+            device_list = list({tup[1] for key,dev_list in site_devices.iteritems() if dev_list for tup in dev_list})
+            dev_status_list = self._get_device_status_list(device_list)
+            status_by_device = dict(zip(device_list, dev_status_list))
+
+            status_rollup = {}
+            get_site_status(res_id, status_rollup, site_ancestors, site_devices, status_by_device)
+            for site_id in child_sites.keys():
+                get_site_status(site_id, status_rollup, site_ancestors, site_devices, status_by_device)
+
+            # Stuff extra information into the result
+            if include_structure:
+                status_rollup['_system'] = dict(res_id=res_id, res_type=res_type,
+                    sites=child_sites, ancestors=site_ancestors, devices=site_devices)
+
+            return status_rollup
+
+        elif res_type in [RT.PlatformDevice, RT.InstrumentDevice]:
+            # See if current device has child devices
+            child_devices = self.get_child_devices(res_id)
+            device_list = list(set(child_devices))
+            dev_status_list = self._get_device_status_list(device_list)
+            status_by_device = dict(zip(device_list, dev_status_list))
+
+            status_rollup = {}
+            get_device_status(res_id, status_rollup, child_devices, status_by_device)
+            for device_id in child_devices.keys():
+                get_device_status(device_id, status_rollup, child_devices, status_by_device)
+
+            # Stuff extra information into the result
+            if include_structure:
+                status_rollup['_system'] = dict(res_id=res_id, res_type=res_type,
+                    ancestors=child_devices)
+
+            return status_rollup
+
+        else:
+            raise BadRequest("Unsupported resource type: %s", res_type)
+
+    def _get_device_status_list(self, device_list=None):
+        dev_state_list = self.device_status_mgr.read_states(device_list)
+        return dev_state_list
+
+    def _compute_status(self, device_id, status_by_device):
+        """For a device_id, extract status from status dict, using reasonable defaults"""
+        status = {AggregateStatusType.AGGREGATE_POWER: DeviceStatusType.STATUS_UNKNOWN,
+                  AggregateStatusType.AGGREGATE_COMMS: DeviceStatusType.STATUS_UNKNOWN,
+                  AggregateStatusType.AGGREGATE_DATA: DeviceStatusType.STATUS_UNKNOWN,
+                  AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_UNKNOWN}
+        dev_status = status_by_device.get(device_id, None)
+        if dev_status and "agg_status" in dev_status:
+            if "DEVICE AGENT ACTIVE":
+                # TODO: Check current device state.
+                # Set all statuses to persisted value if existing and default to OK
+                for status_name in status.keys():
+                    status[status_name] = dev_status["agg_status"].get(status_name, {}).get("status", DeviceStatusType.STATUS_OK)
+                    # TODO: Check last update time. Assume OK if before last agent restart
+            else:
+                # Agent is not running. Keep statuses as UNKNOWN
+                pass
+
+        status['agg'] = self._consolidate_status(status.values())
+        return status
+
+    def _rollup_statuses(self, status_list):
+        """For a list of child status dicts, compute the rollup statuses"""
+        rollup_status = {
+            AggregateStatusType.AGGREGATE_POWER: self._consolidate_status(
+                [stat[AggregateStatusType.AGGREGATE_POWER] for stat in status_list]),
+            AggregateStatusType.AGGREGATE_COMMS: self._consolidate_status(
+                [stat[AggregateStatusType.AGGREGATE_COMMS] for stat in status_list]),
+            AggregateStatusType.AGGREGATE_DATA: self._consolidate_status(
+                [stat[AggregateStatusType.AGGREGATE_DATA] for stat in status_list]),
+            AggregateStatusType.AGGREGATE_LOCATION: self._consolidate_status(
+                [stat[AggregateStatusType.AGGREGATE_LOCATION] for stat in status_list]),
+        }
+
+        rollup_status['agg'] = self._consolidate_status(rollup_status.values())
+        return rollup_status
+
+    def _consolidate_status(self, statuses, warn_if_unknown=False):
+        """Intelligently merge statuses with current value"""
+
+        # Any critical means all critical
+        if DeviceStatusType.STATUS_CRITICAL in statuses:
+            return DeviceStatusType.STATUS_CRITICAL
+
+        # Any warning means all warning
+        if DeviceStatusType.STATUS_WARNING in statuses:
+            return DeviceStatusType.STATUS_WARNING
+
+        # Any unknown is fine unless some are ok -- then it's a warning
+        if DeviceStatusType.STATUS_OK in statuses:
+            if DeviceStatusType.STATUS_UNKNOWN in statuses and warn_if_unknown:
+                return DeviceStatusType.STATUS_WARNING
+            else:
+                return DeviceStatusType.STATUS_OK
+
+        # 0 results are OK, 0 or more are unknown
+        return DeviceStatusType.STATUS_UNKNOWN
+
