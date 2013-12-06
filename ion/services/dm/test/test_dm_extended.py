@@ -359,7 +359,11 @@ class TestDMExtended(DMTestCase):
         streamer = Streamer(data_product_id)
         self.addCleanup(streamer.stop)
 
-        breakpoint(locals())
+        
+        self.preload_ui()
+        self.strap_erddap(data_product_id)
+        self.launch_ui_facepage(data_product_id)
+        breakpoint(locals(), globals())
 #        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
 #        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 #
