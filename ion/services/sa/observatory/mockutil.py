@@ -26,6 +26,12 @@ class MockUtil(object):
 
         return self.container_mock
 
+    def create_device_status_manager_mock(self):
+        self.dsm_mock = Mock()
+        self.dsm_mock.read_states = Mock()
+
+        return self.dsm_mock
+
     def load_mock_resources(self, res_list):
         for res_entry in res_list:
             name = res_entry.get('name', 'NO_NAME')
@@ -93,3 +99,8 @@ class MockUtil(object):
             assocs = [assoc for assoc in self.associations if assoc.p == filter_predicate]
         res_ids = [a.o for a in assocs]
         self.container_mock.resource_registry.find_objects.return_value = [res_ids, assocs]
+
+    def load_mock_device_statuses(self, status_by_device):
+        def side_effect(device_list=None, **kwargs):
+            return [status_by_device.get(dev_id, None) for dev_id in device_list]
+        self.dsm_mock.read_states.side_effect = side_effect
