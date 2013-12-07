@@ -119,8 +119,8 @@ class AttrNode(BaseNode):
         # properties:
         hash_obj.update("attribute_properties:")
         for key in sorted(self.defn.keys()):
-            val = self.defn[key]
-            hash_obj.update("%s=%s;" % (key, val))
+                val = self.defn[key]
+                hash_obj.update("%s=%s;" % (key, val))
     
         return hash_obj.hexdigest()
         
@@ -130,28 +130,22 @@ class PortNode(BaseNode):
     Represents a platform port.
 
     self._port_id
-    self._network = value of the network associated to the port, eg., "10.30.78.x"
     self._instruments = { instrument_id: InstrumentNode, ... }
 
     """
-    def __init__(self, port_id, network):
+    def __init__(self, port_id):
         BaseNode.__init__(self)
-        self._port_id = port_id
-        self._network = network
+        self._port_id = str(port_id)
         self._instruments = {}
         self._state = None
 
     def __repr__(self):
-        return "PortNode{id=%s, network=%s}" % (
-            self._port_id, self._network)
+        return "PortNode{id=%s}" % (
+            self._port_id)
 
     @property
     def port_id(self):
         return self._port_id
-
-    @property
-    def network(self):
-        return self._network
 
     @property
     def state(self):
@@ -186,10 +180,6 @@ class PortNode(BaseNode):
             return "Port IDs are different: %r != %r" % (
                 self.port_id, other.port_id)
 
-        if self.network != other.network:
-            return "Port network values are different: %r != %r" % (
-                self.network, other.network)
-
         if self.state != other.state:
             return "Port state values are different: %r != %r" % (
                 self.state, other.state)
@@ -213,9 +203,6 @@ class PortNode(BaseNode):
 
         # id:
         hash_obj.update("port_id=%s;" % self.port_id)
-
-        # network:
-        hash_obj.update("port_network=%s;" % self.network)
 
         # state:
         hash_obj.update("port_state=%s;" % self.state)

@@ -170,7 +170,6 @@ class OmsTestMixin(HelperTestMixin):
         ports = self._get_platform_ports(platform_id)
         for port_id, info in ports.iteritems():
             self.assertIsInstance(info, dict)
-            self.assertIn('network', info)
             self.assertIn('state',   info)
 
     def test_ak_get_platform_ports_invalid_platform_id(self):

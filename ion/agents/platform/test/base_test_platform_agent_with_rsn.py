@@ -252,6 +252,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     @classmethod
     def setUpClass(cls):
         HelperTestMixin.setUpClass()
+        cls._pp = pprint.PrettyPrinter()
 
     def setUp(self):
 
@@ -309,10 +310,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             pnode = self._network_definition.pnodes[platform_id]
             dic = {}
             for port_id, port in pnode.ports.iteritems():
-                dic[port_id] = dict(port_id=port_id,
-                                    network=port.network)
+                dic[port_id] = dict(port_id=port_id)
             self._platform_ports[platform_id] = dic
-        log.trace("_platform_ports: %s", self._platform_attributes)
+        log.trace("_platform_ports: %s", self._pp.pformat(self._platform_ports))
 
         self._async_data_result = AsyncResult()
         self._data_subscribers = []
@@ -333,8 +333,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         # see _set_receive_timeout
         self._receive_timeout = 177
-
-        self._pp = pprint.PrettyPrinter()
 
     def _set_receive_timeout(self):
         """
@@ -1645,7 +1643,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertIsInstance(ports, dict)
         for port_id, info in ports.iteritems():
             self.assertIsInstance(info, dict)
-            self.assertIn('network', info)
             self.assertIn('state', info)
         return ports
 

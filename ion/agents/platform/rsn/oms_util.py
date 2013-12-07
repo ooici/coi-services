@@ -117,7 +117,7 @@ class RsnOmsUtil(object):
                     "not a dict: %s" % (platform_id, ports))
 
             for port_id, dic in ports.iteritems():
-                port = PortNode(port_id, dic['network'])
+                port = PortNode(port_id)
                 port.set_state(dic['state'])
                 pnode.add_port(port)
 
