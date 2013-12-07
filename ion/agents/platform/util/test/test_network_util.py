@@ -174,10 +174,8 @@ class Test(IonUnitTestCase):
                               'dvr_cls': 'RSNPlatformDriver',
                               'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
                               'oms_uri': 'embsimulator',
-                              'ports': {'Node1D_port_1': {'network': 'Node1D_port_1_IP',
-                                                          'port_id': 'Node1D_port_1'},
-                                        'Node1D_port_2': {'network': 'Node1D_port_2_IP',
-                                                          'port_id': 'Node1D_port_2'}},
+                              'ports': {'Node1D_port_1': {'port_id': 'Node1D_port_1'},
+                                        'Node1D_port_2': {'port_id': 'Node1D_port_2'}},
                               },
 
 
@@ -203,10 +201,8 @@ class Test(IonUnitTestCase):
                                                                                 'dvr_cls': 'RSNPlatformDriver',
                                                                                 'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
                                                                                 'oms_uri': 'embsimulator',
-                                                                                'ports': {'MJ01C_port_1': {'network': 'MJ01C_port_1_IP',
-                                                                                                           'port_id': 'MJ01C_port_1'},
-                                                                                          'MJ01C_port_2': {'network': 'MJ01C_port_2_IP',
-                                                                                                           'port_id': 'MJ01C_port_2'}}},
+                                                                                'ports': {'MJ01C_port_1': {'port_id': 'MJ01C_port_1'},
+                                                                                          'MJ01C_port_2': {'port_id': 'MJ01C_port_2'}}},
 
                                                               'children': {'d0203cb9eb844727b7a8eea77db78e89': {'agent': {'resource_id': 'd0203cb9eb844727b7a8eea77db78e89'},
                                                                                                                 'platform_config': {'platform_id': 'LJ01D'},
@@ -250,10 +246,8 @@ class Test(IonUnitTestCase):
                                                                                                                                   'dvr_cls': 'RSNPlatformDriver',
                                                                                                                                   'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
                                                                                                                                   'oms_uri': 'embsimulator',
-                                                                                                                                  'ports': {'LJ01D_port_1': {'network': 'LJ01D_port_1_IP',
-                                                                                                                                                             'port_id': '1'},
-                                                                                                                                            'LJ01D_port_2': {'network': 'LJ01D_port_2_IP',
-                                                                                                                                                             'port_id': '2'}}},
+                                                                                                                                  'ports': {'LJ01D_port_1': {'port_id': '1'},
+                                                                                                                                            'LJ01D_port_2': {'port_id': '2'}}},
                                                                                                                 'children': {},
                                                                                                                 }
                                                               }
