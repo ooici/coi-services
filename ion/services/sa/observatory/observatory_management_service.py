@@ -19,6 +19,7 @@ from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+from ion.processes.event.device_state import DeviceStateManager
 from ion.util.geo_utils import GeoUtils
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
 from ion.services.sa.observatory.deployment_util import describe_deployments
@@ -835,10 +836,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         RR2.cache_resources(RT.InstrumentSite)
         RR2.cache_resources(RT.PlatformDevice)
         RR2.cache_resources(RT.InstrumentDevice)
-        outil = ObservatoryUtil(self, enhanced_rr=RR2)
+        outil = ObservatoryUtil(self, enhanced_rr=RR2, device_status_mgr=DeviceStateManager())
         parent_resource_objs = RR2.read_mult(parent_resource_ids)
         res_by_id = dict(zip(parent_resource_ids, parent_resource_objs))
 
+        """
         # Loop thru all the provided site ids and create the result structure
         for parent_resource_id in parent_resource_ids:
 
@@ -880,6 +882,56 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 log.debug("calculate device aggregate status")
                 inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k, {}))
                                for k in all_device_statuses.keys()]
+                device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
+                log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
+                site_result_dict["device_aggregate_status"] = device_agg_status_dict
+
+            result_dict[parent_resource_id] = site_result_dict
+
+            """
+
+        # Loop thru all the provided site ids and create the result structure
+        for parent_resource_id in parent_resource_ids:
+
+            parent_resource = res_by_id[parent_resource_id]
+
+            org_id, site_id = None, None
+            if parent_resource.type_ == RT.Org:
+                org_id = parent_resource_id
+            elif RT.Site in parent_resource._get_extends():
+                site_id = parent_resource_id
+
+            site_result_dict = {}
+
+            site_resources, site_children = outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
+            if include_sites:
+                site_result_dict["site_resources"] = site_resources
+                site_result_dict["site_children"] = site_children
+
+            all_device_statuses = {}
+            if include_devices or include_status:
+                RR2.cache_predicate(PRED.hasSite)
+                RR2.cache_predicate(PRED.hasDevice)
+                all_device_statuses = outil.get_status_roll_ups(parent_resource_id)
+
+            if include_status:
+                #add code to grab the master status table to pass in to the get_status_roll_ups calc
+                log.debug('get_sites_devices_status site master_status_table:   %s ', all_device_statuses)
+                site_result_dict["site_status"] = all_device_statuses
+
+                #create the aggreagate_status for each device and site
+
+                log.debug("calculate site aggregate status")
+                site_status = [all_device_statuses.get(x,{}).get('agg',DeviceStatusType.STATUS_UNKNOWN) for x in site_children.keys()]
+                site_status_dict = dict(zip(site_children.keys(), site_status))
+
+                log.debug('get_sites_devices_status  site_status_dict:   %s ', site_status_dict)
+                site_result_dict["site_aggregate_status"] = site_status_dict
+
+
+            if include_devices:
+                log.debug("calculate device aggregate status")
+                inst_status = [all_device_statuses.get(x,{}).get('agg',DeviceStatusType.STATUS_UNKNOWN) for x in all_device_statuses.keys()]
                 device_agg_status_dict = dict(zip(all_device_statuses.keys(), inst_status))
                 log.debug('get_sites_devices_status  device_agg_status_dict:   %s ', device_agg_status_dict)
                 site_result_dict["device_aggregate_status"] = device_agg_status_dict
@@ -981,13 +1033,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 ext_exclude=ext_exclude,
                 user_id=user_id)
 
-            RR2 = EnhancedResourceRegistryClient(self.RR)
-            outil = ObservatoryUtil(self, enhanced_rr=RR2)
+            RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+            self.outil = ObservatoryUtil(self, enhanced_rr=RR2, device_status_mgr=DeviceStateManager())
 
             # Find all subsites and devices
-            site_resources, site_children = outil.get_child_sites(parent_site_id=site_id, include_parents=False, id_only=False)
+            site_resources, site_children = self.outil.get_child_sites(parent_site_id=site_id, include_parents=False, id_only=False)
             site_ids = site_resources.keys() + [site_id]  # IDs of this site and all child sites
-            device_relations = outil.get_device_relations(site_ids)
+            device_relations = self.outil.get_device_relations(site_ids)
 
             # Set parent immediate child sites
             parent_site_ids = [a.s for a in RR2.filter_cached_associations(PRED.hasSite, lambda a: a.p ==PRED.hasSite and a.o == site_id)]
@@ -1085,6 +1137,56 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
             context["site_resources"], context["site_children"], context["device_relations"]
 
+
+        statuses = self.outil.get_status_roll_ups(site_id)
+
+        if extended_site.portal_instruments and extended_site.portal_instruments[0]:
+            portal_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.portal_instruments]
+            extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=portal_status)
+        else:
+            extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
+
+        if extended_site.sites and extended_site.sites[0]:
+            site_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.sites]
+            extended_site.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=site_status)
+        else:
+            extended_site.computed.site_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
+
+        # create the list of station status from the overall status list
+        subset_status = []
+        for site in extended_site.platform_station_sites:
+            if not extended_site.sites.count(site):
+                log.error(" Platform Site does not exist in the full list of sites. id: %s", site._id)
+                break
+            idx =   extended_site.sites.index( site )
+            subset_status.append( site_status[idx] )
+        extended_site.computed.station_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=subset_status)
+
+        if extended_site.instrument_devices and extended_site.instrument_devices[0]:
+            inst_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.instrument_devices]
+            extended_site.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=inst_status)
+        else:
+            extended_site.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
+
+        if extended_site.platform_devices and extended_site.platform_devices[0]:
+            plat_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.platform_devices]
+            extended_site.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=plat_status)
+        else:
+            extended_site.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
+
+        comms_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
+        power_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
+        data_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_DATA,DeviceStatusType.STATUS_UNKNOWN)
+        location_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_LOCATION,DeviceStatusType.STATUS_UNKNOWN)
+
+        extended_site.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=comms_rollup)
+        extended_site.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=power_rollup)
+        extended_site.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
+        extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
+
+
+        """
+
         RR2.cache_predicate(PRED.hasDevice)
 
         # prepare to make a lot of rollups
@@ -1157,6 +1259,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.agent_status_builder.set_status_computed_attributes(extended_site.computed,
                                                                 rollup_status,
                                                                  ComputedValueAvailability.PROVIDED)
+        """
 
         extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients,
                                                              instruments=extended_site.instrument_devices,
@@ -1171,6 +1274,27 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
             context["site_resources"], context["site_children"], context["device_relations"]
 
+        statuses = self.outil.get_status_roll_ups(site_id)
+
+        comms_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
+        power_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
+        data_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_DATA,DeviceStatusType.STATUS_UNKNOWN)
+        location_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_LOCATION,DeviceStatusType.STATUS_UNKNOWN)
+
+        extended_site.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=comms_rollup)
+        extended_site.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=power_rollup)
+        extended_site.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
+        extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
+
+        instrument_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.instrument_devices]
+        extended_site.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=instrument_status)
+
+        extended_site.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
+        extended_site.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
+        extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
+
+
+        """
         if inst_device_id:
             log.debug("Reading status for device '%s'", inst_device_id)
             self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
@@ -1194,12 +1318,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.site_status       = clv()
         extended_site.computed.instrument_status = clv(instrument_status_list)
 
+        # have portals but need to reduce to appropriate subset...
+        extended_site.computed.portal_status = clv()
+
+        """
         extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients,
                                                              instruments=extended_site.instrument_devices,
                                                              instrument_status=extended_site.computed.instrument_status.value)
 
-        # have portals but need to reduce to appropriate subset...
-        extended_site.computed.portal_status = clv()
 
         return extended_site
 
@@ -1341,6 +1467,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         RR2 = EnhancedResourceRegistryClient(self.RR)
         RR2.cache_predicate(PRED.hasModel)
         RR2.cache_predicate(PRED.hasDevice)
+        outil = ObservatoryUtil(self, enhanced_rr=RR2, device_status_mgr=DeviceStateManager())
 
         #Fill out service request information for requesting data products
         extended_org.data_products_request.service_name = 'resource_registry'
@@ -1395,6 +1522,40 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.instrument_models = retrieve_model_objs(extended_org.instruments, RT.InstrumentDevice)
         extended_org.platform_models = retrieve_model_objs(extended_org.platforms, RT.PlatformDevice)
 
+
+        statuses = outil.get_status_roll_ups(org_id)
+
+        site_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_org.sites]
+        extended_org.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=site_status)
+
+        inst_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_org.instruments]
+        extended_org.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=inst_status)
+
+        plat_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_org.platforms]
+        extended_org.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=plat_status)
+
+        subset = []
+        for site in extended_org.station_sites:
+            if site.alt_resource_type=='StationSite':
+                subset.append(site)
+        extended_org.station_sites = subset
+        station_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_org.station_sites]
+        extended_org.computed.station_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=station_status)
+
+
+        comms_rollup = statuses.get(org_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
+        power_rollup = statuses.get(org_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
+        data_rollup = statuses.get(org_id,{}).get(AggregateStatusType.AGGREGATE_DATA,DeviceStatusType.STATUS_UNKNOWN)
+        location_rollup = statuses.get(org_id,{}).get(AggregateStatusType.AGGREGATE_LOCATION,DeviceStatusType.STATUS_UNKNOWN)
+
+        extended_org.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=comms_rollup)
+        extended_org.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=power_rollup)
+        extended_org.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
+        extended_org.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
+
+
+
+        """
         log.debug("time to make the rollups")
         outil = ObservatoryUtil(self, enhanced_rr=RR2)
         _, site_children = outil.get_child_sites(org_id=org_id, id_only=False)
@@ -1434,6 +1595,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.station_sites = subset
         station_status = self._get_site_rollup_list(RR2, all_device_statuses, [s._id for s in extended_org.station_sites])
         extended_org.computed.station_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=station_status)
+        """
+
         extended_org.deployment_info = describe_deployments(extended_org.deployments, self.clients, instruments=extended_org.instruments, instrument_status=extended_org.computed.instrument_status.value)
 
         return extended_org

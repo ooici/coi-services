@@ -127,6 +127,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEquals(len(site_children[resources.subsite_id]), 2)
 
     def _do_test_get_sites_devices_status(self, resources):
+        #bin/nosetests -s -v --nologcapture ion/services/sa/observatory/test/test_observatory_management_service_integration.py:TestObservatoryManagementServiceIntegration.test_observatory_management
 
         full_result_dict = self.OMS.get_sites_devices_status(parent_resource_ids=[resources.org_id], include_sites=True)
 

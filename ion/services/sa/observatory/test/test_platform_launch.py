@@ -209,6 +209,10 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         # Assert the rollup dictionary is same as the aparam.
         self.assertEqual(retval, dev_ext_rollup_dict)
 
+        # Assert state equals agent value.
+        self.assertEqual(dev_ext.computed.operational_state.value, 'COMMAND')
+
+
     def test_ims_platform_status(self):
         #
         # test the access of instrument aggstatus via ims and the object store
@@ -226,6 +230,15 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         platform_device_id = p_root['platform_device_id']
 
         dev_ext = self.IMS.get_platform_device_extension(platform_device_id=platform_device_id)
+
+        self.assertEqual(dev_ext.computed.communications_status_roll_up.value, DeviceStatusType.STATUS_OK)
+        self.assertEqual(dev_ext.computed.data_status_roll_up.value, DeviceStatusType.STATUS_OK)
+        self.assertEqual(dev_ext.computed.location_status_roll_up.value, DeviceStatusType.STATUS_OK)
+        self.assertEqual(dev_ext.computed.power_status_roll_up.value, DeviceStatusType.STATUS_OK)
+
+        self.assertEqual(dev_ext.computed.instrument_status.value, [DeviceStatusType.STATUS_OK,DeviceStatusType.STATUS_OK])
+        self.assertEqual(dev_ext.computed.platform_status.value, [])
+        self.assertEqual(dev_ext.computed.portal_status.value, [])
 
     def test_single_platform_with_an_instrument_and_deployments(self):
         #
