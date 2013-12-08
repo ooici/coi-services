@@ -42,6 +42,8 @@ from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryC
 from ion.util.resource_lcs_policy import AgentPolicy, ResourceLCSPolicy, ModelPolicy, DevicePolicy
 
 from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedDictValue
+from interface.objects import ComputedIntValue, ComputedListValue
+
 from interface.objects import DeviceStatusType, AggregateStatusType
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
@@ -1583,6 +1585,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not instrument_device_id:
             raise BadRequest("The instrument_device_id parameter is empty")
 
+        RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+        outil = ObservatoryUtil(self, enhanced_rr=RR2, device_status_mgr=DeviceStateManager())
+
         extended_resource_handler = ExtendedResourceContainer(self)
 
         extended_instrument = extended_resource_handler.create_extended_resource_container(
@@ -1596,6 +1601,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.instrument_device_extension.container')
 
         try:
+
+            statuses = outil.get_status_roll_ups(instrument_device_id)
+
+            comms_rollup = statuses.get(instrument_device_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
+            power_rollup = statuses.get(instrument_device_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
+            data_rollup = statuses.get(instrument_device_id,{}).get(AggregateStatusType.AGGREGATE_DATA,DeviceStatusType.STATUS_UNKNOWN)
+            location_rollup = statuses.get(instrument_device_id,{}).get(AggregateStatusType.AGGREGATE_LOCATION,DeviceStatusType.STATUS_UNKNOWN)
+            aggstatus = statuses.get(instrument_device_id,{}).get('agg',DeviceStatusType.STATUS_UNKNOWN)
+
+            extended_instrument.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=comms_rollup)
+            extended_instrument.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=power_rollup)
+            extended_instrument.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
+            extended_instrument.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
+
+            """
             # Prefetch persisted status from object store for all devices of interest (one here)
             dsm = DeviceStateManager()
             device_ids_of_interest = [instrument_device_id]
@@ -1621,6 +1641,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                               extended_instrument.computed.location_status_roll_up,
                               extended_instrument.computed.power_status_roll_up  ]
             status = self.agent_status_builder._crush_status_list(status_values)
+            """
 
             log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
             if t:
@@ -1629,7 +1650,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             # add UI details for deployments in same order as deployments
             extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients,
                                                                        instruments=[extended_instrument.resource],
-                                                                       instrument_status=[status])
+                                                                       instrument_status=[aggstatus])
             if t:
                 t.complete_step('ims.instrument_device_extension.deploy')
                 stats.add(t)
@@ -1670,6 +1691,89 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         }
 
         retval = IonObject(OT.ComputedStringValue)
+
+        dsm = DeviceStateManager()
+        state_list = dsm.read_states([taskable_resource_id])
+
+        if state_list and 'state' in state_list[0] and 'current' in state_list[0]['state']:
+            cur_state = state_list[0]['state']['current']
+            if cur_state in resource_agent_state_labels:
+                retval.value = resource_agent_state_labels[cur_state]
+            else:
+                retval.value = cur_state
+            retval.status = ComputedValueAvailability.PROVIDED
+
+        else:
+            retval.value = 'UNKNOWN'
+            retval.status = ComputedValueAvailability.NOTAVAILABLE
+            retval.reason = "State event not available in object store."
+
+        """
+        [{'_rev': '4-4f40a511ef24d3564ea7dcde9205a1a4',
+        'dev_alert': {
+            'status': 0,
+            'stream_name': '',
+            'name': '',
+            'time_stamps': [],
+            'valid_values': [],
+            'values': [],
+            'value_id': '',
+            'ts_changed': ''},
+        'ts_updated': '1386467082377',
+        'state': {
+            'current': 'RESOURCE_AGENT_STATE_COMMAND',
+            'prior': 'RESOURCE_AGENT_STATE_IDLE',
+            'ts_changed': '1386467081759'},
+        'dev_status': {
+            'status': 1,
+            'ts_changed': '',
+            'valid_values': [],
+            'values': [],
+            'time_stamps': []},
+        'res_state': {
+            'current': 'DRIVER_STATE_COMMAND',
+            'prior': 'DRIVER_STATE_UNKNOWN',
+            'ts_changed': '1386467081655'},
+            'agg_status': {
+                '1': {
+                    'status': 2,
+                    'time_stamps': [],
+                    'prev_status': 1,
+                    'roll_up_status': False,
+                    'valid_values': [],
+                    'values': [],
+                    'ts_changed': '1386467072222'},
+                '3': {
+                    'status': 2,
+                    'time_stamps': [],
+                    'prev_status': 1,
+                    'roll_up_status': False,
+                    'valid_values': [],
+                    'values': [],
+                    'ts_changed': '1386467072241'},
+                '2': {
+                    'status': 2,
+                    'time_stamps': [],
+                    'prev_status': 1,
+                    'roll_up_status': False,
+                    'valid_values': [],
+                    'values': [],
+                    'ts_changed': '1386467072228'},
+                '4': {
+                    'status': 2,
+                    'time_stamps': [],
+                    'prev_status': 1,
+                    'roll_up_status': False,
+                    'valid_values': [],
+                    'values': [],
+                    'ts_changed': '1386467072257'}},
+            '_id': 'state_c51098af6f7d48648ab30aa35283688e',
+            'ts_created': '1386467073154',
+            'device_id': 'c51098af6f7d48648ab30aa35283688e'}]
+        """
+
+
+        """
         ia_client, reason = self.agent_status_builder.get_device_agent(taskable_resource_id)
 
         # early exit for no client
@@ -1694,7 +1798,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             retval.value = 'UNKNOWN'
             retval.status = ComputedValueAvailability.NOTAVAILABLE
             retval.reason = "The requester does not have the proper role to access the status of this agent"
-
+        """
 
         return retval
 
@@ -1772,7 +1876,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         t = Timer() if stats.is_log_enabled() else None
 
         RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
-        outil = ObservatoryUtil(self, enhanced_rr=RR2)
+        outil = ObservatoryUtil(self, enhanced_rr=RR2, device_status_mgr=DeviceStateManager())
 
         if not platform_device_id:
             raise BadRequest("The platform_device_id parameter is empty")
@@ -1870,6 +1974,38 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
 
+
+        statuses = outil.get_status_roll_ups(platform_device_id)
+
+        comms_rollup = statuses.get(platform_device_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
+        power_rollup = statuses.get(platform_device_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
+        data_rollup = statuses.get(platform_device_id,{}).get(AggregateStatusType.AGGREGATE_DATA,DeviceStatusType.STATUS_UNKNOWN)
+        location_rollup = statuses.get(platform_device_id,{}).get(AggregateStatusType.AGGREGATE_LOCATION,DeviceStatusType.STATUS_UNKNOWN)
+
+        extended_platform.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=comms_rollup)
+        extended_platform.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=power_rollup)
+        extended_platform.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
+        extended_platform.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
+
+        if extended_platform.instrument_devices and extended_platform.instrument_devices[0]:
+            instrument_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_platform.instrument_devices]
+            extended_platform.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=instrument_status)
+        else:
+            extended_platform.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
+
+        if extended_platform.platforms and extended_platform.platforms[0]:
+            platform_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_platform.platforms]
+            extended_platform.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=platform_status)
+        else:
+            extended_platform.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
+
+        if extended_platform.portal_instruments and extended_platform.portal_instruments[0]:
+            portal_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_platform.portal_instruments]
+            extended_platform.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=portal_status)
+        else:
+            extended_platform.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
+
+        """
         # Building status - for PlatformAgents only (not ExternalDatasetAgent)
         # @TODO: clean this UP!!!
         child_device_ids = device_relations.keys()
@@ -1931,6 +2067,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                              value=rollup_values)
         if t:
             t.complete_step('ims.platform_device_extension.crush')
+        """
 
         # add UI details for deployments
         extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients,
