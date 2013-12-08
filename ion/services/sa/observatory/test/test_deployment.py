@@ -426,13 +426,15 @@ class TestDeployment(IonIntegrationTestCase):
         platform_device_id   = [self.RR2.create(any_old(RT.PlatformDevice)) for _ in range(4)]
 
         instrument_site_id   = [self.RR2.create(any_old(RT.InstrumentSite,
-                                                {"planned_uplink_port":
+                                                { "reference_designator" : "GA01SUMO-FI003-0%s-CTDMO0999" % (i+1),
+                                                    "planned_uplink_port":
                                                      IonObject(OT.PlatformPort,
                                                                reference_designator="GA01SUMO-FI003-0%s-CTDMO0999" % (i+1) )}))
                                 for i in range(9)]
 
         platform_site_id     = [self.RR2.create(any_old(RT.PlatformSite,
-                                                {"planned_uplink_port":
+                                                {  "reference_designator" : "GA01SUMO-FI003-0%s-CTDMO0888" % (i+1) ,
+                                                    "planned_uplink_port":
                                                     IonObject(OT.PlatformPort,
                                                               reference_designator="GA01SUMO-FI003-0%s-CTDMO0888" % (i+1))}))
                                 for i in range(4)]
