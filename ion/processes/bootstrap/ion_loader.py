@@ -306,8 +306,12 @@ class IONLoader(ImmediateProcess):
             scenarios = config.get("scenario", None)
             log.debug("Scenario: %s", scenarios)
 
-            category_csv = config.get("categories", None)
-            self.categories = category_csv.split(",") if category_csv else DEFAULT_CATEGORIES
+            include_categories = config.get("categories", None)
+            if include_categories:
+                # Make sure the order of categories is preserved
+                self.categories = [cat for cat in DEFAULT_CATEGORIES if cat in include_categories.split(",")]
+            else:
+                self.categories = DEFAULT_CATEGORIES
             ooiexclude = config.get("ooiexclude", '')
             if ooiexclude:
                 log.warn("ooiexclude is DEPRECATED. Use excludecategories= instead")
@@ -612,10 +616,21 @@ class IONLoader(ImmediateProcess):
         if self.idmap:
             for key, val in row.iteritems():
                 if key == COL_ID or key.endswith("_id") or key.endswith("_ids"):
-                    new_val = self.idmapping.get(val, None)
-                    if new_val:
-                        row[key] = new_val
-                        log.debug("Substituted %s row ID=%s column %s value %s with %s", type, row.get(COL_ID, ""), key, val, new_val)
+                    if "," in val:
+                        new_vals = []
+                        for v in val.split(","):
+                            new_val = self.idmapping.get(v, None)
+                            if new_val:
+                                new_vals.append(new_val)
+                                log.debug("Substituted %s row ID=%s column %s list value %s with %s", type, row.get(COL_ID, ""), key, v, new_val)
+                            else:
+                                new_vals.append(v)
+                        row[key] = ",".join(new_vals)
+                    else:
+                        new_val = self.idmapping.get(val, None)
+                        if new_val:
+                            row[key] = new_val
+                            log.debug("Substituted %s row ID=%s column %s value %s with %s", type, row.get(COL_ID, ""), key, val, new_val)
 
         func(row)
 
@@ -3303,6 +3318,7 @@ Reason: %s
                 pass
 
             # (2) Generate derived DataProducts for L0/L1/L2 based on SAF DPS - Level (per site)
+            skip_list = []
             data_product_list = inst_obj.get('data_product_list', [])
             for dptype_id in data_product_list:
                 dp_id = inst_id + "_" + dptype_id + "_DPID"
@@ -3410,7 +3426,7 @@ Reason: %s
                                 pass
 
                     if len(param_list) <= 1 or not found_dptype_match:
-                        log.debug(" skip DataProduct %s : %s. In SAF but not found in parsed PDICT", inst_id, dptype_id)
+                        skip_list.append(dptype_id)
                         continue
 
                     av_fields = ",".join(self._get_resource_obj(pid).name for pid in param_list)
@@ -3437,7 +3453,8 @@ Reason: %s
                     pass  # Ignore this derived data product because we don't have parsed param dict
 
             if num_dp_generated:
-                log.debug(" ...generated %s data products", num_dp_generated)
+                log.debug(" ...generated %s data products%s", num_dp_generated,
+                          " (skipped %s - not found in parsed PDICT)" % ",".join(skip_list) if skip_list else "")
 
     def _load_DataProductLink(self, row, do_bulk=False):
         self.row_count += 1
