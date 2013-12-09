@@ -198,7 +198,7 @@ class DataSetAgent(InstrumentAgent):
 
         if memento:
             # memento not empty, which is the case after restart. Just keep what we have.
-            log.info("Using process persistent state: %s", memento)
+            log.debug("Using process persistent state: %s", memento)
         else:
             # memento empty, which is the case after a fresh start. See if we got stuff in CFG
 
@@ -208,7 +208,7 @@ class DataSetAgent(InstrumentAgent):
                 if isinstance(prior_state, dict):
                     if DSA_STATE_KEY in prior_state:
                         memento = prior_state[DSA_STATE_KEY]
-                        log.info("Using persistent state from prior agent run: %s", memento)
+                        log.debug("Using persistent state from prior agent run: %s", memento)
                         self.persist_state_callback(memento)
                 else:
                     raise InstrumentStateException('agent.prior_state invalid: %s' % prior_state)
@@ -218,7 +218,7 @@ class DataSetAgent(InstrumentAgent):
             egg_name = uri.split('/')[-1] if uri.startswith('http') else uri
             egg_repo = uri[0:len(uri)-len(egg_name)-1] if uri.startswith('http') else None
 
-        log.info("instantiate driver plugin %s.%s", module_name, class_name)
+        log.debug("instantiate driver plugin %s.%s", module_name, class_name)
         params = [config, memento, self.publish_callback, self.persist_state_callback, self.exception_callback]
         return EGG_CACHE.get_object(class_name, module_name, egg_name, egg_repo, params)
 
@@ -286,7 +286,7 @@ class DataSetAgent(InstrumentAgent):
             for p in particle:
                 # Can we use p.generate_dict() here?
                 p_obj = p.generate()
-                log.info("Particle received: %s", p_obj)
+                log.debug("Particle received: %s", p_obj)
                 self._async_driver_event_sample(p_obj, None)
                 publish_count += 1
         except Exception as e:
@@ -353,7 +353,7 @@ class DataSetAgent(InstrumentAgent):
         new_sequence = val.get('new_sequence')
 
         if new_sequence == True:
-            log.info("New sequence flag detected in particle.  Resetting connection ID")
+            log.debug("New sequence flag detected in particle.  Resetting connection ID")
             self._asp.reset_connection()
 
         super(DataSetAgent, self)._async_driver_event_sample(val, ts)
@@ -483,7 +483,7 @@ class DataSetAgent(InstrumentAgent):
             log.exception('###### Agent restore stack trace:')
 
         else:
-            log.info('Instrument agent %s restored state %s = %s.',
+            log.debug('Instrument agent %s restored state %s = %s.',
                      self.id, state, cur_state)
 
 
