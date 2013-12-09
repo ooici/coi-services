@@ -198,7 +198,7 @@ class DataSetAgent(InstrumentAgent):
 
         if memento:
             # memento not empty, which is the case after restart. Just keep what we have.
-            log.info("Using process persistent state: %s", memento)
+            log.debug("Using process persistent state: %s", memento)
         else:
             # memento empty, which is the case after a fresh start. See if we got stuff in CFG
 
@@ -208,7 +208,7 @@ class DataSetAgent(InstrumentAgent):
                 if isinstance(prior_state, dict):
                     if DSA_STATE_KEY in prior_state:
                         memento = prior_state[DSA_STATE_KEY]
-                        log.info("Using persistent state from prior agent run: %s", memento)
+                        log.debug("Using persistent state from prior agent run: %s", memento)
                         self.persist_state_callback(memento)
                 else:
                     raise InstrumentStateException('agent.prior_state invalid: %s' % prior_state)
@@ -218,7 +218,7 @@ class DataSetAgent(InstrumentAgent):
             egg_name = uri.split('/')[-1] if uri.startswith('http') else uri
             egg_repo = uri[0:len(uri)-len(egg_name)-1] if uri.startswith('http') else None
 
-        log.info("instantiate driver plugin %s.%s", module_name, class_name)
+        log.debug("instantiate driver plugin %s.%s", module_name, class_name)
         params = [config, memento, self.publish_callback, self.persist_state_callback, self.exception_callback]
         return EGG_CACHE.get_object(class_name, module_name, egg_name, egg_repo, params)
 
@@ -286,7 +286,7 @@ class DataSetAgent(InstrumentAgent):
             for p in particle:
                 # Can we use p.generate_dict() here?
                 p_obj = p.generate()
-                log.info("Particle received: %s", p_obj)
+                log.debug("Particle received: %s", p_obj)
                 self._async_driver_event_sample(p_obj, None)
                 publish_count += 1
         except Exception as e:
@@ -353,7 +353,7 @@ class DataSetAgent(InstrumentAgent):
         new_sequence = val.get('new_sequence')
 
         if new_sequence == True:
-            log.info("New sequence flag detected in particle.  Resetting connection ID")
+            log.debug("New sequence flag detected in particle.  Resetting connection ID")
             self._asp.reset_connection()
 
         super(DataSetAgent, self)._async_driver_event_sample(val, ts)
@@ -361,6 +361,131 @@ class DataSetAgent(InstrumentAgent):
     def _filter_capabilities(self, events):
         events_out = [x for x in events if DataSetAgentCapability.has(x)]
         return events_out
+
+    def _restore_resource(self, state, prev_state):
+        """
+        Restore agent/resource configuration and state.
+        """
+        log.debug("starting agent restore process, State: %s, Prev State: %s", state, prev_state)
+
+        # Get state to restore. If the last state was lost connection,
+        # use the prior connected state.
+        if not state:
+            log.debug("State not defined, not restoring")
+            return
+
+        if state == ResourceAgentState.LOST_CONNECTION:
+            state = prev_state
+
+        try:
+            cur_state = self._fsm.get_current_state()
+
+            # If unitialized, confirm and do nothing.
+            if state == ResourceAgentState.UNINITIALIZED:
+                if cur_state != state:
+                    raise Exception()
+
+            # If inactive, initialize and confirm.
+            elif state == ResourceAgentState.INACTIVE:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If idle, initialize, activate and confirm.
+            elif state == ResourceAgentState.IDLE:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If streaming, initialize, activate and confirm.
+            # Driver discover should put us in streaming mode.
+            elif state == ResourceAgentState.STREAMING:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                self._fsm.on_event(ResourceAgentEvent.EXECUTE_RESOURCE, DriverEvent.START_AUTOSAMPLE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If command, initialize, activate, confirm idle,
+            # run and confirm command.
+            elif state == ResourceAgentState.COMMAND:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If paused, initialize, activate, confirm idle,
+            # run, confirm command, pause and confirm stopped.
+            elif state == ResourceAgentState.STOPPED:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.PAUSE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If in a command reachable substate, attempt to return to command.
+            # Initialize, activate, confirm idle, run confirm command.
+            elif state in [ResourceAgentState.TEST,
+                    ResourceAgentState.CALIBRATE,
+                    ResourceAgentState.DIRECT_ACCESS,
+                    ResourceAgentState.BUSY]:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+
+            # If active unknown, return to active unknown or command if
+            # possible. Initialize, activate, confirm active unknown, else
+            # confirm idle, run, confirm command.
+            elif state == ResourceAgentState.ACTIVE_UNKNOWN:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state == ResourceAgentState.ACTIVE_UNKNOWN:
+                    return
+                elif cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+
+            else:
+                log.error('Instrument agent %s error restoring unhandled state %s, current state %s.',
+                        self.id, state, cur_state)
+
+        except Exception as ex:
+            log.error('Instrument agent %s error restoring state %s, current state %s, exception %s.',
+                    self.id, state, cur_state, str(ex))
+            log.exception('###### Agent restore stack trace:')
+
+        else:
+            log.debug('Instrument agent %s restored state %s = %s.',
+                     self.id, state, cur_state)
+
 
 class FactorialRetryCalculator(object):
     """
