@@ -23,23 +23,23 @@ import unittest
 ###############################################################################
 
 
-@attr('INT', group='mi')
-class HypmCTDTest(DatasetAgentTestCase):
+@attr('INT', group='sa')
+class HypmFLORDTest(DatasetAgentTestCase):
     """
     Verify dataset agent can harvest data fails, parse the date, publish,
     ingest and retrieve stored data.
     """
     def setUp(self):
         self.test_config.initialize(
-            instrument_device_name = 'FLORD',
-            preload_scenario= 'GLIDER,FLORD',
+            instrument_device_name = 'FLORD-01',
+            preload_scenario= 'GENG,FLORD',
             stream_name= 'ggldr_flord_delayed',
 
             # Uncomment this line to load driver from a locak repository
             #mi_repo = '/Users/wfrench/Workspace/code/wfrench/marine-integrations'
         )
 
-        super(HypmCTDTest, self).setUp()
+        super(HypmFLORDTest, self).setUp()
 
     def test_parse(self):
         """
@@ -53,8 +53,6 @@ class HypmCTDTest(DatasetAgentTestCase):
         granules = self.get_samples(self.test_config.stream_name, 4)
         self.assert_data_values(granules, 'moas_flord/merged.result.yml')
 
-
-
     def test_large_file(self):
         """
         Verify a large file import with no buffering
@@ -63,14 +61,15 @@ class HypmCTDTest(DatasetAgentTestCase):
 
         self.create_sample_data("moas_flord/unit_363_2013_199_0_0.mrg", "unit_363_2013_199_0_0.mrg")
         gevent.sleep(10)
-        self.assert_sample_queue_size(self.test_config.stream_name, 0)
+        self.assert_sample_queue_size(self.test_config.stream_name, 1)
 
         self.create_sample_data("moas_flord/unit_363_2013_199_1_0.mrg", "unit_363_2013_199_1_0.mrg")
         gevent.sleep(10)
-        self.assert_sample_queue_size(self.test_config.stream_name, 0)
+        self.assert_sample_queue_size(self.test_config.stream_name, 2)
 
         self.create_sample_data("moas_flord/unit_363_2013_245_6_6.mrg", "unit_363_2013_245_6_6.mrg")
         self.get_samples(self.test_config.stream_name, 171, 180)
-        self.assert_sample_queue_size(self.test_config.stream_name, 1)
+        self.assert_sample_queue_size(self.test_config.stream_name, 0)
 
-
+    def test_capabilities(self):
+        self.assert_agent_capabilities()

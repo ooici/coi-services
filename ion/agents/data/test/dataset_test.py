@@ -10,12 +10,6 @@
 __author__ = 'Bill French'
 __license__ = 'Apache 2.0'
 
-# Pyon log and config objects.
-from pyon.public import log
-from pyon.public import CFG
-from pyon.core.bootstrap import get_service_registry
-
-# 3rd party imports.
 import os
 import sys
 import pprint
@@ -24,58 +18,36 @@ import gevent
 import shutil
 from nose.plugins.attrib import attr
 
-# Pyon pubsub and event support.
-from pyon.event.event import EventSubscriber, EventPublisher
-from pyon.ion.stream import StandaloneStreamSubscriber
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-
 # Pyon unittest support.
 from ion.util.agent_launcher import AgentLauncher
 from ion.agents.data.result_set import ResultSet
 from ion.agents.instrument.common import BaseEnum
 from pyon.util.int_test import IonIntegrationTestCase
 
-# Pyon Object Serialization
+# Pyon
+from pyon.event.event import EventSubscriber, EventPublisher
+from pyon.ion.stream import StandaloneStreamSubscriber
+from pyon.core.exception import ConfigNotFound, ResourceError, ServerError
 from pyon.core.object import IonObjectSerializer
-
-# Pyon exceptions.
-from pyon.core.exception import BadRequest, Conflict, Timeout, ResourceError
-from pyon.core.exception import IonException
-from pyon.core.exception import ConfigNotFound
-from pyon.core.exception import NotFound, ServerError
-
-# Agent imports.
+from pyon.public import RT, log, PRED, BadRequest, Conflict, Timeout, IonException, NotFound, IonObject
 from pyon.util.context import LocalContextMixin
-from pyon.agent.agent import ResourceAgentClient
-from pyon.agent.agent import ResourceAgentState
-from pyon.agent.agent import ResourceAgentEvent
+from pyon.agent.agent import ResourceAgentClient, ResourceAgentState, ResourceAgentEvent
 
-
+# ION services and utils
 from ion.services.dm.test.dm_test_case import breakpoint
-from pyon.public import RT, log, PRED
-
-from ion.services.dm.utility.granule_utils import time_series_domain
-from interface.objects import DataProduct
-from interface.objects import AgentCapability
-from interface.objects import CapabilityType
+from ion.services.dm.utility.granule_utils import time_series_domain, RecordDictionaryTool
+from ion.services.sa.instrument.agent_configuration_builder import ExternalDatasetAgentConfigurationBuilder
 
 # Objects and clients.
-from interface.objects import AgentCommand
+from interface.objects import DataProduct, AgentCapability, CapabilityType, AgentCommand
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from ion.services.sa.instrument.agent_configuration_builder import ExternalDatasetAgentConfigurationBuilder
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceDependentClients
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-
-# Alarms.
-from pyon.public import IonObject
-
-from ooi.timer import Timer
 
 ###############################################################################
 # Global constants.
 ###############################################################################
 DEPLOY_FILE='res/deploy/r2deploy.yml'
-#PRELOAD_CATEGORIES="CoordinateSystem,Constraint,Contact,StreamDefinition,StreamConfiguration,DataProduct,DataProductLink,InstrumentModel,InstrumentDevice,ParameterFunctions,ParameterDefs,ParameterDictionary,ExternalDatasetAgent,ExternalDatasetAgentInstance"
 PRELOAD_SCENARIO="BETA"
 PRELOAD_CATEGORIES = [
     #'IDMap',                            # mapping of preload IDs
@@ -85,7 +57,7 @@ PRELOAD_CATEGORIES = [
     #'Org',
     #'UserRole',                         # no resource - association only
     'CoordinateSystem',                 # in memory only - all scenarios loaded
-    #'ParameterFunctions',
+    'ParameterFunctions',
     'ParameterDefs',
     'ParameterDictionary',
     #'Alerts',                           # in memory only - all scenarios loaded
@@ -121,7 +93,10 @@ PRELOAD_CATEGORIES = [
     #'Scheduler',
     #'Reference',                        # No resource
     ]
+
+# Uncomment to load all categories
 #PRELOAD_CATEGORIES = None
+
 
 class AgentCapabilityType(BaseEnum):
     AGENT_COMMAND = 'agent_command'
@@ -129,6 +104,7 @@ class AgentCapabilityType(BaseEnum):
     RESOURCE_COMMAND = 'resource_command'
     RESOURCE_INTERFACE = 'resource_interface'
     RESOURCE_PARAMETER = 'resource_parameter'
+
 
 class FakeProcess(LocalContextMixin):
     """
@@ -138,6 +114,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
+
 class DatasetAgentTestConfig(object):
     """
     test config object.
@@ -146,13 +123,12 @@ class DatasetAgentTestConfig(object):
 
     # If set load the driver from this repo instead of the egg
     mi_repo = None
-
-    data_dir    = "/tmp/dsatest"
+    data_dir    = "/tmp/dsatest%s" % os.getpid()
     test_resource_dir = None
-
     preload_scenario = None
     stream_name = None
     exchange_name = 'science_data'
+
 
     def initialize(self, *args, **kwargs):
 
@@ -170,6 +146,7 @@ class DatasetAgentTestConfig(object):
         self.stream_name = kwargs.get('stream_name', self.stream_name)
         self.exchange_name = kwargs.get('exchange_name', self.exchange_name)
 
+
     def verify(self):
         """
         TODO: Add more config verification code
@@ -183,6 +160,7 @@ class DatasetAgentTestConfig(object):
         if not self.stream_name:
             raise ConfigNotFound("missing stream_name")
 
+
     def test_base_dir(self):
         """
         Determine the base directory for the test, this is used to figure out
@@ -192,19 +170,17 @@ class DatasetAgentTestConfig(object):
 
 class DatasetAgentTestCase(IonIntegrationTestCase):
     """
-    Base class for all coi dataset agent end to end tests
+    Base class for all dataset agent end to end tests
     """
     test_config = DatasetAgentTestConfig()
 
     def setUp(self, deploy_file=DEPLOY_FILE):
-
         """
         Start container.
         Start deploy services.
         Define agent config, start agent.
         Start agent client.
         """
-
         self._dsa_client = None
 
         # Ensure we have a good test configuration
@@ -213,17 +189,18 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         # Start container.
         log.info('Staring capability container.')
         self._start_container()
+        self.rr = self.container.resource_registry
 
         # Bring up services in a deploy file (no need to message)
-        log.info('Staring deploy services. %s', deploy_file)
+        log.info('Starting deploy services. %s', deploy_file)
         self.container.start_rel_from_url(DEPLOY_FILE)
 
         # Load instrument specific parameters
-        log.info('Loading additional scenarios')
+        log.info('Preload test scenarios')
         self._load_params()
 
         # Start a resource agent client to talk with the instrument agent.
-        log.info('starting DSA process')
+        log.info('Starting DSA process')
         self._dsa_client = self._start_dataset_agent_process()
         log.debug("Client created: %s", type(self._dsa_client))
         self.addCleanup(self.assert_reset)
@@ -253,34 +230,33 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
             log.warn("No common preload defined.  Was this intentional?")
 
         if self.test_config.preload_scenario:
-            if scenario:
-                scenario = "%s,%s" % (scenario, self.test_config.preload_scenario)
-            else:
-                scenario = self.test_config.preload_scenario
+            scenario = "%s,%s" % (scenario, self.test_config.preload_scenario) if scenario else self.test_config.preload_scenario
         else:
             log.warn("No DSA specific preload defined.  Was this intentional?")
 
-        log.debug("doing preload now: %s", scenario)
         if scenario:
-            self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=dict(
+            preload_config=dict(
                 op="load",
                 scenario=scenario,
                 path="master",
                 categories=categories,
                 clearcols="owner_id,org_ids",
-                assets="res/preload/r2_ioc/ooi_assets",
-                parseooi="True",
-            ))
+                #assets="res/preload/r2_ioc/ooi_assets",
+                #parseooi="True",
+            )
+            log.debug("Starting preload now: config=%s", preload_config)
+            self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", preload_config)
 
     def _start_dataset_agent_process(self):
         """
         Launch the agent process and store the configuration.  Tried
         to emulate the same process used by import_data.py
         """
-        (instrument_device, dsa_instance) = self._get_dsa_instance()
+        instrument_device, dsa_instance = self._get_dsa_instance()
         self._driver_config = dsa_instance.driver_config
 
         self._update_dsa_config(dsa_instance)
+        self._update_harvester_config(dsa_instance)
 
         self.clear_sample_data()
 
@@ -290,41 +266,51 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
     def _get_dsa_instance(self):
         """
         Find the dsa instance in preload and return an instance of that object
-        :return:
         """
         name = self.test_config.instrument_device_name
-        rr = self.container.resource_registry
 
         log.debug("Start dataset agent process for instrument device: %s", name)
-        objects,_ = rr.find_resources(RT.InstrumentDevice)
+        objects,_ = self.rr.find_resources(RT.InstrumentDevice, name=name)
         log.debug("Found Instrument Devices: %s", objects)
-
-        filtered_objs = [obj for obj in objects if obj.name == name]
-        if (filtered_objs) == []:
+        if not objects:
             raise ConfigNotFound("No appropriate InstrumentDevice objects loaded")
 
-        instrument_device = filtered_objs[0]
+        instrument_device = objects[0]
         log.trace("Found instrument device: %s", instrument_device)
 
-        dsa_instance = rr.read_object(subject=instrument_device._id,
+        dsa_instance = self.rr.read_object(subject=instrument_device._id,
                                      predicate=PRED.hasAgentInstance,
                                      object_type=RT.ExternalDatasetAgentInstance)
 
         log.info("dsa_instance found: %s", dsa_instance)
 
-        return (instrument_device, dsa_instance)
+        return instrument_device, dsa_instance
+
+    def _update_harvester_config(self, dsa_instance):
+        """
+        Update the harvester config such that we change the directory to something
+        we have write permissions.
+        """
+        log.info("dsa agent instance: %s", dsa_instance)
+        driver_config = dsa_instance.driver_config
+
+        log.info("dsa agent driver config: %s", driver_config)
+        driver_config['startup_config']['harvester']['directory'] = self.test_config.data_dir
+
+        log.info("updated driver config: %s", driver_config)
+        dsa_instance.driver_config = driver_config
+
+        self.rr.update(dsa_instance)
 
     def _update_dsa_config(self, dsa_instance):
         """
         Update the dsa configuration prior to loading the agent.  This is where we can
         alter production configurations for use in a controlled test environment.
         """
-        rr = self.container.resource_registry
-
-        dsa_obj = rr.read_object(
+        dsa_obj = self.rr.read_object(
             object_type=RT.ExternalDatasetAgent, predicate=PRED.hasAgentDefinition, subject=dsa_instance._id, id_only=False)
 
-        log.info("dsa agent found: %s", dsa_obj)
+        log.info("dsa agent definition found: %s", dsa_obj)
 
         # If we don't want to load from an egg then we need to
         # alter the driver config read from preload
@@ -334,7 +320,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
             dsa_obj.driver_module = ".".join(dsa_obj.driver_module.split('.')[1:])
 
             log.info("saving new dsa agent config: %s", dsa_obj)
-            rr.update(dsa_obj)
+            self.rr.update(dsa_obj)
 
             if not self.test_config.mi_repo in sys.path: sys.path.insert(0, self.test_config.mi_repo)
 
@@ -365,8 +351,8 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
 
         log.debug("Launching agent process!")
 
-        process_id = launcher.launch(self.agent_config, config_builder._get_process_definition()._id)
-        if not process_id:
+        self._dsa_pid = launcher.launch(self.agent_config, config_builder._get_process_definition()._id)
+        if not self._dsa_pid:
             raise ServerError("Launched external dataset agent instance but no process_id")
         config_builder.record_launch_parameters(self.agent_config)
 
@@ -503,7 +489,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
 
         self._event_subscriber = EventSubscriber(
             event_type=type, callback=consume_event,
-            origin=IA_RESOURCE_ID)
+            origin="IA_RESOURCE_ID") #TODO
         self._event_subscriber.start()
         self._event_subscriber._ready_event.wait(timeout=5)
 
@@ -583,7 +569,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
                 pubsub_client.delete_subscription(subscriber.subscription_id)
             subscriber.stop()
 
-    def get_samples(self, stream_name, sample_count = 1, timeout = 10):
+    def get_samples(self, stream_name, sample_count=1, timeout=10):
         """
         listen on a stream until 'sample_count' samples are read and return
         a list of all samples read.  If the required number of samples aren't
@@ -609,7 +595,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
 
         try:
             while(not done):
-                if(self._samples_received.has_key(stream_id) and
+                if (self._samples_received.has_key(stream_id) and
                    len(self._samples_received.get(stream_id))):
                     log.trace("get_samples() received sample #%d!", i)
                     result.append(self._samples_received[stream_id].pop(0))
@@ -893,15 +879,15 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
 
             return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
 
-        if(not capabilities.get(AgentCapabilityType.AGENT_COMMAND)):
+        if not capabilities.get(AgentCapabilityType.AGENT_COMMAND):
             capabilities[AgentCapabilityType.AGENT_COMMAND] = []
-        if(not capabilities.get(AgentCapabilityType.AGENT_PARAMETER)):
+        if not capabilities.get(AgentCapabilityType.AGENT_PARAMETER):
             capabilities[AgentCapabilityType.AGENT_PARAMETER] = []
-        if(not capabilities.get(AgentCapabilityType.RESOURCE_COMMAND)):
+        if not capabilities.get(AgentCapabilityType.RESOURCE_COMMAND):
             capabilities[AgentCapabilityType.RESOURCE_COMMAND] = []
-        if(not capabilities.get(AgentCapabilityType.RESOURCE_INTERFACE)):
+        if not capabilities.get(AgentCapabilityType.RESOURCE_INTERFACE):
             capabilities[AgentCapabilityType.RESOURCE_INTERFACE] = []
-        if(not capabilities.get(AgentCapabilityType.RESOURCE_PARAMETER)):
+        if not capabilities.get(AgentCapabilityType.RESOURCE_PARAMETER):
             capabilities[AgentCapabilityType.RESOURCE_PARAMETER] = []
 
 
@@ -950,7 +936,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         list of common agent parameters
         @return: list of agent parameters
         '''
-        return ['aggstatus', 'alerts', 'driver_name', 'driver_pid', 'example', 'pubrate', 'streams']
+        return ['aggstatus', 'alerts', 'child_agg_status', 'driver_name', 'driver_pid', 'example', 'pubrate', 'streams']
 
     def _common_agent_commands(self, agent_state):
         '''
@@ -1017,3 +1003,4 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
             self.fail("Failed to transition state.")
         finally:
             to.cancel()
+
