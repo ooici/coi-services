@@ -13,6 +13,7 @@ from ion.core.ooiref import OOIReferenceDesignator
 
 from ooi.logging import log
 from pyon.util.containers import get_ion_ts
+from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
 import constraint
 
@@ -527,6 +528,7 @@ class DeploymentActivator(DeploymentOperator):
 
         self._hasdevice_associations_to_delete = []
         self._hasdevice_associations_to_create = []
+        self.outil = ObservatoryUtil(self, enhanced_rr=self.RR2)
 
     # these are the output accessors
     def hasdevice_associations_to_delete(self):
@@ -554,9 +556,12 @@ class DeploymentActivator(DeploymentOperator):
         Prepare (validate) a deployment for activation, returning lists of what associations need to be added
         and which ones need to be removed.
         """
-
-        #TODO: check for already deployed?
-
+        #retrieve the site tree information using the OUTIL functions; site info as well has site children
+        site_ids = self.RR2.find_subjects(subject_type=RT.PlatformSite, predicate=PRED.hasDeployment, object=self.deployment_obj._id, id_only=True)
+        if not site_ids:
+           site_ids = self.RR2.find_subjects(subject_type=RT.InstrumentSite, predicate=PRED.hasDeployment, object=self.deployment_obj._id, id_only=True)
+        if site_ids:
+            self.site_resources, self.site_children = self.outil.get_child_sites( parent_site_id=site_ids[0], id_only=False)
 
         log.debug("about to collect deployment components")
         self.resource_collector.collect()
@@ -637,7 +642,14 @@ class DeploymentActivator(DeploymentOperator):
             log.debug('Add to matched list  site_id:  %s   dev_id: %s', site_id, dev_id)
 
 
-            site_of_portref = {v["uplink_port"]: k for k, v in site_ptr["children"].iteritems()}
+            site_of_portref = {}
+            #creat a dict of reference_designator on sites so that devices can be matched
+            dev_site_obj = self.site_resources[site_id]
+            site_of_portref[dev_site_obj.reference_designator] = site_id
+            if site_id in self.site_children:
+                for child in self.site_children[site_id]:
+                    dev_site_obj = self.site_resources[child]
+                    site_of_portref[dev_site_obj.reference_designator] = child
 
             for child_dev_id, child_dev_ptr in dev_ptr["children"].iteritems():
 
