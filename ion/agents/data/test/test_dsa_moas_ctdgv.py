@@ -23,7 +23,7 @@ import unittest
 ###############################################################################
 
 
-@attr('INT', group='mi')
+@attr('INT', group='sa')
 class HypmCTDTest(DatasetAgentTestCase):
     """
     Verify dataset agent can harvest data fails, parse the date, publish,
@@ -31,11 +31,12 @@ class HypmCTDTest(DatasetAgentTestCase):
     """
     def setUp(self):
         self.test_config.initialize(
-            instrument_device_name = 'CTDGV',
-            preload_scenario= 'GLIDER,CTDGV',
-            stream_name= 'ggldr_ctdgv_delayed',
+            instrument_device_name = 'CTDGV-01',
+            preload_scenario = 'GENG,CTDGV',
+            stream_name = 'ggldr_ctdgv_delayed',
+            pattern = "unit*.mrg",
 
-            # Uncomment this line to load driver from a locak repository
+            # Uncomment this line to load driver from a local repository
             #mi_repo = '/Users/wfrench/Workspace/code/wfrench/marine-integrations'
         )
 
