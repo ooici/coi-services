@@ -3603,8 +3603,6 @@ Reason: %s
 
 
     def _create_port_assignments(self, device_id, recurse=True):
-        if "OVERRIDE UNTIL FIXED":
-            return ""
 
         node_objs = self.ooi_loader.get_type_assets("node")
         inst_objs = self.ooi_loader.get_type_assets("instrument")
