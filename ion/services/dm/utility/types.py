@@ -299,6 +299,7 @@ class TypesManager(object):
 
     @classmethod
     def dp_name(cls, data_product):
+        data_product = re.sub(r'[^a-zA-Z0-9_]', '_', data_product)
         return re.sub(r'_L[0-9]+','',data_product)
 
     def make_grt_qc(self, name, data_product):
