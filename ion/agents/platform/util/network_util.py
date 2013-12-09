@@ -129,10 +129,8 @@ class NetworkUtil(object):
             def build_and_add_ports_to_node(ports, pn):
                 for port_info in ports:
                     assert 'port_id' in port_info
-                    assert 'network' in port_info
                     port_id = port_info['port_id']
-                    network = port_info['network']
-                    port = PortNode(port_id, network)
+                    port = PortNode(port_id)
                     port.set_state(port_info.get('state', None))
                     if 'instruments' in port_info:
                         for instrument in port_info['instruments']:
@@ -236,7 +234,6 @@ class NetworkUtil(object):
                 lines.append('  ports:')
                 for port_id, port in pnode.ports.iteritems():
                     lines.append('  - port_id: %s' % port_id)
-                    lines.append('    network: %s' % port.network)
 
                     # instruments
                     if len(port.instruments):
@@ -474,11 +471,8 @@ class NetworkUtil(object):
             for port_info in ports:
                 if not 'port_id' in port_info:
                     raise PlatformDefinitionException("_add_ports_to_platform_node(): 'port_id' not in port_info")
-                if not 'network' in port_info:
-                    raise PlatformDefinitionException("_add_ports_to_platform_node(): 'network' not in port_info")
                 port_id = port_info['port_id']
-                network = port_info['network']
-                port = PortNode(port_id, network)
+                port = PortNode(port_id)
                 pn.add_port(port)
 
         def build_platform_node(CFG, parent_node):

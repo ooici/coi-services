@@ -217,8 +217,7 @@ class CIOMSSimulator(CIOMSClient):
 
         ports = {}
         for port_id, port in self._pnodes[platform_id].ports.iteritems():
-            ports[port_id] = {'network': port.network,
-                              'state'  : port.state}
+            ports[port_id] = {'state'  : port.state}
 
         return {platform_id: ports}
 
