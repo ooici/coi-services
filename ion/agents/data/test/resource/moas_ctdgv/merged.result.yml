@@ -25,7 +25,7 @@ data:
     sci_water_pressure: 0.093
     sci_water_temp: 15.3703
   - _index: 3
-    _new_sequence: True
+    _new_sequence: False
     internal_timestamp: '2013-09-05T02:49:22.3978Z'
     m_present_time: 1378349362.3978
     m_present_secs_into_mission: 121267
@@ -35,7 +35,7 @@ data:
     sci_water_pressure: 0.386
     sci_water_temp: 15.3727
   - _index: 4
-    _new_sequence: True
+    _new_sequence: False
     internal_timestamp: '2013-09-05T02:50:22.87961Z'
     m_present_time: 1378349422.87961
     m_present_secs_into_mission: 121328

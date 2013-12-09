@@ -362,6 +362,131 @@ class DataSetAgent(InstrumentAgent):
         events_out = [x for x in events if DataSetAgentCapability.has(x)]
         return events_out
 
+    def _restore_resource(self, state, prev_state):
+        """
+        Restore agent/resource configuration and state.
+        """
+        log.debug("starting agent restore process, State: %s, Prev State: %s", state, prev_state)
+
+        # Get state to restore. If the last state was lost connection,
+        # use the prior connected state.
+        if not state:
+            log.debug("State not defined, not restoring")
+            return
+
+        if state == ResourceAgentState.LOST_CONNECTION:
+            state = prev_state
+
+        try:
+            cur_state = self._fsm.get_current_state()
+
+            # If unitialized, confirm and do nothing.
+            if state == ResourceAgentState.UNINITIALIZED:
+                if cur_state != state:
+                    raise Exception()
+
+            # If inactive, initialize and confirm.
+            elif state == ResourceAgentState.INACTIVE:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If idle, initialize, activate and confirm.
+            elif state == ResourceAgentState.IDLE:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If streaming, initialize, activate and confirm.
+            # Driver discover should put us in streaming mode.
+            elif state == ResourceAgentState.STREAMING:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                self._fsm.on_event(ResourceAgentEvent.EXECUTE_RESOURCE, DriverEvent.START_AUTOSAMPLE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If command, initialize, activate, confirm idle,
+            # run and confirm command.
+            elif state == ResourceAgentState.COMMAND:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If paused, initialize, activate, confirm idle,
+            # run, confirm command, pause and confirm stopped.
+            elif state == ResourceAgentState.STOPPED:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.PAUSE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If in a command reachable substate, attempt to return to command.
+            # Initialize, activate, confirm idle, run confirm command.
+            elif state in [ResourceAgentState.TEST,
+                    ResourceAgentState.CALIBRATE,
+                    ResourceAgentState.DIRECT_ACCESS,
+                    ResourceAgentState.BUSY]:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+
+            # If active unknown, return to active unknown or command if
+            # possible. Initialize, activate, confirm active unknown, else
+            # confirm idle, run, confirm command.
+            elif state == ResourceAgentState.ACTIVE_UNKNOWN:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state == ResourceAgentState.ACTIVE_UNKNOWN:
+                    return
+                elif cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+
+            else:
+                log.error('Instrument agent %s error restoring unhandled state %s, current state %s.',
+                        self.id, state, cur_state)
+
+        except Exception as ex:
+            log.error('Instrument agent %s error restoring state %s, current state %s, exception %s.',
+                    self.id, state, cur_state, str(ex))
+            log.exception('###### Agent restore stack trace:')
+
+        else:
+            log.info('Instrument agent %s restored state %s = %s.',
+                     self.id, state, cur_state)
+
+
 class FactorialRetryCalculator(object):
     """
     Object for tracking retry state and calculate retry times based on a factorial sequence

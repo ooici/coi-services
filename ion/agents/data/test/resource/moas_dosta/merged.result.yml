@@ -3,35 +3,52 @@
 header:
   stream_name: ggldr_dosta_delayed
 
-NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN NaN 121325 1378349419.86694 NaN NaN NaN NaN NaN NaN 121325 1378349419.86694 241.865 95.848 NaN NaN NaN
 data:
   - _index: 1
     _new_sequence: True
+    internal_timestamp: '2013-09-05T02:47:18.77789'
+    m_present_time: 1378349238.77789
+    m_present_secs_into_mission: 121144
+    sci_m_present_time: 1378349238.77789
+    sci_m_present_secs_into_mission: 121144
+    sci_oxy4_oxygen:
+      value: 242.217
+      round: 4
+    sci_oxy4_saturation:
+      value: 96.009
+      round: 4
+  - _index: 2
+    _new_sequence: False
     internal_timestamp: '2013-09-05T02:48:19.09106Z'
-    m_present_time: 1378349299.09106
+    m_present_time:
+      value: 1378349299.09106
+      round: 6
     m_present_secs_into_mission: 121204
     sci_m_present_time: 1378349299.09106
     sci_m_present_secs_into_mission: 121204
-    sci_oxy4_oxygen: 242.141
-    sci_oxy4_saturation: 95.988
-  - _index: 2
-    _new_sequence: False
-    internal_timestamp: '2013-09-05T02:49:19.38211Z'
-    m_present_time: 1378349359.38211
-    m_present_secs_into_mission: 121264
-    sci_m_present_time: 1378349359.38211
-    sci_m_present_secs_into_mission: 121264
-    sci_oxy4_oxygen: 241.953
-    sci_oxy4_saturation: 95.927
+    sci_oxy4_oxygen:
+      value: 242.141
+      round: 4
+    sci_oxy4_saturation:
+      value: 95.988
+      round: 4
   - _index: 3
     _new_sequence: False
-    internal_timestamp: '2013-09-05T02:50:19.86694Z'
-    m_present_time: 1378349419.86694
-    m_present_secs_into_mission: 121325
-    sci_m_present_time: 1378349419.86694
-    sci_m_present_secs_into_mission: 121325
-    sci_oxy4_oxygen: 241.865
-    sci_oxy4_saturation: 95.848
+    internal_timestamp: '2013-09-05T02:49:19.38211Z'
+    m_present_time:
+      value: 1378349359.38211
+      round: 6
+    m_present_secs_into_mission: 121264
+    sci_m_present_time:
+      value: 1378349359.38211
+      round: 6
+    sci_m_present_secs_into_mission: 121264
+    sci_oxy4_oxygen:
+      value: 241.953
+      round: 4
+    sci_oxy4_saturation:
+      value: 95.927
+      round: 4
   - _index: 4
     _new_sequence: False
     internal_timestamp: '2013-09-05T02:50:19.86694Z'
@@ -39,5 +56,23 @@ data:
     m_present_secs_into_mission: 121325
     sci_m_present_time: 1378349419.86694
     sci_m_present_secs_into_mission: 121325
-    sci_oxy4_oxygen: 241.865
-    sci_oxy4_saturation: 95.848
+    sci_oxy4_oxygen:
+      value: 241.865
+      round: 4
+    sci_oxy4_saturation:
+      value: 95.848
+      round: 4
+  - _index: 5
+    _new_sequence: False
+    internal_timestamp: '2013-09-05T02:50:19.86694Z'
+    m_present_time: 1378349419.86694
+    m_present_secs_into_mission: 121325
+    sci_m_present_time: 1378349419.86694
+    sci_m_present_secs_into_mission: 121325
+    sci_oxy4_oxygen:
+      value: 241.865
+      round: 4
+    sci_oxy4_saturation:
+      value: 95.848
+      round: 4
+
