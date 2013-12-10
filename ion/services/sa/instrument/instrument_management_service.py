@@ -1967,9 +1967,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         for ch_id in child_site_ids:
             device_id = self._get_site_device(ch_id, portal_device_relations)
             device_obj = child_by_id.get(device_id, None)
-            extended_platform.portal_instruments.append(device_obj)
+
             if device_obj:
                 #these are the same set of devices that constitute the rollup status for this platform device, create the list
+                extended_platform.portal_instruments.append(device_obj)
                 portal_instrument_ids.append(device_obj._id)
 
         log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
@@ -1987,20 +1988,33 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         extended_platform.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
         extended_platform.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
 
-        if extended_platform.instrument_devices and extended_platform.instrument_devices[0]:
-            instrument_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_platform.instrument_devices]
+
+        instrument_status = []
+        if extended_platform.instrument_devices:
+            for x in extended_platform.instrument_devices:
+                if x:
+                    instrument_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    instrument_status.append(DeviceStatusType.STATUS_UNKNOWN)
             extended_platform.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=instrument_status)
         else:
             extended_platform.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
 
-        if extended_platform.platforms and extended_platform.platforms[0]:
-            platform_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_platform.platforms]
-            extended_platform.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=platform_status)
-        else:
-            extended_platform.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
+        platform_status = []
+        if extended_platform.platforms:
+            for x in extended_platform.platforms:
+                if x:
+                    platform_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    platform_status.append(DeviceStatusType.STATUS_UNKNOWN)
 
-        if extended_platform.portal_instruments and extended_platform.portal_instruments[0]:
-            portal_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_platform.portal_instruments]
+        portal_status = []
+        if extended_platform.portal_instruments:
+            for x in extended_platform.portal_instruments:
+                if x:
+                    portal_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    portal_status.append(DeviceStatusType.STATUS_UNKNOWN)
             extended_platform.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=portal_status)
         else:
             extended_platform.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
