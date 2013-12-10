@@ -1932,7 +1932,11 @@ class PlatformAgent(ResourceAgent):
 
     def _get_instrument_ids(self):
         """
-        Gets the IDs of my instruments.
+        Gets the IDs of my instruments as given from configuration time.
+        Note that during regular operations, child devices can come and go
+        depending of error conditions, etc.; so for the current corresponding
+        IDs (in the case of instruments), use self._ia_clients.keys(). See for
+        example _instruments_execute_agent, _instruments_shutdown_and_terminate.
         """
         return self._pnode.instruments.keys()
 
@@ -2093,7 +2097,7 @@ class PlatformAgent(ResourceAgent):
 
     def _instruments_launch(self):
         """
-        Launches all my instruments storing the corresponding
+        Launches all my configured instruments storing the corresponding
         ResourceAgentClient objects in _ia_clients.
         """
         self._ia_clients.clear()
@@ -2107,7 +2111,7 @@ class PlatformAgent(ResourceAgent):
 
     def _instruments_initialize(self):
         """
-        Initializes all my instruments.
+        Initializes all my configured instruments.
 
         Note that invalidated children are ignored.
 
@@ -2157,19 +2161,20 @@ class PlatformAgent(ResourceAgent):
         @return dict with children having caused some error. Empty if all
                 children were processed OK.
         """
-        instrument_ids = self._get_instrument_ids()
-        if set(instrument_ids) != set(self._ia_clients.keys()) :
-            raise PlatformException("PlatformAgent._instruments_execute_agent: instrument ids %s does not equal ia client ids %s ",
-                                    instrument_ids, self._ia_clients.keys())
+
+        # OOIION-1290: only rely on self._ia_clients, which is the more dynamic
+        # variable reflecting the current situation with child instruments.
+
+        # act only on the children that are not invalidated:
+        valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
+                             if v != _INVALIDATED_CHILD)
+
+        instrument_ids = valid_clients.keys()
 
         children_with_errors = {}
 
         if not len(instrument_ids):
             return children_with_errors
-
-        # act only on the children that are not invalidated:
-        valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
-                             if v != _INVALIDATED_CHILD)
 
         if not len(valid_clients):
             log.warn("%r: OOIION-1077 all instrument children (%s) are "
@@ -2424,23 +2429,25 @@ class PlatformAgent(ResourceAgent):
 
     def _instruments_shutdown_and_terminate(self):
         """
-        Executes RESET and terminates all my instruments.
+        Executes RESET and terminates all my currently valid instruments.
         ("shutting down" the instruments is just resetting them.)
 
         @return dict with children having caused some error. Empty if all
                 children were processed OK.
         """
-        instrument_ids = self._get_instrument_ids()
-        if set(instrument_ids) != set(self._ia_clients.keys()) :
-            raise PlatformException("PlatformAgent._instruments_shutdown_and_terminate: instrument ids %s does not equal ia client ids %s ",
-                                    instrument_ids, self._ia_clients.keys())
-
         instruments_with_errors = {}
-        if len(instrument_ids):
-            for instrument_id in instrument_ids:
-                err_msg = self._shutdown_and_terminate_instrument(instrument_id)
-                if err_msg is not None:
-                    instruments_with_errors[instrument_id] = err_msg
+
+        # OOIION-1290: only rely on self._ia_clients, which is the more dynamic
+        # variable reflecting the current situation with child instruments.
+
+        # Act only on the children that are not invalidated:
+        valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
+                             if v != _INVALIDATED_CHILD)
+
+        for instrument_id in valid_clients:
+            err_msg = self._shutdown_and_terminate_instrument(instrument_id)
+            if err_msg is not None:
+                instruments_with_errors[instrument_id] = err_msg
 
         return instruments_with_errors
 
