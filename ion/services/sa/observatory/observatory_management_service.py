@@ -1159,15 +1159,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
         statuses = self.outil.get_status_roll_ups(site_id)
-
-        if extended_site.portal_instruments and extended_site.portal_instruments[0]:
-            portal_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.portal_instruments]
+        portal_status = []
+        if extended_site.portal_instruments:
+            for x in extended_site.portal_instruments:
+                if x:
+                    portal_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    portal_status.append(DeviceStatusType.STATUS_UNKNOWN)
             extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=portal_status)
         else:
             extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
 
-        if extended_site.sites and extended_site.sites[0]:
-            site_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.sites]
+        site_status = []
+        if extended_site.sites:
+            for x in extended_site.sites:
+                if x:
+                    site_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    site_status.append(DeviceStatusType.STATUS_UNKNOWN)
             extended_site.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=site_status)
         else:
             extended_site.computed.site_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
@@ -1182,14 +1191,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             subset_status.append( site_status[idx] )
         extended_site.computed.station_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=subset_status)
 
-        if extended_site.instrument_devices and extended_site.instrument_devices[0]:
-            inst_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.instrument_devices]
+        inst_status = []
+        if extended_site.instrument_devices:
+            for x in extended_site.instrument_devices:
+                if x:
+                    inst_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    inst_status.append(DeviceStatusType.STATUS_UNKNOWN)
             extended_site.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=inst_status)
         else:
             extended_site.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
 
-        if extended_site.platform_devices and extended_site.platform_devices[0]:
-            plat_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.platform_devices]
+        plat_status = []
+        if extended_site.platform_devices:
+            for x in extended_site.platform_devices:
+                    if x:
+                        plat_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                    else:
+                        plat_status.append(DeviceStatusType.STATUS_UNKNOWN)
             extended_site.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=plat_status)
         else:
             extended_site.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
@@ -1306,8 +1325,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
         extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
 
-        instrument_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_site.instrument_devices]
-        extended_site.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=instrument_status)
+        instrument_status = []
+        if  extended_site.instrument_devices:
+            for x in extended_site.instrument_devices:
+                if x:
+                    instrument_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    instrument_status.append(DeviceStatusType.STATUS_UNKNOWN)
+            extended_site.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=instrument_status)
+        else:
+            extended_site.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
 
         extended_site.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
         extended_site.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
@@ -1545,23 +1572,56 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         statuses = outil.get_status_roll_ups(org_id)
 
-        site_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_org.sites]
-        extended_org.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=site_status)
+        site_status = []
+        if extended_org.sites:
+            for x in extended_org.sites:
+                if x:
+                    site_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    site_status.append(DeviceStatusType.STATUS_UNKNOWN)
+            extended_org.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=site_status)
+        else:
+            extended_org.computed.site_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
 
-        inst_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_org.instruments]
-        extended_org.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=inst_status)
+        inst_status = []
+        if extended_org.instruments:
+            for x in extended_org.instruments:
+                if x:
+                    inst_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    inst_status.append(DeviceStatusType.STATUS_UNKNOWN)
+            extended_org.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=inst_status)
+        else:
+            extended_org.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
 
-        plat_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_org.platforms]
-        extended_org.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=plat_status)
+        plat_status = []
+        if extended_org.platforms:
+            for x in extended_org.platforms:
+                if x:
+                    plat_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    plat_status.append(DeviceStatusType.STATUS_UNKNOWN)
+            extended_org.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=plat_status)
+        else:
+            extended_org.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
+
 
         subset = []
         for site in extended_org.station_sites:
             if site.alt_resource_type=='StationSite':
                 subset.append(site)
         extended_org.station_sites = subset
-        station_status = [statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN) for x in extended_org.station_sites]
-        extended_org.computed.station_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=station_status)
 
+        station_status = []
+        if extended_org.station_sites:
+            for x in extended_org.station_sites:
+                if x:
+                    station_status.append(statuses.get(x._id,{}).get("agg", DeviceStatusType.STATUS_UNKNOWN))
+                else:
+                    station_status.append(DeviceStatusType.STATUS_UNKNOWN)
+            extended_org.computed.station_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=station_status)
+        else:
+            extended_org.computed.station_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
 
         comms_rollup = statuses.get(org_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
         power_rollup = statuses.get(org_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
