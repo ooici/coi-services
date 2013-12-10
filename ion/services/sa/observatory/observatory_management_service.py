@@ -837,7 +837,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             device_resources = RR2.read_mult(device_list)
 
             # HACK:
-            site_resources.update(device_resources)
+            dev_by_id = {dev._id: dev for dev in device_resources}
+            site_resources.update(dev_by_id)
 
 
         return site_resources, site_children, site_devices, device_resources
