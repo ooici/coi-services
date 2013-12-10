@@ -800,8 +800,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return retval
 
-
-    def find_related_sites(self, parent_resource_id='', exclude_site_types=None, include_parents=False, id_only=False):
+    def find_related_sites(self, parent_resource_id='', exclude_site_types=None, include_parents=False,
+                           include_devices=False, id_only=False):
         if not parent_resource_id:
             raise BadRequest("Must provide a parent parent_resource_id")
         exclude_site_types = exclude_site_types or []
@@ -818,10 +818,30 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         else:
             raise BadRequest("Illegal parent_resource_id type. Expected Org/Site, given:%s" % parent_resource.type_)
 
-        site_resources, site_children = self.outil.get_child_sites(site_id, org_id,
+        RR2 = EnhancedResourceRegistryClient(self.RR)
+        RR2.cache_resources(RT.Observatory)
+        RR2.cache_resources(RT.PlatformSite)
+        RR2.cache_resources(RT.InstrumentSite)
+        if include_devices:
+            RR2.cache_resources(RT.PlatformDevice)
+            RR2.cache_resources(RT.InstrumentDevice)
+        outil = ObservatoryUtil(self, enhanced_rr=RR2)
+
+        site_resources, site_children = outil.get_child_sites(site_id, org_id,
                                    exclude_types=exclude_site_types, include_parents=include_parents, id_only=id_only)
 
-        return site_resources, site_children
+        site_devices, device_resources = None, None
+        if include_devices:
+            site_devices = outil.get_device_relations(site_children.keys())
+            device_list = list({tup[1] for key,dev_list in site_devices.iteritems() if dev_list for tup in dev_list})
+            device_resources = RR2.read_mult(device_list)
+
+            # HACK:
+            dev_by_id = {dev._id: dev for dev in device_resources}
+            site_resources.update(dev_by_id)
+
+
+        return site_resources, site_children, site_devices, device_resources
 
 
     def get_sites_devices_status(self, parent_resource_ids=None, include_sites=False, include_devices=False, include_status=False):
