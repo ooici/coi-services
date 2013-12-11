@@ -99,8 +99,8 @@ class HelperTestMixin:
 
         cls.PLATFORM_ID           = 'Node1D'
         cls.SUBPLATFORM_IDS       = ['MJ01C']
-        cls.ATTR_NAMES            = ['input_voltage', 'input_bus_current']
-        cls.WRITABLE_ATTR_NAMES   = ['input_bus_current']
+        cls.ATTR_NAMES            = ['input_voltage|0', 'input_bus_current|0']
+        cls.WRITABLE_ATTR_NAMES   = ['input_bus_current|0']
         cls.VALID_ATTR_VALUE      = "7"     # within the range
         cls.INVALID_ATTR_VALUE    = "9876"  # out of range
 
@@ -124,8 +124,8 @@ class HelperTestMixin:
             cls.PLATFORM_ID = 'LJ01D'
             print("PLAT_NETWORK=single -> using base platform: %r" % cls.PLATFORM_ID)
             cls.SUBPLATFORM_IDS = []
-            cls.ATTR_NAMES = ['input_voltage', 'input_bus_current']
-            cls.WRITABLE_ATTR_NAMES = ['input_bus_current']
+            cls.ATTR_NAMES = ['input_voltage|0', 'input_bus_current|0']
+            cls.WRITABLE_ATTR_NAMES = ['input_bus_current|0']
 
             cls.PORT_ID = '1'
             cls.INSTRUMENT_ID = 'LJ01D_port_1_instrument_1'
