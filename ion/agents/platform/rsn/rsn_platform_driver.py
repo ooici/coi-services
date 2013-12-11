@@ -784,9 +784,9 @@ class RSNPlatformDriver(PlatformDriver):
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot get_checksum: %s" % str(e))
 
-        dic_plat = self._verify_platform_id_in_response(response)
-        log.debug("%r: get_checksum... dic_plat=%s" % (self._platform_id, dic_plat))
-        return dic_plat  # note: return the dic for the platform
+        checksum = self._verify_platform_id_in_response(response)
+        log.debug("%r: get_checksum... checksum=%s" % (self._platform_id, checksum))
+        return checksum
 
     def _check_sync(self):
         """
@@ -795,15 +795,12 @@ class RSNPlatformDriver(PlatformDriver):
         with the information in the external network rooted at the
         corresponding platform, then publishing relevant notification events.
 
-        For the moment, it only tries to do the following:
-        - gets the checksum reported by the external platform
-        - compares it with the local checksum
-        - if equal ...
-        - if different ...
+        For the moment, it only reports the value of the external checksum
+        and the value of the local checksum.
 
         @todo complete implementation
 
-        @return TODO
+        @return {'external_checksum': string, 'local_checksum': string}
         """
 
         log.debug("%r: _check_sync: getting external checksum...", self._platform_id)
@@ -811,18 +808,21 @@ class RSNPlatformDriver(PlatformDriver):
         external_checksum = self.get_external_checksum()
         local_checksum = self._pnode.compute_checksum()
 
-        if external_checksum == local_checksum:
-            result = "OK: checksum for platform_id=%r: %s" % (
-                self._platform_id, local_checksum)
-        else:
-            result = "ERROR: different external and local checksums for " \
-                     "platform_id=%r: %s != %s" % (self._platform_id,
-                     external_checksum, local_checksum)
+        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            filename = "logs/checksum_check_from_driver.yml"
+            try:
+                from ion.agents.platform.util.network_util import NetworkUtil
+                open(filename, "w").write(NetworkUtil.serialize_pnode(self._pnode))
+            except Exception as e:
+                log.debug("%r: cannot write %s: %s", self._platform_id, filename, e)
 
-            # TODO - determine what sub-components are in disagreement
-            # TODO - publish relevant event(s)
+        result = {'external_checksum': external_checksum,
+                  'local_checksum': local_checksum}
 
         log.debug("%r: _check_sync: result: %s", self._platform_id, result)
+
+        # TODO - if checksums are different, determine what sub-components are
+        # in disagreement; publish relevant event(s), etc.
 
         return result
 
