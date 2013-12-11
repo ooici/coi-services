@@ -127,6 +127,8 @@ class AgentControl(ImmediateProcess):
                 self._activate_persistence(agent_instance_id, resource_id)
             elif self.op == "suspend_persistence":
                 self._suspend_persistence(agent_instance_id, resource_id)
+            elif self.op == "config_instance":
+                self._config_instance(agent_instance_id, resource_id)
 
         except Exception:
             log.exception("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
