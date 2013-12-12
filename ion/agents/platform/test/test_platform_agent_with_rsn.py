@@ -842,7 +842,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._turn_off_port()
         self._disconnect_instrument()
 
-    @unittest.skip('Skipped because ports in NetworkDefinition needs to be brought into alignment')
     def test_check_sync(self):
         self._create_network_and_start_root_platform()
 
