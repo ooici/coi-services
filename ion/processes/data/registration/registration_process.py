@@ -205,10 +205,7 @@ class RegistrationProcess(StandaloneProcess):
                 
                 units = "unknown"
                 if hasattr(var,'uom') and var.uom:
-                    try:
-                        units = var.uom.decode('ascii')
-                    except UnicodeDecodeError:
-                        pass
+                    units = var.uom
 
                 #if len(param.shape) >=1 and not param.is_coordinate: #dataVariable
                 data_element = doc.createElement('dataVariable')
