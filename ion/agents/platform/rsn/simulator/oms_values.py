@@ -109,7 +109,7 @@ def _create_sine_generator(sine_period, gen_period, min_val, max_val):
     return _gen
 
 
-# generators per platform/attribute:
+# generators per platform-ID/attribute-name:
 _plat_attr_generators = {
     # we used to have a couple here, but now none for the moment.
 
@@ -122,7 +122,7 @@ _plat_attr_generators = {
 }
 
 
-# generators per attribute:
+# generators per attribute name:
 _attribute_generators = {
 
     'input_voltage':
@@ -160,18 +160,22 @@ def generate_values(platform_id, attr_id, from_time, to_time):
     inclusive). Times are NTP.
 
     @param platform_id  Platform ID
-    @param attr_id      Attribute ID
+    @param attr_id      Attribute ID. Only the name part is considered. See OOIION-1551.
     @param from_time    lower limit of desired time window
     @param to_time      upper limit of desired time window
     """
 
+    # get the attribute name from the given ID:
+    separator = attr_id.rfind('|')
+    attr_name = attr_id[:separator] if separator >= 0 else attr_id
+
     # try by platform/attribute:
-    if (platform_id, attr_id) in _plat_attr_generators:
-        gen = _plat_attr_generators[(platform_id, attr_id)]
+    if (platform_id, attr_name) in _plat_attr_generators:
+        gen = _plat_attr_generators[(platform_id, attr_name)]
 
     # else: try by the attribute only:
-    elif attr_id in _attribute_generators:
-        gen = _attribute_generators[attr_id]
+    elif attr_name in _attribute_generators:
+        gen = _attribute_generators[attr_name]
 
     else:
         gen = _default_generator

@@ -168,6 +168,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #
         #bin/nosetests -s -v --nologcapture ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_ims_instrument_status
 
+        self._set_receive_timeout()
 
         p_root = self._set_up_single_platform_with_some_instruments(['SBE37_SIM_01'])
         self._start_platform(p_root)
