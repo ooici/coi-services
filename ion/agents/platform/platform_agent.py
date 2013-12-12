@@ -414,7 +414,7 @@ class PlatformAgent(ResourceAgent):
         try:
             self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
             log.debug("%r: created network_definition from CFG", self._platform_id)
-        except:
+        except Exception:
             log.exception("PlatformAgent._validate_configuration: exception raised while calling NetworkUtil.create_network_definition_from_ci_config")
 
         # verify the given platform_id is contained in the NetworkDefinition:
@@ -489,7 +489,7 @@ class PlatformAgent(ResourceAgent):
         # launch the sub-platform agents:
         try:
             self._subplatforms_launch()
-        except:
+        except Exception:
             log.exception("PlatformAgent %r: _children_launch greenlet, exception while launching sub-platform agents", self._platform_id)
         log.info("PlatformAgent %r: _children_launch greenlet, launching sub-platform agents completed", self._platform_id)
 
@@ -497,20 +497,20 @@ class PlatformAgent(ResourceAgent):
         # launch the instrument agents:
         try:
             self._instruments_launch()
-        except:
+        except Exception:
             log.exception("PlatformAgent %r: _children_launch greenlet, exception while launching instrument agents", self._platform_id)
         log.info("PlatformAgent %r: _children_launch greenlet, launching instrument agents completed", self._platform_id)
 
         # Ready, children launched and event subscribers in place
         try:
             self._async_children_launched.set()
-        except:
+        except Exception:
             log.exception("PlatformAgent %r: _children_launch greenlet, exception while trying to set self._async_children_launched", self._platform_id)
 
         #processing complete so unblock fsm and accept cmds
         try:
             self._fsm.on_event(PlatformAgentEvent.LAUNCH_COMPLETE)
-        except:
+        except Exception:
             log.exception("PlatformAgent %r: _children_launch greenlet, fsm exception for LAUNCH_COMPLETE event", self._platform_id)
 
         log.info("PlatformAgent %r: _children_launch greenlet stopping", self._platform_id)
@@ -989,7 +989,7 @@ class PlatformAgent(ResourceAgent):
                                                 origin_type=self.ORIGIN_TYPE,
                                                 origin=self.resource_id,
                                                 **event_data)
-        except:
+        except Exception:
             log.exception('%r: platform agent could not publish driver state change event',
                           self._platform_id)
 
@@ -1018,7 +1018,7 @@ class PlatformAgent(ResourceAgent):
         try:
             self._fsm.on_event(event)
 
-        except:
+        except Exception:
             log.warn("%r/%s: error processing asynchronous agent event %s",
                      self._platform_id, self.get_agent_state(), event)
 
@@ -1788,7 +1788,7 @@ class PlatformAgent(ResourceAgent):
             # execute command:
             try:
                 retval = self._execute_platform_agent(dd.pa_client, cmd, subplatform_id)
-            except:
+            except Exception:
                 err_msg = "%r: exception executing command %r in subplatform %r" % (
                           self._platform_id, cmd, subplatform_id)
                 log.exception(err_msg)
@@ -1803,7 +1803,7 @@ class PlatformAgent(ResourceAgent):
                               self._platform_id, expected_state, state)
                     log.error(err_msg)
                     return err_msg
-            except:
+            except Exception:
                 err_msg = "%r: exception while calling get_agent_state to subplatform %r" % (
                           self._platform_id, subplatform_id)
                 log.exception(err_msg)
@@ -1827,7 +1827,7 @@ class PlatformAgent(ResourceAgent):
 
                 return None
 
-            except:
+            except Exception:
                 if log.isEnabledFor(logging.TRACE):
                     err_msg = "%r: Exception in cancel_process for subplatform_id=%r, pid=%r" % (
                               self._platform_id, subplatform_id, pid)
@@ -2368,7 +2368,7 @@ class PlatformAgent(ResourceAgent):
             try:
                 retval = self._execute_instrument_agent(ia_client, cmd,
                                                         instrument_id)
-            except:
+            except Exception:
                 err_msg = "%r: exception executing command %r in instrument %r" % (
                           self._platform_id, cmd, instrument_id)
                 log.exception(err_msg) #, exc_Info=True)
@@ -2386,7 +2386,7 @@ class PlatformAgent(ResourceAgent):
 
                 return None
 
-            except:
+            except Exception:
                 err_msg = "%r: exception while calling get_agent_state to instrument %r" % (
                           self._platform_id, instrument_id)
                 log.exception(err_msg) #, exc_Info=True)
@@ -2410,7 +2410,7 @@ class PlatformAgent(ResourceAgent):
 
                 return None
 
-            except:
+            except Exception:
                 log.exception("%r: exception in cancel_process for instrument_id=%r, pid=%r",
                               self._platform_id, instrument_id, pid)  # , exc_Info=True)
 
@@ -2529,7 +2529,7 @@ class PlatformAgent(ResourceAgent):
                 self._async_children_launched.get(timeout=self._timeout)
                 log.debug("%r: _children_launch: LAUNCHED. Continuing with initialization",
                           self._platform_id)
-            except:
+            except Exception:
                 #
                 # Do not proceed further with initialization of children.
                 #
@@ -2546,7 +2546,7 @@ class PlatformAgent(ResourceAgent):
                 # initialize sub-platforms
                 self._subplatforms_initialize()
 
-            except:
+            except Exception:
                 log.exception("%r: unexpected exception while initializing children: "
                               "any errors during this initialization should have "
                               "been handled with event notifications.", self._platform_id)
@@ -2574,7 +2574,7 @@ class PlatformAgent(ResourceAgent):
                 self._instruments_go_active()
                 self._subplatforms_go_active()
 
-            except:
+            except Exception:
                 log.exception("%r: unexpected exception while sending go_active to children: "
                               "any errors during this sequence should have "
                               "been handled with event notifications.", self._platform_id)
@@ -2647,7 +2647,7 @@ class PlatformAgent(ResourceAgent):
                 self._instruments_run()
                 self._subplatforms_run()
 
-            except:
+            except Exception:
                 log.exception("%r: unexpected exception while sending RUN to children: "
                               "any errors during this sequence should have "
                               "been handled with event notifications.", self._platform_id)
@@ -3334,7 +3334,7 @@ class PlatformAgent(ResourceAgent):
 
             next_state = PlatformAgentState.MONITORING
 
-        except:
+        except Exception:
             log.exception("error in _start_resource_monitoring") #, exc_Info=True)
             raise
 
@@ -3355,7 +3355,7 @@ class PlatformAgent(ResourceAgent):
 
             next_state = PlatformAgentState.COMMAND
 
-        except:
+        except Exception:
             log.exception("error in _stop_resource_monitoring") #, exc_Info=True)
             raise
 
@@ -3400,7 +3400,7 @@ class PlatformAgent(ResourceAgent):
             if self._autoreconnect_greenlet:
                 try:
                     self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
-                except:
+                except Exception:
                     pass
 
         log.debug("%r: (LC) _autoreconnect ended", self._platform_id)

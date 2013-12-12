@@ -645,7 +645,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
     def _stop_platform(self):
         try:
             self.IMS.stop_platform_agent_instance(self.platform_agent_instance_id)
-        except:
+        except Exception:
             log.warn(
                 "platform_id=%r: Exception in IMS.stop_platform_agent_instance with "
                 "platform_agent_instance_id = %r. Perhaps already dead.",
