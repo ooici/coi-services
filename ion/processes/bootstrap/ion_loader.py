@@ -1880,25 +1880,33 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
             return
 
+        def sanitize_uni(s):
+            b = []
+            for a in s:
+                if ord(a) <= 128:
+                    b.append(a)
+            return ''.join(b)
+
+
         self.row_count += 1
-        name         = row['Name']
-        ptype        = row['Parameter Type']
-        encoding     = row['Value Encoding']
-        uom          = row['Unit of Measure'] or 'undefined'
-        code_set     = row['Code Set']
-        fill_value   = row['Fill Value']
-        display_name = row['Display Name']
-        std_name     = row['Standard Name']
-        long_name    = row['Long Name']
-        references   = row['confluence']
-        description  = row['Description']
-        pfid         = row['Parameter Function ID']
-        pmap         = row['Parameter Function Map']
-        sname        = row['Data Product Identifier']
-        precision    = row['Precision']
-        param_id     = row['ID']
-        lookup_value = row['Lookup Value']
-        qc           = row['QC Functions']
+        name         = sanitize_uni(row['Name'])
+        ptype        = sanitize_uni(row['Parameter Type'])
+        encoding     = sanitize_uni(row['Value Encoding'])
+        uom          = sanitize_uni(row['Unit of Measure'] or 'undefined')
+        code_set     = sanitize_uni(row['Code Set'])
+        fill_value   = sanitize_uni(row['Fill Value'])
+        display_name = sanitize_uni(row['Display Name'])
+        std_name     = sanitize_uni(row['Standard Name'])
+        long_name    = sanitize_uni(row['Long Name'])
+        references   = sanitize_uni(row['confluence'])
+        description  = sanitize_uni(row['Description'])
+        pfid         = sanitize_uni(row['Parameter Function ID'])
+        pmap         = sanitize_uni(row['Parameter Function Map'])
+        sname        = sanitize_uni(row['Data Product Identifier'])
+        precision    = sanitize_uni(row['Precision'])
+        param_id     = sanitize_uni(row['ID'])
+        lookup_value = sanitize_uni(row['Lookup Value'])
+        qc           = sanitize_uni(row['QC Functions'])
         visible      = get_typed_value(row['visible'], targettype="bool") if row['visible'] else True
 
         dataset_management = self._get_service_client('dataset_management')
