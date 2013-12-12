@@ -1015,6 +1015,11 @@ class TestDMExtended(DMTestCase):
     @attr("UTIL")
     def test_alpha(self):
         self.preload_alpha()
+        try:
+            from growl import growl
+            growl("Alpha", "Loaded")
+        except ImportError:
+            pass
         breakpoint(locals(), globals())
 
 
