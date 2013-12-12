@@ -122,7 +122,7 @@ class ResourceMonitor(object):
             if self._active:
                 try:
                     self._retrieve_attribute_values()
-                except:
+                except Exception:
                     log.exception("exception in _retrieve_attribute_values")
 
         log.debug("%r: monitoring greenlet stopped. rate_secs=%s; attr_ids=%s",

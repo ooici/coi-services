@@ -110,7 +110,7 @@ class OmsEventListener(object):
             self._http_server = WSGIServer((host, port), self._application,
                                            log=sys.stdout)
             self._http_server.start()
-        except:
+        except Exception:
             log.exception("%r: Could not start http server for receiving event"
                           " notifications", self._platform_id)
             raise

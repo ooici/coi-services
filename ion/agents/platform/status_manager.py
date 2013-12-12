@@ -270,7 +270,7 @@ class StatusManager(object):
 
             self._event_publisher.publish_event(**evt)
 
-        except:
+        except Exception:
             log.exception('%r: platform agent could not publish event: %s',
                           self._platform_id, evt)
 
@@ -294,7 +294,7 @@ class StatusManager(object):
 
             self._event_publisher.publish_event(**evt)
 
-        except:
+        except Exception:
             log.exception('%r: platform agent could not publish event: %s',
                           self._platform_id, evt)
 
@@ -322,7 +322,7 @@ class StatusManager(object):
 
             self._event_publisher.publish_event(**evt)
 
-        except:
+        except Exception:
             log.exception('%r: platform agent could not publish event: %s',
                           self._platform_id, evt)
 
@@ -577,7 +577,7 @@ class StatusManager(object):
 
             self._event_publisher.publish_event(**evt)
 
-        except:
+        except Exception:
             log.exception('%r: platform agent could not publish event: %s',
                           self._platform_id, evt)
 
@@ -647,7 +647,7 @@ class StatusManager(object):
 
             self._event_publisher.publish_event(**evt)
 
-        except:
+        except Exception:
             log.exception('%r: platform agent could not publish event: %s',
                           self._platform_id, evt)
 
