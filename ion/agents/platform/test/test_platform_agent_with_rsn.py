@@ -699,8 +699,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._run()
 
         self._start_resource_monitoring()
-        self._wait_for_a_data_sample()
-        self._stop_resource_monitoring()
+        try:
+            self._wait_for_a_data_sample()
+        finally:
+            self._stop_resource_monitoring()
 
     def test_resource_monitoring_recent(self):
         #

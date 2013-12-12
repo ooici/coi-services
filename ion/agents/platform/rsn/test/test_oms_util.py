@@ -65,14 +65,14 @@ class Test(IonIntegrationTestCase, HelperTestMixin):
         pnode = ndef.root
 
         self.assertEqual(pnode.platform_id, "ShoreStation")
-        self.assertTrue("ShoreStation_attr_1" in pnode.attrs)
-        self.assertTrue("ShoreStation_port_1" in pnode.ports)
+        self.assertIn("ShoreStation_attr_1|0", pnode.attrs)
+        self.assertIn("ShoreStation_port_1", pnode.ports)
 
         sub_pnodes = pnode.subplatforms
-        self.assertTrue("L3-UPS1" in sub_pnodes)
-        self.assertTrue("Node1A" in sub_pnodes)
-        self.assertTrue("input_voltage" in sub_pnodes["Node1A"].attrs)
-        self.assertTrue("Node1A_port_1" in sub_pnodes["Node1A"].ports)
+        self.assertIn("L3-UPS1",       sub_pnodes)
+        self.assertIn("Node1A",        sub_pnodes)
+        self.assertIn("input_voltage|0", sub_pnodes["Node1A"].attrs)
+        self.assertIn("Node1A_port_1", sub_pnodes["Node1A"].ports)
 
     def _get_checksum(self, platform_id):
         # get checksum from RSN OMS:
