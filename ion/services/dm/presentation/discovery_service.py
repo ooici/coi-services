@@ -19,6 +19,7 @@ from ion.services.dm.inventory.index_management_service import IndexManagementSe
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from collections import deque
 from ion.services.dm.utility.query_language import QueryLanguage
+from ion.services.dm.presentation.ds_discovery import DatastoreDiscovery
 
 import dateutil.parser
 import calendar
@@ -38,7 +39,7 @@ class DiscoveryService(BaseDiscoveryService):
     def on_start(self): # pragma no cover
         super(DiscoveryService,self).on_start()
 
-        self.use_es = CFG.get_safe('system.elasticsearch',False)
+        self.use_es = CFG.get_safe('system.elasticsearch', False)
 
         self.elasticsearch_host = CFG.get_safe('server.elasticsearch.host','localhost')
         self.elasticsearch_port = CFG.get_safe('server.elasticsearch.port','9200')
@@ -46,7 +47,11 @@ class DiscoveryService(BaseDiscoveryService):
         self.ep = EventPublisher(event_type = 'SearchBufferExceededEvent')
         self.heuristic_cutoff = 4
 
-    
+        self.cfg_datastore = CFG.get_safe('container.datastore.default_server', "couchdb")
+        self.ds_discovery = None
+        if self.cfg_datastore != "couchdb":
+            self.ds_discovery = DatastoreDiscovery(self)
+
    
     @staticmethod
     def es_cleanup():
@@ -1103,15 +1108,26 @@ class DiscoveryService(BaseDiscoveryService):
     def request(self, query=None, id_only=True):
         if not query:
             raise BadRequest('No request query provided')
-        if not query.has_key('query'):
-            raise BadRequest('Unsuported request. %s')
 
-        #==============================
-        # Check the form of the query
-        #==============================
-        #@todo: convert to IonObject
-        if not (query.has_key('query')):
-            raise BadRequest('Improper query request: %s' % query)
+        if "QUERYEXP" in query and self.ds_discovery:
+            # Support for datastore queries
+            pass
+
+        else:
+            if not query.has_key('query'):
+                raise BadRequest('Unsuported request. %s')
+
+            #==============================
+            # Check the form of the query
+            #==============================
+            #@todo: convert to IonObject
+            if not (query.has_key('query')):
+                raise BadRequest('Improper query request: %s' % query)
+
+        # Inject RR query execution e.g. for postgres
+        if self.ds_discovery:
+            res = self.ds_discovery.execute_query(query, id_only=id_only)
+            return res
 
         # ---------------------------
         # Number of results to return

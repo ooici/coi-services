@@ -100,7 +100,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         #Link the DataProcess to the second DataProduct manually
         assoc_id, _ = self.rrclient.create_association(subject=data_process_id, predicate=PRED.hasInputProduct, object=data_product2_id)
-        self.addCleanup(self.rrclient.delete_association, assoc_id)
+        #self.addCleanup(self.rrclient.delete_association, assoc_id)
 
         # Register the instrument and process. This links the device and the data process
         # with their own producers
@@ -116,7 +116,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #Associate that with with DataProduct1's DataProducer
         data_process_producer_ids, _ = self.rrclient.find_objects(subject=data_process_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
         assoc_id, _ = self.rrclient.create_association(subject=data_process_producer_ids[0], predicate=PRED.hasParent, object=data_producer_id)
-        self.addCleanup(self.rrclient.delete_association, assoc_id)
+        #self.addCleanup(self.rrclient.delete_association, assoc_id)
 
         #Get the DataProducer linked to the Device (created in register_instrument
         #Associate that with the DataProcess's DataProducer
