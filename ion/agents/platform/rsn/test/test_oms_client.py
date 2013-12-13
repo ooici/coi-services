@@ -36,7 +36,7 @@ class Test(IonIntegrationTestCase, OmsTestMixin):
     @classmethod
     def setUpClass(cls):
         OmsTestMixin.setUpClass()
-        if os.getenv('OMS') == "rsn":
+        if cls.using_actual_rsn_oms_endpoint():
             # use FQDM for local host if testing against actual RSN OMS:
             cls._use_fqdn_for_event_listener = True
 

@@ -74,15 +74,14 @@ from ion.agents.instrument.driver_process import ZMQEggDriverProcess
 # EVENT_TIMEOUT: timeout for reception of event
 EVENT_TIMEOUT = 25
 
-# initialization of the driver configuration. See setUp for possible update
-# of the 'oms_uri' entry related with the special value "launchsimulator".
+# initialization of the driver configuration.
+OMS_URI = 'http://alice:1234@10.180.80.10:9021/'
 PLTFRM_DVR_CONFIG = {
-    'oms_uri': 'http://alice:1234@10.180.80.10:9021/'
+    'oms_uri': OMS_URI
 }
 
 PLTFRM_DVR_MOD = 'ion.agents.platform.rsn.rsn_platform_driver'
 PLTFRM_DVR_CLS = 'RSNPlatformDriver'
-OMS_URI = 'http://alice:1234@10.180.80.10:9021/'
 
 # A VEL3D driver.
 DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/nobska_mavs4_ooicore-0.0.7-py2.7.egg'
@@ -611,7 +610,6 @@ class TestPlatformInstrument(BaseIntTestPlatform):
     def _register_oms_listener(self):
 
         #load the paramaters and the param dicts necesssary for the VEL3D
-        OMS_URI = 'http://alice:1234@10.180.80.10:9021/'
         log.debug( "---------- connect_to_oms ---------- ")
         log.debug("oms_uri = %s", OMS_URI)
         self.oms = CIOMSClientFactory.create_instance(OMS_URI)
