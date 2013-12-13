@@ -12,15 +12,11 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
-import logging
 
 from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 import xmlrpclib
 import os
-import yaml
 from gevent import Greenlet, sleep
-
-_OMS_URI_ALIASES_FILENAME = 'ion/agents/platform/rsn/oms_uri_aliases.yml'
 
 
 class CIOMSClientFactory(object):
@@ -28,43 +24,28 @@ class CIOMSClientFactory(object):
     Provides a CIOMSClient implementation.
     """
 
-    # counter of created, not-yet-destroyed instances for debugging
+    # counter of created, not-yet-destroyed instances, for debugging purposes
     _inst_count = 0
-
-    _uri_aliases = None
 
     # _sim_process, _rsn_oms: see launch_simulator and related methods
     _sim_process = None
     _rsn_oms = None
 
     @classmethod
-    def _load_uri_aliases(cls):
-        try:
-            cls._uri_aliases = yaml.load(file(_OMS_URI_ALIASES_FILENAME))
-            if log.isEnabledFor(logging.DEBUG):
-                log.debug("Loaded OMS URI aliases = %s" % cls._uri_aliases)
-        except Exception as e:
-            log.warn("Cannot loaded %s: %s" % (_OMS_URI_ALIASES_FILENAME, e))
-            cls._uri_aliases = {}
-
-    @classmethod
     def create_instance(cls, uri=None):
         """
         Creates an CIOMSClient instance.
-        Call destroy_instance with the return object when no longer needed.
+        Do not forget to call destroy_instance with the returned object when
+        you are done with the instance.
 
         @param uri URI to connect to the RSN OMS server or simulator.
         If None (the default) the value of the OMS environment variable is used
         as argument. If not defined or if the resulting argument is "embsimulator"
-        then an CIOMSSimulator instance is created and returned. Otherwise, the
-        argument is looked up in the OMS URI aliases file and if found the
-        corresponding URI is used for the connection. Otherwise, the given
-        argument (or value of the OMS environment variable) is used as given
-        to try the connection with corresponding XML/RPC server.
+        then an CIOMSSimulator instance is directly created and returned.
+        Otherwise, the given argument (or value of the OMS environment variable)
+        is used as given to try the connection with the corresponding XML/RPC
+        server resolvable by that URI.
         """
-
-        if cls._uri_aliases is None:
-            cls._load_uri_aliases()
 
         if uri is None:
             uri = os.getenv('OMS', 'embsimulator')
@@ -74,13 +55,9 @@ class CIOMSClientFactory(object):
             log.debug("Using embedded CIOMSSimulator instance")
             instance = CIOMSSimulator()
         else:
-            # try alias resolution and then create ServerProxy instance:
-            uri = cls._uri_aliases.get(uri, uri)
-            if log.isEnabledFor(logging.DEBUG):
-                log.debug("Creating xmlrpclib.ServerProxy: uri=%s", uri)
+            log.debug("Creating xmlrpclib.ServerProxy: uri=%s", uri)
             instance = xmlrpclib.ServerProxy(uri, allow_none=True)
-            if log.isEnabledFor(logging.DEBUG):
-                log.debug("Created xmlrpclib.ServerProxy: uri=%s", uri)
+            log.debug("Created xmlrpclib.ServerProxy: uri=%s", uri)
 
         cls._inst_count += 1
         log.debug("create_instance: _inst_count = %d", cls._inst_count)
@@ -147,8 +124,8 @@ class CIOMSClientFactory(object):
     @classmethod
     def get_rsn_oms_for_launched_simulator(cls):
         """
-        Returns the CIOMSCLient instance created in the last call to
-        launch_simulator and that have not been stopped yet, if any.
+        Returns the CIOMSClient instance created in the last call to
+        launch_simulator and that has not been stopped yet, if any.
         """
         return cls._rsn_oms
 
