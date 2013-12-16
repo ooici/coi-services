@@ -134,7 +134,7 @@ class CIOMSClientFactory(object):
                         log.debug("[OMSim] heartbeat sent")
                         try:
                             cls._rsn_oms.ping()
-                        except:
+                        except Exception:
                             pass
                 log.debug("[OMSim] heartbeat ended")
 

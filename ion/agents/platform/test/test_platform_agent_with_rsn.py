@@ -375,7 +375,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
                         #for y in stream_list:
                         #    self.assertIn(y, keys)
 
-                except:
+                except Exception:
                     print '### ERROR verifying schema for'
                     print x['name']
                     raise
