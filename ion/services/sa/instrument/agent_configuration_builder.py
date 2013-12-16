@@ -716,6 +716,15 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
 
         return False
 
+    # TODO(OOIION-1495) review the following, which was overwriting the 'ports'
+    # entry with and empty dict {}, then causing failures downstream,
+    # for example, with test:
+    #   test_platform_launch.py:TestPlatformLaunch.test_single_deployed_platform
+    #
+    #   File "/Users/carueda/workspace/coi-services-carueda/ion/agents/platform/platform_agent.py", line 421, in _validate_configuration
+    #     if not self._platform_id in self._network_definition.pnodes:
+    # AttributeError: 'NoneType' object has no attribute 'pnodes'
+    """
     def _generate_driver_config(self):
         # get default config
         driver_config = super(PlatformAgentConfigurationBuilder, self)._generate_driver_config()
@@ -751,6 +760,7 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         self._augment_dict("Platform Agent driver_config", driver_config, add_driver_config)
 
         return driver_config
+    """
 
     def _generate_children(self):
         """
