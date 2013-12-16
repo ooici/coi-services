@@ -105,17 +105,12 @@ DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
 
 ###############################################################################
 # oms_uri: This indicates the URI to connect to the RSN OMS server endpoint.
-# By default, this value is "launchsimulator" meaning that the simulator is
-# launched as an external process for each test. This default is appropriate
-# in general and in particular for the buildbots. For local testing, the OMS
+# By default, this value is "launchsimulator" meaning that the simulator is to
+# be launched as an external process for each test. This default is appropriate
+# in general, and in particular for the buildbots. For local testing, the OMS
 # environment variable can be used to indicate a different RSN OMS server endpoint.
-# Some aliases for the "oms_uri" parameter include "embsimulator" (instantiates
-# the simulator class directly) and "localsimulator" (assumes the simulator is
-# already running as an external process, locally) and others. See oms_uri_aliases.yml.
+# TODO(OOIION-1352): This URI might eventually be gotten from PYON configuration
 oms_uri = os.getenv('OMS', "launchsimulator")
-
-
-#oms_uri = 'http://alice:1234@10.180.80.10:9021/'
 
 # initialization of the driver configuration. See setUp for possible update
 # of the 'oms_uri' entry related with the special value "launchsimulator".

@@ -35,13 +35,18 @@ class HelperTestMixin:
     """
 
     @classmethod
-    def setUpClass(cls):
-        # Use the "OMS" environment variable to initially determine whether
-        # we are testing against the actual RSN OMS endpoint. If so,
-        # the value of this variable would be the alias "rsn".
-        # Otherwise, assume we are testing against our simulator.
+    def using_actual_rsn_oms_endpoint(cls):
+        """
+        Determines whether we are testing against the actual RSN OMS endpoint.
+        This is based on looking up the "USING_ACTUAL_RSN_OMS_ENDPOINT"
+        environment variable, which normally will only be defined as
+        convenient while doing local tests. See OOIION-1352.
+        """
+        return "yes" == os.getenv('USING_ACTUAL_RSN_OMS_ENDPOINT')
 
-        if "rsn" == os.getenv('OMS', None):
+    @classmethod
+    def setUpClass(cls):
+        if cls.using_actual_rsn_oms_endpoint():
             print("HelperTestMixin: setUpClassBasedOnRealEndpoint")
             cls._setUpClassBasedOnRealEndpoint()
 
