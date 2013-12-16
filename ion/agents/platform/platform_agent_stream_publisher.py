@@ -285,7 +285,7 @@ class PlatformAgentStreamPublisher(object):
                       self._connection_index[stream_name])
             self._connection_index[stream_name] += 1
 
-        except:
+        except Exception:
             log.exception("%r: Platform agent could not publish data on stream %s.",
                           self._platform_id, stream_name)
 

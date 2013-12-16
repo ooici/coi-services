@@ -388,7 +388,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                 if hasattr(sub, 'subscription_id'):
                     try:
                         self.PSC.deactivate_subscription(sub.subscription_id)
-                    except:
+                    except Exception:
                         pass
                     self.PSC.delete_subscription(sub.subscription_id)
                 sub.stop()
@@ -494,7 +494,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                 if hasattr(sub, 'subscription_id'):
                     try:
                         self.PSC.deactivate_subscription(sub.subscription_id)
-                    except:
+                    except Exception:
                         pass
                     self.PSC.delete_subscription(sub.subscription_id)
                 try:
@@ -1409,7 +1409,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     def _stop_platform(self, p_obj):
         try:
             self.IMS.stop_platform_agent_instance(p_obj.platform_agent_instance_id)
-        except:
+        except Exception:
             if log.isEnabledFor(logging.TRACE):
                 log.exception(
                     "platform_id=%r: Exception in IMS.stop_platform_agent_instance with "
@@ -1444,7 +1444,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         try:
             config_builder.set_agent_instance_object(instrument_agent_instance_obj)
             config = config_builder.prepare()
-        except:
+        except Exception:
             log.error('failed to launch', exc_info=True)
             raise ServerError('failed to launch')
 
