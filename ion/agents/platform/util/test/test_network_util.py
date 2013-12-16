@@ -67,7 +67,6 @@ class Test(IonUnitTestCase):
             plat_map = [('R', ''), ('a', 'R'), ('a', 'x')]
             NetworkUtil.create_node_network(plat_map)
 
-    @unittest.skip('Skip until ooiion-1495 is addressed.')
     def test_serialization_deserialization(self):
         # create NetworkDefinition object by de-serializing the simulated network:
         ndef = NetworkUtil.deserialize_network_definition(
@@ -80,7 +79,9 @@ class Test(IonUnitTestCase):
         ndef2 = NetworkUtil.deserialize_network_definition(serialization)
 
         # verify the objects are equal:
-        self.assertEquals(ndef.diff(ndef2), None)
+        diff = ndef.diff(ndef2)
+        self.assertIsNone(diff, "deserialized version must be equal to original."
+                                " DIFF=\n%s" % diff)
 
     def test_compute_checksum(self):
         # create NetworkDefinition object by de-serializing the simulated network:

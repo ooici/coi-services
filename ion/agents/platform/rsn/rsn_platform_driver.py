@@ -79,9 +79,15 @@ class RSNPlatformDriver(PlatformDriver):
         # CIOMSClient instance created by connect() and destroyed by disconnect():
         self._rsn_oms = None
 
+        # TODO(OOIION-1495) review the following. Commented out for the moment.
+        # But yes, we would probably need some concept of currently "active
+        # ports", probably defined as those where there are active instruments
+        #  associated.
+        """
         # Simple list of active ports in this deployment configuration:
         # (this should be all the ports that have devices attached. Used in go_active processing
         self._active_ports = []
+        """
 
         # URL for the event listener registration/unregistration (based on
         # web server launched by ServiceGatewayService, since that's the
@@ -105,6 +111,10 @@ class RSNPlatformDriver(PlatformDriver):
             log.error("'oms_uri' not present in driver_config = %s", driver_config)
             raise PlatformDriverException(msg="driver_config does not indicate 'oms_uri'")
 
+        # TODO(OOIION-1495) review the following added logic Commented out
+        # for the moment. We need to determine where and how exactly port
+        # information is maintained.
+        """
         # validate and process ports
         if not 'ports' in driver_config:
             log.error("port information not present in driver_config = %s", driver_config)
@@ -128,7 +138,7 @@ class RSNPlatformDriver(PlatformDriver):
                 self._active_ports.append(port_string)
 
 
-
+        """
     def configure(self, driver_config):
         """
         Nothing special done here, only calls super.configure(driver_config)
@@ -275,11 +285,21 @@ class RSNPlatformDriver(PlatformDriver):
         # start event dispatch:
         self._start_event_dispatch()
 
+        # TODO(OOIION-1495) review the following. Commented out for the moment.
+        # Note, per the CI-OMS spec ports need to be turned OFF to then proceed
+        # with connecting instruments. So we need to determine whether we
+        # want to turn all ports ON in this "connect driver" operation,
+        # and then add the logic to turn a port OFF before connecting
+        # instruments, and then ON again; or, just do the OFF/ON logic in the
+        # connect_instrument and disconnect_instrument operations,
+        # but not here.
+        """
         # power all ports with connected devices
         if recursion:
             for port in self._active_ports:
                 log.debug('connect power port: %s', port)
                 self.turn_on_port(port)
+        """
 
     def disconnect(self, recursion=None):
         """
@@ -287,12 +307,17 @@ class RSNPlatformDriver(PlatformDriver):
         """
         self._stop_event_dispatch()
 
+        # TODO(OOIION-1495) review the following. Only change is the use
+        # of self._pnode.ports instead of self._active_ports,
+        # while we address the "active ports" concept mentioned above.
+        # Also, it is probably OK to turn off all ports in this "disconnect
+        # driver" operation.
+
         # power off all ports with connected devices
         if recursion:
-            for port in self._active_ports:
+            for port in self._pnode.ports:
                 log.debug('disconnect power port: %s', port)
                 self.turn_off_port(port)
-
 
         CIOMSClientFactory.destroy_instance(self._rsn_oms)
         self._rsn_oms = None
@@ -562,7 +587,6 @@ class RSNPlatformDriver(PlatformDriver):
                   self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
-        # Need to complete Network representation before using these validations.
         port_dic = self._verify_port_id_in_response(port_id, dic_plat)
         instr_res = self._verify_instrument_id_in_response(port_id, instrument_id, port_dic)
 
@@ -570,8 +594,10 @@ class RSNPlatformDriver(PlatformDriver):
         if isinstance(instr_res, dict):
             attrs = instr_res
             instrumentNode = InstrumentNode(instrument_id, attrs)
-            #remove the update of the NetworkDefiniton until the port representation is aligned. See OOIION-1495.
-            #self._pnode.ports[port_id].add_instrument(instrumentNode)
+            # TODO(OOIION-1495) review. This line was commented out, but the
+            # PortNode.add_instrument/remove_instrument functionality is
+            # being used to keep track of the connected instruments in a port.
+            self._pnode.ports[port_id].add_instrument(instrumentNode)
             log.debug("%r: port_id=%s connect_instrument: local image updated: %s",
                       self._platform_id, port_id, instrument_id)
 
@@ -594,16 +620,16 @@ class RSNPlatformDriver(PlatformDriver):
         log.debug("%r: disconnect_instrument response: %s",
                   self._platform_id, response)
 
-
         dic_plat = self._verify_platform_id_in_response(response)
-        # Need to complete Network representation before using these validations.
         port_dic = self._verify_port_id_in_response(port_id, dic_plat)
         instr_res = self._verify_instrument_id_in_response(port_id, instrument_id, port_dic)
 
         # update local image if instrument was actually disconnected in this call:
         if instr_res == NormalResponse.INSTRUMENT_DISCONNECTED:
-            #remove the update of the NetworkDefiniton until the port representation is aligned. See OOIION-1495.
-            #del self._pnode.ports[port_id].instruments[instrument_id]
+            # TODO(OOIION-1495) review. This line was commented out, but the
+            # PortNode.add_instrument/remove_instrument functionality is
+            # being used to keep track of the connected instruments in a port.
+            self._pnode.ports[port_id].remove_instrument(instrument_id)
             log.debug("%r: port_id=%s disconnect_instrument: local image updated: %s",
                       self._platform_id, port_id, instrument_id)
 
@@ -891,6 +917,14 @@ class RSNPlatformDriver(PlatformDriver):
 
     def _get_ports(self):
         ports = {}
+        for port_id, port in self._pnode.ports.iteritems():
+            ports[port_id] = {'state':   port.state}
+        log.debug("%r: _get_ports: %s", self._platform_id, ports)
+        return ports
+
+        # TODO(OOIION-1495) review the following
+        """
+        ports = {}
 
         # todo remove until NetworkDefinition is brought in alignment See OOIION-1495.
         #for port_id, port in self._pnode.ports.iteritems():
@@ -909,6 +943,7 @@ class RSNPlatformDriver(PlatformDriver):
 
         log.debug("%r: _get_ports: %s", self._platform_id, ports)
         return ports
+        """
 
     ##############################################################
     # CONNECTED event handlers we add in this subclass
