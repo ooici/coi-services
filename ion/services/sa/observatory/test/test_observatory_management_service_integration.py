@@ -97,7 +97,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
     def _do_test_find_related_sites(self, resources):
 
-        site_resources, site_children = self.OMS.find_related_sites(resources.org_id)
+        site_resources, site_children, _, _ = self.OMS.find_related_sites(resources.org_id)
 
         #import sys, pprint
         #print >> sys.stderr, pprint.pformat(site_resources)
