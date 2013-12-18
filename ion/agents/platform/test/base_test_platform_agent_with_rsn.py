@@ -1302,6 +1302,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             # create only if not already created:
             if instr_key in self._setup_instruments:
                 i_obj = self._setup_instruments[instr_key]
+                i_objs.append(i_obj)
                 log.debug("instrument was already created = %r (%s)",
                           i_obj.instrument_agent_instance_id, instr_key)
             else:
