@@ -191,7 +191,7 @@ class LoadSystemPolicy(ImmediateProcess):
             'A global policy rule which specifies operations that are allowed with anonymous access',
             policy_text, headers=sa_user_header)
 
- ##############
+  ##############
 
         #This rule has been modified specifically for 2.0 to Deny for only specific services and agents. Everything else will be allowed.
 
@@ -284,8 +284,7 @@ class LoadSystemPolicy(ImmediateProcess):
         </Rule>
         '''
 
-        policy_id = policy_client.create_common_service_access_policy( 'Deny_Everything',
-            'A global policy rule that denies access to everything by default',
+        policy_id = policy_client.create_common_service_access_policy( 'Deny_Everything', 'A global policy rule that denies access to everything by default',
             policy_text, headers=sa_user_header)
 
 
@@ -466,6 +465,16 @@ class LoadSystemPolicy(ImmediateProcess):
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                             <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">UPDATE</AttributeValue>
+                            </Apply>
+                            <ActionAttributeDesignator
+                                AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
+                                DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </Apply>
+                    </Apply>
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                            <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                                 <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_attachment</AttributeValue>
                             </Apply>
                             <ActionAttributeDesignator
@@ -568,6 +577,80 @@ class LoadSystemPolicy(ImmediateProcess):
 
         ##############
 
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">resource_registry</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+                <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">UPDATE</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DATA_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+            </Target>
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-function">
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">check_edit_policy</AttributeValue>
+                    <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
+                </Apply>
+            </Condition>
+        </Rule> '''
+
+        policy_id = policy_client.create_service_access_policy('resource_registry', 'RR_edit_Operation',
+            'Permit edit operation only in the context of the org to which the user belongs',
+            policy_text, headers=sa_user_header)
+
+        ##############
         policy_text = '''
             <Rule RuleId="%s" Effect="Permit">
             <Description>
