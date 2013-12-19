@@ -86,7 +86,7 @@ class UserNotificationService(BaseUserNotificationService):
         self.discovery = DiscoveryServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
 
-        self.event_publisher = EventPublisher()
+        self.event_publisher = EventPublisher(process=self)
         self.datastore = self.container.datastore_manager.get_datastore('events')
 
         self.start_time = get_ion_ts()
