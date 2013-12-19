@@ -3,12 +3,7 @@
 @file ion/services/dm/utility/uns_utility_methods.py
 @description A module containing common utility methods used by UNS and the notification workers.
 """
-from pyon.public import get_sys_name, OT, IonObject, CFG
-from pyon.util.ion_time import IonTime
-from pyon.util.log import log
-from pyon.core.exception import BadRequest, NotFound
-from interface.objects import NotificationRequest, Event, DeviceStatusType, AggregateStatusType
-from pyon.util.containers import get_ion_ts
+
 import smtplib
 import gevent
 import pprint
@@ -16,6 +11,13 @@ import string
 from email.mime.text import MIMEText
 from gevent import Greenlet
 
+from pyon.public import get_sys_name, OT, IonObject, CFG
+from pyon.util.ion_time import IonTime
+from pyon.util.log import log
+from pyon.core.exception import BadRequest, NotFound
+from pyon.util.containers import get_ion_ts
+
+from interface.objects import NotificationRequest, Event, DeviceStatusType, AggregateStatusType, InformationContentAccessEnum
 
 
 class fake_smtplib(object):
@@ -393,6 +395,8 @@ def get_event_summary(event):
         summary = "%s modified: %s" % (event.origin_type, event.sub_type)
     elif "ResourceIssueReportedEvent" in event_types:
         summary = "Issue created: %s" % event.description
+    elif "InformationContentAccessedEvent" in event_types:
+        summary = "Data accessed: %s" % (InformationContentAccessEnum._str_map.get(event.sub_type, ""))
 
     elif "ResourceAgentStateEvent" in event_types:
         summary = "%s agent state change: %s" % (event.origin_type, event.state)

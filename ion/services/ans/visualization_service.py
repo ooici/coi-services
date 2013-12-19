@@ -1,42 +1,33 @@
 #!/usr/bin/env python
 
-
-
 __author__ = 'Raj Singh, Stephen Henrie'
 __license__ = 'Apache 2.0'
 
-"""
-Note:
-[1]
-"""
-
 # Pyon imports
-# Note pyon imports need to be first for monkey patching to occur
 from pyon.public import IonObject, RT, log, PRED, EventPublisher, OT
 from pyon.util.containers import create_unique_identifier, get_safe
 from pyon.core.exception import Inconsistent, BadRequest, NotFound
-from datetime import datetime
 
+from datetime import datetime
 import simplejson, json
 import gevent
 import base64
 import sys, traceback
 
-from interface.services.ans.ivisualization_service import BaseVisualizationService
 #from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
 from ion.processes.data.transforms.viz.highcharts import VizTransformHighChartsAlgorithm
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphsAlgorithm
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
-from interface.objects import Granule
 from pyon.util.containers import get_safe
+from pyon.event.event import EventPublisher
+
 # for direct hdf access
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-# PIL
-#import Image
-#import StringIO
+from interface.objects import Granule, InformationContentAccessEnum
+from interface.services.ans.ivisualization_service import BaseVisualizationService
 
 
 # Google viz library for google charts
@@ -44,6 +35,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 
 USER_VISUALIZATION_QUEUE = 'UserVisQueue'
 PERSIST_REALTIME_DATA_PRODUCTS = False
+
 
 class VisualizationService(BaseVisualizationService):
 
@@ -98,6 +90,8 @@ class VisualizationService(BaseVisualizationService):
         
         if not data_product:
             raise NotFound("Data product %s does not exist" % data_product_id)
+
+        self._publish_access_event(InformationContentAccessEnum.REALTIME_VIEW, data_product_id, vp)
 
         #Look for a workflow which is already executing for this data product
         workflow_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasInputProduct, object=data_product_id)
@@ -339,6 +333,8 @@ class VisualizationService(BaseVisualizationService):
             return self._get_google_dt(data_product_id)
         
         vp_dict = simplejson.loads(visualization_parameters)
+
+        self._publish_access_event(InformationContentAccessEnum.VIEW, data_product_id, vp_dict)
 
         # The visualization parameters must contain a query type. Based on this the processing methods will be chosen
         if (vp_dict['query_type'] == 'metadata'):
