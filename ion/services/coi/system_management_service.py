@@ -19,7 +19,7 @@ class SystemManagementService(BaseSystemManagementService):
     """
     def on_start(self,*a,**b):
         super(SystemManagementService,self).on_start(*a,**b)
-        self.sender = EventPublisher()
+        self.sender = EventPublisher(process=self)
 
     def on_quit(self,*a,**b):
         self.sender.close()
