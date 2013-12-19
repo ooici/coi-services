@@ -59,7 +59,7 @@ class OrgManagementService(BaseOrgManagementService):
     """
     def on_init(self):
 
-        self.event_pub = EventPublisher()
+        self.event_pub = EventPublisher(process=self)
         self.negotiation_handler = Negotiation(self, negotiation_rules, self.event_pub)
 
     def _get_root_org_name(self):
