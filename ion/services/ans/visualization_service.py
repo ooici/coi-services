@@ -12,7 +12,7 @@ Note:
 
 # Pyon imports
 # Note pyon imports need to be first for monkey patching to occur
-from pyon.public import IonObject, RT, log, PRED
+from pyon.public import IonObject, RT, log, PRED, EventPublisher, OT
 from pyon.util.containers import create_unique_identifier, get_safe
 from pyon.core.exception import Inconsistent, BadRequest, NotFound
 from datetime import datetime
@@ -353,7 +353,16 @@ class VisualizationService(BaseVisualizationService):
             image_info['image_obj'] = base64.encodestring(image_info["image_obj"])
             return simplejson.dumps(image_info)
 
-
+    def _publish_access_event(self, access_type, data_product_id=None, access_params=None):
+        try:
+            pub = EventPublisher(OT.InformationContentAccessedEvent, process=self)
+            event_data = dict(origin_type=RT.DataProduct,
+                              origin=data_product_id or "",
+                              sub_type=access_type,
+                              access_params=access_params or {})
+            pub.publish_event(**event_data)
+        except Exception as ex:
+            log.exception("Error publishing InformationContentAccessedEvent for data product: %s", data_product_id)
 
     def _get_highcharts_data(self, data_product_id='', visualization_parameters=None):
         """Retrieves the data for the specified DP
