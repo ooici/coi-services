@@ -353,7 +353,7 @@ class VisualizationService(BaseVisualizationService):
 
     def _publish_access_event(self, access_type, data_product_id=None, access_params=None):
         try:
-            pub = EventPublisher(OT.InformationContentAccessedEvent)
+            pub = EventPublisher(OT.InformationContentAccessedEvent, process=self)
             event_data = dict(origin_type=RT.DataProduct,
                               origin=data_product_id or "",
                               sub_type=access_type,
