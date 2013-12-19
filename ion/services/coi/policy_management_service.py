@@ -23,7 +23,7 @@ class PolicyManagementService(BasePolicyManagementService):
 
 
     def on_start(self):
-        self.event_pub = EventPublisher()
+        self.event_pub = EventPublisher(process=self)
 
         self.policy_event_subscriber = ProcessEventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self._policy_event_callback, process=self)
         self._process.add_endpoint(self.policy_event_subscriber)
