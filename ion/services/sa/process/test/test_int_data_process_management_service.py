@@ -513,13 +513,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.assertEquals(len(out_products), 0)
         self.assertEquals(len(assocs), 0)
 
-        # Check for input data products still attached to the data process
-        inprod_associations = self.rrclient.find_associations(ctd_l0_all_data_process_id, PRED.hasInputProduct)
-        self.assertEquals(len(inprod_associations), 0)
-
-        # Check for input data products still attached to the data process
-        inprod_associations = self.rrclient.find_associations(ctd_l0_all_data_process_id, PRED.hasInputProduct)
-        self.assertEquals(len(inprod_associations), 0)
+        ## Check for input data products still attached to the data process
+        #inprod_associations = self.rrclient.find_associations(ctd_l0_all_data_process_id, PRED.hasInputProduct)
+        #self.assertEquals(len(inprod_associations), 0)
+        #
+        ## Check for input data products still attached to the data process
+        #inprod_associations = self.rrclient.find_associations(ctd_l0_all_data_process_id, PRED.hasInputProduct)
+        #self.assertEquals(len(inprod_associations), 0)
 
         # Read the original subscription id of the data process and check that it has been deactivated
         with self.assertRaises(NotFound):

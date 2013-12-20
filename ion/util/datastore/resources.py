@@ -19,9 +19,8 @@ from ooi.timer import get_accumulators
 
 from pyon.core import bootstrap
 from pyon.core.bootstrap import CFG, get_sys_name
-from pyon.datastore.datastore import DataStore
+from pyon.datastore.datastore import DatastoreManager, DataStore
 from pyon.core.exception import BadRequest, NotFound, Inconsistent
-from pyon.datastore.couchdb.couchdb_standalone import CouchDataStore
 from pyon.public import log, RT
 
 """
@@ -48,8 +47,7 @@ class ResourceRegistryHelper(object):
 
     def dump_resources_as_xlsx(self, filename=None):
         self._clear()
-        # TODO: Use DatastoreFactory for couch independence
-        ds = CouchDataStore(DataStore.DS_RESOURCES, profile=DataStore.DS_PROFILE.RESOURCES, config=CFG, scope=self.sysname)
+        ds = DatastoreManager.get_datastore_instance(DataStore.DS_RESOURCES, DataStore.DS_PROFILE.RESOURCES)
         all_objs = ds.find_docs_by_view("_all_docs", None, id_only=False)
 
         log.info("Found %s objects in datastore resources", len(all_objs))
@@ -138,21 +136,27 @@ class ResourceRegistryHelper(object):
                 value = res_obj.get(attr, "")
                 if type(value) is str:
                     value = unicode(value, "latin1")
-                    ws.write(i+1, j, value.encode("ascii", "replace"))
+                    wvalue = value.encode("ascii", "replace")[:32760]
+                    ws.write(i+1, j, wvalue)
                 elif type(value) is unicode:
-                    ws.write(i+1, j, value.encode("ascii", "replace"))
+                    wvalue = value.encode("ascii", "replace")[:32760]
+                    ws.write(i+1, j, wvalue)
                 elif type(value) in (bool, int, None, float):
                     ws.write(i+1, j, value)
                 elif isinstance(value, dict):
                     if value.get("type_", None):
                         obj_type = value.pop("type_")
-                        ws.write(i+1, j, obj_type + ":" + json.dumps(value))
+                        wvalue = json.dumps(value)[:32760]
+                        ws.write(i+1, j, obj_type + ":" + wvalue)
                     else:
-                        ws.write(i+1, j, json.dumps(value))
+                        wvalue = json.dumps(value)[:32760]
+                        ws.write(i+1, j, wvalue)
                 elif isinstance(value, list):
-                    ws.write(i+1, j, json.dumps(value))
+                    wvalue = json.dumps(value)[:32760]
+                    ws.write(i+1, j, wvalue)
                 else:
-                    ws.write(i+1, j, str(value))
+                    wvalue = str(value)[:32760]
+                    ws.write(i+1, j, wvalue)
 
     def _dump_observatories(self):
         ws = self._wb.add_sheet("OBS")
@@ -251,7 +255,7 @@ class ResourceRegistryHelper(object):
         self.dump_dicts_as_xlsx(all_acc_dict, path)
 
     def create_resources_snapshot(self, persist=False, filename=None):
-        ds = CouchDataStore(DataStore.DS_RESOURCES, profile=DataStore.DS_PROFILE.RESOURCES, config=CFG, scope=self.sysname)
+        ds = DatastoreManager.get_datastore_instance(DataStore.DS_RESOURCES, DataStore.DS_PROFILE.RESOURCES)
         all_objs = ds.find_docs_by_view("_all_docs", None, id_only=False)
 
         log.info("Found %s objects in datastore resources", len(all_objs))
@@ -301,7 +305,8 @@ class ResourceRegistryHelper(object):
             assoc_ids = delta_snapshot["associations"].keys()
 
             log.debug("Reverting to old snapshot. Deleting %s resources and %s associations", len(res_ids), len(assoc_ids))
-            self.container.resource_registry.rr_store.delete_mult(res_ids + assoc_ids)
+            self.container.resource_registry.rr_store.delete_mult(res_ids)
+            self.container.resource_registry.rr_store.delete_mult(assoc_ids)
 
     def _compare_snapshots(self, old_snapshot, new_snapshot):
         delta_snapshot = {}
