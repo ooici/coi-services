@@ -138,7 +138,6 @@ class TestMultiLaunch(BaseIntTestPlatform):
         self._set_receive_timeout()
         self._do_cycles(create_network)
 
-    @unittest.skip("timeout issues may be related to sim cleanup")
     def test_03_platforms_and_03_instruments(self):
         #
         # small platform topology and 3 instruments, all assigned to leaf platform
@@ -150,7 +149,6 @@ class TestMultiLaunch(BaseIntTestPlatform):
         self._set_receive_timeout()
         self._do_cycles(create_network)
 
-    @unittest.skip("test with several platforms not always working")
     def test_13_platforms_and_00_instruments(self):
         #
         # Test with network of 13 platforms (no instruments).
@@ -162,7 +160,6 @@ class TestMultiLaunch(BaseIntTestPlatform):
         self._set_receive_timeout()
         self._do_cycles(create_network)
 
-    @unittest.skip("test with several platforms not working yet")
     def test_13_platforms_and_01_instruments(self):
         #
         # Test with network of 13 platforms and 1 instrument.
@@ -174,7 +171,6 @@ class TestMultiLaunch(BaseIntTestPlatform):
         self._set_receive_timeout()
         self._do_cycles(create_network)
 
-    @unittest.skip("test with several platforms not working yet")
     def test_13_platforms_and_02_instruments(self):
         #
         # Test with network of 13 platforms and 2 instruments.
