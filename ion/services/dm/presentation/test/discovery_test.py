@@ -5,7 +5,7 @@
 @date 05/07/12 08:17
 @description Integration and Unit tests for Discovery Service
 '''
-from unittest.case import skipIf, skip
+from unittest.case import skipIf, skip, SkipTest
 from pyon.public import PRED, CFG, RT
 from pyon.core.exception import BadRequest, NotFound
 from pyon.core.bootstrap import get_sys_name
@@ -42,11 +42,14 @@ import calendar
 
 
 use_es = CFG.get_safe('system.elasticsearch',False)
+cfg_datastore = CFG.get_safe('container.datastore.default_server', "couchdb")
 
 
 @attr('UNIT', group='dm')
 class DiscoveryUnitTest(PyonTestCase):
     def setUp(self):
+        if cfg_datastore != "couchdb":
+            raise SkipTest("POSTGRES WITHOUT ES")
         super(DiscoveryUnitTest,self).setUp()
         mock_clients = self._create_service_mock('discovery')
         self.discovery = DiscoveryService()
@@ -474,6 +477,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         return None
 
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     def test_traversal(self):
         dp        = DataProcess()
         transform = Transform()
@@ -492,6 +496,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         correct.sort()
         self.assertTrue(results == correct, '%s' % results)
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     def test_iterative_traversal(self):
         dp        = DataProcess()
         transform = Transform()
@@ -515,6 +520,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         correct.sort()
         self.assertTrue(results == correct)
     
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_view_crud(self):
         view_id = self.discovery.create_view('big_view',fields=['name'])
@@ -537,6 +543,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             self.discovery.read_view(view_id)
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     def test_view_best_match(self):
         #---------------------------------------------------------------
         # Matches the best catalog available OR creates a new one
@@ -554,6 +561,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         catalog_ids = self.discovery.list_catalogs(view_id)
         self.assertTrue(catalog_ids != [catalog_id])
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_basic_searching(self):
 
@@ -579,6 +587,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(result.firmware_version == '2')
 
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_associative_searching(self):
 
@@ -594,7 +603,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
     
 
 
-    @skipIf(not use_es, 'No ElasticSearch')
+    @skipIf(not use_es and cfg_datastore != "postgresql", 'No ElasticSearch')
     def test_limit_search(self):
         dp = DataProduct(name='example')
         dp_ids = [self.rr.create(dp)[0] for i in xrange(100)]
@@ -610,6 +619,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(pollcheck(search_string))
 
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     def test_iterative_associative_searching(self):
         #--------------------------------------------------------------------------------
         # Tests the ability to limit the iterations
@@ -640,6 +650,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results == correct)
 
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_ranged_value_searching(self):
         discovery = self.discovery
@@ -664,7 +675,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
 
 
-
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_collections_searching(self):
 
@@ -681,6 +692,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0] == site_id, '%s' % results)
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_search_by_name(self):
         inst_dev = InstrumentDevice(name='test_dev',serial_number='ABC123')
@@ -694,6 +706,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dev_id)
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_search_by_name_index(self):
         inst_dev = InstrumentDevice(name='test_dev',serial_number='ABC123')
@@ -715,6 +728,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == res_id)
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     #@skipIf(not use_es, 'No ElasticSearch')
     @skip('Skip until time to refactor, data_format is removed from DataProduct resource')
     def test_data_product_search(self):
@@ -747,6 +761,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_vertical_bounds_limits(self):
         dp = DataProduct(name='blah')
@@ -768,6 +783,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self.assertTrue(pollcheck(search_string))
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_vertical_bounds_searching(self):
         dp = DataProduct(name='blah')
@@ -799,6 +815,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         results = self.poll(1, self.discovery.parse, search_string)
         self.assertEquals(results, None)
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'no elasticsearch')
     def test_temporal_bounds_searching(self):
         dp = DataProduct(name='blah')
@@ -831,6 +848,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
 
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_events_search(self):
         # Create a resource to force a new event
@@ -847,6 +865,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(origin_type == RT.DataProcess)
         self.assertTrue(origin_id == dp_id)
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_geo_distance_search(self):
 
@@ -863,6 +882,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == pd_id)
         self.assertTrue(results[0]['_source'].name == 'test_dev')
    
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_geo_bbox_search(self):
 
@@ -882,6 +902,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_source'].name == 'test_dev')
 
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_time_search(self):
         today     = date.today()
@@ -908,6 +929,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIn(dp_id, results)
 
         
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_user_search(self):
         user = UserInfo()
@@ -934,6 +956,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_source'].name == 'test')
 
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_subobject_search(self):
         contact = ContactInformation()
@@ -964,6 +987,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == dp_id)
         self.assertEquals(results[0]['_source'].name, 'example')
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_descriptive_phrase_search(self):
         dp = DataProduct(name='example', description='This is simply a description for this data product')
@@ -975,6 +999,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == dp_id)
         self.assertEquals(results[0]['_source'].name, 'example')
     
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_match_search(self):
         dp = DataProduct(name='example', description='This is simply a description for this data product')
@@ -986,6 +1011,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == dp_id)
         self.assertEquals(results[0]['_source'].name, 'example')
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_expected_match_results(self):
         names = [
@@ -1029,6 +1055,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
 
 
+    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
     @skipIf(not use_es, 'No ElasticSearch')
     def test_ownership_searching(self):
         # Create two data products so that there is competition to the search, one is parsed 
