@@ -698,7 +698,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         register an instrument driver by putting it in a web-accessible location
         @instrument_agent_id the agent receiving the driver
         @agent_egg a base64-encoded egg file
-        @qa_documents a base64-encoded zip file containing a MANIFEST.csv file
+        @qa_documents a base64-encoded zip file containing a MANIFEST.csv file 
 
         MANIFEST.csv fields:
          - filename
@@ -885,7 +885,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 return False, '%s(%s) has been denied since the resource id %s has not been shared with any Org' % (process.name, gov_values.op, gov_values.resource_id)
 
             #Handle these lifecycle transitions first
-
+            
             if not (lifecycle_event == LCE.INTEGRATE or lifecycle_event == LCE.DEPLOY or lifecycle_event == LCE.RETIRE):
 
                 #The owner can do any of these other lifecycle transitions

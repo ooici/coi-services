@@ -96,7 +96,7 @@ from coverage_model.parameter import ParameterContext
 from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
 
 from interface import objects
-from interface.objects import StreamAlertType, StreamConfigurationType, PortTypeEnum
+from interface.objects import StreamAlertType, PortTypeEnum, StreamConfigurationType
 
 from ooi.timer import Accumulator, Timer
 stats = Accumulator(persist=True)
