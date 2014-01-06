@@ -393,7 +393,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT,
             RSNPlatformDriverEvent.TURN_ON_PORT,
             RSNPlatformDriverEvent.TURN_OFF_PORT,
-            RSNPlatformDriverEvent.CHECK_SYNC
+#            RSNPlatformDriverEvent.CHECK_SYNC           #OOIION-1623 Remove until Check Sync requirements fully defined
         ]
 
         ##################################################################
