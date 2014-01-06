@@ -58,7 +58,8 @@ class RSNPlatformDriverCapability(BaseEnum):
     DISCONNECT_INSTRUMENT     = RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT
     TURN_ON_PORT              = RSNPlatformDriverEvent.TURN_ON_PORT
     TURN_OFF_PORT             = RSNPlatformDriverEvent.TURN_OFF_PORT
-    CHECK_SYNC                = RSNPlatformDriverEvent.CHECK_SYNC
+#    OOIION-1623 Remove until Check Sync requirements fully defined
+#    CHECK_SYNC                = RSNPlatformDriverEvent.CHECK_SYNC
 
 
 class RSNPlatformDriver(PlatformDriver):
@@ -231,13 +232,14 @@ class RSNPlatformDriver(PlatformDriver):
                         }
                 }
             }
-        commands[RSNPlatformDriverEvent.CHECK_SYNC] = \
-            {
-                "display_name" : "Check Platform Hierarchy",
-                "description" : "Verify the platform hierarchy is consistent with OMS.",
-                "args" : [],
-                "kwargs" : {}
-            }
+        # OOIION-1623 Remove until Check Sync requirements fully defined
+        #commands[RSNPlatformDriverEvent.CHECK_SYNC] = \
+        #    {
+        #        "display_name" : "Check Platform Hierarchy",
+        #        "description" : "Verify the platform hierarchy is consistent with OMS.",
+        #        "args" : [],
+        #        "kwargs" : {}
+        #    }
         self._resource_schema['parameters'] = parameters
         self._resource_schema['commands'] = commands
 
