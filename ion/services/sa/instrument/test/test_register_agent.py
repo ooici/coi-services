@@ -146,7 +146,7 @@ class TestIMSRegisterAgent(PyonTestCase):
 
         self.IMS.module_uploader.modules = self.mock_dict
 
-
+    @unittest.skip('OOIION-1655 Implemented as part of R3 D041 Data Processing Management Service')
     def test_register_instrument_agent_unit(self):
         # setup
 
@@ -207,10 +207,11 @@ class TestIMSRegisterAgentIntegration(IonIntegrationTestCase):
 
         print 'started services'
 
-#    @unittest.skip('this test just for debugging setup')
+
 #    def test_just_the_setup(self):
 #        return
 
+    @unittest.skip('OOIION-1655 Implemented as part of R3 D041 Data Processing Management Service')
     def test_register_instrument_agent_int(self):
 
         #test ssh-ability
