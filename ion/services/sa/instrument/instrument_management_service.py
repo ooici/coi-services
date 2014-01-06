@@ -708,50 +708,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
          - keywords
         """
 
-        # retrieve the resource
-        self.read_instrument_agent(instrument_agent_id)
-
-        qa_doc_parser = QADocParser()
-
-        #process the input files (base64-encoded qa documents)
-        qa_parse_result, err  = qa_doc_parser.prepare(qa_documents)
-        if not qa_parse_result:
-            raise BadRequest("Processing qa_documents file failed: %s" % err)
-
-
-        #process the input files (base64-encoded egg)
-        uploader_obj, err = self.module_uploader.prepare(agent_egg)
-        if None is uploader_obj:
-            raise BadRequest("Egg failed validation: %s" % err)
-
-        attachments, err = qa_doc_parser.convert_to_attachments()
-
-        if None is attachments:
-            raise BadRequest("QA Docs processing failed: %s" % err)
-
-        # actually upload
-        up_success, err = uploader_obj.upload()
-        if not up_success:
-            raise BadRequest("Upload failed: %s" % err)
-
-
-        #now we can do the ION side of things
-
-        #make an attachment for the url
-        attachments.append(IonObject(RT.Attachment,
-                                     name=uploader_obj.get_egg_urlfile_name(),
-                                     description="url to egg",
-                                     content="[InternetShortcut]\nURL=%s" % uploader_obj.get_destination_url(),
-                                     content_type="text/url",
-                                     keywords=[KeywordFlag.EGG_URL],
-                                     attachment_type=AttachmentType.ASCII))
-
-        #insert all attachments
-        for att in attachments:
-            self.RR2.create_attachment(instrument_agent_id, att)
-
-        #updates the state of this InstAgent to integrated
-        self.RR2.advance_lcs(instrument_agent_id, LCE.INTEGRATE)
+        # OOIION-1655
+        raise NotImplementedError('Implemented as part of R3 D041 Data Processing Management Service')
 
     ##########################################################################
     #
