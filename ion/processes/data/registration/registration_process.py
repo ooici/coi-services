@@ -141,7 +141,7 @@ class RegistrationProcess(StandaloneProcess):
             dataset_element = doc.createElement('dataset')
             #dataset_element.setAttribute('type', 'EDDGridFromDap')
             dataset_element.setAttribute('type', 'EDDTableFromDapSequence')
-            dataset_element.setAttribute('datasetID', product_id)
+            dataset_element.setAttribute('datasetID', 'data' + product_id)
             dataset_element.setAttribute('active', 'True')
 
             source_element = doc.createElement('sourceUrl')
