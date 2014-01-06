@@ -235,3 +235,37 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
 
         return False, '%s(%s) has been denied since the user is not a member in any org to which the resource id %s belongs ' % (process.name, gov_values.op, resource_id)
+
+    def check_edit_policy(self, process, message, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process, resource_id_required=True)
+
+        except Inconsistent, ex:
+            return False, ex.message
+
+        resource_id = gov_values.resource_id
+
+        resource = self.resource_registry.read(resource_id)
+        # Allow edit to an org
+        if resource.type_ == 'Org':
+
+            if (has_org_role(gov_values.actor_roles, resource.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR, DATA_OPERATOR])):
+                return True, ''
+
+        # Allow edit to add attachment to his own UserInfo
+        elif resource.type_ == 'UserInfo':
+
+            actor_identity,_ = self.resource_registry.find_subjects(subject_type=RT.ActorIdentity, predicate=PRED.hasInfo, object=resource_id, id_only=False)
+            if actor_identity[0]._id == headers['ion-actor-id']:
+                return True, ''
+        # Allow actor to add attachment to any resource in an org where the actor has appropriate role
+        else:
+
+            orgs,_ = self.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
+            for org in orgs:
+                if (has_org_role(gov_values.actor_roles, org.org_governance_name, [ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR, DATA_OPERATOR])):
+                    return True, ''
+
+
+        return False, '%s(%s) has been denied since the user is not a member in any org to which the resource id %s belongs ' % (process.name, gov_values.op, resource_id)
