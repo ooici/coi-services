@@ -212,7 +212,7 @@ class OOILoader(object):
             return
         self._add_object_attribute('class',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
-            mapping={'Description':'description'},
+            mapping={'Description':'description', 'Alternate Instrument Class Name':'alt_name'},
             name=row['Class_Name'])
 
     def _parse_AttributeReportDataProducts(self, row):

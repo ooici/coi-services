@@ -1366,15 +1366,15 @@ class IONLoader(ImmediateProcess):
             subseries_obj = subseries_objs.get(ooi_id + "01", None)
             newrow = {}
             newrow[COL_ID] = ooi_id
-            newrow['im/name'] = "%s (%s-%s)" % (class_name, series_obj['Class'], series_obj['Series'])
+            newrow['im/name'] = "%s (%s-%s)" % (class_obj['alt_name'], series_obj['Class'], series_obj['Series'])
             newrow['im/alt_ids'] = "['OOI:" + ooi_id + "']"
             newrow['im/description'] = series_obj['description']
             newrow['im/instrument_family'] = family_obj['name']   # DEPRECATED. Remove when UI db updated.
             newrow['im/family_id'] = family_obj['id']
             newrow['im/family_name'] = family_obj['name']
             newrow['im/class_id'] = class_obj['id']
-            newrow['im/class_name'] = class_obj['name']
-            newrow['im/class_alternate_name'] = class_obj['Alternate Instrument Class Name']
+            newrow['im/class_name'] = class_name
+            newrow['im/class_alternate_name'] = class_obj['alt_name']
             newrow['im/class_description'] = class_obj['description']
             newrow['im/series_id'] = series_obj['id']
             newrow['im/series_name'] = series_obj['name']
@@ -1808,7 +1808,8 @@ class IONLoader(ImmediateProcess):
             inst_name = "%s (%s-%s)" % (class_obj['name'], series_obj['Class'], series_obj['Series'])
             newrow = {}
             newrow[COL_ID] = inst_id
-            newrow['is/name'] = inst_name
+            #newrow['is/name'] = inst_name
+            newrow['is/name'] = "%s on %s" % (class_objs[ooi_rd.inst_class]['alt_name'], node_objs[ooi_rd.node_rd]['name'])
             newrow['is/description'] = "Instrument: %s" % inst_id
             newrow['is/alt_ids'] = "['OOI:" + inst_id + "']"
             newrow['is/local_name'] = inst_name
@@ -2338,7 +2339,7 @@ Reason: %s
             ooi_rd = OOIReferenceDesignator(ooi_id)
             newrow = {}
             newrow[COL_ID] = ooi_id + "_ID"
-            newrow['id/name'] = "%s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_rd.node_rd]['name'])
+            newrow['id/name'] = "%s on %s" % (class_objs[ooi_rd.inst_class]['alt_name'], node_objs[ooi_rd.node_rd]['name'])
             newrow['id/description'] = "Instrument %s device #01" % ooi_id
             newrow['id/reference_urls'] = ''
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
