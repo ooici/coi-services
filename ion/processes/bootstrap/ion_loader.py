@@ -3380,13 +3380,16 @@ Reason: %s
                 newrow['dp/qc_spketest'] = dp_obj.get('Spike Test (SPKETST) QC', "")
                 newrow['dp/qc_stuckvl'] = dp_obj.get('Stuck Value Test (STUCKVL) QC', "")
                 newrow['dp/qc_trndtst'] = dp_obj.get('Trend Test (TRNDTST) QC', "")
-                if any([True for val in [newrow['dp/qc_cmbnflg'], newrow['dp/qc_condcmp'], newrow['dp/qc_glblrng'],
-                                         newrow['dp/qc_gradtst'], newrow['dp/qc_interp1'], newrow['dp/qc_loclrng'],
-                                         newrow['dp/qc_modulus'], newrow['dp/qc_polyval'], newrow['dp/qc_solarel'],
-                                         newrow['dp/qc_spketest'], newrow['dp/qc_stuckvl'], newrow['dp/qc_trndtst']] if val == "applicable"]):
-                    newrow['dp/quality_control_level'] = "b"
+                if dp_obj['level'] == "L0":
+                    newrow['dp/quality_control_level'] = "N/A"
                 else:
-                    newrow['dp/quality_control_level'] = "a"
+                    if any([True for val in [newrow['dp/qc_cmbnflg'], newrow['dp/qc_condcmp'], newrow['dp/qc_glblrng'],
+                                             newrow['dp/qc_gradtst'], newrow['dp/qc_interp1'], newrow['dp/qc_loclrng'],
+                                             newrow['dp/qc_modulus'], newrow['dp/qc_polyval'], newrow['dp/qc_solarel'],
+                                             newrow['dp/qc_spketest'], newrow['dp/qc_stuckvl'], newrow['dp/qc_trndtst']] if val == "applicable"]):
+                        newrow['dp/quality_control_level'] = "b"
+                    else:
+                        newrow['dp/quality_control_level'] = "a"
                 newrow['dp/dps_dcn'] = dp_obj.get('DPS DCN(s)', "")
                 newrow['dp/flow_diagram_dcn'] = dp_obj.get('Processing Flow Diagram DCN(s)', "")
                 newrow['dp/doors_l2_requirement_num'] = dp_obj.get('DOORS L2 Science Requirement #(s)', "")
