@@ -180,7 +180,7 @@ class TestDMExtended(DMTestCase):
         config.loadui=True
         config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
-        config.scenario = 'BETA,GLIDER,CTDGV,CTDGV01'
+        config.scenario = 'BETA,GENG,RJF_TEST,CTDGV'
         config.path = 'master'
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
@@ -630,9 +630,11 @@ class TestDMExtended(DMTestCase):
     def test_ctdgv(self):
         self.extract_static_dataset('ctdgv')
         self.preload_ctdgv()
+        self.preload_ui()
         data_product_ids, _ = self.container.resource_registry.find_resources_ext(alt_id='DPROD118', alt_id_ns='PRE')
         data_product_id = data_product_ids[0]
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        self.launch_ui_facepage(data_product_id)
         breakpoint(locals(), globals())
 
     @attr("UTIL")
