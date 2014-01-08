@@ -1522,7 +1522,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_data_product(instrument_data_product_id, rdt)
         self.assertTrue(validated.wait(10))
 
-
+    @unittest.skip('Not using the data processing framework in R2')
     def test_instrument_platform_integration_full(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         ph.create_extended_and_platform()
