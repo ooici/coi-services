@@ -808,7 +808,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         erddap_host = CFG.get_safe('server.erddap.host','localhost')
         errdap_port = CFG.get_safe('server.erddap.port','8080')
         try:
-            ret.value  = string.join( ["http://", erddap_host, ":", str(errdap_port),"/erddap/tabledap/", str(data_product_id), ".html"],'')
+            ret.value  = string.join( ["http://", erddap_host, ":", str(errdap_port),"/erddap/tabledap/", "data", str(data_product_id), ".html"],'')
             ret.status = ComputedValueAvailability.PROVIDED
             log.debug("get_data_url: data_url: %s", ret.value)
         except NotFound:
