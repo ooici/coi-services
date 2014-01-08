@@ -2500,7 +2500,6 @@ Reason: %s
         platform_device_id = self.resource_ids[row['platform_device_id']]
 
         driver_config = parse_dict(row['driver_config'])
-        log.debug("driver_config = %s", driver_config)
 
         #if a url is provided in oms_url column, insert that url into the driver config for the oms_uri attribute.
         oms_url = row.get("oms_url", "")
