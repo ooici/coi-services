@@ -117,7 +117,7 @@ CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exp
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdHFNbV80dUNfT0pxbTBXeHlPcGRTbFE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dDJfdGd6RkNVMmZZeGZmNHBrbVRjVUE&output=xls"
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
@@ -2495,11 +2495,19 @@ Reason: %s
         alerts_config = [ self.alerts[id.strip()] for id in row['alerts'].split(',') ] if row['alerts'].strip() else []
 
         platform_id = row['platform_id']
+
+        #if a url is provided in oms_url column, insert that url into the driver config for the oms_uri attribute.
+        oms_url = row['oms_url']
+
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
 
         driver_config = parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
+
+        if oms_url:
+            driver_config['oms_uri'] = oms_url
+        log.debug("_load_PlatformAgentInstance driver_config  %s", driver_config)
 
         agent_config = {}
         raw_agent_config = row.get('agent_config', None)
