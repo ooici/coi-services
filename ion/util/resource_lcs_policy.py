@@ -444,10 +444,11 @@ class DevicePolicy(ResourceLCSPolicy):
 
         device_type = self._get_resource_type_by_id(device_id)
 
-        if RT.PlatformDevice == device_type:
+        if device_type == RT.PlatformDevice:
             agents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.PlatformAgentInstance)
-            if 1 != len(agents):
-                return self._make_fail("Device has %d associated agent instances, not 1" % len(agents))
+            dagents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.ExternalDatasetAgentInstance)
+            if len(agents) + len(dagents) != 1:
+                return self._make_fail("Device has %d associated agent instances, not 1" % (len(agents) + len(dagents)))
             tmp = self._resource_lcstate_in(agents[0], [LCS.DEPLOYED])
             if not tmp[0]: return tmp
 
@@ -459,10 +460,11 @@ class DevicePolicy(ResourceLCSPolicy):
 
             return self._make_pass()
 
-        if RT.InstrumentDevice == device_type:
+        if device_type == RT.InstrumentDevice:
             agents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance)
-            if 1 != len(agents):
-                return self._make_fail("Device has %d associated agent instances, not 1" % len(agents))
+            dagents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.ExternalDatasetAgentInstance)
+            if len(agents) + len(dagents) != 1:
+                return self._make_fail("Device has %d associated agent instances, not 1" % (len(agents) + len(dagents)))
             tmp = self._resource_lcstate_in(agents[0], [LCS.DEPLOYED])
             if not tmp[0]: return tmp
 
@@ -474,7 +476,7 @@ class DevicePolicy(ResourceLCSPolicy):
 
             return self._make_pass()
 
-        if RT.SensorDevice == device_type:
+        if device_type == RT.SensorDevice:
             parents = self._find_having(RT.InstrumentDevice, PRED.hasDevice, device_id)
             if 0 == len(parents):
                 return self._make_fail("Device is not attached to a parent")
