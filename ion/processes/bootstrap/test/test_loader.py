@@ -297,6 +297,14 @@ class TestLoader(IonIntegrationTestCase):
         pai = self.find_object_by_name("Unit Test Platform Agent Instance", RT.PlatformAgentInstance)
         self.assertEqual(1, len(pai.alerts))
         self.assertTrue(pai.agent_config.has_key('platform_config'))
+        log.debug('test_row_values PlatformAgentInstance driver_config: %s ', pai.driver_config)
+
+        self.assertTrue(pai.driver_config.has_key('oms_uri'))
+        oms_uri = pai.driver_config['oms_uri']
+        log.debug('test_row_values PlatformAgentInstance oms_uri: %s ', oms_uri)
+
+        self.assertEquals('http://alice:1234@10.180.80.10:9021/', oms_uri)
+
 
         orgs, _ = self.container.resource_registry.find_subjects(RT.Org, PRED.hasResource, iai._id, True)
         self.assertEqual(1, len(orgs))
