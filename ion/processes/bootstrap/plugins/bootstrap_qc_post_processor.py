@@ -57,5 +57,5 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
 
     def process_exists(self, process, name):
         proc_ids, meta = process.container.resource_registry.find_resources(restype=RT.Process, id_only=True)
-        return any([name in p['name'] for p in meta])
+        return any([name in p['name'] for p in meta if p['name']])
 
