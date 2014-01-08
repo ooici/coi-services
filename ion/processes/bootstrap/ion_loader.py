@@ -2496,15 +2496,14 @@ Reason: %s
 
         platform_id = row['platform_id']
 
-        #if a url is provided in oms_url column, insert that url into the driver config for the oms_uri attribute.
-        oms_url = row['oms_url']
-
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
 
         driver_config = parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
 
+        #if a url is provided in oms_url column, insert that url into the driver config for the oms_uri attribute.
+        oms_url = row.get("oms_url", "")
         if oms_url:
             driver_config['oms_uri'] = oms_url
         log.debug("_load_PlatformAgentInstance driver_config  %s", driver_config)
