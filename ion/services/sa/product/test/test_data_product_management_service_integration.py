@@ -4,7 +4,7 @@
 @brief Data Product Management Service Integration Tests
 '''
 
-import unittest, gevent, simplejson
+import unittest, gevent, simplejson, time
 import numpy as np
 from mock import patch
 from nose.plugins.attrib import attr
@@ -424,6 +424,19 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             stream_definition_id=ctd_stream_def_id)
 
         #------------------------------------------------------------------------------------------------
+        # Subscribe to persist events
+        #------------------------------------------------------------------------------------------------
+        queue = gevent.queue.Queue()
+
+        def info_event_received(message, headers):
+            queue.put(message)
+
+        es = EventSubscriber(event_type=OT.InformationContentStatusEvent, callback=info_event_received, origin=dp_id, auto_delete=True)
+        es.start()
+        self.addCleanup(es.stop)
+
+
+        #------------------------------------------------------------------------------------------------
         # test activate and suspend data product persistence
         #------------------------------------------------------------------------------------------------
         self.dpsc_cli.activate_data_product_persistence(dp_id)
@@ -516,6 +529,22 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         with self.assertRaises(NotFound):
             dp_obj = self.rrclient.read(dp_id)
+
+
+        info_event_counter = 0
+        runtime = 0
+        starttime = time.time()
+        caught_events = []
+
+        #check that the four InfoStatusEvents were received
+        while info_event_counter < 4 and runtime < 60 :
+            a = queue.get(timeout=60)
+            caught_events.append(a)
+            info_event_counter += 1
+            runtime = time.time() - starttime
+
+        self.assertEquals(info_event_counter, 4)
+
 
     def test_lookup_values(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
