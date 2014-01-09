@@ -9,6 +9,7 @@ from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, OT, PRED, LCS, CFG
 from pyon.util.ion_time import IonTime
 from pyon.ion.resource import ExtendedResourceContainer
+from pyon.event.event import EventPublisher
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false, validate_true
 
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
@@ -18,7 +19,7 @@ from ion.util.geo_utils import GeoUtils
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from interface.objects import DataProduct, DataProductVersion
+from interface.objects import DataProduct, DataProductVersion, InformationStatus
 from interface.objects import ComputedValueAvailability
 
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
@@ -316,15 +317,14 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                 dataset_id=dataset_id,
                                                 config=config)
 
-
-
         #--------------------------------------------------------------------------------
         # todo: dataset_configuration_obj contains the ingest config for now...
-        # Update the data product object
+        # Update the data product object and sent event
         #--------------------------------------------------------------------------------
         data_product_obj.dataset_configuration_id = ingestion_configuration_id
         self.update_data_product(data_product_obj)
 
+        self._publish_persist_event(data_product_id=data_product_id, persist_on = True)
 
     def is_persisted(self, data_product_id=''):
         # Is the data product currently persisted into a data set?
@@ -337,7 +337,25 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return False
 
+    def _publish_persist_event(self, data_product_id=None, persist_on=True):
+        try:
+            if data_product_id:
+                if persist_on:
+                    persist_type = 'PERSIST_ON'
+                    description = 'Data product is persisted.'
+                else:
+                    persist_type= 'PERSIST_OFF',
+                    description= 'Data product is not currently persisted'
 
+                pub = EventPublisher(OT.InformationContentStatusEvent, process=self)
+                event_data = dict(origin_type=RT.DataProduct,
+                                  origin=data_product_id or "",
+                                  sub_type=persist_type,
+                                  status = InformationStatus.NORMAL,
+                                  description = description)
+                pub.publish_event(**event_data)
+        except Exception as ex:
+            log.error("Error publishing InformationContentStatusEvent for data product: %s", data_product_id)
 
     def suspend_data_product_persistence(self, data_product_id=''):
         """Suspend data product data persistence into a data set, multiple options
@@ -367,22 +385,31 @@ class DataProductManagementService(BaseDataProductManagementService):
         #streams = self.data_product.find_stemming_stream(data_product_id)
         #--------------------------------------------------------------------------------
 
-        try:
-            log.debug("Attempting to find stream")
-            stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(data_product_id)
-            log.debug("stream found")
-            validate_is_not_none(stream_id, 'Data Product %s must have one stream associated' % str(data_product_id))
+        # if this data product is not currently being persisted, then just flag with a warning.
+        if self.is_persisted(data_product_id):
 
-            self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id,
-                                                ingestion_configuration_id=data_product_obj.dataset_configuration_id)
+            try:
+                log.debug("Attempting to find stream")
+                stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(data_product_id)
+                log.debug("stream found")
+                validate_is_not_none(stream_id, 'Data Product %s must have one stream associated' % str(data_product_id))
 
-        except NotFound:
-            if data_product_obj.lcstate == LCS.RETIRED:
-                log.debug("stream not found, but assuming it was from a deletion")
-                log.error("Attempted to suspend_data_product_persistence on a retired data product")
-            else:
-                log.debug("stream not found, assuming error")
-                raise
+                self.clients.ingestion_management.unpersist_data_stream(stream_id=stream_id,
+                                                    ingestion_configuration_id=data_product_obj.dataset_configuration_id)
+
+                self._publish_persist_event(data_product_id=data_product_id, persist_on=False)
+
+            except NotFound:
+                if data_product_obj.lcstate == LCS.RETIRED:
+                    log.debug("stream not found, but assuming it was from a deletion")
+                    log.error("Attempted to suspend_data_product_persistence on a retired data product")
+                else:
+                    log.debug("stream not found, assuming error")
+                    raise
+
+        else:
+            log.warning('Data product is not currently persisted, no action taken: %s', data_product_id)
+
 
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
