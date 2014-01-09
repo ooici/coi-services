@@ -15,6 +15,7 @@ from ion.services.dm.utility.bad_simulator import BadSimulator
 from ion.util.direct_coverage_utils import DirectCoverageAccess
 from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.processes.data.registration.registration_process import RegistrationProcess
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.util.file_sys import FileSystem
@@ -233,20 +234,17 @@ class TestDMExtended(DMTestCase):
         '''
         Copies the datasets.xml to /tmp
         '''
-        from shutil import copyfile
-        datasets_xml_path = CFG.get_safe('server.pydap.datasets_xml_path', "RESOURCE:ext/datasets.xml")
-        filename = datasets_xml_path.split('/')[-1]
-        base = '/'.join(datasets_xml_path.split('/')[:-1])
-        real_path = FileSystem.get_extended_url(base)
-        real_path = os.path.join(real_path,filename)
-        copyfile(real_path, '/tmp/datasets.xml')
+        datasets_xml_path = RegistrationProcess.get_datasets_xml_path(CFG)
+        if os.path.lexists('/tmp/datasets.xml'):
+            os.unlink('/tmp/datasets.xml')
+        os.symlink(datasets_xml_path, '/tmp/datasets.xml')
         if data_product_id:
-            with open('/tmp/erddap/flag/%s' % data_product_id, 'a'):
+            with open('/tmp/erddap/flag/data%s' % data_product_id, 'a'):
                 pass
 
         gevent.sleep(5)
         from subprocess import call
-        call(['open', 'http://localhost:9000/erddap/tabledap/%s.html' % data_product_id])
+        call(['open', 'http://localhost:9000/erddap/tabledap/data%s.html' % data_product_id])
 
     def create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
@@ -970,9 +968,6 @@ class TestDMExtended(DMTestCase):
         self.assertTrue(dataset_monitor.event.wait(30))
         dataset_monitor.event.clear()
 
-
-        # Throw in even more overlapping data on the complex coverage
-        rdt['time'] = np.arange(20)
         rdt['temp_sample'] = np.random.random(20 * 20).reshape(20,20)
         rdt['cond_sample'] = np.array(range(20) * 20).reshape(20,20)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc2', connection_index='1')
@@ -1022,4 +1017,31 @@ class TestDMExtended(DMTestCase):
             pass
         breakpoint(locals(), globals())
 
+    def test_catalog_repair(self):
+        data_product_id = self.make_ctd_data_product()
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.arange(30)
+        rdt['temp'] = np.arange(30)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.event.clear()
+
+        datasets_xml_path = RegistrationProcess.get_datasets_xml_path(CFG)
+        with open(datasets_xml_path, 'w'):
+            pass # Corrupt the file
+
+
+        self.container.spawn_process('reregister', 'ion.processes.bootstrap.registration_bootstrap', 'RegistrationBootstrap', {'op':'register_datasets'})
+
+        with open(datasets_xml_path, 'r') as f:
+            buf = f.read()
+        self.assertIn(data_product_id, buf)
+
+
+
+        
 
