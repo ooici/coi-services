@@ -28,22 +28,25 @@ class RegistrationProcess(StandaloneProcess):
         self.pydap_port = self.CFG.get_safe('server.pydap.port', '8001')
         self.pydap_url  = 'http://%s:%s/' % (self.pydap_host, self.pydap_port)
         self.pydap_data_path = self.CFG.get_safe('server.pydap.data_path', 'RESOURCE:ext/pydap')
-        self.datasets_xml_path = self.CFG.get_safe('server.pydap.datasets_xml_path', "RESOURCE:ext/datasets.xml")
+        self.datasets_xml_path = self.get_datasets_xml_path(self.CFG)
         self.pydap_data_path = FileSystem.get_extended_url(self.pydap_data_path) + '/'
-
-        filename = self.datasets_xml_path.split('/')[-1]
-        base = '/'.join(self.datasets_xml_path.split('/')[:-1])
-        real_path = FileSystem.get_extended_url(base)
-        self.datasets_xml_path = os.path.join(real_path, filename)
-        self.setup_filesystem(real_path)
-
+        self.setup_filesystem(self.datasets_xml_path)
 
         self.ux_url = self.CFG.get_safe('system.web_ui_url','http://localhost:3000/')
 
+    @classmethod
+    def get_datasets_xml_path(cls, cfg):
+        datasets_xml_path = cfg.get_safe('server.pydap.datasets_xml_path', 'RESOURCE:ext/datasets.xml')
+        base, filename = os.path.split(datasets_xml_path)
+        base = FileSystem.get_extended_url(base)
+        path = os.path.join(base, filename)
+
+        return path
+
     def setup_filesystem(self, path):
-        if os.path.exists(os.path.join(path,'datasets.xml')):
+        if os.path.exists(path):
             return
-        with open(os.path.join(path,'datasets.xml'),'w') as f:
+        with open(path, 'w') as f:
             f.write(datasets_xml)
 
     def register_dap_dataset(self, data_product_id):
