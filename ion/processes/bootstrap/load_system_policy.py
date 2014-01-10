@@ -601,42 +601,6 @@ class LoadSystemPolicy(ImmediateProcess):
                         </ActionMatch>
                     </Action>
                 </Actions>
-
-                <Subjects>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DATA_OPERATOR</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                </Subjects>
-
             </Target>
             <Condition>
                 <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-function">
