@@ -1004,8 +1004,61 @@ class TestDMExtended(DMTestCase):
         self.preload_vel3d_cd()
         instrument_devices, _ = self.container.resource_registry.find_resources_ext(alt_id='ID21', alt_id_ns='PRE')
         instrument_device_id = instrument_devices[0]._id
+        data_products, _ = self.container.resource_registry.find_resources_ext(alt_id='DPROD109', alt_id_ns='PRE')
+        data_product_id = data_products[0]._id
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         self.launch_device_facepage(instrument_device_id)
         breakpoint(locals(), globals())
+
+    @attr("INT")
+    def test_calibration_injection(self):
+        self.preload_vel3d_cd()
+        data_products, _ = self.container.resource_registry.find_resources_ext(alt_id='DPROD109', alt_id_ns='PRE')
+        data_product_id = data_products[0]._id
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        rdt = ParameterHelper.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.array([  3.59837010e+09,   3.59837010e+09,   3.59837010e+09,
+         3.59837010e+09,   3.59837010e+09,   3.59837010e+09,
+         3.59837010e+09,   3.59837010e+09,   3.59837010e+09,
+         3.59837010e+09])
+        rdt['amplitude_beam_1'] = np.array([48, 47, 47, 47, 47, 47, 47, 47, 47, 47], dtype=np.int16)
+        rdt['amplitude_beam_2'] = np.array([49, 48, 49, 50, 49, 48, 49, 50, 50, 49], dtype=np.int16)
+        rdt['amplitude_beam_3'] = np.array([50, 49, 49, 49, 49, 49, 49, 49, 49, 49], dtype=np.int16)
+
+        rdt['correlation_beam_1'] = np.array([ 6,  7,  4,  7, 23, 14, 24, 18, 23, 15], dtype=np.int16)
+        rdt['correlation_beam_2'] = np.array([11, 13, 18,  7,  7, 18,  5, 27, 18, 18], dtype=np.int16)
+        rdt['correlation_beam_3'] = np.array([27, 48, 37, 50, 31, 45, 44, 42, 37, 42], dtype=np.int16)
+
+        rdt['ensemble_counter'] = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], dtype=np.int16)
+
+        rdt['seawater_pressure'] = np.array([ 5009.,  4239.,  3468.,  3082.,  3468.,  3468.,  3853.,  4624., 3468.,  4624.], dtype=np.float32)
+        rdt['turbulent_velocity_east'] = np.array([  2629.,   4334.,   1272.,    546.,  64299.,    765.,    960., 64392.,  65205.,  63270.], dtype=np.float32)
+        rdt['turbulent_velocity_north'] = np.array([   548.,  65409.,    395.,  65216.,   2105.,  64558.,  64841., 460.,   1485.,    789.], dtype=np.float32)
+        rdt['turbulent_velocity_vertical'] = np.array([  4.60000000e+02,   6.68000000e+02,   7.00000000e+01,
+             6.53850000e+04,   1.89000000e+02,   6.54920000e+04,
+             5.00000000e+00,   1.43000000e+02,   2.55000000e+02,
+             6.53480000e+04], dtype=np.float32)
+        rdt['upward_turbulent_velocity'] = np.array([  4.60000008e-01,   6.67999983e-01,   7.00000003e-02,
+             6.53850021e+01,   1.88999996e-01,   6.54919968e+01,
+             4.99999989e-03,   1.43000007e-01,   2.54999995e-01,
+             6.53479996e+01], dtype=np.float32)
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+
+        dataset_monitor.event.wait(10)
+    
+        self.container.spawn_process('injector', 'ion.util.direct_coverage_utils', 'CoverageAgent', 
+                {  'dataset_id': dataset_id,
+                   'data_path' : 'test_data/vel3d_coeff.csv',
+                   'config_path':'test_data/vel3d_coeff.yml' 
+                   }
+                )
+        self.strap_erddap(data_product_id)
+        breakpoint(locals(), globals())
+
 
     @attr("UTIL")
     def test_alpha(self):
