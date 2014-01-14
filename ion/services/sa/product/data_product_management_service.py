@@ -34,6 +34,8 @@ import string, StringIO
 import networkx as nx
 import matplotlib.pyplot as plt
 from collections import deque
+from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
+from pyon.core.exception import Inconsistent
 
 import functools
 def debug_wrapper(func):
@@ -1090,3 +1092,24 @@ class DataProductManagementService(BaseDataProductManagementService):
         resource_data.associations['InstrumentDeviceHasSource'].multiple_associations = True
 
         return resource_data
+
+    def check_dpms_policy(self, process, message, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process, resource_id_required=False)
+
+        except Inconsistent, ex:
+            return False, ex.message
+
+        resource_id = message.data_product_id
+
+        # Allow actor to suspend/activate persistence in an org where the actor has the appropriate role
+        orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
+        for org in orgs:
+            if (has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR, DATA_OPERATOR, ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR])):
+                log.error("returning true: "+str(gov_values.actor_roles))
+                return True, ''
+
+        log.error("returning false: "+str(gov_values.actor_roles))
+
+        return False, '%s(%s) has been denied since the user does not have an appropriate role in any org to which the data product id %s belongs ' % (process.name, gov_values.op, resource_id)

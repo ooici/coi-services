@@ -1084,13 +1084,12 @@ class LoadSystemPolicy(ImmediateProcess):
 
 
         policy_text = '''
-            <Rule RuleId="%s" Effect="Permit">
+        <Rule RuleId="%s" Effect="Permit">
             <Description>
                 %s
             </Description>
 
             <Target>
-
                <Resources>
                     <Resource>
                         <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
@@ -1099,36 +1098,32 @@ class LoadSystemPolicy(ImmediateProcess):
                         </ResourceMatch>
                     </Resource>
                 </Resources>
-
-                <Subjects>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                </Subjects>
-
+               <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">start_instrument_agent_instance</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">stop_instrument_agent_instance</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+               </Actions>
             </Target>
+
             <Condition>
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
-                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">LCS-CHANGE</AttributeValue>
-                        </Apply>
-                        <ActionAttributeDesignator
-                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
-                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                    </Apply>
-                 </Apply>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-function">
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">check_start_stop_policy</AttributeValue>
+                    <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
+                </Apply>
             </Condition>
 
         </Rule> '''
 
-        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Role_Permitted_Operations',
+        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Role_Start_Stop_Permissions',
             'Permit these operations in the Instrument Management Service for role of Instrument Operator',
             policy_text, headers=sa_user_header)
 
@@ -1142,7 +1137,6 @@ class LoadSystemPolicy(ImmediateProcess):
             </Description>
 
             <Target>
-
                 <Resources>
                     <Resource>
                         <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
@@ -1151,7 +1145,6 @@ class LoadSystemPolicy(ImmediateProcess):
                         </ResourceMatch>
                     </Resource>
                 </Resources>
-
                 <Subjects>
                     <Subject>
                         <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
@@ -1169,26 +1162,117 @@ class LoadSystemPolicy(ImmediateProcess):
                                  DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </SubjectMatch>
                     </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
                 </Subjects>
-
             </Target>
+
             <Condition>
+              <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
                 <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">LCS-CHANGE</AttributeValue>
                         </Apply>
                         <ActionAttributeDesignator
                              AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
                              DataType="http://www.w3.org/2001/XMLSchema#string"/>
                     </Apply>
-                 </Apply>
+                </Apply>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">start_instrument_agent_instance</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">stop_instrument_agent_instance</AttributeValue>
+                        </Apply>
+                        <ActionAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+                </Apply>
+               </Apply>
             </Condition>
 
         </Rule> '''
 
         policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Higher_Role_Permitted_Operations',
             'Permit these operations in the Instrument Management Service for role of Observatory Operator or Org Manager',
+            policy_text, headers=sa_user_header)
+
+
+        ##############
+
+
+        policy_text = '''
+        <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+                <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">instrument_management</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+                <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">LCS-CHANGE</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+            </Target>
+
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-function">
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">check_lifecycle_policy</AttributeValue>
+                    <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
+                </Apply>
+            </Condition>
+
+        </Rule> '''
+
+        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Check_Lifecycle_Operations',
+            'Call the check_lifecycle_policy operation in the IMS',
             policy_text, headers=sa_user_header)
 
 
@@ -1211,7 +1295,7 @@ class LoadSystemPolicy(ImmediateProcess):
                     </Resource>
                 </Resources>
 
-                <Subjects>
+               <Subjects>
                     <Subject>
                         <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
@@ -1244,11 +1328,12 @@ class LoadSystemPolicy(ImmediateProcess):
                                  DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </SubjectMatch>
                     </Subject>
-                </Subjects>
+               </Subjects>
 
             </Target>
             <Condition>
-                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:and">
+                  <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
@@ -1257,7 +1342,19 @@ class LoadSystemPolicy(ImmediateProcess):
                              AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
                              DataType="http://www.w3.org/2001/XMLSchema#string"/>
                     </Apply>
-                 </Apply>
+                  </Apply>
+                  <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">activate_data_product_persistence</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">suspend_data_product_persistence</AttributeValue>
+                        </Apply>
+                        <ActionAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+                  </Apply>
+                </Apply>
             </Condition>
 
         </Rule> '''
@@ -1271,9 +1368,8 @@ class LoadSystemPolicy(ImmediateProcess):
 
         ##############
 
-
         policy_text = '''
-        <Rule RuleId="%s" Effect="Permit">
+            <Rule RuleId="%s" Effect="Permit">
             <Description>
                 %s
             </Description>
@@ -1283,46 +1379,42 @@ class LoadSystemPolicy(ImmediateProcess):
                <Resources>
                     <Resource>
                         <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">instrument_management</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">data_product_management</AttributeValue>
                             <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ResourceMatch>
                     </Resource>
-                </Resources>
-
-                <Actions>
+               </Resources>
+               <Actions>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">LCS-CHANGE</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">activate_data_product_persistence</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
-                </Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">suspend_data_product_persistence</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+               </Actions>
 
-                <Subjects>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                </Subjects>
 
             </Target>
-
             <Condition>
                 <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-function">
-                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">check_lifecycle_policy</AttributeValue>
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">check_dpms_policy</AttributeValue>
                     <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
                 </Apply>
             </Condition>
 
         </Rule> '''
 
-        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Check_Lifecycle_Operations',
-            'Call the check_lifecycle_policy operation in the IMS',
+        policy_id = policy_client.create_service_access_policy('data_product_management', 'DPMS_Role_Permitted_Specific_Operations',
+            'Permit these specific operations in the Data Product Management Service for role of Instrument Operator, Data Operator, Observatory Operator or Org Manager',
             policy_text, headers=sa_user_header)
+
+
 
 
         ##############
