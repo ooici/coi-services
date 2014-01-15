@@ -1050,15 +1050,35 @@ class TestDMExtended(DMTestCase):
 
         dataset_monitor.event.wait(10)
     
-        self.container.spawn_process('injector', 'ion.util.direct_coverage_utils', 'CoverageAgent', 
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['eastward_turbulent_velocity'], 
+                np.array([-9999., -9999., -9999., -9999., -9999., 
+                          -9999., -9999., -9999., -9999., -9999.], dtype=np.float32))
+        np.testing.assert_array_equal(rdt['northward_turbulent_velocity'], 
+                np.array([-9999., -9999., -9999., -9999., -9999., 
+                          -9999., -9999., -9999., -9999., -9999.], dtype=np.float32))
+        self.container.spawn_process(
+                'injector', 
+                'ion.util.direct_coverage_utils', 
+                'CoverageAgent', 
                 {  'dataset_id': dataset_id,
                    'data_path' : 'test_data/vel3d_coeff.csv',
                    'config_path':'test_data/vel3d_coeff.yml' 
-                   }
-                )
-        self.strap_erddap(data_product_id)
-        breakpoint(locals(), globals())
+                })
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['eastward_turbulent_velocity'], 
+                 np.array([  2.3491168, -15.21462631,   1.09815776,
+                          -18.77588654,   60.7967453, -18.37199211,
+                          -18.26946259,  61.37233734,  61.84563065,
+                          60.203228  ], dtype=np.float32))
 
+        np.testing.assert_array_equal(rdt['northward_turbulent_velocity'], 
+                 np.array([  1.30138195, 63.76234055,  0.75369668,
+                            62.45711136,  21.0368309, 61.89337921,
+                            62.22140884, 19.49301529, 20.71268082,
+                            19.47528076], dtype=np.float32))
 
     @attr("UTIL")
     def test_alpha(self):
@@ -1070,6 +1090,7 @@ class TestDMExtended(DMTestCase):
             pass
         breakpoint(locals(), globals())
 
+    @attr("INT")
     def test_catalog_repair(self):
         data_product_id = self.make_ctd_data_product()
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
