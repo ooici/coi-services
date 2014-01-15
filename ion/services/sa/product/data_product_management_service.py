@@ -1103,7 +1103,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         resource_id = message.data_product_id
 
-        # Allow actor to activate/deactivate deployment in an org where the actor has the appropriate role
+        # Allow actor to suspend/activate persistence in an org where the actor has the appropriate role
         orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
         for org in orgs:
             if (has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR, DATA_OPERATOR, ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR])):
