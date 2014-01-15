@@ -15,7 +15,8 @@ from ooi.timer import Timer, Accumulator
 from pyon.agent.agent import ResourceAgentState, ResourceAgentClient
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent, BadRequest, NotFound, ServerError, Unauthorized
-from pyon.core.governance import GovernanceHeaderValues, has_org_role
+from pyon.core.governance import GovernanceHeaderValues, has_org_role, INSTRUMENT_OPERATOR, OBSERVATORY_OPERATOR,\
+    ORG_MANAGER_ROLE
 from pyon.core.governance import has_valid_shared_resource_commitment, is_resource_owner
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.public import LCE, RT, PRED, OT
@@ -32,7 +33,7 @@ from ion.services.sa.instrument.agent_configuration_builder import InstrumentAge
     PlatformAgentConfigurationBuilder
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.sa.instrument.flag import KeywordFlag
-from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.services.sa.observatory.deployment_util import describe_deployments
 from ion.util.agent_launcher import AgentLauncher
@@ -827,7 +828,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         except Inconsistent, ex:
             return False, ex.message
 
-        #Device policy
+        #Instrument policy
         if gov_values.op == 'execute_instrument_device_lifecycle' or gov_values.op == 'execute_platform_device_lifecycle':
 
             log.debug("check_device_lifecycle_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
@@ -856,7 +857,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
                 #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
                 for org in orgs:
-                    if has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR_ROLE] ) and is_shared:
+                    if has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR ] ) and is_shared:
+                        return True, ''
+                    if has_org_role(gov_values.actor_roles, org.org_governance_name, [OBSERVATORY_OPERATOR, ORG_MANAGER_ROLE ] ):
+                        return True, ''
+            else:
+                for org in orgs:
+                    if has_org_role(gov_values.actor_roles, org.org_governance_name, [OBSERVATORY_OPERATOR, ORG_MANAGER_ROLE ] ):
                         return True, ''
 
             return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (process.name, gov_values.op, gov_values.actor_id, lifecycle_event)
@@ -866,6 +873,30 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             return True, ''
 
 
+    def check_start_stop_policy(self, process, message, headers):
+
+        log.debug(str(process))
+        log.debug(str(message))
+        log.debug(str(headers))
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process)
+            resource_id = gov_values.resource_id
+        except Inconsistent, ex:
+            log.error("unable to retrieve governance header")
+            return False, ex.message
+
+
+
+        # Allow actor to start/stop instrument in an org where the actor has the appropriate role
+        orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
+        for org in orgs:
+            if (has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR, ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR])):
+                log.error("returning true: "+str(gov_values.actor_roles))
+                return True, ''
+
+        log.error("returning false: "+str(gov_values.actor_roles))
+
+        return False, '%s(%s) denied since user doesn''t have appropriate role in any org with which the instrument %s is shared ' % (process.name, gov_values.op, resource_id)
 
     ##########################################################################
     #
