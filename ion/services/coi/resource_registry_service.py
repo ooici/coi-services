@@ -269,3 +269,25 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
 
         return False, '%s(%s) has been denied since the user is not a member in any org to which the resource id %s belongs ' % (process.name, gov_values.op, resource_id)
+
+    def check_lifecycle_policy(self, process, message, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process)
+            resource_id = gov_values.resource_id
+        except Inconsistent, ex:
+            log.error("unable to retrieve governance header")
+            return False, ex.message
+
+
+
+        # Allow actor to start/stop instrument in an org where the actor has the appropriate role
+        orgs,_ = self.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=resource_id, id_only=False)
+        for org in orgs:
+            if (has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR, DATA_OPERATOR, ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR])):
+                log.error("returning true: "+str(gov_values.actor_roles))
+                return True, ''
+
+        log.error("returning false: "+str(gov_values.actor_roles))
+
+        return False, '%s(%s) denied since user doesn''t have appropriate role in any org with which the resource id %s is shared ' % (process.name, gov_values.op, resource_id)
