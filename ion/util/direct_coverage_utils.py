@@ -15,6 +15,8 @@ from StringIO import StringIO
 
 
 from pyon.public import RT, PRED
+from pyon.ion.process import ImmediateProcess
+from pyon.core.exception import BadRequest
 from coverage_model import utils
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -23,6 +25,7 @@ from interface.services.dm.iingestion_management_service import IngestionManagem
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from coverage_model.recovery import CoverageDoctor
 
+from interface.objects import Dataset
 
 def warn_user(msg):
     import sys
@@ -397,4 +400,54 @@ class SimpleDelimitedParser(object):
 #####################################################################################
 #column_map: # Defaults to None, meaning no per-column overriding is applied
   #0: {name: a, dtype: float32, fill_val: -999}'''
+
+
+class CoverageAgent(ImmediateProcess):
+    '''
+    CoverageAgent is a convenient wrapper that provides the simplest direct coverage access 
+    support on the command line.
+
+    bin/pycc -x ion.util.direct_coverage_utils.CoverageAgent \
+        dataset_id=86419dedf4dd43b7b3e137b615a9d76d \
+        data_path=test_data/vel3d_coeff.csv \
+        config_path=test_data/vel3d_coeff.yml
+    '''
+    def on_start(self):
+        self.data_product_id = self.CFG.get_safe('data_product_id')
+
+        if self.data_product_id:
+            self.dataset_id = self.container.resource_registry.find_objects(self.data_product_id, PRED.hasDataset, id_only=True)[0][0]
+        else:
+            self.dataset_id  = self.CFG.get_safe('dataset_id')
+        self.data_path   = self.CFG.get_safe('data_path')
+        self.config_path = self.CFG.get_safe('config_path')
+        
+        if not self.dataset_id:
+            raise BadRequest('Dataset ID must be specified')
+
+        if not self.data_path:
+            raise BadRequest("Data Path to coefficient table must be specified with 'data_path'")
+        if not os.path.exists(self.data_path):
+            raise BadRequest("Data table does not exist: %s" % self.data_path)
+
+        if not self.config_path:
+            raise BadRequest("Config path must be specified with 'config_path'")
+
+        if not os.path.exists(self.config_path):
+            raise BadRequest("Config does not exist: %s" % self.config_path)
+
+        dataset = self.container.resource_registry.read(self.dataset_id)
+        if not isinstance(dataset, Dataset):
+            raise BadRequest('Resource ID must be a Dataset not a %s' % type(dataset))
+
+        self.insert()
+
+
+    def insert(self):
+        print 'Updating dataset',self.dataset_id
+        print 'Using',self.data_path
+        print 'Configured by',self.config_path
+        with DirectCoverageAccess() as dca:
+            dca.upload_calibration_coefficients(self.dataset_id, self.data_path, self.config_path)
+        print 'Successfully updated coverage'
 

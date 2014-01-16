@@ -278,6 +278,7 @@ class Handler(BaseHandler):
 
                 elif isinstance(pc.param_type, SparseConstantType):
                     data, dtype = self.filter_data(data)
+                    seq[name] = self.make_series(response, name, data, attrs, dtype)
                 #dataset[name] = self.make_series(response, name, data, attrs, dtype)
 #                elif param.is_coordinate and cov.temporal_parameter_name == name:
 #                        dataset[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs, shape=data.shape)
