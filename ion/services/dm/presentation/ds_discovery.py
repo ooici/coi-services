@@ -26,7 +26,7 @@ COL_MAP = {"_all": DQ.RA_NAME,
            "ts_created": DQ.RA_TS_CREATED,
            "ts_updated": DQ.RA_TS_UPDATED,
            "geospatial_point_center": DQ.RA_GEOM,
-           "geospatial_bounds": DQ.RA_GEOM_VERT,
+           "geospatial_bounds": DQ.RA_VERT_RANGE,
            }
 
 
@@ -46,7 +46,6 @@ class DatastoreDiscovery(object):
 
     def execute_query(self, discovery_query, id_only=True):
         try:
-
             if "QUERYEXP" in discovery_query:
                 ds_query, ds_name = discovery_query, discovery_query["query_exp"].get("datastore", DataStore.DS_RESOURCES)
             else:
@@ -106,7 +105,6 @@ class DatastoreDiscovery(object):
         query_exp = query.get("query", None)
         if not (and_exp or or_exp) or not query_exp:
             return
-        log.info("Query matcher AND/OR")
 
         q_list = [query_exp] + (and_exp if and_exp else or_exp)
         exp_parts = []
@@ -147,18 +145,25 @@ class DatastoreDiscovery(object):
         from_time_val = calendar.timegm(dateutil.parser.parse(from_time).timetuple())
         to_time_val = calendar.timegm(dateutil.parser.parse(to_time).timetuple())
 
+        range_op = query_exp.get("cmpop", None)
         basic_col = COL_MAP.get(field, None)
         if basic_col == DQ.RA_TS_CREATED or basic_col == DQ.RA_TS_UPDATED:
             from_time_val *= 1000
             to_time_val *= 1000
-            return qb.between(basic_col, str(min(from_time_val, to_time_val)), str(max(from_time_val, to_time_val)))
-
+            lower_val, upper_val = min(from_time_val, to_time_val), max(from_time_val, to_time_val)
+            return qb.between(basic_col, str(lower_val), str(upper_val))
         else:
-            geom_col = DQ.RA_GEOM_TEMP
-            return qb.containedby_bbox(geom_col, min(from_time_val, to_time_val), 0, max(from_time_val, to_time_val), 0)
+            temp_col = DQ.RA_TEMP_RANGE
+            lower_val, upper_val = min(from_time_val, to_time_val), max(from_time_val, to_time_val)
+
+            if range_op == "contains":
+                return qb.contains_range(temp_col, lower_val, upper_val)
+            elif range_op == "within":
+                return qb.within_range(temp_col, lower_val, upper_val)
+            else:
+                return qb.overlaps_range(temp_col, lower_val, upper_val)
 
     def _qmatcher_fieldeq(self, query, qb):
-        log.info("In matcher field")
         query_exp = query.get("query", query)
         field = query_exp.get("field", None)
         value = query_exp.get("value", None)
@@ -169,15 +174,13 @@ class DatastoreDiscovery(object):
         if value is None and match is None and fuzzy is None:
             return
 
-        log.info("Query matcher FIELD")
-
         basic_col = COL_MAP.get(field, None)
         if basic_col:
             if value is not None and "*" in value:
                 match = value.replace("*", "%")
-                where = qb.like(basic_col, match)
+                where = qb.like(basic_col, match, case_sensitive=False)
             elif match is not None:
-                where = qb.like(basic_col, "%" + str(match) + "%")
+                where = qb.like(basic_col, "%" + str(match) + "%", case_sensitive=False)
             elif value is not None:
                 where = qb.eq(basic_col, value)
             else:
@@ -185,7 +188,7 @@ class DatastoreDiscovery(object):
         else:
             match = match or value
             match = match.replace("*", "%")
-            where = qb.attr_like(field, match)
+            where = qb.attr_like(field, match, case_sensitive=False)
 
         return where
 
@@ -198,8 +201,13 @@ class DatastoreDiscovery(object):
             return
 
         geom_col = COL_MAP.get(field, DQ.RA_GEOM)
-
-        return qb.overlaps_bbox(geom_col, top_left[0], top_left[1], bottom_right[0], bottom_right[1])
+        range_op = query_exp.get("cmpop", None)
+        if range_op == "contains":
+            return qb.contains_bbox(geom_col, top_left[0], top_left[1], bottom_right[0], bottom_right[1])
+        elif range_op == "within":
+            return qb.within_bbox(geom_col, top_left[0], top_left[1], bottom_right[0], bottom_right[1])
+        else:
+            return qb.overlaps_bbox(geom_col, top_left[0], top_left[1], bottom_right[0], bottom_right[1])
 
     def _qmatcher_geo_vert(self, query, qb):
         query_exp = query.get("query", query)
@@ -208,9 +216,16 @@ class DatastoreDiscovery(object):
         if not (field and vertical_bounds):
             return
 
-        geom_col = DQ.RA_GEOM_VERT
+        geom_col = DQ.RA_VERT_RANGE
 
-        return qb.overlaps_bbox(geom_col, vertical_bounds.get("from", 0), 0,  vertical_bounds.get("to", 0), 0)
+        range_op = query_exp.get("cmpop", None)
+        if range_op == "contains":
+            return qb.contains_range(geom_col, vertical_bounds.get("from", 0), vertical_bounds.get("to", 0))
+        elif range_op == "within":
+            return qb.within_range(geom_col, vertical_bounds.get("from", 0), vertical_bounds.get("to", 0))
+        else:
+            return qb.overlaps_range(geom_col, vertical_bounds.get("from", 0), vertical_bounds.get("to", 0))
+
 
     # TODO
     # Site containment (simple: name contains)
