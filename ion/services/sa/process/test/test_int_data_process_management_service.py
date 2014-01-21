@@ -950,7 +950,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.resource_registry.update(producer)
 
 
-
+    @unittest.skip('Data Processing is not supported in R2')
     def test_static_lookup_values(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         ph.create_lookups()
