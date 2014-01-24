@@ -196,6 +196,17 @@ class TestDMExtended(DMTestCase):
         config.scenario = 'BETA,VEL3D_C'
         config.path = 'master'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+    
+    def preload_phsen(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,PHSEN'
+        config.path = 'master'
+        #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     def stop_ctdgv(self):
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'stop', 'instrument':'CTDGV'})
@@ -1010,6 +1021,7 @@ class TestDMExtended(DMTestCase):
         self.launch_device_facepage(instrument_device_id)
         breakpoint(locals(), globals())
 
+
     @attr("INT")
     def test_calibration_injection(self):
         self.preload_vel3d_cd()
@@ -1117,5 +1129,30 @@ class TestDMExtended(DMTestCase):
 
 
 
-        
+    @attr("INT")
+    def test_phsen(self):
+        self.preload_phsen()
+        data_product_id = self.data_product_by_id('DPROD172')
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        ref = np.array([2016, 1641, 1873, 2223, 2013, 1635, 1875, 2219, 2020, 1638, 1874, 2219, 2011, 1640, 1873, 2217])
+        lm = np.array([2012, 1635, 1868, 2218, 2014, 1638, 1872, 2223, 2015, 1628, 1873,
+                       2191, 2015, 1507, 1875, 1851, 2015, 1162, 1868, 1080, 2014,  755,
+                       1869,  471, 2012,  479, 1870,  216, 2013,  367, 1874,  142, 2012,
+                        352, 1871,  136, 2014,  395, 1868,  161, 2019,  487, 1876,  223,
+                       2014,  604, 1872,  325, 2013,  753, 1871,  470, 2009,  903, 1865,
+                        659, 2012, 1041, 1873,  864, 2016, 1170, 1875, 1091, 2010, 1262,
+                       1867, 1276, 2012, 1347, 1868, 1457, 2012, 1409, 1865, 1607, 2012,
+                       1456, 1868, 1714, 2014, 1492, 1871, 1813, 2015, 1518, 1872, 1884,
+                       2015, 1543, 1873, 1945])
+
+        rdt['time'] = [1, 2]
+        rdt['thermistor_end'] = np.array([ 1456.,  1462.])
+        rdt['reference_light_measurements'] = np.array([ref, ref])
+        rdt['light_measurements'] = np.array([lm, lm])
+        rdt['cc_ea434']= 17709.
+        rdt['cc_ea578']= 107.
+        rdt['cc_eb434']= 2287.
+        rdt['cc_eb578']= 38913.
+        np.testing.assert_array_equal(rdt['ph_seawater'], np.array([ 8.05483723,  8.05696011], dtype=np.float32))
+
 
