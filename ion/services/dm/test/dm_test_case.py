@@ -90,6 +90,12 @@ class DMTestCase(IonIntegrationTestCase):
     def activate_data_product(self, data_product_id):
         self.data_product_management.activate_data_product_persistence(data_product_id)
         self.addCleanup(self.data_product_management.suspend_data_product_persistence, data_product_id)
+    
+    def data_product_by_id(self, alt_id):
+        data_products, _ = self.container.resource_registry.find_resources_ext(alt_id=alt_id, alt_id_ns='PRE', id_only=True)
+        if data_products:
+            return data_products[0]
+        return None
 
 class Streamer(object):
     def __init__(self, data_product_id, interval=1, simple_time=False, connection=False):
