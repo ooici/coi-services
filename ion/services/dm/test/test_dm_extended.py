@@ -197,6 +197,16 @@ class TestDMExtended(DMTestCase):
         config.path = 'master'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
+    def preload_ctdmo(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,CTDMO'
+        config.path = 'master'
+        #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
     def stop_ctdgv(self):
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'stop', 'instrument':'CTDGV'})
 
@@ -1117,5 +1127,25 @@ class TestDMExtended(DMTestCase):
 
 
 
-        
+
+    @attr("INT")
+    def test_ctdmo(self):
+        self.preload_ctdmo()
+        #2014-01-24 08:16:00,373 INFO Dummy-391 ion.agents.data.dataset_agent:289 Particle received: {"quality_flag": "ok", "preferred_timestamp": "internal_timestamp", "stream_name": "ctdmo_parsed", "pkt_format_id": "JSON_Data", "pkt_version": 1, "internal_timestamp": 3587292001.0, "values": [{"value_id": "inductive_id", "value": 55}, {"value_id": "temperature", "value": 205378}, {"value_id": "conductivity", "value": 410913}, {"value_id": "pressure", "value": 3939}, {"value_id": "ctd_time", "value": 431618401}], "driver_timestamp": 3599568956.723209, "new_sequence": false}
+        #2014-01-24 08:16:00,408 INFO Dummy-391 ion.agents.data.dataset_agent:289 Particle received: {"quality_flag": "ok", "preferred_timestamp": "internal_timestamp", "stream_name": "ctdmo_parsed", "pkt_format_id": "JSON_Data", "pkt_version": 1, "internal_timestamp": 3663184963.0, "values": [{"value_id": "inductive_id", "value": 55}, {"value_id": "temperature", "value": 389972}, {"value_id": "conductivity", "value": 417588}, {"value_id": "pressure", "value": 13616}, {"value_id": "ctd_time", "value": 507511363}], "driver_timestamp": 3599568956.724784, "new_sequence": false}
+        data_product_id = self.data_product_by_id('DPROD142')
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = [1, 2]
+        rdt['temperature'] = [205378, 289972]
+        rdt['conductivity'] = [410913, 417588]
+        rdt['pressure'] = [3939, 13616]
+        rdt['cc_p_range'] = 1000.
+        rdt['cc_lat'] = 40.
+        rdt['cc_lon'] = -70.
+
+        np.testing.assert_array_equal(rdt['seawater_pressure'], np.array([  20.71102333,  194.42785645], dtype=np.float32))
+        np.testing.assert_array_equal(rdt['seawater_conductivity'], np.array([3.5, 3.5], dtype=np.float32))
+        np.testing.assert_array_equal(rdt['seawater_temperature'], np.array([10., 18.], dtype=np.float32))
+        np.testing.assert_array_equal(rdt['sci_water_pracsal'], np.array([31.84717941,  25.82336998], dtype=np.float32))
+        np.testing.assert_array_equal(rdt['seawater_density'], np.array([1024.58862305,  1019.12799072], dtype=np.float32))
 
