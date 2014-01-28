@@ -1810,9 +1810,11 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         # Try to issue a wrong state resource command.
         # Returning ServerError: 500 -.  Stuck on this moving on.  Maybe
         # Edward can help
-        #with self.assertRaises(Conflict):
-        #    cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
-        #    retval = self._ia_client.execute_resource(cmd)
+        ## EH: This test now passes for me so it appears the MI logic is fixed.
+        ## Uncommenting and resubmitting. 1-28-14
+        with self.assertRaises(Conflict):
+            cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+            retval = self._ia_client.execute_resource(cmd)
 
         # Reset and shutdown.
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
