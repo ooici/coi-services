@@ -1750,7 +1750,7 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         """
         
         # Set up a subscriber to collect error events.
-        self._start_event_subscriber('ResourceAgentErrorEvent', 6)
+        self._start_event_subscriber('ResourceAgentErrorEvent', 5)
         self.addCleanup(self._stop_event_subscriber)    
         
         state = self._ia_client.get_agent_state()
@@ -1820,8 +1820,8 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-        #self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
-        self.assertEquals(len(self._events_received), 6)
+        self._async_event_result.get(timeout=120)
+        self.assertEquals(len(self._events_received), 5)
 
         # Note this is throwing an unexpect async driver error in addition to the expected ones.
         # Reduce count to 5 when this is fixed.
