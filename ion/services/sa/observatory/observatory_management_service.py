@@ -41,7 +41,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         CFG, log, RT, PRED, LCS, LCE, NotFound, BadRequest, log  #suppress pyflakes errors about "unused import"
 
         self.override_clients(self.clients)
-        self.outil = ObservatoryUtil(self)
         self.agent_status_builder = AgentStatusBuilder(process=self)
 
 
@@ -965,7 +964,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if not parent_resource_id:
             raise BadRequest("Must provide a parent parent_resource_id")
 
-        res_dict = self.outil.get_site_data_products(parent_resource_id, include_sites=include_sites,
+        outil = ObservatoryUtil(self)
+        res_dict = outil.get_site_data_products(parent_resource_id, include_sites=include_sites,
                                                      include_devices=include_devices,
                                                      include_data_products=include_data_products)
 
@@ -1054,12 +1054,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 user_id=user_id)
 
             RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
-            self.outil = ObservatoryUtil(self, enhanced_rr=RR2, device_status_mgr=DeviceStateManager())
+            outil = ObservatoryUtil(self, enhanced_rr=RR2, device_status_mgr=DeviceStateManager())
 
             # Find all subsites and devices
-            site_resources, site_children = self.outil.get_child_sites(parent_site_id=site_id, include_parents=False, id_only=False)
+            site_resources, site_children = outil.get_child_sites(parent_site_id=site_id, include_parents=False, id_only=False)
             site_ids = site_resources.keys() + [site_id]  # IDs of this site and all child sites
-            device_relations = self.outil.get_device_relations(site_ids)
+            device_relations = outil.get_device_relations(site_ids)
 
             # Set parent immediate child sites
             parent_site_ids = [a.s for a in RR2.filter_cached_associations(PRED.hasSite, lambda a: a.p ==PRED.hasSite and a.o == site_id)]
@@ -1142,7 +1142,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 site_device_id=primary_device_id,
                 site_resources=site_resources,
                 site_children=site_children,
-                device_relations=device_relations
+                device_relations=device_relations,
+                outil=outil
             )
             return context
         except:
@@ -1153,12 +1154,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """Creates a SiteExtension and status for platforms and higher level sites"""
         log.debug("_get_platform_site_extension")
         context = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
-        extended_site, RR2, platform_device_id, site_resources, site_children, device_relations = \
+        extended_site, RR2, platform_device_id, site_resources, site_children, device_relations, outil = \
             context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
-            context["site_resources"], context["site_children"], context["device_relations"]
+            context["site_resources"], context["site_children"], context["device_relations"], context["outil"]
 
-
-        statuses = self.outil.get_status_roll_ups(site_id)
+        statuses = outil.get_status_roll_ups(site_id)
         portal_status = []
         if extended_site.portal_instruments:
             for x in extended_site.portal_instruments:
@@ -1309,11 +1309,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def _get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Creates a SiteExtension and status for instruments"""
         context = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
-        extended_site, RR2, inst_device_id, site_resources, site_children, device_relations = \
+        extended_site, RR2, inst_device_id, site_resources, site_children, device_relations, outil = \
             context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
-            context["site_resources"], context["site_children"], context["device_relations"]
+            context["site_resources"], context["site_children"], context["device_relations"], context["outil"]
 
-        statuses = self.outil.get_status_roll_ups(site_id)
+        statuses = outil.get_status_roll_ups(site_id)
 
         comms_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
         power_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
