@@ -219,7 +219,7 @@ class DataSetAgent(InstrumentAgent):
             egg_repo = uri[0:len(uri)-len(egg_name)-1] if uri.startswith('http') else None
 
         log.debug("instantiate driver plugin %s.%s", module_name, class_name)
-        params = [config, memento, self.publish_callback, self.persist_state_callback, self.exception_callback]
+        params = [config, memento, self.publish_callback, self.persist_state_callback, self.event_callback, self.exception_callback]
         return EGG_CACHE.get_object(class_name, module_name, egg_name, egg_repo, params)
 
 
@@ -255,9 +255,22 @@ class DataSetAgent(InstrumentAgent):
             log.error("Failed to instantiate driver plugin!")
             raise InstrumentStateException('failed to start driver')
 
-        log.warn("driver client created")
+        self._set_resource_schema()
+
+        log.info("driver client created")
 
         self._asp.reset_connection()
+
+    def _set_resource_schema(self):
+        resource_schema = self._dvr_client.cmd_dvr('get_config_metadata')
+        if isinstance(resource_schema, str):
+            resource_schema = json.loads(resource_schema)
+            if isinstance(resource_schema, dict):
+                self._resource_schema = resource_schema
+            else:
+                self._resource_schema = {}
+        else:
+            self._resource_schema = {}
 
     def _stop_driver(self, force=True):
         log.warn("DRIVER: _stop_driver")
@@ -313,6 +326,18 @@ class DataSetAgent(InstrumentAgent):
         """
         log.error('Exception detected in the driver', exc_info=True)
         self._fsm.on_event(ResourceAgentEvent.LOST_CONNECTION)
+
+    def event_callback(self, event_type, **kwargs):
+         """
+         Publish event generated in driver
+         """
+         log.debug("Publish ResourceAgentIOEvent from publisher_callback")
+         self._event_publisher.publish_event(
+             event_type=event_type,
+             origin_type=self.ORIGIN_TYPE,
+             origin=self.resource_id,
+             **kwargs
+         )
 
     def on_quit(self):
         super(DataSetAgent, self).on_quit()
