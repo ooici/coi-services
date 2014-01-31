@@ -448,6 +448,8 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         log.debug("Creating data file src: %s, dest: %s", source_path, dest_path)
         shutil.copy2(source_path, dest_path)
 
+        return dest_path
+
     def remove_all_files(self, dir_name):
         """
         Remove all files from a directory.  Raise an exception if the directory contains something
