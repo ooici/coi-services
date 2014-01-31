@@ -407,6 +407,14 @@ class CoverageAgent(ImmediateProcess):
     CoverageAgent is a convenient wrapper that provides the simplest direct coverage access 
     support on the command line.
 
+    Arguments:
+        dataset_id: unique dataset identifier
+        data_product_id: unique data product identifier
+        data_product_preload_id: the preload identifier assigned to this data product
+        data_path: file system path to the CSV file which contains the data values to apply
+        config_path: the configuration file
+
+
     bin/pycc -x ion.util.direct_coverage_utils.CoverageAgent \
         dataset_id=86419dedf4dd43b7b3e137b615a9d76d \
         data_path=test_data/vel3d_coeff.csv \
@@ -414,11 +422,19 @@ class CoverageAgent(ImmediateProcess):
     '''
     def on_start(self):
         self.data_product_id = self.CFG.get_safe('data_product_id')
+        self.data_product_preload_id = self.CFG.get_safe('data_product_preload_id')
 
-        if self.data_product_id:
-            self.dataset_id = self.container.resource_registry.find_objects(self.data_product_id, PRED.hasDataset, id_only=True)[0][0]
-        else:
-            self.dataset_id  = self.CFG.get_safe('dataset_id')
+        try:
+            if self.data_product_id:
+                self.dataset_id = self.container.resource_registry.find_objects(self.data_product_id, PRED.hasDataset, id_only=True)[0][0]
+            elif self.data_product_preload_id:
+                data_product_ids, _ = self.container.resource_registry.find_resources_ext(alt_id=self.data_product_preload_id, alt_id_ns='PRE')
+                data_product_id = data_product_ids[0]
+                self.dataset_id = self.container.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
+            else:
+                self.dataset_id  = self.CFG.get_safe('dataset_id')
+        except IndexError:
+            raise BadRequest('No Data Product identified')
         self.data_path   = self.CFG.get_safe('data_path')
         self.config_path = self.CFG.get_safe('config_path')
         
