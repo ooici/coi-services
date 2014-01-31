@@ -1073,7 +1073,7 @@ class TestDMExtended(DMTestCase):
                 'injector', 
                 'ion.util.direct_coverage_utils', 
                 'CoverageAgent', 
-                {  'dataset_id': dataset_id,
+                {  'data_product_preload_id': 'DPROD109',
                    'data_path' : 'test_data/vel3d_coeff.csv',
                    'config_path':'test_data/vel3d_coeff.yml' 
                 })
