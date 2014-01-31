@@ -142,8 +142,12 @@ class DataSetAgent(InstrumentAgent):
 
         The retry time will be the factorial se
         """
+        log.debug("starting auto reconnect sequence.")
         while self._autoreconnect_greenlet:
-            gevent.sleep(self._retry_calculator.get_sleep_time())
+            sleep_time = self._retry_calculator.get_sleep_time()
+
+            log.debug("Attempt reconnect in %d seconds", sleep_time)
+            gevent.sleep(sleep_time)
             try:
                 self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
             except:
@@ -160,12 +164,11 @@ class DataSetAgent(InstrumentAgent):
         # Reset the connection id and index.
         self._asp.reset_connection()
 
-        if(self._state_when_lost in [ResourceAgentState.STREAMING, ResourceAgentState.COMMAND]):
+        if(self._state_when_lost in [ResourceAgentState.STREAMING]):
             log.debug("Exception detected from driver operation, attempting to reconnect.")
 
-            (next_state, result) = self._dvr_client.cmd_dvr('execute_resource', DriverEvent.START_AUTOSAMPLE)
-            log.debug("_handler_lost_connection__autoreconnect: start autosample result: %s, %s", next_state, result)
-
+            # just set the state to streaming.  the enter event will start up the driver.
+            next_state = ResourceAgentState.STREAMING
         else:
             log.debug("Exception detected during agent startup. going back to %s", self._state_when_lost)
             next_state = self._state_when_lost
@@ -187,6 +190,7 @@ class DataSetAgent(InstrumentAgent):
             module_name = self._dvr_config['dvr_mod']
             class_name = self._dvr_config['dvr_cls']
             config = self._dvr_config['startup_config']
+            config['resource_id'] = self.resource_id
         except:
             log.error('error in configuration', exc_info=True)
             raise
