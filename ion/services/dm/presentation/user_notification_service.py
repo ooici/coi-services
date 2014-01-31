@@ -519,6 +519,29 @@ class UserNotificationService(BaseUserNotificationService):
             ret.value = events
             ret.computed_list = [get_event_computed_attributes(event) for event in events]
             ret.status = ComputedValueAvailability.PROVIDED
+
+            try:
+                actor_ids = {evt.actor_id for evt in events if evt.actor_id}
+                if actor_ids:
+                    #userinfo_list, assoc_list = self.clients.resource_registry.find_objects_mult(actor_ids, id_only=False)
+                    actor_map = {}
+                    for actor_id in actor_ids:
+                        # NOTE: This is an O(n) algorithm. Cannot use find_subjects_mult because it does not support
+                        # filter by predicate. Would get too many results
+                        uinfo_list, _ = self.clients.resource_registry.find_objects(actor_id, predicate=PRED.hasInfo, id_only=False)
+                        if uinfo_list:
+                            actor_map[actor_id] = uinfo_list[0]
+
+                    log.warn("actor_map %s" % actor_map)
+                    for evt, evt_cmp in zip(events, ret.computed_list):
+                        ui = actor_map.get(evt.actor_id, None)
+                        if ui:
+                            evt_cmp["event_summary"] += " [%s %s]" % (ui.contact.individual_names_given, ui.contact.individual_name_family)
+                            log.warn("Event summary: %s" % evt_cmp["event_summary"])
+
+            except Exception as ex:
+                log.exception("Cannot find user names for event actor_ids")
+
         else:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
 
