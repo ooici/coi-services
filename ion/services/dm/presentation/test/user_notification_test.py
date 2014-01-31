@@ -342,6 +342,10 @@ class UserNotificationEventsTest(PyonTestCase):
             attr=dict(error_msg="Connection to resource device was lost.",
                 error_code=-1)),
 
+        dict(et='ResourceAgentIOEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(source_type="new file",
+                      stats={'mod': 1379341444.0, 'name': '/tmp/dsatest/DATA003.txt', 'md5_checksum': '67fd7288cb80df159ac14037482067cc', 'size': 395})),
+
         dict(et='ResourceAgentEvent', o='ID_1', ot='InstrumentDevice', st='',
             attr=dict()),
 
@@ -361,6 +365,8 @@ class UserNotificationEventsTest(PyonTestCase):
                 description='Automated Quality Control Alerted on tempwat_glblrng_qc',
                 temporal_values=[0.0, 7.0])),
 
+        dict(et='InformationContentStatusEvent', o='ID_1', ot='DataProduct', st='PERSIST_ON',
+            attr=dict()),
     ]
 
     def test_get_recent_events(self):
@@ -375,8 +381,7 @@ class UserNotificationEventsTest(PyonTestCase):
         self.assertTrue(all([eca.event_id == res_list.value[i]._id for (i, eca) in enumerate(res_list.computed_list)]))
         self.assertTrue(all([eca.event_summary for eca in res_list.computed_list]))
 
-        #import pprint
-        #pprint.pprint([eca.__dict__ for eca in res_list.computed_list])
+        #print "\n".join("%s: %s" % (eca[0]["et"], eca[1]["event_summary"]) for eca in zip(self.event_list1, reversed(res_list.computed_list)))
 
 
 @attr('SKIP_UNTIL_UPDATED', group='dm')
