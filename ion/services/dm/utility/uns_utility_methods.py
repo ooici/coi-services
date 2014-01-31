@@ -7,7 +7,7 @@ from pyon.public import get_sys_name, OT, IonObject, CFG
 from pyon.util.ion_time import IonTime
 from pyon.util.log import log
 from pyon.core.exception import BadRequest, NotFound
-from interface.objects import NotificationRequest, Event, DeviceStatusType, AggregateStatusType
+from interface.objects import NotificationRequest, Event, DeviceStatusType, AggregateStatusType, InformationStatus
 from pyon.util.containers import get_ion_ts
 import smtplib
 import gevent
@@ -410,8 +410,16 @@ def get_event_summary(event):
         summary = "%s agent async command '%s(%s)' succeeded: %s" % (event.origin_type, event.command, event.desc, "" if event.result is None else event.result)
     elif "ResourceAgentConnectionLostErrorEvent" in event_types:
         summary = "%s agent: %s (%s)" % (event.origin_type, event.error_msg, event.error_code)
+    elif "ResourceAgentIOEvent" in event_types:
+        stats_str = ",".join(["%s:%s" % (k, event.stats[k]) for k in sorted(event.stats)])
+        summary = "%s agent IO: %s (%s)" % (event.origin_type, event.source_type, stats_str)
     elif "ResourceAgentEvent" in event_types:
         summary = "%s agent: %s" % (event.origin_type, event.type_)
+
+    elif "InformationContentStatusEvent" in event_types:
+        summary = "%s content status: %s (%s)" % (event.origin_type, event.sub_type, InformationStatus._str_map.get(event.status,"???"))
+    elif "InformationContentEvent" in event_types:
+        summary = "%s content event: %s (%s)" % (event.origin_type, event.type_, event.sub_type)
 
     elif "ResourceAgentResourceCommandEvent" in event_types:
         summary = "%s agent resource command '%s(%s)' executed: %s" % (event.origin_type, event.command, event.execute_command, "OK" if event.result is None else event.result)
@@ -421,6 +429,7 @@ def get_event_summary(event):
         summary = "%s '%s' status change: %s   %s " % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.status,"???"), event.description)
         if hasattr(event, 'values') and event.values:
             summary  +=  " values: %s" % event.values
+
     elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
         summary = "Operator entered: %s" % event.description
     elif "ParameterQCEvent" in event_types:
