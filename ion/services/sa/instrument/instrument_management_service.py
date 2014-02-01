@@ -2425,20 +2425,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         Returns the object containing the data to create/update a platform agent
         """
-        #resource_data = extended_resource_handler.create_prepare_resource_support(instrument_agent_id, OT.PlatformAgentPrepareSupport)
+        resource_data = extended_resource_handler.create_prepare_resource_support(instrument_agent_id, OT.PlatformAgentPrepareSupport)
 
         # TODO
 
-        #return resource_data
-        pass
+        return resource_data
+
 
     def prepare_platform_agent_instance_support(self, platform_agent_instance_id=''):
         """
         Returns the object containing the data to create/update a platform agent instance
         """
-        #resource_data = extended_resource_handler.create_prepare_resource_support(instrument_agent_id, OT.PlatformAgentInstancePrepareSupport)
+        resource_data = extended_resource_handler.create_prepare_resource_support(instrument_agent_id, OT.PlatformAgentInstancePrepareSupport)
 
         # TODO
 
-        #return resource_data
-        pass
+        return resource_data
