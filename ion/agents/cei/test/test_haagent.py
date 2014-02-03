@@ -114,6 +114,7 @@ class BaseHighAvailabilityAgentTest(IonIntegrationTestCase):
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         self._spawn_haagent()
+        self.addCleanup(self._stop_haagent)
 
         self._setup_haa_client()
 
@@ -153,7 +154,7 @@ class BaseHighAvailabilityAgentTest(IonIntegrationTestCase):
     def _kill_haagent(self):
         self.container.terminate_process(self._haa_pid)
 
-    def tearDown(self):
+    def _stop_haagent(self):
 
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
