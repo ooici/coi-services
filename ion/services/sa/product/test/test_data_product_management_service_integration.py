@@ -591,7 +591,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         publisher = StandaloneStreamPublisher(stream_id, route)
         publisher.publish(granule)
 
-        self.assertTrue(dataset_monitor.event.wait(10))
+        self.assertTrue(dataset_monitor.wait())
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
@@ -611,7 +611,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         granule = rdt.to_granule()
         gevent.sleep(2) # Yield so that the event goes through
         publisher.publish(granule)
-        self.assertTrue(dataset_monitor.event.wait(10))
+        self.assertTrue(dataset_monitor.wait())
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt2 = RecordDictionaryTool.load_from_granule(granule)

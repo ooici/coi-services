@@ -148,7 +148,7 @@ class TestInstrumentIntegration(DMTestCase):
         for i in xrange(10):
             monitor = DatasetMonitor(dataset_id=dataset_id)
             agent_client.execute_resource(AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE))
-            if not monitor.event.wait(30):
+            if not monitor.wait():
                 raise AssertionError('Failed on the %ith granule' % i)
             monitor.stop()
 
