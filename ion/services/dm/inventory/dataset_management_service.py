@@ -17,7 +17,7 @@ from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDict
 from ion.util.time_utils import TimeUtils
 
 from interface.objects import ParameterContext as ParameterContextResource, ParameterDictionary as ParameterDictionaryResource, ParameterFunction as ParameterFunctionResource
-from interface.objects import Dataset
+from interface.objects import Dataset, DataProcessDefinition, DataProcessTypeEnum
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
@@ -239,6 +239,12 @@ class DatasetManagementService(BaseDatasetManagementService):
         parameter_function = self.numpy_walk(parameter_function)
         pf_res = ParameterFunctionResource(name=name, parameter_function=parameter_function, description=description)
         pf_id, ver = self.clients.resource_registry.create(pf_res)
+
+        data_process_definition = DataProcessDefinition(name=name, data_process_type=DataProcessTypeEnum.PARAMETER_FUNCTION)
+        # TODO: replace this call with data process management service
+        dpd_id, _  = self.clients.resource_registry.create(data_process_definition)
+        assoc, _ = self.clients.resource_registry.create_association(subject=dpd_id, object=pf_id, predicate=PRED.hasParameterFunction)
+
         return pf_id
 
     def read_parameter_function(self, parameter_function_id=''):
@@ -249,6 +255,11 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def delete_parameter_function(self, parameter_function_id=''):
         self.read_parameter_function(parameter_function_id)
+
+        dpd_ids, assocs = self.clients.resource_registry.find_subjects(object=parameter_function_id, predicate=PRED.hasParameterFunction, id_only=True)
+        for dpd_id in dpd_ids:
+            # TODO: replace this call with data process mgmt service
+            self.clients.resource_registry.delete(dpd_id)
         self.clients.resource_registry.delete(parameter_function_id)
         return True
 
