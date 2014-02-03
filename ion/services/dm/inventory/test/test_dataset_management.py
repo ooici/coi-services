@@ -15,6 +15,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, AxisTypeEnum, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction, ConstantType
 
 from nose.plugins.attrib import attr
+from pyon.public import PRED, RT
 
 import numpy as np
 
@@ -65,6 +66,9 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
 
         expr, expr_id = funcs['CONDWAT_L1']
         func_class = DatasetManagementService.get_parameter_function(expr_id)
+        dpd_ids, _ = self.resource_registry.find_subjects(object=expr_id, predicate=PRED.hasParameterFunction, subject_type=RT.DataProcessDefinition)
+        # Verify that there is a data process definition for each one
+        self.assertTrue(dpd_ids)
         self.assertIsInstance(func_class, NumexprFunction)
 
     def test_pdict_crud(self):
