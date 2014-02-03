@@ -50,4 +50,4 @@ def probe_res(container=None, restype='', predicate=''):
             f.write('{code}\n')
             f.write('{expand}\n')
         f.write('\n\n\n')
-
+    f.close()
