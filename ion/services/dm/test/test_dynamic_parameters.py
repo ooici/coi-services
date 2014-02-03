@@ -38,7 +38,7 @@ class TestDynamicParameters(DMTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        dataset_monitor.event.wait(10)
+        self.assertTrue(dataset_monitor.wait())
 
         rdt2 = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(dataset_id))
         np.testing.assert_array_equal(rdt2['offset'],[12]*10)

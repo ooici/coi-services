@@ -54,7 +54,7 @@ class TestDMExtended(DMTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id,rdt)
-        dataset_monitor.event.wait(10)
+        dataset_monitor.wait()
 
         #from pydap.client import open_url
         pydap_host = CFG.get_safe('server.pydap.host','localhost')
@@ -432,7 +432,7 @@ class TestDMExtended(DMTestCase):
         dataset_monitor = DatasetMonitor(self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id))
         self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        dataset_monitor.event.wait(10)
+        dataset_monitor.wait()
 
         gdt_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
         gdt_stream_def = self.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
@@ -493,7 +493,7 @@ class TestDMExtended(DMTestCase):
         np.testing.assert_array_equal(rdt['temp_sample'], np.array([[0,1,2,3,4]]))
 
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dm.event.wait(10))
+        self.assertTrue(dm.wait())
         dm.event.clear()
 
         granule = self.data_retriever.retrieve(dataset_id)
@@ -512,7 +512,7 @@ class TestDMExtended(DMTestCase):
         np.testing.assert_equal(m,np.finfo(np.float32).max)
         np.testing.assert_array_equal(rdt['temp_sample'], [[0,1,2,3,4],[1,m,m,m,m],[5,5,5,5,5]])
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dm.event.wait(10))
+        self.assertTrue(dm.wait())
         dm.event.clear()
 
 
@@ -542,7 +542,7 @@ class TestDMExtended(DMTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id,rdt)
-        dataset_monitor.event.wait(10)
+        dataset_monitor.wait()
 
         breakpoint(locals())
 
@@ -574,7 +574,7 @@ class TestDMExtended(DMTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         ph.publish_rdt_to_data_product(data_product_id, rdt)
-        dataset_monitor.event.wait(10)
+        dataset_monitor.wait()
         g = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(g)
 
@@ -604,7 +604,7 @@ class TestDMExtended(DMTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
-        dataset_monitor.event.wait(10)
+        dataset_monitor.wait()
         g = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(g)
 
@@ -680,14 +680,14 @@ class TestDMExtended(DMTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
-        dataset_monitor.event.wait(10)
+        dataset_monitor.wait()
 
         for i in xrange(10):
             dataset_monitor.event.clear()
             rdt = ParameterHelper.rdt_for_data_product(data_product_id)
             rdt['time'] = [time.time() + 2208988800]
             ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
-            dataset_monitor.event.wait(10)
+            dataset_monitor.wait()
 
 
         g = self.data_retriever.retrieve(dataset_id)
@@ -718,7 +718,7 @@ class TestDMExtended(DMTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc1', connection_index='1')
-        self.assertTrue(dataset_monitor.event.wait(10))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
 
@@ -727,7 +727,7 @@ class TestDMExtended(DMTestCase):
         rdt['temp_sample'] = np.arange(10*4).reshape(10,4)
         rdt['cond_sample'] = np.arange(10*4).reshape(10,4)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc2', connection_index='1')
-        self.assertTrue(dataset_monitor.event.wait(10))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
         qstring = '{"stride_time": 1, "parameters": [], "query_type": "highcharts_data", "start_time": 0, "use_direct_access": 0, "end_time": 19}'
@@ -759,7 +759,7 @@ class TestDMExtended(DMTestCase):
         rdt['time'] = np.arange(30)
         rdt['temp'] = np.arange(30)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dataset_monitor.event.wait(10))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
         object_store = self.container.object_store
@@ -773,7 +773,7 @@ class TestDMExtended(DMTestCase):
         rdt['time'] = [-15, -1, 20, 40]
         rdt['temp'] = [-1, 0, 0, 0]
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dataset_monitor.event.wait(10))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
         
         metadata_doc = object_store.read_doc(dataset_id)
@@ -817,21 +817,21 @@ class TestDMExtended(DMTestCase):
         rdt['time'] = np.arange(20,40)
         rdt['temp'] = np.arange(20)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='1', connection_index='1')
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
         
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(60,80)
         rdt['temp'] = np.arange(20)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='2', connection_index='1')
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
         
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(100,120)
         rdt['temp'] = np.arange(20)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='3', connection_index='1')
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
         cov = DatasetManagementService._get_coverage(dataset_id)
@@ -902,7 +902,7 @@ class TestDMExtended(DMTestCase):
         rdt['time'] = [0]
         rdt['pressure_sensor_range'] = [(6000,6000)]
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
@@ -924,7 +924,7 @@ class TestDMExtended(DMTestCase):
         rdt['time'] = np.arange(20,40)
         rdt['temp'] = np.arange(20)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='1', connection_index='1')
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
         self.preload_ui()
@@ -966,7 +966,7 @@ class TestDMExtended(DMTestCase):
         rdt['cond_sample'] = np.array(range(20) * 20).reshape(20,20)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc1', connection_index='1')
 
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
         # Throw some overlapping data and preceeding on the same coverage
@@ -976,14 +976,14 @@ class TestDMExtended(DMTestCase):
         rdt['cond_sample'] = np.array(range(20) * 20).reshape(20,20)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc1', connection_index='2')
 
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
         rdt['temp_sample'] = np.random.random(20 * 20).reshape(20,20)
         rdt['cond_sample'] = np.array(range(20) * 20).reshape(20,20)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc2', connection_index='1')
 
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
         self.strap_erddap(data_product_id)
@@ -1004,7 +1004,7 @@ class TestDMExtended(DMTestCase):
         rdt['time'] = np.arange(10)
         rdt['ice_cream'] = np.arange(10)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
 
         self.strap_erddap()
         breakpoint(locals(), globals())
@@ -1059,7 +1059,7 @@ class TestDMExtended(DMTestCase):
 
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
 
-        dataset_monitor.event.wait(10)
+        dataset_monitor.wait()
     
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
@@ -1112,7 +1112,7 @@ class TestDMExtended(DMTestCase):
         rdt['time'] = np.arange(30)
         rdt['temp'] = np.arange(30)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dataset_monitor.event.wait(10))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
         datasets_xml_path = RegistrationProcess.get_datasets_xml_path(CFG)
@@ -1125,9 +1125,6 @@ class TestDMExtended(DMTestCase):
         with open(datasets_xml_path, 'r') as f:
             buf = f.read()
         self.assertIn(data_product_id, buf)
-
-
-
 
     @attr("INT")
     def test_ctdmo(self):
