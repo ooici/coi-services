@@ -103,7 +103,7 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         rdt = ph.get_rdt(stream_def_id)
         ph.fill_rdt(rdt,10)
         ph.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(monitor.event.wait(10))
+        self.assertTrue(monitor.wait())
 
 
         gevent.sleep(1) # Yield to other greenlets, had an issue with connectivity

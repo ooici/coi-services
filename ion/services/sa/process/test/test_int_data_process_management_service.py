@@ -1286,6 +1286,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_plain_data_product(input_data_product_id)
         self.assertTrue(validated.wait(10))
 
+    @unittest.skip("Functionality is unsupported but will be replaced in R3")
     def test_lookup_data_process(self):
         
         #--------------------------------------------------------------------------------
