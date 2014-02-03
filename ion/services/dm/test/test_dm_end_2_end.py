@@ -9,7 +9,7 @@ from pyon.datastore.datastore import DataStore
 from pyon.event.event import EventSubscriber
 from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
-from pyon.public import RT, log, OT, PRED
+from pyon.public import RT, log, OT, PRED, CFG
 from pyon.util.containers import DotDict
 from pyon.util.poller import poll
 from pyon.util.int_test import IonIntegrationTestCase
@@ -309,7 +309,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.addCleanup(dataset_monitor.stop)
 
         publisher.publish(rdt.to_granule())
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
 
         replay_granule = self.data_retriever.retrieve(dataset_id)
         rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
@@ -354,7 +354,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.addCleanup(dataset_monitor.stop)
 
         publisher.publish(granule)
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         
         replay_granule = self.data_retriever.retrieve(dataset_id)
         rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
@@ -376,7 +376,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         gevent.sleep(2)
 
         publisher.publish(granule)
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
 
         replay_granule = self.data_retriever.retrieve(dataset_id)
         rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
@@ -400,7 +400,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         monitor = DatasetMonitor(dataset_id)
         self.addCleanup(monitor.stop)
         publisher.publish(rdt.to_granule())
-        self.assertTrue(monitor.event.wait(10))
+        self.assertTrue(monitor.wait())
         granule = self.data_retriever.retrieve(dataset_id)
 
 
@@ -413,7 +413,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.ingestion_management.resume_data_stream(ctd_stream_id, ingestion_config_id)
 
-        self.assertTrue(monitor.event.wait(10))
+        self.assertTrue(monitor.wait())
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
@@ -527,7 +527,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.publish_fake_data(stream_id, route)
 
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
 
         query = {
             'start_time': 0 - 2208988800,
@@ -671,7 +671,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         publisher.publish(granule)
-        self.assertTrue(dataset_monitor.event.wait(20))
+        self.assertTrue(dataset_monitor.wait())
 
     @unittest.skip('Gap support disabled')
     @attr('LOCOINT')
@@ -750,7 +750,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         publisher.publish(rdt.to_granule())
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
         replay_granule = self.data_retriever.retrieve(dataset_id)
@@ -773,7 +773,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt['lon'] = [-73]
         
         publisher.publish(rdt.to_granule())
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
         
         rdt = ph.get_rdt(stream_def_id)
@@ -795,7 +795,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         
         dataset_monitor.event.clear()
         publisher.publish(rdt.to_granule())
-        self.assertTrue(dataset_monitor.event.wait(30))
+        self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
 
 
@@ -820,4 +820,9 @@ class DatasetMonitor(object):
 
     def stop(self):
         self.es.stop()
+
+    def wait(self, timeout=None):
+        if timeout is None:
+            timeout = CFG.get_safe('endpoint.receive.timeout', 10)
+        return self.event.wait(timeout)
 

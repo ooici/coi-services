@@ -537,7 +537,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
-        passing &= self.assertTrue(dataset_monitor.event.wait(20))
+        passing &= self.assertTrue(dataset_monitor.wait())
         if not passing: return passing
 
         granule = self.data_retriever.retrieve(dataset_id)
@@ -611,7 +611,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
-        passing &= self.assertTrue(dataset_monitor.event.wait(60))
+        passing &= self.assertTrue(dataset_monitor.wait())
         if not passing: return passing
 
         granule = self.data_retriever.retrieve(dataset_id)
@@ -673,7 +673,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
         ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
-        passing &= self.assertTrue(dataset_monitor.event.wait(20))
+        passing &= self.assertTrue(dataset_monitor.wait())
         if not passing: return passing
 
         granule = self.data_retriever.retrieve(dataset_id)
@@ -716,7 +716,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         self.addCleanup(dataset_monitor.stop)
 
         ParameterHelper.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dataset_monitor.event.wait(20)) # Bumped to 20 to keep buildbot happy
+        self.assertTrue(dataset_monitor.wait()) # Bumped to 20 to keep buildbot happy
         if not passing: return passing
 
         granule = self.data_retriever.retrieve(dataset_id)
