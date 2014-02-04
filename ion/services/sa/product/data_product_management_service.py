@@ -107,6 +107,45 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return data_product_id
 
+    def create_data_processes(self, data_product_id=''):
+        '''
+        For each data process launched also create a dataprocess for each parameter function in the data product
+        '''
+
+        # DataProduct -> StreamDefinition
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
+        # StreamDefinition -> ParameterDictionary
+        pdict_ids = []
+        for stream_def_id in stream_def_ids:
+            pd_ids, _ = self.clients.resource_registry.find_objects(stream_def_id, PRED.hasParameterDictionary, id_only=True)
+            pdict_ids.extend(pd_ids)
+
+        # ParameterDictionary -> ParameterContext
+        pd_ids = []
+        for pdict_id in pdict_ids:
+            pdef_ids, _ = self.clients.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=True)
+            pd_ids.extend(pdef_ids)
+
+        # ParameterContext -> ParameterFunction
+        pf_ids = []
+        for pd_id in pd_ids:
+            pfunc_ids, _ = self.clients.resource_registry.find_objects(pd_id, PRED.hasParameterFunction, id_only=True)
+            pf_ids.extend(pfunc_ids)
+
+        # ParameterFunction -> DataProcessDefinition
+        dpd_ids = []
+        for pf_id in pf_ids:
+            dpdef_ids, _ = self.clients.resource_registry.find_subjects(object=pf_id, predicate=PRED.hasParameterFunction, subject_type=RT.DataProcessDefinition, id_only=True)
+            dpd_ids.extend(dpdef_ids)
+
+
+        # TODO: Use data process management
+
+
+
+
+
+
     def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
 
         validate_is_not_none(data_product_id, 'A data product id must be passed to register a data product')
