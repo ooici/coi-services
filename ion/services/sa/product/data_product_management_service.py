@@ -190,45 +190,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def assign_data_product_to_data_product(self, data_product_id='', parent_data_product_id=''):
         validate_true(data_product_id, 'A data product id must be specified')
-
-
-
-    def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
-
-        validate_is_not_none(data_product_id, 'A data product id must be passed to register a data product')
-        validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to assign to a data product')
-
-        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id)  # Validates and checks for param_dict
-        parameter_dictionary = stream_def_obj.parameter_dictionary
-        validate_is_not_none(parameter_dictionary, 'A parameter dictionary must be passed to register a data product')
-        exchange_point = exchange_point or 'science_data'
-
-        data_product = self.RR2.read(data_product_id)
-
-        #if stream_definition_id:
-        #@todo: What about topics?
-
-        # Associate the StreamDefinition with the data product
-        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id,
-                                                                                     data_product_id)
-
-        stream_id, route = self.clients.pubsub_management.create_stream(name=data_product.name,
-                                                                        exchange_point=exchange_point,
-                                                                        description=data_product.description,
-                                                                        stream_definition_id=stream_definition_id)
-
-        # Associate the Stream with the main Data Product and with the default data product version
-        self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)
-
-
-    def assign_dataset_to_data_product(self, data_product_id='', dataset_id=''):
-        validate_is_not_none(data_product_id, 'A data product id must be passed to assign a dataset to a data product')
-        validate_is_not_none(dataset_id, 'A dataset id must be passed to assign a dataset to a data product')
-
-        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
-
-    def assign_data_product_to_data_product(self, data_product_id='', parent_data_product_id=''):
-        validate_true(data_product_id, 'A data product id must be specified')
         validate_true(parent_data_product_id, 'A data product id must be specified')
 
         self.RR2.assign_data_product_to_data_product_with_has_data_product_parent(parent_data_product_id, data_product_id)
