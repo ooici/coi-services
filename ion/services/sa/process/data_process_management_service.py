@@ -328,6 +328,52 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return dproc_id
 
+    def create_data_process_new(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None):
+        '''
+        Creates a DataProcess resource.
+        A DataProcess can be of a few types:
+           - a data transformation function hosted on a transform worker that receives granules and produces granules.
+           - a parameter function in a coverage that transforms data on request
+
+        @param data_process_definition_id : The Data Process Definition parent which contains the transform or parameter funcation specification
+        @param in_stream_id : A stream identifier fo  identifiers
+        @param out_data_product_ids : A list of output data product identifiers
+
+        @param configuration : The configuration dictionary for the process, and the routing table:
+        '''
+
+        #todo: out publishers can be either stream or event
+        #todo: determine if/how routing tables will be managed
+
+        configuration = DotDict(configuration or {})
+        configuration.process.output_products = out_data_product_ids
+
+        if 'lookup_docs' in configuration.process:
+            configuration.process.lookup_docs.extend(self._get_lookup_docs(in_data_product_ids, out_data_product_ids))
+        else:
+            configuration.process.lookup_docs = self._get_lookup_docs(in_data_product_ids, out_data_product_ids)
+        dproc = DataProcess()
+        dproc.name = 'data_process_%s' % self.get_unique_id()
+        dproc.configuration = configuration
+        dproc.argument_map = configuration.argument_map
+
+        dproc_id, rev = self.clients.resource_registry.create(dproc)
+        dproc._id = dproc_id
+        dproc._rev = rev
+
+        # create links
+        # todo: REVIEW IF THESE ARE REQUIRED IN THE NEW MODEL
+        for data_product_id in in_data_product_ids:
+            log.debug('in data prod id: %s', data_product_id)
+            self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasInputProduct, object=data_product_id)
+        for data_product_id in out_data_product_ids:
+            self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasOutputProduct, object=data_product_id)
+        if data_process_definition_id:
+            self.clients.resource_registry.create_association(data_process_definition_id, PRED.hasDataProcess ,dproc_id)
+
+        return dproc_id
+
+
     def _get_input_stream_ids(self, in_data_product_ids = None):
 
         input_stream_ids = []
