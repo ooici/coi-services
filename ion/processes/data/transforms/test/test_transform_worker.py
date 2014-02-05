@@ -33,7 +33,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-
+from ion.processes.data.transforms.transform_worker import TransformWorker
 
 from coverage_model.coverage import AbstractCoverage
 
@@ -303,4 +303,17 @@ class TestTransformWorker(IonIntegrationTestCase):
                 log.debug(' loaded transform obj:  %s ', transform_function_obj)
 
         return data_process_def_obj, transform_function_obj
+
+    def test_download(self):
+        egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
+        egg_path = TransformWorker.download_egg(egg_url)
+
+        import pkg_resources
+        pkg_resources.working_set.add_entry(egg_path)
+
+        from ion_example.add_arrays import add_arrays
+
+        a = add_arrays(1,2)
+        self.assertEquals(a,3)
+
 

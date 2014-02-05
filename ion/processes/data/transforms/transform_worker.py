@@ -23,6 +23,9 @@ from pyon.core.object import IonObjectSerializer
 from pyon.ion.stream import StreamSubscriber
 from pyon.ion.event import handle_stream_exception
 
+from tempfile import gettempdir
+import os
+import requests
 
 
 class TransformWorker(TransformStreamListener):
@@ -71,7 +74,7 @@ class TransformWorker(TransformStreamListener):
         self.create_publishers()
 
         url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
-        filepath = self.download_file(url)
+        filepath = self.download_egg(url)
         print filepath
         import pkg_resources
         pkg_resources.working_set.add_entry('ion_example-0.1-py2.7.egg')
@@ -83,8 +86,6 @@ class TransformWorker(TransformStreamListener):
         if self.subscriber_thread:
             self.stop_listener()
         TransformStreamListener.on_quit(self)
-
-
 
     def start_listener(self):
         # We use a lock here to prevent possible race conditions from starting multiple listeners and coverage clobbering
@@ -196,15 +197,25 @@ class TransformWorker(TransformStreamListener):
 
             self._publisher_map[dp_id] = publisher
 
-    #todo: temporary
-    def download_file(self, url):
-        import requests
-
+    @classmethod
+    def download_egg(cls, url):
+        '''
+        Downloads an egg from the URL specified into the cache directory
+        Returns the full path to the egg
+        '''
+        # Get the filename based on the URL 
         filename = url.split('/')[-1]
+        # Store it in the $TMPDIR
+        egg_cache = gettempdir()
+        path = os.path.join(egg_cache, filename)
         r = requests.get(url, stream=True)
-        with open(filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-                    f.flush()
-        return filename
+        if r.status_code == 200:
+            # Download the file using requests stream
+            with open(path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+                        f.flush()
+            return path
+        raise IOError("Couldn't download the file at %s" % url)
+
