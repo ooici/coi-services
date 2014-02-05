@@ -1856,8 +1856,7 @@ Reason: %s
         #kwargs    = row['Kwargs']
         descr     = row['Description']
 
-
-        #dataset_management = self._get_service_client('dataset_management')
+        dataset_management = self._get_service_client('dataset_management')
         data_process_management = self._get_service_client('data_process_management')
         func = None
         if ftype == 'NumexprFunction':
@@ -1868,17 +1867,15 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], 'Unsupported Function Type: %s' % ftype)
             return
 
-        pfunc_obj = ParameterFunctionResource()
-        pfunc_obj.name = name
-        pfunc_obj.parameter_function = func.dump()
-        pfunc_obj.description = descr
+        func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(),
+                                                               description=descr, headers=self._get_system_actor_headers())
 
         dpd = DataProcessDefinition()
         dpd.name = name
         dpd.description = 'Parameter Function Definition for %s' % name
         dpd.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
 
-        dpd_id, func_id = data_process_management.create_data_process_definition_new(dpd, pfunc_obj, headers=self._get_system_actor_headers())
+        data_process_management.create_data_process_definition_new(dpd, func_id, headers=self._get_system_actor_headers())
         # Set alt_ids so that resource can be found in incremental preload runs
         func_obj = self.container.resource_registry.read(func_id)
         func_obj.alt_ids=['PRE:'+row[COL_ID]]

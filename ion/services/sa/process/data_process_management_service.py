@@ -17,7 +17,7 @@ from pyon.util.containers import DotDict
 from pyon.util.arg_check import validate_is_not_none, validate_true
 from pyon.ion.resource import ExtendedResourceContainer
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, DataProcess, ProcessQueueingMode, ComputedValueAvailability
-from interface.objects import ParameterFunction, TransformFunction
+from interface.objects import ParameterFunction, TransformFunction, DataProcessTypeEnum
 
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -147,21 +147,22 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return data_process_definition_id
 
-    def create_data_process_definition_new(self, data_process_definition=None, function_definition=None):
+    def create_data_process_definition_new(self, data_process_definition=None, function_id=''):
+        function_definition = self.clients.resource_registry.read(function_id)
 
         if isinstance(function_definition,  ParameterFunction):
-            pfunc_id = self.clients.dataset_management.create_parameter_function(function_definition.name, 
-                                                                                         function_definition.parameter_function,
-                                                                                         function_definition.description)
+            data_process_definition.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
             dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
-            self.clients.resource_registry.create_association(subject=dpd_id, object=pfunc_id, predicate=PRED.hasParameterFunction)
-            return dpd_id, pfunc_id
+            self.clients.resource_registry.create_association(subject=dpd_id, object=function_definition._id, predicate=PRED.hasParameterFunction)
+            return dpd_id
 
         elif isinstance(function_definition, TransformFunction):
+            # TODO: Need service methods for this stuff
+            data_process_definition.data_process_type = DataProcessTypeEnum.TRANFORM
             tf_id, _ = self.clients.resource_registry.create(function_definition)
             dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
             self.clients.resource_registry.create_association(subject=dpd_id, object=tf_id, predicate=PRED.hasTransformFunction)
-            return dpd_id, tf_id
+            return dpd_id
 
         else:
             raise BadRequest('function_definition is not a function type')

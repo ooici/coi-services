@@ -83,18 +83,14 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.process_dispatcher = ProcessDispatcherServiceClient()
 
     def test_create_data_process(self):
-        parameter_function = ParameterFunction()
-        parameter_function.name = 'test_func'
-        parameter_function.description = 'this is only a test'
-        parameter_function.parameter_function = {'a':'a'}
+        func_id = self.dataset_management.create_parameter_function('test_func', parameter_function={'a':0})
 
         data_process_definition = DataProcessDefinition()
-        data_process_definition.data_process_type = 'PARAMETER_FUNCTION'
+        data_process_definition.name = 'Simple'
 
-
-        dpd_id, pf_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition=data_process_definition, function_definition=parameter_function)
+        dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition, func_id)
         self.addCleanup(self.dataprocessclient.delete_data_process_definition, dpd_id)
-        self.addCleanup(self.dataset_management.delete_parameter_function, pf_id)
+        self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
 
         objs, _ = self.rrclient.find_objects(dpd_id, PRED.hasParameterFunction, id_only=False)
         self.assertEquals(len(objs), 1)
