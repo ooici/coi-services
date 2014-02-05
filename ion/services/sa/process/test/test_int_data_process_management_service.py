@@ -37,7 +37,7 @@ from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
 from coverage_model import ParameterContext, QuantityType, NumexprFunction, ParameterFunctionType
 
-from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum, AgentCommand, Parser
+from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum, AgentCommand, Parser, ParameterFunction
 from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct, DataProducer, DataProcessProducerContext, Attachment, AttachmentType, ReferenceAttachmentContext
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -81,6 +81,20 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.datasetclient =  DatasetManagementServiceClient()
         self.dataset_management = self.datasetclient
         self.process_dispatcher = ProcessDispatcherServiceClient()
+
+    def test_create_data_process_definition(self):
+        func_id = self.dataset_management.create_parameter_function('test_func', parameter_function={'a':0})
+
+        data_process_definition = DataProcessDefinition()
+        data_process_definition.name = 'Simple'
+
+        dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition, func_id)
+        self.addCleanup(self.dataprocessclient.delete_data_process_definition, dpd_id)
+        self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
+
+        objs, _ = self.rrclient.find_objects(dpd_id, PRED.hasParameterFunction, id_only=False)
+        self.assertEquals(len(objs), 1)
+        self.assertIsInstance(objs[0], ParameterFunction)
 
     def create_L0_transform_function(self):
         tf = TransformFunction(name='ctdbp_L0_all', module='ion.processes.data.transforms.ctdbp.ctdbp_L0', cls='ctdbp_L0_algorithm')

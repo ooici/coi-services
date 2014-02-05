@@ -96,7 +96,8 @@ from coverage_model.parameter import ParameterContext
 from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
 
 from interface import objects
-from interface.objects import StreamAlertType, PortTypeEnum, StreamConfigurationType
+from interface.objects import StreamAlertType, PortTypeEnum, StreamConfigurationType, ParameterFunction as ParameterFunctionResource
+from interface.objects import DataProcessDefinition, DataProcessTypeEnum
 
 from ooi.timer import Accumulator, Timer
 stats = Accumulator(persist=True)
@@ -1856,6 +1857,7 @@ Reason: %s
         descr     = row['Description']
 
         dataset_management = self._get_service_client('dataset_management')
+        data_process_management = self._get_service_client('data_process_management')
         func = None
         if ftype == 'NumexprFunction':
             func = NumexprFunction(row['Name'], func_expr, args)
@@ -1867,6 +1869,13 @@ Reason: %s
 
         func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(),
                                                                description=descr, headers=self._get_system_actor_headers())
+
+        dpd = DataProcessDefinition()
+        dpd.name = name
+        dpd.description = 'Parameter Function Definition for %s' % name
+        dpd.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
+
+        data_process_management.create_data_process_definition_new(dpd, func_id, headers=self._get_system_actor_headers())
         # Set alt_ids so that resource can be found in incremental preload runs
         func_obj = self.container.resource_registry.read(func_id)
         func_obj.alt_ids=['PRE:'+row[COL_ID]]

@@ -19,7 +19,7 @@ from ion.util.geo_utils import GeoUtils
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from interface.objects import DataProduct, DataProductVersion, InformationStatus
+from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess
 from interface.objects import ComputedValueAvailability
 
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
@@ -106,6 +106,53 @@ class DataProductManagementService(BaseDataProductManagementService):
         data_product_id = self.RR2.create(data_product, RT.DataProduct)
 
         return data_product_id
+
+    def create_data_processes(self, data_product_id=''):
+        '''
+        For each data process launched also create a dataprocess for each parameter function in the data product
+        '''
+        print 'data processes called'
+        data_product = self.read_data_product(data_product_id)
+
+        # DataProduct -> StreamDefinition
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
+        pdict_ids = []
+        # StreamDefinition -> ParameterDictionary
+        for stream_def_id in stream_def_ids:
+            pd_ids, _ = self.clients.resource_registry.find_objects(stream_def_id, PRED.hasParameterDictionary, id_only=True)
+            pdict_ids.extend(pd_ids)
+
+
+        pd_ids = []
+        # ParameterDictionary -> ParameterContext
+        for pdict_id in pdict_ids:
+            pdef_ids, _ = self.clients.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=True)
+            pd_ids.extend(pdef_ids)
+
+
+        pf_ids = []
+        # ParameterContext -> ParameterFunction
+        for pd_id in pd_ids:
+            pfunc_ids, _ = self.clients.resource_registry.find_objects(pd_id, PRED.hasParameterFunction, id_only=True)
+            pf_ids.extend(pfunc_ids)
+
+
+        dpds = []
+        # DataProcessDefinition -> ParameterFunction
+        for pf_id in pf_ids:
+            dpdef_objs, _ = self.clients.resource_registry.find_subjects(object=pf_id, 
+                                                                        predicate=PRED.hasParameterFunction, 
+                                                                        subject_type=RT.DataProcessDefinition, 
+                                                                        id_only=False)
+            dpds.extend(dpdef_objs)
+
+        for dpd in dpds:
+            dp = DataProcess()
+            dp.name = 'Data Process %s for Data Product %s' % ( dpd.name, data_product.name )
+            # TODO: This is a stub until DPD is ready
+            self.clients.resource_registry.create(dp)
+
+
 
     def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
 
@@ -327,6 +374,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.update_data_product(data_product_obj)
 
         self._publish_persist_event(data_product_id=data_product_id, persist_on = True)
+        self.create_data_processes(data_product_id)
 
     def is_persisted(self, data_product_id=''):
         # Is the data product currently persisted into a data set?
