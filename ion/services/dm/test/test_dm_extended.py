@@ -22,6 +22,9 @@ from pyon.util.file_sys import FileSystem
 from pyon.public import IonObject, RT, CFG
 from pyon.util.containers import DotDict
 from pydap.client import open_url
+from shutil import rmtree
+import pkg_resources
+import tempfile
 import os
 import unittest
 import numpy as np
@@ -1146,4 +1149,80 @@ class TestDMExtended(DMTestCase):
         np.testing.assert_array_equal(rdt['seawater_temperature'], np.array([10., 18.], dtype=np.float32))
         np.testing.assert_array_equal(rdt['sci_water_pracsal'], np.array([31.84717941,  25.82336998], dtype=np.float32))
         np.testing.assert_array_equal(rdt['seawater_density'], np.array([1024.58862305,  1019.12799072], dtype=np.float32))
+
+
+    @attr("UTIL")
+    def test_egg_packaging(self):
+        file_source = """
+#!/usr/bin/env python
+'''
+@author Luke Campbell
+@file vec/rotate.py
+@description Vectorized 2d-rotation methods
+'''
+
+import numpy as np
+
+def rotate(u,v, theta):
+    '''
+    Rotates the vectors u and v by theta radians 
+    clockwise.
+    '''
+    c = np.cos(theta)
+    s = np.sin(theta)
+    M = np.array([[ c, s],
+                  [-s, c]])
+    uv = np.array([v, u])
+    v_, u_ = np.dot(M, uv)
+    return u_, v_
+
+def rotate_u(u,v,theta):
+    '''
+    Returns the u-component of a rotation
+    '''
+    u_ = np.empty_like(u)
+    for i in xrange(u.shape[0]):
+        u_[i] = rotate(u[i], v[i], theta[i])[0]
+    return u_
+
+def rotate_v(u,v,theta):
+    '''
+    Returns the v-component of a rotation
+    '''
+    v_ = np.empty_like(u)
+    for i in xrange(u.shape[0]):
+        v_[i] = rotate(u[i], v[i], theta[i])[1]
+    return v_
+"""
+        tempdir = tempfile.mkdtemp()
+        package = os.path.join(tempdir, 'rotate')
+        os.makedirs(package)
+        with open(os.path.join(package, '__init__.py'), 'w'):
+            pass # touch __init__.py to make it a package
+
+        with open(os.path.join(package, 'rotate.py'),'w') as f:
+            f.write(file_source)
+
+        from ion.util.package import main
+        main('rotate', '0.1', [package])
+
+        egg = 'rotate-0.1-py2.7.egg'
+        pkg_resources.working_set.add_entry(egg)
+
+        from rotate_0_1.rotate import rotate_u, rotate_v
+
+        u = np.arange(10, dtype=np.float32)
+        v = np.arange(10, dtype=np.float32)
+        theta = np.ones(10, dtype=np.float32) * np.pi / 2
+        u_ = rotate_u(u, v, theta)
+        v_ = rotate_v(u, v, theta)
+
+        np.testing.assert_almost_equal(u_, -u, 4)
+        np.testing.assert_almost_equal(v_, v, 4)
+
+        rmtree(tempdir)
+        os.remove(egg)
+
+
+
 
