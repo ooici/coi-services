@@ -16,7 +16,8 @@ from pyon.util.containers import create_unique_identifier
 from pyon.util.containers import DotDict
 from pyon.util.arg_check import validate_is_not_none, validate_true
 from pyon.ion.resource import ExtendedResourceContainer
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, TransformFunction, DataProcess, ProcessQueueingMode, ComputedValueAvailability
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, DataProcess, ProcessQueueingMode, ComputedValueAvailability
+from interface.objects import ParameterFunction, TransformFunction
 
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -146,6 +147,27 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return data_process_definition_id
 
+    def create_data_process_definition_new(self, data_process_definition=None, function_definition=None):
+
+        if isinstance(function_definition,  ParameterFunction):
+            pfunc_id = self.clients.dataset_management.create_parameter_function(function_definition.name, 
+                                                                                         function_definition.parameter_function,
+                                                                                         function_definition.description)
+            dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
+            self.clients.resource_registry.create_association(subject=dpd_id, object=pfunc_id, predicate=PRED.hasParameterFunction)
+            return dpd_id, pfunc_id
+
+        elif isinstance(function_definition, TransformFunction):
+            tf_id, _ = self.clients.resource_registry.create(function_definition)
+            dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
+            self.clients.resource_registry.create_association(subject=dpd_id, object=tf_id, predicate=PRED.hasTransformFunction)
+            return dpd_id, tf_id
+
+        else:
+            raise BadRequest('function_definition is not a function type')
+
+        return dpd_id
+
     def update_data_process_definition(self, data_process_definition=None):
         # TODO: If executable has changed, update underlying ProcessDefinition
 
@@ -157,10 +179,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_def_obj
 
     def delete_data_process_definition(self, data_process_definition_id=''):
-
-        # Delete the resource
         self.RR2.retire(data_process_definition_id, RT.DataProcessDefinition)
-
+    
     def force_delete_data_process_definition(self, data_process_definition_id=''):
 
         processdef_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=True)

@@ -19,7 +19,7 @@ from ion.util.geo_utils import GeoUtils
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from interface.objects import DataProduct, DataProductVersion, InformationStatus
+from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess
 from interface.objects import ComputedValueAvailability
 
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
@@ -111,38 +111,85 @@ class DataProductManagementService(BaseDataProductManagementService):
         '''
         For each data process launched also create a dataprocess for each parameter function in the data product
         '''
+        print 'data processes called'
+        data_product = self.read_data_product(data_product_id)
 
         # DataProduct -> StreamDefinition
         stream_def_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
-        # StreamDefinition -> ParameterDictionary
         pdict_ids = []
+        # StreamDefinition -> ParameterDictionary
         for stream_def_id in stream_def_ids:
             pd_ids, _ = self.clients.resource_registry.find_objects(stream_def_id, PRED.hasParameterDictionary, id_only=True)
             pdict_ids.extend(pd_ids)
 
-        # ParameterDictionary -> ParameterContext
+
         pd_ids = []
+        # ParameterDictionary -> ParameterContext
         for pdict_id in pdict_ids:
             pdef_ids, _ = self.clients.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=True)
             pd_ids.extend(pdef_ids)
 
-        # ParameterContext -> ParameterFunction
+
         pf_ids = []
+        # ParameterContext -> ParameterFunction
         for pd_id in pd_ids:
             pfunc_ids, _ = self.clients.resource_registry.find_objects(pd_id, PRED.hasParameterFunction, id_only=True)
             pf_ids.extend(pfunc_ids)
 
-        # ParameterFunction -> DataProcessDefinition
-        dpd_ids = []
+
+        dpds = []
+        # DataProcessDefinition -> ParameterFunction
         for pf_id in pf_ids:
-            dpdef_ids, _ = self.clients.resource_registry.find_subjects(object=pf_id, predicate=PRED.hasParameterFunction, subject_type=RT.DataProcessDefinition, id_only=True)
-            dpd_ids.extend(dpdef_ids)
+            dpdef_objs, _ = self.clients.resource_registry.find_subjects(object=pf_id, 
+                                                                        predicate=PRED.hasParameterFunction, 
+                                                                        subject_type=RT.DataProcessDefinition, 
+                                                                        id_only=False)
+            dpds.extend(dpdef_objs)
+
+        for dpd in dpds:
+            dp = DataProcess()
+            dp.name = 'Data Process %s for Data Product %s' % ( dpd.name, data_product.name )
+            # TODO: This is a stub until DPD is ready
+            self.clients.resource_registry.create(dp)
 
 
-        # TODO: Use data process management
+
+    def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
+
+        validate_is_not_none(data_product_id, 'A data product id must be passed to register a data product')
+        validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to assign to a data product')
+
+        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id)  # Validates and checks for param_dict
+        parameter_dictionary = stream_def_obj.parameter_dictionary
+        validate_is_not_none(parameter_dictionary, 'A parameter dictionary must be passed to register a data product')
+        exchange_point = exchange_point or 'science_data'
+
+        data_product = self.RR2.read(data_product_id)
+
+        #if stream_definition_id:
+        #@todo: What about topics?
+
+        # Associate the StreamDefinition with the data product
+        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id,
+                                                                                     data_product_id)
+
+        stream_id, route = self.clients.pubsub_management.create_stream(name=data_product.name,
+                                                                        exchange_point=exchange_point,
+                                                                        description=data_product.description,
+                                                                        stream_definition_id=stream_definition_id)
+
+        # Associate the Stream with the main Data Product and with the default data product version
+        self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)
 
 
+    def assign_dataset_to_data_product(self, data_product_id='', dataset_id=''):
+        validate_is_not_none(data_product_id, 'A data product id must be passed to assign a dataset to a data product')
+        validate_is_not_none(dataset_id, 'A dataset id must be passed to assign a dataset to a data product')
 
+        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+
+    def assign_data_product_to_data_product(self, data_product_id='', parent_data_product_id=''):
+        validate_true(data_product_id, 'A data product id must be specified')
 
 
 
@@ -366,6 +413,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.update_data_product(data_product_obj)
 
         self._publish_persist_event(data_product_id=data_product_id, persist_on = True)
+        self.create_data_processes(data_product_id)
 
     def is_persisted(self, data_product_id=''):
         # Is the data product currently persisted into a data set?
