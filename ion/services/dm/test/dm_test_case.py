@@ -19,7 +19,7 @@ from interface.services.dm.iuser_notification_service import UserNotificationSer
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
 from interface.services.ans.ivisualization_service import VisualizationServiceClient
 
-from pyon.public import RT
+from pyon.public import RT, PRED
 from interface.objects import DataProduct
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
@@ -96,6 +96,8 @@ class DMTestCase(IonIntegrationTestCase):
         if data_products:
             return data_products[0]
         return None
+    def dataset_of_data_product(self, data_product_id):
+        return self.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
 
 class Streamer(object):
     def __init__(self, data_product_id, interval=1, simple_time=False, connection=False):

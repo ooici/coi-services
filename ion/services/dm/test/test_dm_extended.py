@@ -15,7 +15,9 @@ from ion.services.dm.utility.bad_simulator import BadSimulator
 from ion.util.direct_coverage_utils import DirectCoverageAccess
 from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.provenance import graph
 from ion.processes.data.registration.registration_process import RegistrationProcess
+from coverage_model import ParameterFunctionType, ParameterDictionary
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.util.file_sys import FileSystem
@@ -1150,7 +1152,6 @@ class TestDMExtended(DMTestCase):
         np.testing.assert_array_equal(rdt['sci_water_pracsal'], np.array([31.84717941,  25.82336998], dtype=np.float32))
         np.testing.assert_array_equal(rdt['seawater_density'], np.array([1024.58862305,  1019.12799072], dtype=np.float32))
 
-
     @attr("UTIL")
     def test_egg_packaging(self):
         file_source = """
@@ -1223,6 +1224,27 @@ def rotate_v(u,v,theta):
         rmtree(tempdir)
         os.remove(egg)
 
+    @attr("INT")
+    def test_provenance_graph(self):
+        # Preload MFLM to get the CTDMO data product
+        self.preload_mflm()
+        data_product_id = self.data_product_by_id('DPROD142')
 
+        # Get the parameter dictionary for this data product
+        dataset_id = self.dataset_of_data_product(data_product_id)
+        dataset = self.dataset_management.read_dataset(dataset_id)
+        param_dict_dump = dataset.parameter_dictionary
+        pdict = ParameterDictionary.load(param_dict_dump)
+
+        density_dependencies = graph(pdict, 'seawater_density')
+        what_it_should_be = {'cc_lat': {},
+                             'cc_lon': {},
+                             'sci_water_pracsal': {
+                                 'seawater_conductivity': {'conductivity': {}},
+                                  'seawater_pressure': {'cc_p_range': {}, 'pressure': {}},
+                                  'seawater_temperature': {'temperature': {}}},
+                             'seawater_pressure': {'cc_p_range': {}, 'pressure': {}},
+                             'seawater_temperature': {'temperature': {}}}
+        self.assertEquals(density_dependencies, what_it_should_be)
 
 
