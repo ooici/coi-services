@@ -5,12 +5,13 @@
 @description Data Process worker
 '''
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import Granule
+from interface.objects import Granule, DataProcessStatusType
 from ion.core.process.transform import TransformStreamListener, TransformStreamProcess
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from pyon.ion.stream import StandaloneStreamPublisher
+from pyon.ion.stream import StreamPublisher
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.util.time_utils import TimeUtils
+from pyon.util.containers import DotDict
 
 
 
@@ -30,6 +31,9 @@ import requests
 
 class TransformWorker(TransformStreamListener):
     CACHE_LIMIT=CFG.get_safe('container.ingestion_cache',5)
+
+    # Status publishes after a set of granules has been processed
+    STATUS_INTERVAL = 100
 
     def __init__(self, *args,**kwargs):
         super(TransformWorker, self).__init__(*args, **kwargs)
@@ -54,6 +58,7 @@ class TransformWorker(TransformStreamListener):
 
         TransformStreamProcess.on_start(self)
 
+        #todo: can the subscription be changed or updated when new dataprocesses are added ?
         self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
         self.subscriber = StreamSubscriber(process=self, exchange_name=self.queue_name, callback=self.receive_callback)
         self.thread_lock = RLock()
@@ -136,10 +141,10 @@ class TransformWorker(TransformStreamListener):
                 try:
                     #todo: load once into a 'set' of modules?
                     #load the associated transform funcation
-                    module = importlib.import_module(dataprocess_info.get('module', '') )
-                    function = getattr(module, dataprocess_info.get('function','') )
-                    arguments = dataprocess_info.get('arguments', '')
-                    argument_list = dataprocess_info.get('argument_map', '')
+                    module = importlib.import_module(dataprocess_info.get_safe('module', '') )
+                    function = getattr(module, dataprocess_info.get_safe('function','') )
+                    arguments = dataprocess_info.get_safe('arguments', '')
+                    argument_list = dataprocess_info.get_safe('argument_map', '')
 
                     args = []
                     rdt = RecordDictionaryTool.load_from_granule(msg)
@@ -153,16 +158,22 @@ class TransformWorker(TransformStreamListener):
                     #todo: nothing in the data process resource to specify multi-out map
                     result = function(*args)
 
-                    rdt = RecordDictionaryTool(stream_definition_id=dataprocess_info.get('out_stream_def', ''))
+                    rdt = RecordDictionaryTool(stream_definition_id=dataprocess_info.get_safe('out_stream_def', ''))
                     publisher = self._publisher_map.get(dp_id,'')
 
-                    rdt[ dataprocess_info.get('output_param','') ] = result
+                    rdt[ dataprocess_info.get_safe('output_param','') ] = result
 
                     if publisher:
                         publisher.publish(rdt.to_granule())
                     else:
                         log.error('Publisher not found for data process %s', dp_id)
 
+                    #update metrics
+                    dataprocess_info.granule_counter += 1
+                    if dataprocess_info.granule_counter % self.STATUS_INTERVAL == 0:
+                        #publish a status update event
+                        self.event_publisher.publish_event(origin=dp_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
+                                               description='data process status update. %s granules processed'% dataprocess_info.granule_counter )
 
                 except ImportError:
                     log.error('Error running transform')
@@ -178,6 +189,11 @@ class TransformWorker(TransformStreamListener):
         dp_dict = self.CFG.get_safe('dataprocess_info',{})
         for dp_id, details in dp_dict.iteritems():
             log.debug('load_data_processes dataprocess_id : %s  dataprocess_details : %s  ', dp_id, details)
+            details = DotDict(details or {})
+
+            #set metrics attributes
+            details.granule_counter = 0
+
             self._dataprocesses[dp_id] = details
 
             #add the stream id to the map
@@ -186,14 +202,20 @@ class TransformWorker(TransformStreamListener):
                     (self._streamid_map[ details['in_stream_id'] ]).append(dp_id)
                 else:
                     self._streamid_map[ details['in_stream_id'] ]  = [dp_id]
-
+            #todo: add transform worker id
+            self.event_publisher.publish_event(origin=dp_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
+                                               description='data process loaded into transform worker')
 
     def create_publishers(self):
 
+        #todo: create correct publisher type for the transform type
+        #todo: DataMonitor, Event Monitor get EventPublishers
+        #todo: DataProcess, EventProcess get stream publishers
         for dp_id, details in self._dataprocesses.iteritems():
             out_stream_route = details.get('out_stream_route', '')
             out_stream_id = details.get('out_stream_id', '')
-            publisher = StandaloneStreamPublisher(stream_id=out_stream_id, stream_route=out_stream_route )
+            #publisher = StandaloneStreamPublisher(stream_id=out_stream_id, stream_route=out_stream_route )
+            publisher = StreamPublisher(process=self, stream_id=out_stream_id, stream_route=out_stream_route)
 
             self._publisher_map[dp_id] = publisher
 
@@ -203,7 +225,7 @@ class TransformWorker(TransformStreamListener):
         Downloads an egg from the URL specified into the cache directory
         Returns the full path to the egg
         '''
-        # Get the filename based on the URL 
+        # Get the filename based on the URL
         filename = url.split('/')[-1]
         # Store it in the $TMPDIR
         egg_cache = gettempdir()
@@ -218,4 +240,3 @@ class TransformWorker(TransformStreamListener):
                         f.flush()
             return path
         raise IOError("Couldn't download the file at %s" % url)
-

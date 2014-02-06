@@ -7,7 +7,7 @@
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.processes.data.ingestion.stream_ingestion_worker import retrieve_stream
 
-import numpy
+import numpy as np
 
 from pyon.ion.stream import StandaloneStreamPublisher, StreamSubscriber, StandaloneStreamSubscriber
 from pyon.util.int_test import IonIntegrationTestCase
@@ -92,29 +92,22 @@ class TestTransformWorker(IonIntegrationTestCase):
         stream_route = self.pubsub_client.read_stream_route(self.stream_id)
         self.publisher = StandaloneStreamPublisher(stream_id=self.stream_id, stream_route=stream_route )
 
+        self.start_event_listener()
 
-        dp_list = self.create_data_processes()
-        self.start_transform_worker(dp_list)
+        self.dp_list = self.create_data_processes()
+        self.start_transform_worker(self.dp_list)
 
         self.data_modified = Event()
         self.data_modified.wait(5)
 
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
-        rdt['conductivity'] = 1
-        rdt['pressure'] = 2
-        rdt['salinity'] = 8
-
+        rdt['time']         = [0] # time should always come first
+        rdt['conductivity'] = [1]
+        rdt['pressure']     = [2]
+        rdt['salinity']     = [8]
 
         self.publisher.publish(rdt.to_granule())
 
-        #self.data_modified.wait(1)
-        #
-        #rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
-        #rdt['conductivity'] = 1
-        #rdt['pressure'] = 2
-        #rdt['salinity'] = 8
-        #
-        #self.publisher.publish(rdt.to_granule())
 
         self.data_modified.wait(5)
 
@@ -209,22 +202,48 @@ class TestTransformWorker(IonIntegrationTestCase):
         return dp1_func_output_dp_id, dp2_func_output_dp_id
 
 
+    def validate_event(self, *args, **kwargs):
+        """
+        This method is a callback function for receiving DataProcessStatusEvent.
+        """
+        data_process_event = args[0]
+        log.debug("DataProcessStatusEvent: %s" ,  str(data_process_event.__dict__))
+        self.assertTrue( data_process_event.origin in self.dp_list)
+
 
     def validate_output_granule(self, msg, route, stream_id):
         self.assertTrue( stream_id in self._output_stream_ids)
 
         rdt = RecordDictionaryTool.load_from_granule(msg)
+        log.debug('validate_output_granule  rdt: %s', rdt)
         sal_val = rdt['salinity']
-        self.assertTrue( sal_val == 3)
+        #self.assertTrue( sal_val == 3)
+        np.testing.assert_array_equal(sal_val, np.array([3]))
 
+    def start_event_listener(self):
 
+        es = EventSubscriber(event_type=OT.DataProcessStatusEvent, callback=self.validate_event)
+        es.start()
+
+        self.addCleanup(es.stop)
 
 
     def start_transform_worker(self, dataprocess_list = None):
         config = DotDict()
         config.process.queue_name = 'parsed_subscription'
+        config.dataprocess_info = self.define_worker_config(dataprocess_list)
+
+        self.container.spawn_process(
+            name='transform_worker',
+            module='ion.processes.data.transforms.transform_worker',
+            cls='TransformWorker',
+            config=config
+        )
 
 
+    def define_worker_config(self, dataprocess_list=None):
+
+        config = {}
 
         for dp_id in dataprocess_list:
             log.debug('dp_id:  %s', dp_id)
@@ -246,17 +265,9 @@ class TestTransformWorker(IonIntegrationTestCase):
             dp_details.function = pfunction_obj.function
             dp_details.arguments = pfunction_obj.arguments
             dp_details.argument_map=dp_obj.argument_map
+            config[dp_id] = dp_details
 
-            config.dataprocess_info[dp_id] = dp_details
-
-
-        self.container.spawn_process(
-            name='transform_worker',
-            module='ion.processes.data.transforms.transform_worker',
-            cls='TransformWorker',
-            config=config
-        )
-
+        return config
 
 
     def load_out_stream_info(self, data_process_id=None):
@@ -315,5 +326,3 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         a = add_arrays(1,2)
         self.assertEquals(a,3)
-
-
