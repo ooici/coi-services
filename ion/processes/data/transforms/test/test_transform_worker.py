@@ -266,6 +266,7 @@ class TestTransformWorker(IonIntegrationTestCase):
             dp_details.function = pfunction_obj.function
             dp_details.arguments = pfunction_obj.arguments
             dp_details.argument_map=dp_obj.argument_map
+            dp_details.uri = pfunction_obj.uri
             config[dp_id] = dp_details
 
         return config

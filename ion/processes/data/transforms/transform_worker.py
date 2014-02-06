@@ -141,8 +141,6 @@ class TransformWorker(TransformStreamListener):
                     module = importlib.import_module(dataprocess_info.get_safe('module', '') )
                 except ImportError:
                     # Download and install the egg
-                    print dataprocess_info
-                    print vars(dataprocess_info)
                     egg = self.download_egg(dataprocess_info.get_safe('uri',''))
                     pkg_resources.working_set.add_entry(egg)
                     module = importlib.import_module(dataprocess_info.get_safe('module', '') )
