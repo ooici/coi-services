@@ -153,21 +153,20 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if isinstance(function_definition,  ParameterFunction):
             data_process_definition.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
             dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
-            self.clients.resource_registry.create_association(subject=dpd_id, object=function_definition._id, predicate=PRED.hasParameterFunction)
+            self.clients.resource_registry.create_association(subject=dpd_id, object=function_id, predicate=PRED.hasParameterFunction)
             return dpd_id
 
         elif isinstance(function_definition, TransformFunction):
             # TODO: Need service methods for this stuff
-            data_process_definition.data_process_type = DataProcessTypeEnum.TRANFORM
-            tf_id, _ = self.clients.resource_registry.create(function_definition)
+            data_process_definition.data_process_type = DataProcessTypeEnum.TRANSFORM_PROCESS
+
             dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
-            self.clients.resource_registry.create_association(subject=dpd_id, object=tf_id, predicate=PRED.hasTransformFunction)
+            self.clients.resource_registry.create_association(subject=dpd_id, object=function_id, predicate=PRED.hasTransformFunction)
             return dpd_id
 
         else:
             raise BadRequest('function_definition is not a function type')
 
-        return dpd_id
 
     def update_data_process_definition(self, data_process_definition=None):
         # TODO: If executable has changed, update underlying ProcessDefinition
@@ -349,12 +348,23 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         configuration = DotDict(configuration or {})
         configuration.process.output_products = out_data_product_ids
 
+        dpd_obj = self.read_data_process_definition(data_process_definition_id)
+        dataproduct_name = ''
+        in_data_product_id = ''
+        if in_data_product_ids:
+            in_data_product_id = in_data_product_ids.pop()
+            in_dataprod_obj = self.clients.data_product_management.read_data_product(in_data_product_id)
+            dataproduct_name = in_dataprod_obj.name
+
         if 'lookup_docs' in configuration.process:
             configuration.process.lookup_docs.extend(self._get_lookup_docs(in_data_product_ids, out_data_product_ids))
         else:
             configuration.process.lookup_docs = self._get_lookup_docs(in_data_product_ids, out_data_product_ids)
+
         dproc = DataProcess()
-        dproc.name = 'data_process_%s' % self.get_unique_id()
+        #name the data process the DPD name + in_data_product name to make more readable
+        dproc.name = ''.join([dpd_obj.name, '_on_', dataproduct_name])
+        log.debug(' dproc.name: %s ', dproc.name)
         dproc.configuration = configuration
         dproc.argument_map = configuration.argument_map
 
@@ -373,7 +383,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.create_association(data_process_definition_id, PRED.hasDataProcess ,dproc_id)
 
         return dproc_id
-
 
     def _get_input_stream_ids(self, in_data_product_ids = None):
 
