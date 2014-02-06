@@ -568,8 +568,8 @@ class EnhancedResourceRegistryClient(object):
         This is a PREFETCH operation, and EnhancedResourceRegistryClient objects that use the cache functionality
         should NOT be kept across service calls.
         """
-        log.info("Caching resources: %s", resource_type)
-        log.debug("This cache is %s", self)
+        #log.info("Caching resources: %s", resource_type)
+        #log.debug("This cache is %s", self)
         time_caching_start = get_ion_ts()
 
         resource_objs = []
@@ -592,7 +592,7 @@ class EnhancedResourceRegistryClient(object):
 
         total_time = int(time_caching_stop) - int(time_caching_start)
 
-        log.info("Cached %s %s resources in %s seconds", len(resource_objs), resource_type, total_time / 1000.0)
+        #log.info("Cached %s %s resources in %s seconds", len(resource_objs), resource_type, total_time / 1000.0)
 
 
     def has_cached_predicate(self, predicate):

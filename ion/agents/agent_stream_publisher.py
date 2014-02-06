@@ -51,8 +51,8 @@ class AgentStreamPublisher(object):
                       self._agent._proc_name)
             return
         
-        log.info('Instrument agent %s stream config: %s', self._agent._proc_name,
-                 str(stream_info))
+        #log.info('Instrument agent %s stream config: %s', self._agent._proc_name,
+                 #str(stream_info))
 
         self._construct_streams(stream_info)
         self._construct_publishers(stream_info)
@@ -205,18 +205,18 @@ class AgentStreamPublisher(object):
     
             rdt = populate_rdt(rdt, vals)
             
-            log.info('Outgoing granule: %s',
-                     ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
-            log.info('Outgoing granule preferred timestamp: %s' % rdt['preferred_timestamp'][0])
-            log.info('Outgoing granule destined for stream: %s', stream_name)
+            #log.info('Outgoing granule: %s',
+                     #['%s: %s'%(k,v) for k,v in rdt.iteritems()])
+            #log.info('Outgoing granule preferred timestamp: %s' % rdt['preferred_timestamp'][0])
+            #log.info('Outgoing granule destined for stream: %s', stream_name)
             g = rdt.to_granule(data_producer_id=self._agent.resource_id, connection_id=self._connection_ID.hex,
                     connection_index=str(self._connection_index[stream_name]))
             
             publisher.publish(g)
-            log.info('Instrument agent %s published data granule on stream %s.',
-                self._agent._proc_name, stream_name)
-            log.info('Connection id: %s, connection index: %i.',
-                     self._connection_ID.hex, self._connection_index[stream_name])
+            #log.info('Instrument agent %s published data granule on stream %s.',
+                #self._agent._proc_name, stream_name)
+            #log.info('Connection id: %s, connection index: %i.',
+                     #self._connection_ID.hex, self._connection_index[stream_name])
             self._connection_index[stream_name] += 1
         except:
             log.exception('Instrument agent %s could not publish data on stream %s.',
