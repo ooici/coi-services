@@ -7,6 +7,7 @@
 
 from ion.services.dm.test.dm_test_case import DMTestCase, Streamer
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
+from ion.processes.data.replay.replay_process import RetrieveProcess
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
@@ -25,6 +26,7 @@ from pyon.public import IonObject, RT, CFG
 from pyon.util.containers import DotDict
 from pydap.client import open_url
 from shutil import rmtree
+from datetime import datetime, timedelta
 import pkg_resources
 import tempfile
 import os
@@ -32,6 +34,7 @@ import unittest
 import numpy as np
 import time
 import gevent
+import calendar
 
 class TestDMExtended(DMTestCase):
     '''
@@ -1247,4 +1250,22 @@ def rotate_v(u,v,theta):
                              'seawater_temperature': {'temperature': {}}}
         self.assertEquals(density_dependencies, what_it_should_be)
 
+    @attr('INT')
+    def test_retrieve_process(self):
+        data_product_id = self.make_ctd_data_product()
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        date0 = datetime(2014, 1, 1, 0, 0) # 2014-01-01T00:00Z
+        time0 = calendar.timegm(date0.timetuple()) + 2208988800 # NTP
+        rdt['time'] = np.arange(time0, time0+30)
+        rdt['temp'] = np.arange(30)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+        dataset_monitor.event.clear()
+        retrieve_process = RetrieveProcess(dataset_id)
+        rdt = retrieve_process.retrieve(date0, date0 + timedelta(hours=1))
+        np.testing.assert_array_equal(rdt['temp'], np.arange(30))
 
