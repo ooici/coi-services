@@ -27,6 +27,9 @@ from pyon.ion.event import handle_stream_exception
 from tempfile import gettempdir
 import os
 import requests
+import pkg_resources
+import importlib
+import numpy as np
 
 
 class TransformWorker(TransformStreamListener):
@@ -78,12 +81,7 @@ class TransformWorker(TransformStreamListener):
         # create a publisher for each =output stream
         self.create_publishers()
 
-        url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
-        filepath = self.download_egg(url)
-        print filepath
-        import pkg_resources
-        pkg_resources.working_set.add_entry('ion_example-0.1-py2.7.egg')
-        from ion_example.add_arrays import add_arrays
+        
 
 
     def on_quit(self): #pragma no cover
@@ -128,8 +126,6 @@ class TransformWorker(TransformStreamListener):
             log.debug('Empty granule for stream %s', stream_id)
             return
 
-        import importlib
-        import numpy as np
 
         # if any data procrocesses apply to this stream
         if stream_id in self._streamid_map:
@@ -138,45 +134,53 @@ class TransformWorker(TransformStreamListener):
             for dp_id in dp_id_list:
                 #load the details of this data process
                 dataprocess_info = self._dataprocesses[dp_id]
+                #todo: load once into a 'set' of modules?
+                #load the associated transform funcation
+                # Try to load the module, if it fails load the egg then try again
                 try:
-                    #todo: load once into a 'set' of modules?
-                    #load the associated transform funcation
                     module = importlib.import_module(dataprocess_info.get_safe('module', '') )
-                    function = getattr(module, dataprocess_info.get_safe('function','') )
-                    arguments = dataprocess_info.get_safe('arguments', '')
-                    argument_list = dataprocess_info.get_safe('argument_map', '')
-
-                    args = []
-                    rdt = RecordDictionaryTool.load_from_granule(msg)
-                    #create the input arguments list
-                    #todo: this logic is tied to the example funcation, generalize
-                    for func_param, record_param in argument_list.iteritems():
-                        log.debug('func_param:  %s   record_param:  %s ', func_param, record_param)
-                        args.append(rdt[record_param])
-
-                    #run the calc
-                    #todo: nothing in the data process resource to specify multi-out map
-                    result = function(*args)
-
-                    rdt = RecordDictionaryTool(stream_definition_id=dataprocess_info.get_safe('out_stream_def', ''))
-                    publisher = self._publisher_map.get(dp_id,'')
-
-                    rdt[ dataprocess_info.get_safe('output_param','') ] = result
-
-                    if publisher:
-                        publisher.publish(rdt.to_granule())
-                    else:
-                        log.error('Publisher not found for data process %s', dp_id)
-
-                    #update metrics
-                    dataprocess_info.granule_counter += 1
-                    if dataprocess_info.granule_counter % self.STATUS_INTERVAL == 0:
-                        #publish a status update event
-                        self.event_publisher.publish_event(origin=dp_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
-                                               description='data process status update. %s granules processed'% dataprocess_info.granule_counter )
-
                 except ImportError:
-                    log.error('Error running transform')
+                    # Download and install the egg
+                    print dataprocess_info
+                    print vars(dataprocess_info)
+                    egg = self.download_egg(dataprocess_info.get_safe('uri',''))
+                    pkg_resources.working_set.add_entry(egg)
+                    module = importlib.import_module(dataprocess_info.get_safe('module', '') )
+
+
+                function = getattr(module, dataprocess_info.get_safe('function','') )
+                arguments = dataprocess_info.get_safe('arguments', '')
+                argument_list = dataprocess_info.get_safe('argument_map', '')
+
+                args = []
+                rdt = RecordDictionaryTool.load_from_granule(msg)
+                #create the input arguments list
+                #todo: this logic is tied to the example funcation, generalize
+                for func_param, record_param in argument_list.iteritems():
+                    log.debug('func_param:  %s   record_param:  %s ', func_param, record_param)
+                    args.append(rdt[record_param])
+
+                #run the calc
+                #todo: nothing in the data process resource to specify multi-out map
+                result = function(*args)
+
+                rdt = RecordDictionaryTool(stream_definition_id=dataprocess_info.get_safe('out_stream_def', ''))
+                publisher = self._publisher_map.get(dp_id,'')
+
+                rdt[ dataprocess_info.get_safe('output_param','') ] = result
+
+                if publisher:
+                    publisher.publish(rdt.to_granule())
+                else:
+                    log.error('Publisher not found for data process %s', dp_id)
+
+                #update metrics
+                dataprocess_info.granule_counter += 1
+                if dataprocess_info.granule_counter % self.STATUS_INTERVAL == 0:
+                    #publish a status update event
+                    self.event_publisher.publish_event(origin=dp_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
+                                           description='data process status update. %s granules processed'% dataprocess_info.granule_counter )
+
 
 
 

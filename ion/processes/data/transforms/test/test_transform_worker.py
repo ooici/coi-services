@@ -130,6 +130,7 @@ class TestTransformWorker(IonIntegrationTestCase):
             function='add_arrays',
             module="ion_example.add_arrays",
             arguments=['arr1', 'arr2'],
+            uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' ,
             function_type=TransformFunctionType.TRANSFORM
 
             )
