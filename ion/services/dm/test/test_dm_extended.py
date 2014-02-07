@@ -1308,7 +1308,7 @@ def rotate_v(u,v,theta):
         ctxt = ParameterContext('array_sum', param_type=ParameterFunctionType(pfunc))
         ctxt_dump = ctxt.dump()
         ctxt_id = self.dataset_management.create_parameter_context('array_sum', ctxt_dump)
-        self.dataset_management.add_parameter(dataset_id, ctxt_id)
+        self.dataset_management.add_parameter_to_dataset(ctxt_id, dataset_id)
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)

@@ -120,7 +120,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def add_parameter(self, dataset_id='', parameter_context_id=''):
+    def add_parameter_to_dataset(self, parameter_context_id='', dataset_id=''):
         cov = self._get_simplex_coverage(dataset_id, mode='r+')
         parameter_ctx_res = self.read_parameter_context(parameter_context_id)
         pc = ParameterContext.load(parameter_ctx_res.parameter_context)
