@@ -1858,17 +1858,16 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Check the availability of the get_instrument_device_extension operation for various user types - some of the
         #agent related status should not be allowed for users without the proper role
 
-        #Anonymous get extended is allowed, but internal agent status should be unavailable
+        #Anonymous get extended is allowed, the internal agent status should be available.
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=self.anonymous_actor_headers)
         self.assertEqual(extended_inst._id, inst_obj_id)
-        self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.NOTAVAILABLE)
-        self.assertIn('InstrumentDevice(get_agent) has been denied',extended_inst.computed.communications_status_roll_up.reason)
-
-        #Org member get extended is allowed, but internal agent status should be unavailable
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.PROVIDED)
+        self.assertEqual('', extended_inst.computed.communications_status_roll_up.reason)
+        #Org member get extended is allowed, but internal agent status should be available
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
         self.assertEqual(extended_inst._id, inst_obj_id)
-        self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.NOTAVAILABLE)
-        self.assertIn('InstrumentDevice(get_agent) has been denied',extended_inst.computed.communications_status_roll_up.reason)
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.PROVIDED)
+        self.assertEqual('', extended_inst.computed.communications_status_roll_up.reason)
 
 
         #Grant the role of Instrument Operator to the user
@@ -1890,7 +1889,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
         self.assertEqual(extended_inst._id, inst_obj_id)
         self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.PROVIDED)
-        self.assertEqual(extended_inst.computed.communications_status_roll_up.reason, None)
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.reason, '')
 
         #This agent operation should now be allowed for a user that is an Instrument Operator
         retval = ia_client.get_agent_state(headers=actor_header)
@@ -2088,7 +2087,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
         self.assertEqual(extended_inst._id, inst_obj_id)
         self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.PROVIDED)
-        self.assertEqual(extended_inst.computed.communications_status_roll_up.reason, None)
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.reason, '')
 
         #Now reset the agent for checking operation based policy
         #The reset command should now be allowed for the Org Manager
