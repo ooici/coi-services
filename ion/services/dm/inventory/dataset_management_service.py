@@ -118,6 +118,21 @@ class DatasetManagementService(BaseDatasetManagementService):
         rpc_cli = RPCClient(to_name=pid)
         rpc_cli.request({'data_product_id':data_product_id}, op='register_dap_dataset')
 
+#--------
+
+    def add_parameter(self, dataset_id='', parameter_context_id=''):
+        cov = self._get_simplex_coverage(dataset_id, mode='r+')
+        parameter_ctx_res = self.read_parameter_context(parameter_context_id)
+        pc = ParameterContext.load(parameter_ctx_res.parameter_context)
+        cov.append_parameter(pc)
+        cov.close()
+        dataset = self.read_dataset(dataset_id)
+        pdict = cov.parameter_dictionary
+        dataset.parameter_dictionary = pdict.dump()
+        self.update_dataset(dataset)
+        from pyon.util.breakpoint import breakpoint
+        breakpoint(locals(), globals())
+        return True
 
 #--------
 
