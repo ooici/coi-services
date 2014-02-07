@@ -807,6 +807,7 @@ class TestDMExtended(DMTestCase):
         extent = self.dataset_management.dataset_extents_by_axis(dataset_id, 'time')
         self.assertEquals(extent, 34)
 
+    @unittest.skip("Complex Coverages aren't used for the time being")
     @attr('INT')
     def test_ccov_domain_slicing(self):
         '''
@@ -1280,6 +1281,7 @@ def rotate_v(u,v,theta):
         rdt = self.ph.rdt_for_data_product(data_product_id)
         rdt['time'] = np.arange(30)
         rdt['temp'] = np.arange(30)
+        rdt['pressure'] = np.arange(30)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
@@ -1290,6 +1292,7 @@ def rotate_v(u,v,theta):
         import pkg_resources
         pkg_resources.working_set.add_entry(egg_path)
         self.addCleanup(os.remove, egg_path)
+
         # Make a parameter function
         owner = 'ion_example.add_arrays'
         func = 'add_arrays'
@@ -1305,14 +1308,9 @@ def rotate_v(u,v,theta):
         ctxt = ParameterContext('array_sum', param_type=ParameterFunctionType(pfunc))
         ctxt_dump = ctxt.dump()
         ctxt_id = self.dataset_management.create_parameter_context('array_sum', ctxt_dump)
-        error = False
-        try:
-            self.dataset_management.add_parameter(dataset_id, ctxt_id)
-            breakpoint(locals(), globals())
-        except:
-            from traceback import print_exc
-            print_exc()
-            error = True
-        if error:
-            breakpoint(locals(), globals())
+        self.dataset_management.add_parameter(dataset_id, ctxt_id)
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['array_sum'], np.arange(0,60,2))
 

@@ -130,8 +130,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         pdict = cov.parameter_dictionary
         dataset.parameter_dictionary = pdict.dump()
         self.update_dataset(dataset)
-        from pyon.util.breakpoint import breakpoint
-        breakpoint(locals(), globals())
         return True
 
 #--------
@@ -488,14 +486,14 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
     def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
-        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        #file_root = FileSystem.get_url(FS.CACHE,'datasets')
         pdict = ParameterDictionary.load(parameter_dict)
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
         scov = self._create_simplex_coverage(dataset_id, pdict, sdom, tdom, self.inline_data_writes)
-        vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
+        #vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
         scov.close()
-        return vcov
+        return scov
 
     def _create_view_coverage(self, dataset_id, description, parent_dataset_id):
         # As annoying as it is we need to load the view coverage belonging to parent dataset id and use the information
@@ -511,7 +509,8 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def _create_simplex_coverage(cls, dataset_id, parameter_dictionary, spatial_domain, temporal_domain, inline_data_writes=True):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        scov = SimplexCoverage(file_root,uuid4().hex,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
+        #scov = SimplexCoverage(file_root,uuid4().hex,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
+        scov = SimplexCoverage(file_root,dataset_id,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
         return scov
 
     @classmethod
