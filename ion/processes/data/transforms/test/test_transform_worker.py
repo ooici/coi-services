@@ -67,6 +67,8 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.data_process_objs = []
         self._output_stream_ids = []
 
+        self.start_transform_worker()
+
         self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
 
         # create the StreamDefinition
@@ -95,7 +97,6 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.start_event_listener()
 
         self.dp_list = self.create_data_processes()
-        self.start_transform_worker(self.dp_list)
 
         self.data_modified = Event()
         self.data_modified.wait(5)
@@ -121,7 +122,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         #two data processes using one transform and one DPD
 
         dp1_func_output_dp_id, dp2_func_output_dp_id =  self.create_output_data_products()
-        configuration = { 'argument_map':{'arr1':'conductivity', 'arr2':'pressure'} }
+        configuration = { 'argument_map':{'arr1':'conductivity', 'arr2':'pressure'}, 'output_param' : 'salinity' }
 
         # Set up DPD and DP #2 - array add function
         tf_obj = IonObject(RT.TransformFunction,
@@ -130,7 +131,6 @@ class TestTransformWorker(IonIntegrationTestCase):
             function='add_arrays',
             module="ion_example.add_arrays",
             arguments=['arr1', 'arr2'],
-            uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' ,
             function_type=TransformFunctionType.TRANSFORM
 
             )
@@ -169,6 +169,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(self.dataproductclient.delete_data_product, dp1_func_output_dp_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
         stream_ids, _ = self.rrclient.find_objects(dp1_func_output_dp_id, PRED.hasStream, None, True)
+        self._output_stream_ids.append(stream_ids[0])
 
 
         dp2_func_outgoing_stream_id = self.pubsub_client.create_stream_definition(name='dp2_stream', parameter_dictionary_id=self.parameter_dict_id)
@@ -183,6 +184,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(self.dataproductclient.delete_data_product, dp2_func_output_dp_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
         stream_ids, _ = self.rrclient.find_objects(dp2_func_output_dp_id, PRED.hasStream, None, True)
+        self._output_stream_ids.append(stream_ids[0])
 
 
         subscription_id = self.pubsub_client.create_subscription('validator', data_product_ids=[dp1_func_output_dp_id, dp2_func_output_dp_id])
@@ -229,10 +231,9 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(es.stop)
 
 
-    def start_transform_worker(self, dataprocess_list = None):
+    def start_transform_worker(self):
         config = DotDict()
         config.process.queue_name = 'parsed_subscription'
-        config.dataprocess_info = self.define_worker_config(dataprocess_list)
 
         self.container.spawn_process(
             name='transform_worker',
@@ -241,81 +242,6 @@ class TestTransformWorker(IonIntegrationTestCase):
             config=config
         )
 
-
-    def define_worker_config(self, dataprocess_list=None):
-
-        config = {}
-
-        for dp_id in dataprocess_list:
-            log.debug('dp_id:  %s', dp_id)
-            dp_obj = self.dataprocessclient.read_data_process(dp_id)
-            dp_details = DotDict()
-            dp_details.in_stream_id = self.stream_id
-
-            out_stream_id, out_stream_route = self.load_out_stream_info(dp_id)
-            self._output_stream_ids.append(out_stream_id)
-
-            dp_details.out_stream_id = out_stream_id
-            dp_details.out_stream_route = out_stream_route
-            dp_details.out_stream_def = self.stream_def_id
-            dp_details.output_param = 'salinity'
-
-            dpd_obj, pfunction_obj = self.load_data_process_definition_and_transform(dp_id)
-
-            dp_details.module = pfunction_obj.module
-            dp_details.function = pfunction_obj.function
-            dp_details.arguments = pfunction_obj.arguments
-            dp_details.argument_map=dp_obj.argument_map
-            dp_details.uri = pfunction_obj.uri
-            config[dp_id] = dp_details
-
-        return config
-
-
-    def load_out_stream_info(self, data_process_id=None):
-
-        #get the input stream id
-        out_stream_id = ''
-        out_stream_route = ''
-
-        out_dataprods_objs, _ = self.rrclient.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=False)
-        log.debug(' outstream:  %s', out_dataprods_objs)
-        if len(out_dataprods_objs) != 1:
-            log.exception('The data process is not correctly associated with a ParameterFunction resource.')
-        else:
-            stream_ids, assoc_ids = self.rrclient.find_objects(out_dataprods_objs[0], PRED.hasStream, RT.Stream, True)
-            out_stream_id = stream_ids[0]
-            log.debug('data process out_stream_id: %s ', out_stream_id)
-
-            out_stream_route = self.pubsub_client.read_stream_route(out_stream_id)
-
-        return out_stream_id, out_stream_route
-
-
-    def load_data_process_definition_and_transform(self, data_process_id=None):
-
-        data_process_def_obj = None
-        transform_function_obj = None
-
-        dpd_objs, _ = self.rrclient.find_subjects(subject_type=RT.DataProcessDefinition, predicate=PRED.hasDataProcess, object=data_process_id, id_only=False)
-
-        if len(dpd_objs) != 1:
-            log.exception('The data process not correctly associated with a Data Process Definition resource.')
-        else:
-            data_process_def_obj = dpd_objs[0]
-            log.debug(' loaded data process def obj:  %s ', data_process_def_obj)
-
-        if data_process_def_obj.data_process_type is DataProcessTypeEnum.TRANSFORM_PROCESS:
-
-            tfunc_objs, _ = self.rrclient.find_objects(subject=data_process_def_obj, predicate=PRED.hasTransformFunction, id_only=False)
-
-            if len(tfunc_objs) != 1:
-                log.exception('The data process definition for a data process is not correctly associated with a ParameterFunction resource.')
-            else:
-                transform_function_obj = tfunc_objs[0]
-                log.debug(' loaded transform obj:  %s ', transform_function_obj)
-
-        return data_process_def_obj, transform_function_obj
 
     def test_download(self):
         egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
