@@ -26,7 +26,7 @@ COL_MAP = {"_all": DQ.RA_NAME,
            "ts_created": DQ.RA_TS_CREATED,
            "ts_updated": DQ.RA_TS_UPDATED,
            "geospatial_point_center": DQ.RA_GEOM,
-           "geospatial_bounds": DQ.RA_VERT_RANGE,
+           "geospatial_bounds": DQ.RA_GEOM_LOC,
            }
 
 
@@ -49,9 +49,9 @@ class DatastoreDiscovery(object):
             if "QUERYEXP" in discovery_query:
                 ds_query, ds_name = discovery_query, discovery_query["query_exp"].get("datastore", DataStore.DS_RESOURCES)
             else:
-                log.info("DatastoreDiscovery.execute_query(). discovery_query=\n%s", pprint.pformat(discovery_query))
+                log.info("DatastoreDiscovery.execute_query(): discovery_query=\n%s", pprint.pformat(discovery_query))
                 ds_query, ds_name = self._build_ds_query(discovery_query, id_only=id_only)
-            log.debug("DatastoreDiscovery.execute_query(). ds_query=\n%s", pprint.pformat(ds_query))
+            log.debug("DatastoreDiscovery.execute_query(): ds_query=\n%s", pprint.pformat(ds_query))
 
             ds = self._get_datastore(ds_name)
             res = ds.find_resources_mult(ds_query)
@@ -135,7 +135,7 @@ class DatastoreDiscovery(object):
     def _qmatcher_field_time(self, query, qb):
         query_exp = query.get("query", query)
         field = query_exp.get("field", None)
-        time = query_exp.get("time", None)
+        time = query_exp.get("time", None) or query_exp.get("time_bounds", None)
         if not (field and time):
             return
         from_time = time.get("from", None)
@@ -203,11 +203,11 @@ class DatastoreDiscovery(object):
         geom_col = COL_MAP.get(field, DQ.RA_GEOM)
         range_op = query_exp.get("cmpop", None)
         if range_op == "contains":
-            return qb.contains_bbox(geom_col, top_left[0], top_left[1], bottom_right[0], bottom_right[1])
+            return qb.contains_bbox(geom_col, top_left[0], bottom_right[1], bottom_right[0], top_left[1])
         elif range_op == "within":
-            return qb.within_bbox(geom_col, top_left[0], top_left[1], bottom_right[0], bottom_right[1])
+            return qb.within_bbox(geom_col, top_left[0], bottom_right[1], bottom_right[0], top_left[1])
         else:
-            return qb.overlaps_bbox(geom_col, top_left[0], top_left[1], bottom_right[0], bottom_right[1])
+            return qb.overlaps_bbox(geom_col, top_left[0], bottom_right[1], bottom_right[0], top_left[1])
 
     def _qmatcher_geo_vert(self, query, qb):
         query_exp = query.get("query", query)

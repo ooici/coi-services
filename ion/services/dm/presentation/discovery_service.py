@@ -1,79 +1,248 @@
 #!/usr/bin/env python
-'''
-@author Luke Campbell <LCampbell@ASAScience.com>
-@file ion/services/dm/presentation/discovery_service.py
-@description The Discovery service supports finding resources by metadata attributes, potentially applying semantic reasoning
-'''
 
+"""The Discovery service supports finding resources and events by metadata attributes, potentially applying semantic reasoning"""
 
-from interface.objects import View, Catalog, ElasticSearchIndex
-from interface.services.dm.idiscovery_service import BaseDiscoveryService
+__author__ = 'Luke Campbell <LCampbell@ASAScience.com>, Michael Meisinger'
+
+from collections import deque
+import heapq
+
 from pyon.util.containers import DotDict, get_safe
 from pyon.util.arg_check import validate_true, validate_is_instance
-from pyon.public import PRED, CFG, RT, log
-from pyon.core.exception import BadRequest
-from pyon.event.event import EventPublisher
-from pyon.core.bootstrap import get_obj_registry, get_sys_name
-from pyon.core.object import IonObjectDeserializer
-from ion.services.dm.inventory.index_management_service import IndexManagementService
-from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
-from collections import deque
+from pyon.public import PRED, CFG, RT, log, BadRequest, EventPublisher, get_sys_name
+
 from ion.services.dm.utility.query_language import QueryLanguage
 from ion.services.dm.presentation.ds_discovery import DatastoreDiscovery
 
-import dateutil.parser
-import calendar
-import time
-import elasticpy as ep
-import heapq
+from interface.services.dm.idiscovery_service import BaseDiscoveryService
+from interface.objects import View, Catalog
 
 
 class DiscoveryService(BaseDiscoveryService):
-    SEARCH_BUFFER_SIZE=CFG.get_safe('service.discovery.search_buffer_size', 1048576)
     MAX_SEARCH_RESULTS=CFG.get_safe('service.discovery.max_search_results', 250)
-
-    """
-    class docstring
-    """
 
     def on_start(self): # pragma no cover
         super(DiscoveryService,self).on_start()
 
-        self.use_es = CFG.get_safe('system.elasticsearch', False)
+        cfg_datastore = CFG.get_safe('container.datastore.default_server')
+        if cfg_datastore != "postgresql":
+            raise Exception("Discovery service does not support datastores other than postgresql")
 
-        self.elasticsearch_host = CFG.get_safe('server.elasticsearch.host','localhost')
-        self.elasticsearch_port = CFG.get_safe('server.elasticsearch.port','9200')
-
-        self.ep = EventPublisher(event_type = 'SearchBufferExceededEvent')
-        self.heuristic_cutoff = 4
-
-        self.cfg_datastore = CFG.get_safe('container.datastore.default_server', "couchdb")
-        self.ds_discovery = None
-        if self.cfg_datastore != "couchdb":
-            self.ds_discovery = DatastoreDiscovery(self)
+        self.ds_discovery = DatastoreDiscovery(self)
 
    
-    @staticmethod
-    def es_cleanup():
-        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
-        es_port = CFG.get_safe('server.elasticsearch.port', '9200')
-        es = ep.ElasticSearch(
-            host=es_host,
-            port=es_port,
-            timeout=10
-        )
-        indexes = STD_INDEXES.keys()
-        indexes.append('%s_resources_index' % get_sys_name().lower())
-        indexes.append('%s_events_index' % get_sys_name().lower())
+    #===================================================================
+    # Query Methods
+    #===================================================================
 
-        for index in indexes:
-            IndexManagementService._es_call(es.river_couchdb_delete,index)
-            IndexManagementService._es_call(es.index_delete,index)
+    def query(self, query=None, id_only=True):
+        """Issue a query against the indexes as specified in the query, applying filters and operators
+        accordingly. The query format is a structured dict.
+        See the query format definition: https://confluence.oceanobservatories.org/display/CIDev/Discovery+Service+Query+Format
+
+        @param query    dict
+        @param id_only    bool
+        @retval results    list
+        """
+        validate_true(query, 'Invalid query')
+
+        return self.request(query, id_only)
+
+    def parse(self, search_request='', id_only=True):
+        """Parses a given string request and assembles the query, processes the query and returns the results of the query.
+        This is the primary means of interfacing with the search features in discovery.
+        See the query language definition: https://confluence.oceanobservatories.org/display/CIDev/Discovery+Service+Query+Format
+
+        @param search_request    str
+        @param id_only    bool
+        @retval results    list
+        """
+        log.info("Search DSL: %s", search_request)
+        query_request = self._parse_query_string(search_request)
+        return self.request(query_request, id_only=id_only)
+
+    def _parse_query_string(self, query_string):
+        """Given a query string in Discovery service DSL, parse and return query structure"""
+        parser = QueryLanguage()
+        query_request = parser.parse(query_string)
+        return query_request
+
+    def request(self, query=None, id_only=True):
+        if not query:
+            raise BadRequest('No request query provided')
+
+        if "QUERYEXP" in query and self.ds_discovery:
+            # Support for datastore queries
+            pass
+
+        elif 'query' not in query:
+            raise BadRequest('Unsuported request. %s' % query)
+
+        res = self.ds_discovery.execute_query(query, id_only=id_only)
+        return res
+
 
     #===================================================================
-    # Views
+    # Special Query Methods
     #===================================================================
+
+    def query_association(self, resource_id='', depth=0, id_only=False):
+        validate_true(resource_id, 'Unspecified resource')
+        if depth:
+            resource_ids = self.iterative_traverse(resource_id, depth-1)
+        else:
+            resource_ids = self.traverse(resource_id)
+        if id_only:
+            return resource_ids
+
+        if not isinstance(resource_ids, list):
+            resource_ids = list(resource_ids)
+        resources = self.clients.resource_registry.read_mult(resource_ids)
+
+        return resources
+
+    def query_owner(self, resource_id='', depth=0, id_only=False):
+        validate_true(resource_id, 'Unspecified resource')
+        if depth:
+            resource_ids = self.iterative_traverse(resource_id, depth-1)
+        else:
+            resource_ids = self.reverse_traverse(resource_id)
+        if id_only:
+            return resource_ids
+
+        if not isinstance(resource_ids, list):
+            resource_ids = list(resource_ids)
+        resources = self.clients.resource_registry.read_mult(resource_ids)
+
+        return resources
+
+    def query_collection(self,collection_id='', id_only=False):
+        validate_true(collection_id, 'Unspecified collection id')
+        resource_ids = self.clients.index_management.list_collection_resources(collection_id, id_only=True)
+        if id_only:
+            return resource_ids
         
+        resources = map(self.clients.resource_registry.read,resource_ids)
+        return resources
+
+
+    def traverse(self, resource_id=''):
+        """Breadth-first traversal of the association graph for a specified resource.
+
+        @param resource_id    str
+        @retval resources    list
+        """
+
+        def edges(resource_ids=[]):
+            if not isinstance(resource_ids, list):
+                resource_ids = list(resource_ids)
+            return self.clients.resource_registry.find_objects_mult(subjects=resource_ids,id_only=True)[0]
+
+        visited_resources = deque(edges([resource_id]))
+        traversal_queue = deque()
+        done = False
+        t = None
+        while not done:
+            t = traversal_queue or deque(visited_resources)
+            traversal_queue = deque()
+            for e in edges(t):
+                if not e in visited_resources:
+                    visited_resources.append(e)
+                    traversal_queue.append(e)
+            if not len(traversal_queue): done = True
+
+        return list(visited_resources)
+
+    def reverse_traverse(self, resource_id=''):
+        """Breadth-first traversal of the association graph for a specified resource.
+
+        @param resource_id    str
+        @retval resources    list
+        """
+
+        def edges(resource_ids=[]):
+            if not isinstance(resource_ids,list):
+                resource_ids = list(resource_ids)
+            return self.clients.resource_registry.find_subjects_mult(objects=resource_ids,id_only=True)[0]
+
+        visited_resources = deque(edges([resource_id]))
+        traversal_queue = deque()
+        done = False
+        t = None
+        while not done:
+            t = traversal_queue or deque(visited_resources)
+            traversal_queue = deque()
+            for e in edges(t):
+                if not e in visited_resources:
+                    visited_resources.append(e)
+                    traversal_queue.append(e)
+            if not len(traversal_queue): done = True
+
+
+
+        return list(visited_resources)
+
+
+    def iterative_traverse(self, resource_id='', limit=-1):
+        '''
+        Iterative breadth first traversal of the resource associations
+        '''
+        #--------------------------------------------------------------------------------
+        # Retrieve edges for this resource
+        #--------------------------------------------------------------------------------
+        def edges(resource_ids=[]):
+            if not isinstance(resource_ids, list):
+                resource_ids = list(resource_ids)
+            return self.clients.resource_registry.find_objects_mult(subjects=resource_ids,id_only=True)[0]
+
+        gathered = deque()
+        visited_resources = deque(edges([resource_id]))
+        while limit>0:
+            t = gathered or deque(visited_resources)
+            for e in edges(t):
+                if not e in visited_resources:
+                    visited_resources.append(e)
+                    gathered.append(e)
+            if not len(gathered): break
+
+            t = deque(gathered)
+            gathered = deque()
+            limit -= 1
+
+        return list(visited_resources)
+
+    def iterative_reverse_traverse(self, resource_id='', limit=-1):
+        '''
+        Iterative breadth first traversal of the resource associations
+        '''
+        #--------------------------------------------------------------------------------
+        # Retrieve edges for this resource
+        #--------------------------------------------------------------------------------
+        def edges(resource_ids=[]):
+            if not isinstance(resource_ids, list):
+                resource_ids = list(resource_ids)
+            return self.clients.resource_registry.find_subjects_mult(objects=resource_ids,id_only=True)[0]
+
+        gathered = deque()
+        visited_resources = deque(edges([resource_id]))
+        while limit>0:
+            t = gathered or deque(visited_resources)
+            for e in edges(t):
+                if not e in visited_resources:
+                    visited_resources.append(e)
+                    gathered.append(e)
+            if not len(gathered): break
+
+            t = deque(gathered)
+            gathered = deque()
+            limit -= 1
+
+        return list(visited_resources)
+
+
+    #===================================================================
+    # View Management
+    #===================================================================
 
     def create_view(self, view_name='', description='', fields=None, order=None, filters=''):
         """Creates a view which has the specified search fields, the order in which the search fields are presented
@@ -82,14 +251,7 @@ class DiscoveryService(BaseDiscoveryService):
         @param description Simple descriptive sentence
         @param fields Search fields
         @param order List of fields to determine order of precendence in which the results are presented
-        @param filter Simple term filter
-
-        @param view_name    str
-        @param description    str
-        @param fields    list
-        @param order    list
-        @param filters    str
-        @retval view_id    str
+        @param filters Simple term filter
         """
         res, _ = self.clients.resource_registry.find_resources(name=view_name, id_only=True)
         if len(res) > 0:
@@ -123,7 +285,7 @@ class DiscoveryService(BaseDiscoveryService):
             if weight < self.heuristic_cutoff:
                 catalog_id = catalog._id
 
-                
+
         if catalog_id is None:
             catalog_id = self.clients.catalog_management.create_catalog('%s_catalog'% view_name, keywords=list(fields))
 
@@ -147,1052 +309,5 @@ class DiscoveryService(BaseDiscoveryService):
             self.clients.resource_registry.delete_association(assoc._id)
         self.clients.resource_registry.delete(view_id)
         return True
-
-    def list_catalogs(self, view_id=''):
-        catalogs, _ = self.clients.resource_registry.find_objects(subject=view_id, object_type=RT.Catalog, predicate=PRED.hasCatalog, id_only=True)
-        return catalogs
-
-
-    #===================================================================
-    # Helper Methods
-    #===================================================================
-    def _match_query_sources(self, source_name):
-        index = self.clients.index_management.find_indexes(source_name)
-        if index:
-            return index
-        _, resources = self.clients.resource_registry.find_resources(name=source_name, id_only=True)
-        for res in resources:
-            t = res['type']
-            if t == 'View' or t == 'ElasticSearchIndex' or t == 'Catalog':
-                return res['id']
-        return None
-
-
-    #===================================================================
-    # Query Methods
-    #===================================================================
-
-
-    def query(self, query=None, id_only=True):
-        validate_true(query,'Invalid query')
-
-        return self.request(query, id_only)
-
-
-    def query_couch(self, index_id='', key='', limit=0, offset=0, id_only=True):
-        raise BadRequest('Not Implemented Yet')
-#        cc = self.container
-#
-#        datastore_name = source.datastore_name
-#        db = cc.datastore_manager.get_datastore(datastore_name)
-#        view_name = source.view_name
-#        opts = DotDict(include_docs=True)
-#        opts.start_key = [query.query]
-#        opts.end_key = [query.query,{}]
-#        if query.results:
-#            opts.limit = query.results
-#        if query.offset:
-#            opts.skip = query.offset
-#
-#        return db.query_view(view_name,opts=opts)
-
-    def traverse(self, resource_id=''):
-        """Breadth-first traversal of the association graph for a specified resource.
-
-        @param resource_id    str
-        @retval resources    list
-        """
-        
-        def edges(resource_ids=[]):
-            if not isinstance(resource_ids, list):
-                resource_ids = list(resource_ids)
-            return self.clients.resource_registry.find_objects_mult(subjects=resource_ids,id_only=True)[0]
-            
-        visited_resources = deque(edges([resource_id]))
-        traversal_queue = deque()
-        done = False
-        t = None
-        while not done:
-            t = traversal_queue or deque(visited_resources)
-            traversal_queue = deque()
-            for e in edges(t):
-                if not e in visited_resources:
-                    visited_resources.append(e)
-                    traversal_queue.append(e)
-            if not len(traversal_queue): done = True
-
-
-
-        return list(visited_resources)
-
-    def reverse_traverse(self, resource_id=''):
-        """Breadth-first traversal of the association graph for a specified resource.
-
-        @param resource_id    str
-        @retval resources    list
-        """
-        
-        def edges(resource_ids=[]):
-            if not isinstance(resource_ids,list):
-                resource_ids = list(resource_ids)
-            return self.clients.resource_registry.find_subjects_mult(objects=resource_ids,id_only=True)[0]
-            
-        visited_resources = deque(edges([resource_id]))
-        traversal_queue = deque()
-        done = False
-        t = None
-        while not done:
-            t = traversal_queue or deque(visited_resources)
-            traversal_queue = deque()
-            for e in edges(t):
-                if not e in visited_resources:
-                    visited_resources.append(e)
-                    traversal_queue.append(e)
-            if not len(traversal_queue): done = True
-
-
-
-        return list(visited_resources)
-    
-
-    def iterative_traverse(self, resource_id='', limit=-1):
-        '''
-        Iterative breadth first traversal of the resource associations
-        '''
-        #--------------------------------------------------------------------------------
-        # Retrieve edges for this resource
-        #--------------------------------------------------------------------------------
-        def edges(resource_ids=[]):
-            if not isinstance(resource_ids, list):
-                resource_ids = list(resource_ids)
-            return self.clients.resource_registry.find_objects_mult(subjects=resource_ids,id_only=True)[0]
-            
-        gathered = deque()
-        visited_resources = deque(edges([resource_id]))
-        while limit>0:
-            t = gathered or deque(visited_resources)
-            for e in edges(t):
-                if not e in visited_resources:
-                    visited_resources.append(e)
-                    gathered.append(e)
-            if not len(gathered): break
-
-            t = deque(gathered)
-            gathered = deque()
-            limit -= 1
-
-        return list(visited_resources)
-
-    def iterative_reverse_traverse(self, resource_id='', limit=-1):
-        '''
-        Iterative breadth first traversal of the resource associations
-        '''
-        #--------------------------------------------------------------------------------
-        # Retrieve edges for this resource
-        #--------------------------------------------------------------------------------
-        def edges(resource_ids=[]):
-            if not isinstance(resource_ids, list):
-                resource_ids = list(resource_ids)
-            return self.clients.resource_registry.find_subjects_mult(objects=resource_ids,id_only=True)[0]
-            
-        gathered = deque()
-        visited_resources = deque(edges([resource_id]))
-        while limit>0:
-            t = gathered or deque(visited_resources)
-            for e in edges(t):
-                if not e in visited_resources:
-                    visited_resources.append(e)
-                    gathered.append(e)
-            if not len(gathered): break
-
-            t = deque(gathered)
-            gathered = deque()
-            limit -= 1
-
-        return list(visited_resources)
-
-
-            
-
-
-    def intersect(self, left=[], right=[]):
-        """The intersection between two sets of resources.
-
-        @param left    list
-        @param right    list
-        @retval result    list
-        """
-        return list(set(left).intersection(right))
-
-    def union(self, left=[], right=[]):
-        return list(set(left).union(right))
-
-    def parse(self, search_request='', id_only=True):
-        parser = QueryLanguage()
-        query_request = parser.parse(search_request)
-        return self.request(query_request, id_only=id_only)
-
-    def query_request(self, query=None, limit=0, id_only=False):
-        validate_is_instance(query,dict, 'invalid query')
-
-        #---------------------------------------------
-        # Term Search
-        #---------------------------------------------
-        if QueryLanguage.query_is_term_search(query):
-            source_id = self._match_query_sources(query['index']) or query['index']
-            kwargs = dict(
-                source_id= source_id,
-                field    = query['field'],
-                value    = query['value'],
-                limit    = limit,
-                id_only  = id_only
-            )
-            
-            if query.get('limit'):
-                kwargs['limit'] = query['limit']
-            if query.get('order'):
-                kwargs['order'] = query['order']
-            if query.get('offset'):
-                kwargs['offset'] = query['offset']
-
-            return self.query_term(**kwargs)
-
-        #---------------------------------------------
-        # Fuzzy searching (phrases and such)
-        #---------------------------------------------
-        elif QueryLanguage.query_is_fuzzy_search(query):
-            source_id = self._match_query_sources(query['index']) or query['index']
-            kwargs = dict(
-                source_id= source_id,
-                fuzzy    = True,
-                field    = query['field'],
-                value    = query['fuzzy'],
-                limit    = limit,
-                id_only  = id_only
-            )
-            
-            if query.get('limit'):
-                kwargs['limit'] = query['limit']
-            if query.get('order'):
-                kwargs['order'] = query['order']
-            if query.get('offset'):
-                kwargs['offset'] = query['offset']
-
-            return self.query_term(**kwargs)
-        
-        #---------------------------------------------
-        # Match searching (phrases and such)
-        #---------------------------------------------
-        elif QueryLanguage.query_is_match_search(query):
-            source_id = self._match_query_sources(query['index']) or query['index']
-            kwargs = dict(
-                source_id= source_id,
-                match    = True,
-                field    = query['field'],
-                value    = query['match'],
-                limit    = limit,
-                id_only  = id_only
-            )
-            
-            if query.get('limit'):
-                kwargs['limit'] = query['limit']
-            if query.get('order'):
-                kwargs['order'] = query['order']
-            if query.get('offset'):
-                kwargs['offset'] = query['offset']
-
-            return self.query_term(**kwargs)
-        
-        
-        #---------------------------------------------
-        # Association Search
-        #---------------------------------------------
-        elif QueryLanguage.query_is_association_search(query):
-            kwargs = dict(
-                resource_id = query['association'],
-                id_only     = id_only
-            )
-            if query.get('depth'):
-                kwargs['depth'] = query['depth']
-            return self.query_association(**kwargs)
-
-        elif QueryLanguage.query_is_owner_search(query):
-            kwargs = dict(
-                resource_id = query['owner'],
-                id_only     = id_only
-            )
-            if query.get('depth'):
-                kwargs['depth'] = query['depth']
-            return self.query_owner(**kwargs)
-        
-        #---------------------------------------------
-        # Range Search
-        #---------------------------------------------
-        elif QueryLanguage.query_is_range_search(query):
-            source_id = self._match_query_sources(query['index']) or query['index']
-            kwargs = dict(
-                source_id  = source_id,
-                field      = query['field'],
-                limit      = limit,
-                id_only    = id_only
-            )
-            if get_safe(query,'range.from') is not None:
-                kwargs['from_value'] = query['range']['from']
-            if get_safe(query,'range.to') is not None:
-                kwargs['to_value'] = query['range']['to']
-                
-            if query.get('limit'):
-                kwargs['limit'] = query['limit']
-            if query.get('order'):
-                kwargs['order'] = query['order']
-            if query.get('offset'):
-                kwargs['offset'] = query['offset']
-            
-            return self.query_range(**kwargs)
-        
-        #---------------------------------------------
-        # Time Search
-        #---------------------------------------------
-        elif QueryLanguage.query_is_time_search(query):
-            source_id = self._match_query_sources(query['index']) or query['index']
-            kwargs = dict(
-                source_id  = source_id,
-                field      = query['field'],
-                limit      = limit,
-                id_only    = id_only
-            )
-            if get_safe(query,'time.from') is not None:
-                kwargs['from_value'] = query['time']['from']
-            if get_safe(query,'time.to') is not None:
-                kwargs['to_value'] = query['time']['to']
-            if query.get('limit'):
-                kwargs['limit'] = query['limit']
-            if query.get('order'):
-                kwargs['order'] = query['order']
-            if query.get('offset'):
-                kwargs['offset'] = query['offset']
-            
-            return self.query_time(**kwargs)
-        
-        
-        #---------------------------------------------
-        # Time Bounds Search
-        #---------------------------------------------
-
-        elif QueryLanguage.query_is_time_bounds_search(query):
-            source_id = self._match_query_sources(query['index']) or query['index']
-            kwargs = dict(
-                source_id  = source_id,
-                field      = query['field'],
-                limit      = limit,
-                id_only    = id_only
-            )
-            if get_safe(query,'time_bounds.from') is not None:
-                kwargs['from_value'] = query['time_bounds']['from']
-            if get_safe(query,'time_bounds.to') is not None:
-                kwargs['to_value'] = query['time_bounds']['to']
-            if query.get('limit'):
-                kwargs['limit'] = query['limit']
-            if query.get('order'):
-                kwargs['order'] = query['order']
-            if query.get('offset'):
-                kwargs['offset'] = query['offset']
-            
-            return self.query_time_bounds(**kwargs)
-        
-        #---------------------------------------------
-        # Vertical Bounds Search
-        #---------------------------------------------
-
-        elif QueryLanguage.query_is_vertical_bounds_search(query):
-            source_id = self._match_query_sources(query['index']) or query['index']
-            kwargs = dict(
-                source_id  = source_id,
-                field      = query['field'],
-                limit      = limit,
-                id_only    = id_only
-            )
-            if get_safe(query,'vertical_bounds.from') is not None:
-                kwargs['from_value'] = query['vertical_bounds']['from']
-            if get_safe(query,'vertical_bounds.to') is not None:
-                kwargs['to_value'] = query['vertical_bounds']['to']
-            if query.get('limit'):
-                kwargs['limit'] = query['limit']
-            if query.get('order'):
-                kwargs['order'] = query['order']
-            if query.get('offset'):
-                kwargs['offset'] = query['offset']
-            
-            return self.query_vertical_bounds(**kwargs)
-        
-        #---------------------------------------------
-        # Collection Search
-        #---------------------------------------------
-        elif QueryLanguage.query_is_collection_search(query):
-            return self.query_collection(
-                collection_id = query['collection'],
-                id_only       = id_only
-            )
-        
-        #---------------------------------------------
-        # Geo Distance Search
-        #---------------------------------------------
-        elif QueryLanguage.query_is_geo_distance_search(query):
-            source_id = self._match_query_sources(query['index']) or query['index']
-            kwargs = dict(
-                source_id = source_id,
-                field     = query['field'],
-                origin    = [query['lon'], query['lat']],
-                distance  = query['dist'],
-                units     = query['units'],
-                id_only   = id_only
-            )
-            if query.get('limit'):
-                kwargs['limit'] = query['limit']
-            if query.get('order'):
-                kwargs['order'] = query['order']
-            if query.get('offset'):
-                kwargs['offset'] = query['offset']
-            return self.query_geo_distance(**kwargs)
-        
-        #---------------------------------------------
-        # Geo Bounding Box Search
-        #---------------------------------------------
-        elif QueryLanguage.query_is_geo_bbox_search(query):
-            source_id = self._match_query_sources(query['index']) or query['index']
-            kwargs = dict(
-                source_id    = source_id,
-                field        = query['field'],
-                top_left     = query['top_left'],
-                bottom_right = query['bottom_right'],
-                limit        = limit,
-                id_only      = id_only,
-            )
-            if query.get('limit'):
-                kwargs['limit'] = query['limit']
-            if query.get('order'):
-                kwargs['order'] = query['order']
-            if query.get('offset'):
-                kwargs['offset'] = query['offset']
-            return self.query_geo_bbox(**kwargs)
-
-
-        #@todo: query for couch
-        raise BadRequest('improper query: %s' % query)
-
-    def _multi(self, cb,source, *args, **kwargs):
-        '''
-        Manage the different collections of indexes for queries, views, catalogs
-        Expand the resource into it's components and call the callback for each subcategory
-        '''
-        if isinstance(source, View):
-            catalogs = self.list_catalogs(source._id)
-            result_queue = list()
-            for catalog in catalogs:
-                result_queue.extend(cb(catalog, *args, **kwargs))
-            if kwargs.has_key('limit') and kwargs['limit']:
-                return result_queue[:kwargs['limit']]
-            return result_queue
-
-        if isinstance(source, Catalog):
-            indexes = self.clients.catalog_management.list_indexes(source._id, id_only=True)
-            result_queue = list()
-            for index in indexes:
-                result_queue.extend(cb(index, *args, **kwargs))
-            if kwargs.has_key('limit') and kwargs['limit']:
-                return result_queue[:kwargs['limit']]
-            return result_queue
-        return None
-
-    def query_term(self, source_id='', field='', value='', fuzzy=False, match=False, order=None, limit=0, offset=0, id_only=False):
-        '''
-        Elasticsearch Query against an index
-        > discovery.query_index('indexID', 'name', '*', order={'name':'asc'}, limit=20, id_only=False)
-        '''
-        if not self.use_es:
-            raise BadRequest('Can not make queries without ElasticSearch, enable system.elasticsearch to make queries.')
-
-        validate_true(source_id, 'Unspecified source_id')
-        validate_true(field, 'Unspecified field')
-        validate_true(value, 'Unspecified value')
-
-
-        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
-
-        source = self.clients.resource_registry.read(source_id)
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        # If source is a view, catalog or collection go through it and recursively call query_range on all the results in the indexes
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        iterate = self._multi(self.query_term, source, field=field, value=value, order=order, limit=limit, offset=offset, id_only=id_only)
-        if iterate is not None:
-            return iterate
-
-
-        index = source
-        validate_is_instance(index, ElasticSearchIndex, '%s does not refer to a valid index.' % index)
-        if order: 
-            validate_is_instance(order,dict, 'Order is incorrect.')
-            es.sort(**order)
-
-        if limit:
-            es.size(limit)
-
-        if offset:
-            es.from_offset(offset)
-
-        if field == '*':
-            field = '_all'
-
-        if fuzzy:
-            query = ep.ElasticQuery.fuzzy_like_this(value, fields=[field])
-        elif match:
-            match_query = ep.ElasticQuery.match(field=field,query=value)
-            query = {"match_phrase_prefix":match_query['match']}
-            
-        elif '*' in value:
-            query = ep.ElasticQuery.wildcard(field=field, value=value)
-        else:
-            query = ep.ElasticQuery.field(field=field, query=value)
-
-        response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
-
-        IndexManagementService._check_response(response)
-
-        return self._results_from_response(response, id_only)
-
-    def query_range(self, source_id='', field='', from_value=None, to_value=None, order=None, limit=0, offset=0, id_only=False):
-        
-        if not self.use_es:
-            raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
-
-        if from_value is not None:
-            validate_true(isinstance(from_value,int) or isinstance(from_value,float), 'from_value is not a valid number')
-        if to_value is not None:
-            validate_true(isinstance(to_value,int) or isinstance(to_value,float), 'to_value is not a valid number')
-        validate_true(source_id, 'source_id not specified')
-
-        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
-
-
-        source = self.clients.resource_registry.read(source_id)
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        # If source is a view, catalog or collection go through it and recursively call query_range on all the results in the indexes
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        iterate = self._multi(self.query_range, source, field=field, from_value=from_value, to_value=to_value, order=order, limit=limit, offset=offset, id_only=id_only)
-        if iterate is not None:
-            return iterate
-
-        index = source
-        validate_is_instance(index,ElasticSearchIndex,'%s does not refer to a valid index.' % source_id)
-        if order:
-            validate_is_instance(order,dict,'Order is incorrect.')
-            es.sort(**order)
-
-        if limit:
-            es.size(limit)
-
-        if field == '*':
-            field = '_all'
-
-        query = ep.ElasticQuery.range(
-            field      = field,
-            from_value = from_value,
-            to_value   = to_value
-        )
-        response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
-
-        IndexManagementService._check_response(response)
-
-        return self._results_from_response(response, id_only)
-
-    def query_time(self, source_id='', field='', from_value=None, to_value=None, order=None, limit=0, offset=0, id_only=False):
-        if not self.use_es:
-            raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
-
-        if from_value is not None:
-            validate_is_instance(from_value,basestring,'"From" is not a valid string (%s)' % from_value)
-
-        if to_value is not None:
-            validate_is_instance(to_value,basestring,'"To" is not a valid string')
-
-        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
-
-        source = self.clients.resource_registry.read(source_id)
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        # If source is a view, catalog or collection go through it and recursively call query_time on all the results in the indexes
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        iterate = self._multi(self.query_time, source, field=field, from_value=from_value, to_value=to_value, order=order, limit=limit, offset=offset, id_only=id_only)
-        if iterate is not None:
-            return iterate
-
-        index = source
-        validate_is_instance(index,ElasticSearchIndex,'%s does not refer to a valid index.' % source_id)
-        if order:
-            validate_is_instance(order,dict,'Order is incorrect.')
-            es.sort(**order)
-
-        if limit:
-            es.size(limit)
-
-        if field == '*':
-            field = '_all'
-
-        if from_value is not None:
-            from_value = calendar.timegm(dateutil.parser.parse(from_value).timetuple()) * 1000
-
-        if to_value is not None:
-            to_value = calendar.timegm(dateutil.parser.parse(to_value).timetuple()) * 1000
-
-        query = ep.ElasticQuery.range(
-            field      = field,
-            from_value = from_value,
-            to_value   = to_value
-        )
-
-        response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
-
-        IndexManagementService._check_response(response)
-
-        return self._results_from_response(response, id_only)
-
-
-    def query_time_bounds(self, source_id='', field='', from_value=None, to_value=None, order=None, limit=0, offset=0, id_only=False):
-        if from_value is not None:
-            validate_is_instance(from_value,basestring,'"From" is not a valid string (%s)' % from_value)
-
-        if to_value is not None:
-            validate_is_instance(to_value,basestring,'"To" is not a valid string')
-
-        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
-
-        source = self.clients.resource_registry.read(source_id)
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        # If source is a view, catalog or collection go through it and recursively call query_time on all the results in the indexes
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        iterate = self._multi(self.query_time, source, field=field, from_value=from_value, to_value=to_value, order=order, limit=limit, offset=offset, id_only=id_only)
-        if iterate is not None:
-            return iterate
-
-        index = source
-        validate_is_instance(index,ElasticSearchIndex,'%s does not refer to a valid index.' % source_id)
-        if order:
-            validate_is_instance(order,dict,'Order is incorrect.')
-            es.sort(**order)
-
-        if field == '*':
-            field = '_all'
-            start_time = 'start_datetime'
-            end_time = 'end_datetime'
-        else:
-            start_time = '%s.start_datetime' % field
-            end_time = '%s.end_datetime' % field
-
-
-
-        if from_value is not None:
-            from_value = calendar.timegm(dateutil.parser.parse(from_value).timetuple()) * 1000
-
-        if to_value is not None:
-            to_value = calendar.timegm(dateutil.parser.parse(to_value).timetuple()) * 1000
-
-        query = {
-          "query": {
-            "match_all": {}
-          },
-          "filter": {
-            "and": [
-              {
-                "or": [
-                  {
-                    "range": {
-                      start_time: {
-                        "gte": from_value
-                      }
-                    }
-                  },
-                  {
-                    "range": {
-                      end_time: {
-                        "gte": from_value
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "or": [
-                  {
-                    "range": {
-                      start_time: {
-                        "lte": to_value
-                      }
-                    }
-                  },
-                  {
-                    "range": {
-                      end_time: {
-                        "lte": to_value
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        }
-        if limit:
-            query['size'] = limit
-        if offset:
-            query['from'] = offset
-
-        
-        response = IndexManagementService._es_call(es.raw_query,'%s/_search' % index.index_name,method='POST', data=query, host=self.elasticsearch_host, port=self.elasticsearch_port)
-        IndexManagementService._check_response(response)
-        return self._results_from_response(response, id_only)
- 
-
-    def query_vertical_bounds(self, source_id='', field='', from_value=None, to_value=None, order=None, limit=0, offset=0, id_only=False):
-        if from_value is not None:
-            validate_is_instance(from_value,float,'"From" is not a valid float (%s)' % from_value)
-
-        if to_value is not None:
-            validate_is_instance(to_value,float,'"To" is not a valid float')
-
-        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
-
-        source = self.clients.resource_registry.read(source_id)
-
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        # If source is a view, catalog or collection go through it and recursively call query_time on all the results in the indexes
-        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-        iterate = self._multi(self.query_time, source, field=field, from_value=from_value, to_value=to_value, order=order, limit=limit, offset=offset, id_only=id_only)
-        if iterate is not None:
-            return iterate
-
-        index = source
-        validate_is_instance(index,ElasticSearchIndex,'%s does not refer to a valid index.' % source_id)
-        if order:
-            validate_is_instance(order,dict,'Order is incorrect.')
-            es.sort(**order)
-
-
-        if field == '*':
-            field = '_all'
-            vertical_min = 'geospatial_vertical_min'
-            vertical_max = 'geospatial_vertical_max'
-        else:
-            vertical_min = '%s.geospatial_vertical_min' % field
-            vertical_max = '%s.geospatial_vertical_max' % field
-
-
-        query = {
-          "query": {
-            "match_all": {}
-          },
-          "filter": {
-            "and": [
-              {
-                "or": [
-                  {
-                    "range": {
-                      vertical_min: {
-                        "gte": from_value
-                      }
-                    }
-                  },
-                  {
-                    "range": {
-                      vertical_max: {
-                        "gte": from_value
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "or": [
-                  {
-                    "range": {
-                      vertical_min: {
-                        "lte": to_value
-                      }
-                    }
-                  },
-                  {
-                    "range": {
-                      vertical_max: {
-                        "lte": to_value
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        }
-        if limit:
-            query['size'] = limit
-        if offset:
-            query['from'] = offset
-
-        response = IndexManagementService._es_call(es.raw_query,'%s/_search' % index.index_name,method='POST', data=query, host=self.elasticsearch_host, port=self.elasticsearch_port)
-        IndexManagementService._check_response(response)
-        retval= self._results_from_response(response, id_only)
-        return retval
-
-
-    def query_association(self,resource_id='', depth=0, id_only=False):
-        validate_true(resource_id, 'Unspecified resource')
-        if depth:
-            resource_ids = self.iterative_traverse(resource_id, depth-1)
-        else:
-            resource_ids = self.traverse(resource_id)
-        if id_only:
-            return resource_ids
-
-        if not isinstance(resource_ids, list):
-            resource_ids = list(resource_ids)
-        resources = self.clients.resource_registry.read_mult(resource_ids)
-
-        return resources
-
-    def query_owner(self, resource_id='', depth=0, id_only=False):
-        validate_true(resource_id, 'Unspecified resource')
-        if depth:
-            resource_ids = self.iterative_traverse(resource_id, depth-1)
-        else:
-            resource_ids = self.reverse_traverse(resource_id)
-        if id_only:
-            return resource_ids
-
-        if not isinstance(resource_ids, list):
-            resource_ids = list(resource_ids)
-        resources = self.clients.resource_registry.read_mult(resource_ids)
-
-        return resources
-
-
-
-    def query_collection(self,collection_id='', id_only=False):
-        validate_true(collection_id, 'Unspecified collection id')
-        resource_ids = self.clients.index_management.list_collection_resources(collection_id, id_only=True)
-        if id_only:
-            return resource_ids
-        
-        resources = map(self.clients.resource_registry.read,resource_ids)
-        return resources
-
-    def query_geo_distance(self, source_id='', field='', origin=None, distance='', units='mi',order=None, limit=0, offset=0, id_only=False):
-        validate_true(isinstance(origin,(tuple,list)) , 'Origin is not a list or tuple.')
-        validate_true(len(origin)==2, 'Origin is not of the right size: (2)')
-
-        if not self.use_es:
-            raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
-
-        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
-        source = self.clients.resource_registry.read(source_id)
-
-        iterate = self._multi(self.query_geo_distance, source=source, field=field, origin=origin, distance=distance) 
-        if iterate is not None:
-            return iterate
-
-        index = source
-        validate_is_instance(index,ElasticSearchIndex, '%s does not refer to a valid index.' % index)
-
-        sorts = ep.ElasticSort()
-        if order is not None and isinstance(order,dict):
-            sort_field = order.keys()[0]
-            value = order[sort_field]
-            sorts.sort(sort_field,value)
-            es.sorted(sorts)
-
-        if limit:
-            es.size(limit)
-
-        if offset:
-            es.from_offset(offset)
-
-        if field == '*':
-            field = '_all'
-
-
-        sorts.geo_distance(field, origin, units)
-
-        es.sorted(sorts)
-
-        filter = ep.ElasticFilter.geo_distance(field,origin, '%s%s' %(distance,units))
-
-        es.filtered(filter)
-
-        query = ep.ElasticQuery.match_all()
-
-        response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
-        IndexManagementService._check_response(response)
-
-        return self._results_from_response(response,id_only)
-
-
-    def query_geo_bbox(self, source_id='', field='', top_left=None, bottom_right=None, order=None, limit=0, offset=0, id_only=False):
-        validate_true(isinstance(top_left, (list,tuple)), 'Top Left is not a list or a tuple')
-        validate_true(len(top_left)==2, 'Top Left is not of the right size: (2)')
-        validate_true(isinstance(bottom_right, (list,tuple)), 'Bottom Right is not a list or a tuple')
-        validate_true(len(bottom_right)==2, 'Bottom Right is not of the right size: (2)')
-
-        if not self.use_es:
-            raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
-
-        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
-        source = self.clients.resource_registry.read(source_id)
-
-        iterate = self._multi(self.query_geo_bbox, source=source, field=field, top_left=top_left, bottom_right=bottom_right, order=order, limit=limit, offset=offset, id_only=id_only)
-        if iterate is not None:
-            return iterate
-
-        index = source
-        validate_is_instance(index,ElasticSearchIndex, '%s does not refer to a valid index.' % index)
-
-        sorts = ep.ElasticSort()
-        if order is not None and isinstance(order,dict):
-            sort_field = order.keys()[0]
-            value = order[sort_field]
-            sorts.sort(sort_field,value)
-            es.sorted(sorts)
-
-        if limit:
-            es.size(limit)
-
-        if offset:
-            es.from_offset(offset)
-
-        if field == '*':
-            field = '_all'
-
-
-        filter = ep.ElasticFilter.geo_bounding_box(field, top_left, bottom_right)
-
-        es.filtered(filter)
-
-        query = ep.ElasticQuery.match_all()
-
-        response = IndexManagementService._es_call(es.search_index_advanced,index.index_name,query)
-        IndexManagementService._check_response(response)
-
-        return self._results_from_response(response,id_only)
-
-        
-
-    def es_complex_query(self,query,and_queries=None,or_queries=None):
-        pass
-
-
-    def es_map_query(self, query): 
-        '''
-        Maps an query request to an ElasticSearch query
-        '''
-        if not self.use_es:
-            raise BadRequest('Can not make queries without ElasticSearch, enable in res/config/pyon.yml')
-        if QueryLanguage.query_is_term_search(query):
-            return ep.ElasticQuery.wildcard(field=query['field'],value=query['value'])
-        if QueryLanguage.query_is_range_search(query):
-            return ep.ElasticQuery.range(
-                field      = query['field'],
-                from_value = query['range']['from'],
-                to_value   = query['range']['to']
-            )
-        
-
-    def request(self, query=None, id_only=True):
-        if not query:
-            raise BadRequest('No request query provided')
-
-        if "QUERYEXP" in query and self.ds_discovery:
-            # Support for datastore queries
-            pass
-
-        else:
-            if not query.has_key('query'):
-                raise BadRequest('Unsuported request. %s')
-
-            #==============================
-            # Check the form of the query
-            #==============================
-            #@todo: convert to IonObject
-            if not (query.has_key('query')):
-                raise BadRequest('Improper query request: %s' % query)
-
-        # Inject RR query execution e.g. for postgres
-        if self.ds_discovery:
-            res = self.ds_discovery.execute_query(query, id_only=id_only)
-            return res
-
-        # ---------------------------
-        # Number of results to return
-        # ---------------------------
-        limit = int(query.get('limit',self.MAX_SEARCH_RESULTS))
-
-        query_queue = list()
-
-        query = DotDict(query)
-       
-        # -- former tier-1 (no and/or) search, returns an elasticsearch object
-        if (len(query.get('and',[])) + len(query.get('or',[])) == 0 ):
-            return self.query_request(query.query,limit=self.SEARCH_BUFFER_SIZE)[:limit]
- 
-        query_queue.append(self.query_request(query.query,limit=self.SEARCH_BUFFER_SIZE, id_only=True))
-        
-        #==================
-        # Intersection
-        #==================
-        for q in query.get('and',[]):
-            query_queue.append(self.query_request(q, limit=self.SEARCH_BUFFER_SIZE, id_only=True))
-        while len(query_queue) > 1:
-            tmp = self.intersect(query_queue.pop(), query_queue.pop())
-            query_queue.append(tmp)
-        
-        #==================
-        # Union
-        #==================
-        for q in query.get('or',[]):
-            query_queue.append(self.query_request(q, limit=self.SEARCH_BUFFER_SIZE, id_only=True))
-        while len(query_queue) > 1:
-            tmp = self.union(query_queue.pop(), query_queue.pop())
-            query_queue.append(tmp)
-        
-        if id_only:
-            return query_queue[0][:limit]
-
-        objects = self.clients.resource_registry.read_mult(query_queue[0][:limit])
-        return objects
-
-
-
-
-    def raise_search_buffer_exceeded(self):
-        self.ep.publish_event(origin='Discovery Service', description='Search buffer was exceeded, results may not contain all the possible results.')
-
-    def _results_from_response(self, response, id_only):
-        deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
-        if not (response.has_key('hits') and response['hits'].has_key('hits')):
-            return []
-
-        hits = response['hits']['hits']
-       
-        if len(hits) > 0:
-            if len(hits) >= self.SEARCH_BUFFER_SIZE:
-                log.warning("Query results exceeded search buffer limitations")
-                self.raise_search_buffer_exceeded()
-            if id_only:
-                return [str(i['_id']) for i in hits]
-            results = map(deserializer.deserialize,hits)
-            return results
-        
-        else:
-            return []
-
-
 
 

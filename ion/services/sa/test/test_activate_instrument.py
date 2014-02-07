@@ -1,10 +1,37 @@
 #!/usr/bin/env python
-from ion.services.sa.test.helpers import AgentProcessStateGate
 
+from gevent.event import AsyncResult
+import unittest, os
+from nose.plugins.attrib import attr
+import gevent
+import elasticpy as ep
+from mock import patch
+
+import time
+
+from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.containers import DotDict
 from pyon.util.poller import poll
 from pyon.core.bootstrap import get_sys_name
-from gevent.event import AsyncResult
+from pyon.public import RT, PRED
+from pyon.core.bootstrap import CFG
+from pyon.public import IonObject, log
+from pyon.datastore.datastore import DataStore
+from pyon.event.event import EventPublisher, EventSubscriber
+from pyon.util.context import LocalContextMixin
+from pyon.util.containers import  get_ion_ts
+
+from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
+from pyon.agent.agent import ResourceAgentEvent
+
+from ion.services.sa.test.helpers import AgentProcessStateGate
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.inventory.index_management_service import IndexManagementService
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
+
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -17,49 +44,18 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 
-from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.inventory.index_management_service import IndexManagementService
-from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
-
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-
-from pyon.public import RT, PRED
-from pyon.core.bootstrap import CFG
-from pyon.public import IonObject, log
-from pyon.datastore.datastore import DataStore
-from pyon.event.event import EventPublisher, EventSubscriber
-
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.context import LocalContextMixin
-from pyon.util.containers import  get_ion_ts
-
-from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
-from pyon.agent.agent import ResourceAgentEvent
-import unittest, os
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue, ComputedDictValue, ComputedListValue, ComputedEventListValue
-# Alarm types and events.
-from interface.objects import StreamAlertType,AggregateStatusType, DeviceStatusType
 
-from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
-from nose.plugins.attrib import attr
-import gevent
-import elasticpy as ep
-from mock import patch
-
-import time
-
-use_es = CFG.get_safe('system.elasticsearch',False)
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 from ion.agents.instrument.test.load_test_driver_egg import load_egg
 load_egg()
 DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+
 
 class FakeProcess(LocalContextMixin):
     """
@@ -78,10 +74,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Start container
         super(TestActivateInstrumentIntegration, self).setUp()
         config = DotDict()
-        config.bootstrap.use_es = True
 
         self._start_container()
-        self.addCleanup(TestActivateInstrumentIntegration.es_cleanup)
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml', config)
 
@@ -105,23 +99,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self._samples_received = []
 
         self.event_publisher = EventPublisher()
-
-    @staticmethod
-    def es_cleanup():
-        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
-        es_port = CFG.get_safe('server.elasticsearch.port', '9200')
-        es = ep.ElasticSearch(
-            host=es_host,
-            port=es_port,
-            timeout=10
-        )
-        indexes = STD_INDEXES.keys()
-        indexes.append('%s_resources_index' % get_sys_name().lower())
-        indexes.append('%s_events_index' % get_sys_name().lower())
-
-        for index in indexes:
-            IndexManagementService._es_call(es.river_couchdb_delete,index)
-            IndexManagementService._es_call(es.index_delete,index)
 
 
     def create_logger(self, name, stream_id=''):
@@ -244,7 +221,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     #@unittest.skip('refactoring')
-    #@unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 90}}})
     def test_activateInstrumentSample(self):
@@ -380,11 +356,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasDataset, RT.Dataset, True)
         log.debug('Data set for data_product_id2 = %s' , dataset_ids[0])
         self.raw_dataset = dataset_ids[0]
-
-        #elastic search debug
-        es_indexes, _ = self.container.resource_registry.find_resources(restype='ElasticSearchIndex')
-        log.debug('ElasticSearch indexes: %s', [i.name for i in es_indexes])
-        log.debug('Bootstrap %s', CFG.bootstrap.use_es)
 
 
         def start_instrument_agent():

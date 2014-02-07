@@ -1,18 +1,27 @@
 #!/usr/bin/env python
-'''
-@author Luke Campbell <LCampbell@ASAScience.com>
-@file discovery_test
-@date 05/07/12 08:17
-@description Integration and Unit tests for Discovery Service
-'''
+
+"""Integration and Unit tests for Discovery Service"""
+
+__author__ = 'Luke Campbell <LCampbell@ASAScience.com>, Michael Meisinger'
+
 from unittest.case import skipIf, skip, SkipTest
-from pyon.public import PRED, CFG, RT
-from pyon.core.exception import BadRequest, NotFound
-from pyon.core.bootstrap import get_sys_name
+import dateutil.parser
+import time
+import calendar
+from nose.plugins.attrib import attr
+from mock import Mock, patch, sentinel
+from datetime import date, timedelta
+
+from pyon.util.unit_test import IonUnitTestCase
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.unit_test import PyonTestCase
-from pyon.util.containers import DotDict
-from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess, UserInfo, ContactInformation, Dataset
+from pyon.public import PRED, CFG, RT, BadRequest, NotFound, DotDict
+from pyon.util.poller import poll_wrapper
+
+from ion.services.dm.presentation.discovery_service import DiscoveryService
+from ion.services.dm.inventory.index_management_service import IndexManagementService
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.util.geo_utils import GeoUtils
+
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from interface.services.dm.icatalog_management_service import CatalogManagementServiceClient
@@ -20,42 +29,20 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from ion.services.dm.presentation.discovery_service import DiscoveryService
-from ion.services.dm.inventory.index_management_service import IndexManagementService
-from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
-from nose.plugins.attrib import attr
-from mock import Mock, patch, sentinel
-from datetime import date, timedelta
-from pyon.util.ion_time import IonTime
-from pyon.util.containers import get_ion_ts
-from pyon.util.poller import poll_wrapper
 
-import gevent
-import elasticpy as ep
-import dateutil.parser
-import time
-import os
-import unittest
-import calendar
-
-
-
-use_es = CFG.get_safe('system.elasticsearch',False)
-cfg_datastore = CFG.get_safe('container.datastore.default_server', "couchdb")
+from interface.objects import InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, \
+    DataProcess, UserInfo, ContactInformation, Dataset, GeospatialIndex, GeospatialBounds, TemporalBounds
 
 
 @attr('UNIT', group='dm')
-class DiscoveryUnitTest(PyonTestCase):
+class DiscoveryUnitTest(IonUnitTestCase):
     def setUp(self):
-        if cfg_datastore != "couchdb":
-            raise SkipTest("POSTGRES WITHOUT ES")
-        super(DiscoveryUnitTest,self).setUp()
+        super(DiscoveryUnitTest, self).setUp()
         mock_clients = self._create_service_mock('discovery')
         self.discovery = DiscoveryService()
+        self.discovery.on_start()
         self.discovery.clients = mock_clients
-        self.discovery.use_es = True
-        
+
         self.rr_create = mock_clients.resource_registry.create
         self.rr_read = mock_clients.resource_registry.read
         self.rr_update = mock_clients.resource_registry.update
@@ -80,12 +67,12 @@ class DiscoveryUnitTest(PyonTestCase):
 
         self.assertTrue(retval=='res_id', 'Improper resource creation')
 
-    def test_create_exists(self):
+    def test_create_view_exists(self):
         self.rr_find_res.return_value = ([1], [1])
         with self.assertRaises(BadRequest):
             self.discovery.create_view('doesnt matter', fields=['name'])
 
-    def test_create_no_fields(self):
+    def test_create_view_no_fields(self):
         self.rr_find_res.return_value = ([],[])
         self.rr_create.return_value = ('res_id', 'rev_id')
         self.cms_create.return_value = 'catalog_id'
@@ -93,7 +80,7 @@ class DiscoveryUnitTest(PyonTestCase):
         with self.assertRaises(BadRequest):
             self.discovery.create_view('mock_view')
 
-    def test_create_order(self):
+    def test_create_view_order(self):
         self.rr_find_res.return_value = ([],[])
         self.rr_create.return_value = ('res_id', 'rev_id')
         self.cms_create.return_value = 'catalog_id'
@@ -122,65 +109,30 @@ class DiscoveryUnitTest(PyonTestCase):
         self.assertTrue(self.rr_delete_assoc.call_count == 1)
 
 
-    def test_list_catalogs(self):
-        self.rr_find_obj.return_value = (['test'],[])
+    def test_bad_query(self):
+        query = DotDict()
+        query.unknown = 'yup'
 
-        retval = self.discovery.list_catalogs('view_id')
-        self.assertTrue(retval[0] == 'test')
+        with self.assertRaises(BadRequest):
+            self.discovery.query(query)
+    
+    def test_bad_requests(self):
+        #================================
+        # Battery of broken requests
+        #================================
+        self.discovery.ds_discovery = Mock()
+        bad_requests = [
+            {},
+            {'field':"f"},
+            {'and':[]},
+            {'or':[]},
+        ]
+        for req in bad_requests:
+            with self.assertRaises(BadRequest):
+                self.discovery.request(req)
 
-
-    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
-    def test_query_index(self, es_mock):
-        mock_index = ElasticSearchIndex(content_type=IndexManagementService.ELASTICSEARCH_INDEX)
-        self.rr_read.return_value = mock_index
-        self.discovery.elasticsearch_host = 'fakehost'
-        self.discovery.elasticsearch_port = 'fakeport'
-        es_mock().search_index_advanced.return_value = {'hits':{'hits':[{'_id':'success'}]}}
-
-        retval = self.discovery.query_term('mock_index', 'field', 'value', order={'name':'asc'}, limit=20, offset=20)
-
-        self.assertTrue(retval[0]['_id']=='success', '%s' % retval)
-
-    def test_query(self):
-        self.discovery.request = lambda x,y : x
-        retval = self.discovery.query('test')
-        self.assertTrue(retval == 'test')
-
-    def test_query_couch(self):
-        pass
-        
-
-    @skip('Needs to be adjusted for new traversal')
-    def test_traverse(self):
-        edge_list = ['B','C','D']
-        callers = []
-        def pop_edge(*args, **kwargs):
-            callers.append(args[0])
-            if len(edge_list):
-                val = edge_list.pop(0)
-                return [val], 'blah'
-            return [], 'blah'
-        self.rr_find_obj.side_effect = pop_edge
-
-        retval = self.discovery.traverse('A')
-        retval.sort()
-        self.assertTrue(retval == ['B','C','D'], '%s' % retval)
-
-    def test_intersect(self):
-        test_vals = [0,1,2,3]
-        other = [2,1]
-        retval = self.discovery.intersect(test_vals,other)
-        retval.sort()
-        self.assertTrue(retval == [1,2])
-
-    def test_union(self):
-        test_vals = [0,1,2,3]
-        other = [4,5]
-        retval = self.discovery.union(test_vals,other)
-        retval.sort()
-        self.assertTrue(retval == [0,1,2,3,4,5], '%s' % retval)
     @patch('ion.services.dm.presentation.discovery_service.QueryLanguage')
-    def test_parse(self, mock_parser):
+    def test_parse_mock(self, mock_parser):
         mock_parser().parse.return_value = 'arg'
         self.discovery.request = Mock()
         self.discovery.request.return_value = 'correct_value'
@@ -188,253 +140,274 @@ class DiscoveryUnitTest(PyonTestCase):
         self.discovery.request.assert_called_once_with('arg', id_only=sentinel.id_only)
         self.assertTrue(retval=='correct_value', '%s' % retval)
 
-    def test_query_request_term_search(self):
-        query = DotDict()
-        query.index = 'index_id'
-        query.field = 'field'
-        query.value = 'value'
-        self.discovery.query_term = Mock()
-        self.discovery.query_term.return_value = 'test'
+    def test_parse(self):
+        ds_mock = Mock()
+        self.discovery.ds_discovery._get_datastore = Mock(return_value=ds_mock)
+        ds_mock.find_resources_mult = Mock(return_value=["FOO"])
 
-        retval = self.discovery.query_request(query)
-        self.assertTrue(retval == 'test', '%s' % retval)
+        search_string = "search 'serial_number' is 'abc' from 'resources_index'"
+        retval = self.discovery.parse(search_string)
+        self.discovery.ds_discovery._get_datastore.assert_called_once_with("resources")
+        self.assertEquals(retval, ["FOO"])
 
-    def test_query_request_association(self):
-        query = DotDict()
-        query.association = 'resource_id'
-
-        self.discovery.query_association = Mock()
-        self.discovery.query_association.return_value = 'test'
-
-        retval = self.discovery.query_request(query)
-        self.assertTrue(retval == 'test')
-
-    def test_query_request_range(self):
-        query = DotDict()
-        query['range'] = {'from':0, 'to':90}
-        query.index = 'index_id'
-        query.field = 'field'
-
-        self.discovery.query_range = Mock()
-        self.discovery.query_range.return_value = 'test'
-
-        retval = self.discovery.query_request(query)
-        self.assertTrue(retval == 'test')
-
-    def test_query_request_collection(self):
-        query = DotDict()
-        query.collection = 'test'
-
-        self.discovery.query_collection = Mock()
-        self.discovery.query_collection.return_value = 'test'
-
-        retval = self.discovery.query_request(query)
-        self.assertTrue(retval == 'test')
-
-    def test_bad_query(self):
-        query = DotDict()
-        query.unknown = 'yup'
-
-        with self.assertRaises(BadRequest):
-            self.discovery.query_request(query)
-    
-    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
-    def test_query_range(self, mock_es):
-        mock_index = ElasticSearchIndex(name='index', index_name='index')
-        self.discovery.elasticsearch_host = 'fakehost'
-        self.discovery.elasticsearch_port = 'fakeport'
-        self.rr_read.return_value = mock_index
-        hits = [{'_id':'a'},{'_id':'b'}]
-        mock_es().search_index_advanced.return_value = {'hits':{'hits':hits}}
-
-        retval = self.discovery.query_range('index_id','field',0,100,id_only=False)
-
-        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery.range(field='field', from_value=0, to_value=100))
-        retval.sort()
-        self.assertTrue(retval==hits, '%s' % retval)
-        
-        retval = self.discovery.query_range('index_id','field',0,100,id_only=True)
-        retval.sort()
-        self.assertTrue(retval==['a','b'])
-
-    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
-    def test_query_time(self, mock_es):
-        mock_index = ElasticSearchIndex(name='index', index_name='index')
-        self.discovery.elasticsearch_host = 'fakehost'
-        self.discovery.elasticsearch_port = 'fakeport'
-        self.rr_read.return_value = mock_index
-        hits = [{'_id':'a'},{'_id':'b'}]
-        mock_es().search_index_advanced.return_value = {'hits':{'hits':hits}}
-
-        date1 = '2012-01-01'
-        ts1 = calendar.timegm( dateutil.parser.parse(date1).timetuple()) * 1000
-        date2 = '2012-02-01'
-        ts2 = calendar.timegm( dateutil.parser.parse(date2).timetuple()) * 1000
-
-        retval = self.discovery.query_time('index_id','field',date1,date2,id_only=False)
-
-        mock_es().search_index_advanced.assert_called_once_with('index',ep.ElasticQuery.range(field='field', from_value=ts1, to_value=ts2))
-        retval.sort()
-        self.assertTrue(retval==hits, '%s' % retval)
-        
-        retval = self.discovery.query_time('index_id','field',date1,date2,id_only=True)
-        retval.sort()
-        self.assertTrue(retval==['a','b'])
-
-    @skip('Needs to be adjusted for changes in association traversal')
-    def test_query_association(self):
-        self.discovery.traverse = Mock()
-        self.discovery.traverse.return_value = ['a','b','c']
-
-        retval = self.discovery.query_association('blah',id_only=True)
-        retval.sort()
-        self.assertTrue(retval == ['a','b','c'])
-
-        self.rr_read.return_value = 'test'
-
-        retval = self.discovery.query_association('blah',id_only=False)
-        self.assertTrue(retval == (['test']*3))
-
-    def test_es_map_query(self):
-        pass
 
     def test_tier1_request(self):
-        self.discovery.query_request = Mock()
-        self.discovery.query_request.return_value = 'test'
+        ds_mock = Mock()
+        self.discovery.ds_discovery._get_datastore = Mock(return_value=ds_mock)
+        ds_mock.find_resources_mult = Mock(return_value=["FOO"])
 
-        query = {'query':{}}
-
+        query = {'query':{'field': 'name', 'value': 'foo'}}
         retval = self.discovery.request(query)
-
-        self.assertTrue(retval=='test')
-        self.discovery.query_request.assert_called_once_with({}, limit=1048576)
+        self.discovery.ds_discovery._get_datastore.assert_called_once_with("resources")
+        self.assertEquals(retval, ["FOO"])
 
     def test_tier2_request(self):
-        result_list = [[0,1,2],[1,2],[0,1,2],[1,2,3,4]]
-        def query_request(*args, **kwargs):
-            if len(result_list):
-                return result_list.pop(0)
-            return None
+        ds_mock = Mock()
+        self.discovery.ds_discovery._get_datastore = Mock(return_value=ds_mock)
+        ds_mock.find_resources_mult = Mock(return_value=["FOO"])
 
-        self.discovery.query_request = Mock()
-        self.discovery.query_request.side_effect = query_request
-        #========================
-        # Intersection
-        #========================
+        query = {'query':{'field': 'name', 'value': 'foo'}, 'and':[{'field': 'lcstate', 'value': 'foo2'}]}
+        retval = self.discovery.request(query)
+        self.discovery.ds_discovery._get_datastore.assert_called_once_with("resources")
+        self.assertEquals(retval, ["FOO"])
 
-        request = {'and':[{}], 'or':[], 'query':{}}
+        query = {'query':{'field': 'name', 'value': 'foo'}, 'or':[{'field': 'lcstate', 'value': 'foo2'}]}
+        retval = self.discovery.request(query)
+        self.assertEquals(retval, ["FOO"])
 
-        retval = self.discovery.request(request)
-        retval.sort()
-
-        self.assertTrue(retval == [1,2])
-
-        #========================
-        # Union
-        #========================
-
-        request = {'and':[], 'or':[{}], 'query':{}}
-
-        retval = self.discovery.request(request)
-        retval.sort()
-
-        self.assertTrue(retval == [0,1,2,3,4])
-
-    def test_bad_requests(self):
-        #================================
-        # Battery of broken requests
-        #================================
-
-        bad_requests = [
-            {},
-            {'and':[]},
-            {'query':{}},
-            {'or':[]},
-            {'and':{},'or':[],'query':[]},
-
-        ]
-        for req in bad_requests:
-            with self.assertRaises(BadRequest):
-                self.discovery.request(req)
-
-    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
-    def test_view_request(self, mock_es):
-        self.call_count = 0
-        def cb(*args, **kwargs):
-            self.call_count +=1
-            return [1]
-        self.discovery.elasticsearch_host = ''
-        self.discovery.elasticsearch_port = ''
-
-        v = View()
-        setattr(v, '_id', 'a')
-        self.discovery.list_catalogs = Mock()
-        self.discovery.list_catalogs.return_value = [1,2]
-
-        retval = self.discovery._multi(cb,v)
-        self.assertTrue(retval == [1,1])
-
-        c = Catalog()
-        setattr(c, '_id', 'c')
-        self.cms_list_indexes.return_value = [1,2]
-
-        retval = self.discovery._multi(cb,c)
-        self.assertTrue(retval == [1,1])
-
-
-        retval = self.discovery._multi(cb,v, limit=1)
-        self.assertTrue(retval == [1])
-
-        retval = self.discovery._multi(cb,c, limit=1)
-        self.assertTrue(retval == [1])
-        
-        self.discovery._multi = Mock()
-        self.rr_read.return_value = v
-        self.discovery._multi.return_value = 'test'
-        retval = self.discovery.query_term('blah', 'field', 'value')
-        self.assertTrue(retval == 'test')
-
-    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
-    def test_query_geo_distance(self, mock_es):
-        self.rr_read.return_value = ElasticSearchIndex(name='test')
-        self.discovery.elasticsearch_host = ''
-        self.discovery.elasticsearch_port = ''
-        self.discovery._multi = Mock()
-        self.discovery._multi.return_value = None
-        response = {'ok':True, 'status':200, 'hits':{'hits':['hi']}}
-        mock_es().search_index_advanced.return_value = response
-
-        retval = self.discovery.query_geo_distance('abc13', 'blah', [0,0], 20)
-
-        self.assertTrue(retval == ['hi'])
-
-    @patch('ion.services.dm.presentation.discovery_service.ep.ElasticSearch')
-    def test_query_geo_bbox(self, mock_es):
-        self.rr_read.return_value = ElasticSearchIndex(name='test')
-        self.discovery.elasticsearch_host = ''
-        self.discovery.elasticsearch_port = ''
-        self.discovery._multi = Mock()
-        self.discovery._multi.return_value = None
-        response = {'ok':True, 'status':200, 'hits':{'hits':['hi']}}
-        mock_es().search_index_advanced.return_value = response
-
-        retval = self.discovery.query_geo_bbox('abc123', 'blah', [0,10], [10,0])
-
-        self.assertTrue(retval == ['hi'])
-
-
-        
 @attr('INT', group='dm')
-@attr('LOCOINT')
-@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+class DiscoveryQueryTest(IonIntegrationTestCase):
+    """Tests discovery in a somewhat integration environment. Only a container and a DiscoveryService instance
+    but no r2deploy and process"""
+    def setUp(self):
+        self._start_container()
+
+        self.discovery = DiscoveryService()
+        self.discovery.container = self.container
+        self.discovery.on_start()
+
+        self.rr = self.container.resource_registry
+
+    def _geopt(self, x1, y1):
+        return GeospatialIndex(lat=float(x1), lon=float(y1))
+
+    def _geobb(self, x1, y1, x2=None, y2=None, z1=0.0, z2=None):
+        if x2 is None: x2 = x1
+        if y2 is None: y2 = y1
+        if z2 is None: z2 = z1
+        return GeospatialBounds(geospatial_latitude_limit_north=float(y2),
+                                geospatial_latitude_limit_south=float(y1),
+                                geospatial_longitude_limit_west=float(x1),
+                                geospatial_longitude_limit_east=float(x2),
+                                geospatial_vertical_min=float(z1),
+                                geospatial_vertical_max=float(z2))
+
+    def _temprng(self, t1="", t2=None):
+        if t2 is None: t2 = t1
+        return TemporalBounds(start_datetime=str(t1), end_datetime=str(t2))
+
+
+    def _geodp(self, x1, y1, x2=None, y2=None, z1=0.0, z2=None, t1="", t2=None):
+        if x2 is None: x2 = x1
+        if y2 is None: y2 = y1
+        if z2 is None: z2 = z1
+        if t2 is None: t2 = t1
+        bounds = self._geobb(x1, y1, x2, y2, z1, z2)
+        attrs = dict(geospatial_point_center=GeoUtils.calc_geospatial_point_center(bounds),
+                     geospatial_bounds=bounds,
+                     nominal_datetime=self._temprng(t1, t2))
+        return attrs
+
+
+    def test_basic_searching(self):
+        t0 = 1363046400
+        hour = 60*24
+        day = 60*60*24
+        resources = [
+            ("ID1", InstrumentDevice(name='sonobuoy1', firmware_version='A1')),
+            ("ID2", InstrumentDevice(name='sonobuoy2', firmware_version='A2')),
+            ("ID3", InstrumentDevice(name='sonobuoy3', firmware_version='A3')),
+
+            ("DP1", DataProduct(name='testData1', **self._geodp(5, 5, 15, 15, 0, 100, t0, t0+day))),
+            ("DP2", DataProduct(name='testData2', **self._geodp(25, 5, 35, 15, 0, 100, t0+hour+day, t0+2*day))),
+            ("DP3", DataProduct(name='testData3', **self._geodp(30, 10, 40, 20, 50, 200, t0+100*day, t0+110*day))),
+            ("DP4", DataProduct(name='testData4', **self._geodp(30, 5, 32, 10, 5, 20, t0+100*day, t0+110*day))),
+        ]
+        res_by_alias = {}
+        for (alias, resource) in resources:
+            rid,_ = self.rr.create(resource)
+            res_by_alias[alias] = rid
+
+        # ----------------------------------------------------
+        # Resource attribute search
+
+        # Resource attribute equals
+        search_string = "search 'firmware_version' is 'A2' from 'resources_index'"
+        result  = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 1)
+        self.assertIsInstance(result[0], InstrumentDevice)
+        self.assertTrue(result[0].name == 'sonobuoy2')
+        self.assertTrue(result[0].firmware_version == 'A2')
+
+        query_str = "{'and': [], 'or': [], 'query': {'field': 'firmware_version', 'index': 'resources_index', 'value': 'A2'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result), len(result1))
+        self.assertEquals(result, result1)
+
+        # Resource attribute match
+        search_string = "search 'firmware_version' is 'A*' from 'resources_index'"
+        result  = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 3)
+
+        query_str = "{'and': [], 'or': [], 'query': {'field': 'firmware_version', 'index': 'resources_index', 'value': 'A*'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result), len(result1))
+        self.assertEquals(result, result1)
+
+        # Resource attribute match with limit
+        search_string = "search 'firmware_version' is 'A*' from 'resources_index' limit 2"
+        result  = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 2)
+
+        query_str = "{'and': [], 'limit': 2, 'or': [], 'query': {'field': 'firmware_version', 'index': 'resources_index', 'value': 'A*'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result), len(result1))
+        self.assertEquals(result, result1)
+
+        # Check data products
+        search_string = "search 'name' is 'testData*' from 'resources_index'"
+        result  = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 4)
+
+        search_string = "search 'type_' is 'DataProduct' from 'resources_index'"
+        result  = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 4)
+
+        # ----------------------------------------------------
+        # Geospatial search
+
+        # Geospatial search - query bbox fully overlaps
+        search_string = "search 'geospatial_point_center' geo box top-left lat 180 lon -180 bottom-right lat -180 lon 180 from 'resources_index'"
+        result  = self.discovery.parse(search_string, id_only=True)
+        self.assertGreaterEqual(len(result), 4)
+        for dp in ["DP1", "DP2", "DP3", "DP4"]:
+            self.assertIn(res_by_alias[dp], result)
+
+        search_string = "search 'geospatial_point_center' geo box top-left lat 20 lon 0 bottom-right lat 0 lon 20 from 'resources_index'"
+        result  = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 1)
+
+        # Note that in Discovery intermediate format top_left=x1,y2 and bottom_right=x2,y1 contrary to naming
+        query_str = "{'and': [], 'or': [], 'query': {'top_left': [0.0, 20.0], 'bottom_right': [20.0, 0.0], 'field': 'index_location', 'index': 'resources_index'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result), len(result1))
+        self.assertEquals(result, result1)
+
+        # Geospatial bbox operators - overlaps (this is the default and should be the same as above)
+        query_str = "{'and': [], 'or': [], 'query': {'top_left': [0.0, 20.0], 'bottom_right': [20.0, 0.0], 'field': 'geospatial_bounds', 'index': 'resources_index', 'cmpop': 'overlaps'}}"
+        query_obj = eval(query_str)
+        result2  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result1), len(result2))
+        self.assertEquals(result1, result2)
+
+        # Geospatial bbox operators - contains (the resource contains the query)
+        query_str = "{'and': [], 'or': [], 'query': {'top_left': [0.0, 20.0], 'bottom_right': [20.0, 0.0], 'field': 'geospatial_bounds', 'index': 'resources_index', 'cmpop': 'contains'}}"
+        query_obj = eval(query_str)
+        result3  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result3), 0)
+
+        query_str = "{'and': [], 'or': [], 'query': {'top_left': [8.0, 11.0], 'bottom_right': [12.0, 9.0], 'field': 'geospatial_bounds', 'index': 'resources_index', 'cmpop': 'contains'}}"
+        query_obj = eval(query_str)
+        result3  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result3), 1)
+
+        # Geospatial bbox operators - within (the resource with the query)
+        query_str = "{'and': [], 'or': [], 'query': {'top_left': [0.0, 20.0], 'bottom_right': [20.0, 0.0], 'field': 'geospatial_bounds', 'index': 'resources_index', 'cmpop': 'within'}}"
+        query_obj = eval(query_str)
+        result3  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result3), 1)
+
+        query_str = "{'and': [], 'or': [], 'query': {'top_left': [15.0, 5.0], 'bottom_right': [5.0, 15.0], 'field': 'geospatial_bounds', 'index': 'resources_index', 'cmpop': 'within'}}"
+        query_obj = eval(query_str)
+        result3  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result3), 1)
+
+        query_str = "{'and': [], 'or': [], 'query': {'top_left': [14.0, 5.0], 'bottom_right': [5.0, 15.0], 'field': 'geospatial_bounds', 'index': 'resources_index', 'cmpop': 'within'}}"
+        query_obj = eval(query_str)
+        result3  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result3), 0)
+
+        # Geospatial search - query bbox partial overlaps
+        search_string = "search 'geospatial_bounds' geo box top-left lat 11 lon 9 bottom-right lat 9 lon 11 from 'resources_index'"
+        result  = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 1)
+
+        # ----------------------------------------------------
+        # Vertical search
+
+        search_string = "search 'geospatial_bounds' vertical from 0 to 500 from 'resources_index'"
+        result  = self.discovery.parse(search_string, id_only=True)
+        self.assertGreaterEqual(len(result), 4)
+        for dp in ["DP1", "DP2", "DP3", "DP4"]:
+            self.assertIn(res_by_alias[dp], result)
+
+        query_str = "{'and': [], 'or': [], 'query': {'field': 'geospatial_bounds', 'index': 'resources_index', 'vertical_bounds': {'from': 0.0, 'to': 500.0}, 'cmpop': 'overlaps'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result1), 4)
+
+        query_str = "{'and': [], 'or': [], 'query': {'field': 'geospatial_bounds', 'index': 'resources_index', 'vertical_bounds': {'from': 1.0, 'to': 2.0}, 'cmpop': 'overlaps'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result1), 2)
+
+        query_str = "{'and': [], 'or': [], 'query': {'field': 'geospatial_bounds', 'index': 'resources_index', 'vertical_bounds': {'from': 110.0, 'to': 120.0}, 'cmpop': 'contains'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=True)
+        self.assertEquals(len(result1), 1)
+        self.assertEquals(res_by_alias["DP3"], result1[0])
+
+        query_str = "{'and': [], 'or': [], 'query': {'field': 'geospatial_bounds', 'index': 'resources_index', 'vertical_bounds': {'from': 5.0, 'to': 30.0}, 'cmpop': 'within'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=True)
+        self.assertEquals(len(result1), 1)
+        self.assertEquals(res_by_alias["DP4"], result1[0])
+
+        # ----------------------------------------------------
+        # Temporal search
+
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'resources_index'" %('2013-03-12','2013-03-19')
+        result  = self.discovery.parse(search_string, id_only=True)
+        self.assertEquals(len(result), 2)
+        for dp in ["DP1", "DP2"]:
+            self.assertIn(res_by_alias[dp], result)
+
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'resources_index'" %('2013-03-12','2013-11-19')
+        result  = self.discovery.parse(search_string, id_only=True)
+        self.assertEquals(len(result), 4)
+        for dp in ["DP1", "DP2", "DP3", "DP4"]:
+            self.assertIn(res_by_alias[dp], result)
+
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'resources_index'" %('2013-03-12','2013-03-13')
+        result  = self.discovery.parse(search_string, id_only=True)
+        self.assertEquals(len(result), 1)
+        for dp in ["DP1"]:
+            self.assertIn(res_by_alias[dp], result)
+
+
+@attr('INT', group='dm')
 class DiscoveryIntTest(IonIntegrationTestCase):
     def setUp(self):
+        raise SkipTest("Not yet ported to Postgres")
+
         super(DiscoveryIntTest, self).setUp()
         config = DotDict()
-        config.bootstrap.use_es = True
 
         self._start_container()
-        self.addCleanup(DiscoveryIntTest.es_cleanup)
         self.container.start_rel_from_url('res/deploy/r2deploy.yml', config)
 
         self.discovery               = DiscoveryServiceClient()
@@ -445,213 +418,23 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.pubsub_management       = PubsubManagementServiceClient()
         self.data_product_management = DataProductManagementServiceClient()
 
-    @staticmethod
-    def es_cleanup():
-        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
-        es_port = CFG.get_safe('server.elasticsearch.port', '9200')
-        es = ep.ElasticSearch(
-            host=es_host,
-            port=es_port,
-            timeout=10
-        )
-        indexes = STD_INDEXES.keys()
-        indexes.append('%s_resources_index' % get_sys_name().lower())
-        indexes.append('%s_events_index' % get_sys_name().lower())
 
-        for index in indexes:
-            IndexManagementService._es_call(es.river_couchdb_delete,index)
-            IndexManagementService._es_call(es.index_delete,index)
+    def test_geo_distance_search(self):
 
+        pd = PlatformDevice(name='test_dev')
 
-    def poll(self, tries, callback, *args, **kwargs):
-        '''
-        Polling wrapper for queries
-        Elasticsearch may not index and cache the changes right away so we may need 
-        a couple of tries and a little time to go by before the results show.
-        '''
-        for i in xrange(tries):
-            retval = callback(*args, **kwargs)
-            if retval:
-                return retval
-            time.sleep(0.2)
-        return None
+        pd_id, _ = self.rr.create(pd)
 
+        search_string = "search 'index_location' geo distance 20 km from lat 0 lon 0 from 'devices_index'"
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    def test_traversal(self):
-        dp        = DataProcess()
-        transform = Transform()
-        pd        = ProcessDefinition()
+        results = self.poll(9, self.discovery.parse,search_string)
 
-        dp_id, _        = self.rr.create(dp)
-        transform_id, _ = self.rr.create(transform)
-        pd_id, _        = self.rr.create(pd)
-
-        self.rr.create_association(subject=dp_id, object=transform_id, predicate=PRED.hasTransform)
-        self.rr.create_association(subject=transform_id, object=pd_id, predicate=PRED.hasProcessDefinition)
-
-        results = self.discovery.traverse(dp_id)
-        results.sort()
-        correct = [pd_id, transform_id]
-        correct.sort()
-        self.assertTrue(results == correct, '%s' % results)
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    def test_iterative_traversal(self):
-        dp        = DataProcess()
-        transform = Transform()
-        pd        = ProcessDefinition()
-
-        dp_id, _        = self.rr.create(dp)
-        transform_id, _ = self.rr.create(transform)
-        pd_id, _        = self.rr.create(pd)
-
-        self.rr.create_association(subject=dp_id, object=transform_id, predicate=PRED.hasTransform)
-        self.rr.create_association(subject=transform_id, object=pd_id, predicate=PRED.hasProcessDefinition)
-
-        results = self.discovery.iterative_traverse(dp_id)
-        results.sort()
-        correct = [transform_id]
-        self.assertTrue(results == correct)
-
-        results = self.discovery.iterative_traverse(dp_id, 1)
-        results.sort()
-        correct = [transform_id, pd_id]
-        correct.sort()
-        self.assertTrue(results == correct)
-    
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
-    def test_view_crud(self):
-        view_id = self.discovery.create_view('big_view',fields=['name'])
-        catalog_id = self.discovery.list_catalogs(view_id)[0]
-        index_ids = self.catalog.list_indexes(catalog_id)
-        self.assertTrue(len(index_ids))
-
-        view = self.discovery.read_view(view_id)
-        self.assertIsInstance(view,View)
-        self.assertTrue(view.name == 'big_view')
-
-        view.name = 'not_so_big_view'
-
-        self.discovery.update_view(view)
-
-        view = self.discovery.read_view(view_id)
-        self.assertTrue(view.name == 'not_so_big_view')
-
-        self.discovery.delete_view(view_id)
-        with self.assertRaises(NotFound):
-            self.discovery.read_view(view_id)
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    def test_view_best_match(self):
-        #---------------------------------------------------------------
-        # Matches the best catalog available OR creates a new one
-        #---------------------------------------------------------------
-        catalog_id = self.catalog.create_catalog('dev', keywords=['name','model'])
-        view_id    = self.discovery.create_view('exact_view', fields=['name','model'])
-        catalog_ids = self.discovery.list_catalogs(view_id)
-        self.assertTrue(catalog_ids == [catalog_id])
-
-        view_id = self.discovery.create_view('another_view', fields=['name','model'])
-        catalog_ids = self.discovery.list_catalogs(view_id)
-        self.assertTrue(catalog_ids == [catalog_id])
-
-        view_id = self.discovery.create_view('big_view', fields=['name'])
-        catalog_ids = self.discovery.list_catalogs(view_id)
-        self.assertTrue(catalog_ids != [catalog_id])
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
-    def test_basic_searching(self):
-
-        #- - - - - - - - - - - - - - - - - 
-        # set up the fake resources
-        #- - - - - - - - - - - - - - - - - 
-
-        instrument_pool = [
-            InstrumentDevice(name='sonobuoy1', firmware_version='1'),
-            InstrumentDevice(name='sonobuoy2', firmware_version='2'),
-            InstrumentDevice(name='sonobuoy3', firmware_version='3')
-        ]
-        for instrument in instrument_pool:
-            self.rr.create(instrument)
-
-        view_id = self.discovery.create_view('devices', fields=['firmware_version'])
-
-        search_string = "search 'firmware_version' is '2' from '%s'"%view_id
-        results = self.poll(5, self.discovery.parse,search_string)
-        result  = results[0]['_source']
-        self.assertIsInstance(result, InstrumentDevice)
-        self.assertTrue(result.name == 'sonobuoy2')
-        self.assertTrue(result.firmware_version == '2')
-
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
-    def test_associative_searching(self):
-
-        dp_id,_ = self.rr.create(DataProduct('test_foo'))
-        ds_id,_ = self.rr.create(Dataset('test_bar', registered=True))
-        self.rr.create_association(subject=dp_id, object=ds_id, predicate='hasDataset')
-
-        search_string = "search 'type_' is 'Dataset' from 'resources_index' and belongs to '%s'" % dp_id
-
-        results = self.poll(5, self.discovery.parse,search_string,id_only=True)
         self.assertIsNotNone(results, 'Results not found')
-        self.assertTrue(ds_id in results)
-    
+
+        self.assertTrue(results[0]['_id'] == pd_id)
+        self.assertTrue(results[0]['_source'].name == 'test_dev')
 
 
-    @skipIf(not use_es and cfg_datastore != "postgresql", 'No ElasticSearch')
-    def test_limit_search(self):
-        dp = DataProduct(name='example')
-        dp_ids = [self.rr.create(dp)[0] for i in xrange(100)]
-
-        search_string = "search 'name' is 'example' from 'resources_index' limit 50" 
-        @poll_wrapper(20)
-        def pollcheck(ss):
-            results = self.discovery.parse(search_string)
-            if len(results) < 50:
-                return False
-            return True
-
-        self.assertTrue(pollcheck(search_string))
-
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    def test_iterative_associative_searching(self):
-        #--------------------------------------------------------------------------------
-        # Tests the ability to limit the iterations
-        #--------------------------------------------------------------------------------
-        dp        = DataProcess()
-        transform = Transform()
-        pd        = ProcessDefinition()
-
-        dp_id, _        = self.rr.create(dp)
-        transform_id, _ = self.rr.create(transform)
-        pd_id, _        = self.rr.create(pd)
-
-        self.rr.create_association(subject=dp_id, object=transform_id, predicate=PRED.hasTransform)
-        self.rr.create_association(subject=transform_id, object=pd_id, predicate=PRED.hasProcessDefinition)
-
-        search_string = "belongs to '%s' depth 1" % dp_id
-        results = self.poll(5, self.discovery.parse,search_string)
-        results = list([i._id for i in results])
-        correct = [transform_id]
-        self.assertTrue(results == correct, '%s' % results)
-
-        search_string = "belongs to '%s' depth 2" % dp_id
-        results = self.poll(5, self.discovery.parse,search_string)
-        results = list([i._id for i in results])
-        results.sort()
-        correct = [transform_id, pd_id]
-        correct.sort()
-        self.assertTrue(results == correct)
-
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_ranged_value_searching(self):
         discovery = self.discovery
         rr        = self.rr
@@ -673,12 +456,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == bank_id)
 
-
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_collections_searching(self):
-
         site_id, _ = self.rr.create(Site(name='black_mesa'))
         view_id    = self.discovery.create_view('big', fields=['name'])
 
@@ -692,22 +470,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0] == site_id, '%s' % results)
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
-    def test_search_by_name(self):
-        inst_dev = InstrumentDevice(name='test_dev',serial_number='ABC123')
-
-        dev_id, _ = self.rr.create(inst_dev)
-        self.discovery.create_view('devs',fields=['name','serial_number'])
-
-        search_string = "search 'serial_number' is 'abc*' from 'devs'"
-        results = self.poll(9, self.discovery.parse,search_string)
-
-        self.assertIsNotNone(results, 'Results not found')
-        self.assertTrue(results[0]['_id'] == dev_id)
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_search_by_name_index(self):
         inst_dev = InstrumentDevice(name='test_dev',serial_number='ABC123')
 
@@ -728,11 +490,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == res_id)
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    #@skipIf(not use_es, 'No ElasticSearch')
-    @skip('Skip until time to refactor, data_format is removed from DataProduct resource')
     def test_data_product_search(self):
-
         # Create the dataproduct
         dp = DataProduct(name='test_product')
         dp.data_format.name = 'test_signal'
@@ -761,95 +519,7 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
-    def test_vertical_bounds_limits(self):
-        dp = DataProduct(name='blah')
-        dp.geospatial_bounds.geospatial_vertical_min = 20
-        dp.geospatial_bounds.geospatial_vertical_max = 50
-        for i in xrange(100):
-            dp_id, rev = self.rr.create(dp)
-            self.addCleanup(self.rr.delete, dp_id)
 
-        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index' limit 50" % (10,30)
-
-        @poll_wrapper(20)
-        def pollcheck(ss):
-            results = self.discovery.parse(search_string)
-            if len(results) < 50:
-                return False
-            print len(results)
-            return True
-
-        self.assertTrue(pollcheck(search_string))
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
-    def test_vertical_bounds_searching(self):
-        dp = DataProduct(name='blah')
-        dp.geospatial_bounds.geospatial_vertical_min = 20
-        dp.geospatial_bounds.geospatial_vertical_max = 50
-        dp_id, _ = self.rr.create(dp)
-        self.addCleanup(self.rr.delete,dp_id)
-
-        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 10,30)
-        results = self.poll(9, self.discovery.parse, search_string)
-        self.assertTrue(results)
-        self.assertEquals(results[0]['_id'], dp_id)
-
-        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 30,40)
-        results = self.poll(9, self.discovery.parse, search_string)
-        self.assertTrue(results)
-        self.assertEquals(results[0]['_id'], dp_id)
-        
-        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 30,60)
-        results = self.poll(9, self.discovery.parse, search_string)
-        self.assertTrue(results)
-        self.assertEquals(results[0]['_id'], dp_id)
-        
-        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 10,15)
-        results = self.poll(1, self.discovery.parse, search_string)
-        self.assertEquals(results, None)
-        
-        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 55,60)
-        results = self.poll(1, self.discovery.parse, search_string)
-        self.assertEquals(results, None)
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'no elasticsearch')
-    def test_temporal_bounds_searching(self):
-        dp = DataProduct(name='blah')
-        dp.nominal_datetime.start_datetime = str(int(calendar.timegm(dateutil.parser.parse('2013-03-15').timetuple()) * 1000))
-        dp.nominal_datetime.end_datetime = str(int(calendar.timegm(dateutil.parser.parse('2013-03-17').timetuple()) * 1000))
-        dp_id, _ = self.rr.create(dp)
-        self.addCleanup(self.rr.delete,dp_id)
-
-
-        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-12','2013-03-19')
-        results = self.poll(9, self.discovery.parse, search_string)
-        self.assertTrue(results)
-        self.assertTrue(results[0]['_id'] == dp_id)
-        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-12','2013-03-16')
-        results = self.poll(9, self.discovery.parse, search_string)
-        self.assertTrue(results)
-        self.assertTrue(results[0]['_id'] == dp_id)
-        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-16','2013-03-19')
-        results = self.poll(9, self.discovery.parse, search_string)
-        self.assertTrue(results)
-        self.assertTrue(results[0]['_id'] == dp_id)
-        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-18','2013-03-19')
-        results = self.poll(1, self.discovery.parse, search_string)
-        self.assertEquals(results,None)
-        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-12','2013-03-13')
-        results = self.poll(1, self.discovery.parse, search_string)
-        self.assertEquals(results,None)
-
-
-
-
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_events_search(self):
         # Create a resource to force a new event
 
@@ -865,45 +535,8 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(origin_type == RT.DataProcess)
         self.assertTrue(origin_id == dp_id)
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
-    def test_geo_distance_search(self):
-
-        pd = PlatformDevice(name='test_dev')
-
-        pd_id, _ = self.rr.create(pd)
-
-        search_string = "search 'index_location' geo distance 20 km from lat 0 lon 0 from 'devices_index'"
-
-        results = self.poll(9, self.discovery.parse,search_string)
-
-        self.assertIsNotNone(results, 'Results not found')
-
-        self.assertTrue(results[0]['_id'] == pd_id)
-        self.assertTrue(results[0]['_source'].name == 'test_dev')
-   
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
-    def test_geo_bbox_search(self):
-
-        pd = PlatformDevice(name='test_dev')
-        pd.index_location.lat = 5
-        pd.index_location.lon = 5
-
-        pd_id, _ = self.rr.create(pd)
-
-        search_string = "search 'index_location' geo box top-left lat 10 lon 0 bottom-right lat 0 lon 10 from 'devices_index'"
-
-        results = self.poll(9, self.discovery.parse,search_string)
-
-        self.assertIsNotNone(results, 'Results not found')
-
-        self.assertTrue(results[0]['_id'] == pd_id)
-        self.assertTrue(results[0]['_source'].name == 'test_dev')
 
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_time_search(self):
         today     = date.today()
         past = today - timedelta(days=2)
@@ -929,8 +562,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIn(dp_id, results)
 
         
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_user_search(self):
         user = UserInfo()
         user.name = 'test'
@@ -956,8 +587,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_source'].name == 'test')
 
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_subobject_search(self):
         contact = ContactInformation()
         contact.email = 'test@gmail.com'
@@ -987,8 +616,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == dp_id)
         self.assertEquals(results[0]['_source'].name, 'example')
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_descriptive_phrase_search(self):
         dp = DataProduct(name='example', description='This is simply a description for this data product')
         dp_id, _ = self.rr.create(dp)
@@ -999,8 +626,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == dp_id)
         self.assertEquals(results[0]['_source'].name, 'example')
     
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_match_search(self):
         dp = DataProduct(name='example', description='This is simply a description for this data product')
         dp_id, _ = self.rr.create(dp)
@@ -1011,8 +636,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertTrue(results[0]['_id'] == dp_id)
         self.assertEquals(results[0]['_source'].name, 'example')
 
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_expected_match_results(self):
         names = [
             'Instrument for site1',
@@ -1054,9 +677,6 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertEquals(results[0]['_source'].name, 'VELO')
 
 
-
-    @skipIf(cfg_datastore != "couchdb", "POSTGRES")
-    @skipIf(not use_es, 'No ElasticSearch')
     def test_ownership_searching(self):
         # Create two data products so that there is competition to the search, one is parsed 
         # (with conductivity as a parameter) and the other is raw
@@ -1084,5 +704,42 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIn(dp_id, results)
         #self.assertEquals(results[0], dp_id)
 
-        
+    def test_associative_searching(self):
+        dp_id,_ = self.rr.create(DataProduct('test_foo'))
+        ds_id,_ = self.rr.create(Dataset('test_bar', registered=True))
+        self.rr.create_association(subject=dp_id, object=ds_id, predicate='hasDataset')
 
+        search_string = "search 'type_' is 'Dataset' from 'resources_index' and belongs to '%s'" % dp_id
+
+        results = self.poll(5, self.discovery.parse, search_string, id_only=True)
+        self.assertIsNotNone(results, 'Results not found')
+        self.assertTrue(ds_id in results)
+
+    def test_iterative_associative_searching(self):
+        #--------------------------------------------------------------------------------
+        # Tests the ability to limit the iterations
+        #--------------------------------------------------------------------------------
+        dp        = DataProcess()
+        transform = Transform()
+        pd        = ProcessDefinition()
+
+        dp_id, _        = self.rr.create(dp)
+        transform_id, _ = self.rr.create(transform)
+        pd_id, _        = self.rr.create(pd)
+
+        self.rr.create_association(subject=dp_id, object=transform_id, predicate=PRED.hasTransform)
+        self.rr.create_association(subject=transform_id, object=pd_id, predicate=PRED.hasProcessDefinition)
+
+        search_string = "belongs to '%s' depth 1" % dp_id
+        results = self.poll(5, self.discovery.parse,search_string)
+        results = list([i._id for i in results])
+        correct = [transform_id]
+        self.assertTrue(results == correct, '%s' % results)
+
+        search_string = "belongs to '%s' depth 2" % dp_id
+        results = self.poll(5, self.discovery.parse,search_string)
+        results = list([i._id for i in results])
+        results.sort()
+        correct = [transform_id, pd_id]
+        correct.sort()
+        self.assertTrue(results == correct)
