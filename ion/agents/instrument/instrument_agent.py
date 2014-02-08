@@ -1536,7 +1536,7 @@ class InstrumentAgent(ResourceAgent):
             dvr_mod = self._dvr_config['dvr_mod']
             dvr_cls = self._dvr_config['dvr_cls']
             
-        except TypeError, KeyError:
+        except (TypeError, KeyError):
             return False
         
         if not isinstance(dvr_mod, str) or not isinstance(dvr_cls, str):
