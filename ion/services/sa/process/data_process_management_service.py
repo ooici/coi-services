@@ -498,7 +498,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_obj
 
 
-    def read_data_process_for_stream(self, stream_id=""):
+    def read_data_process_for_stream(self, stream_id="", worker_process_id=""):
         #get the data product assoc with this stream
         dataproduct_id = self._get_dataproduct_from_stream(stream_id)
         dataprocess_id = self._get_dataprocess_from_input_product(dataproduct_id)
@@ -684,7 +684,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def _manage_attachments(self):
         pass
 
-    def _create_subscription(self, dproc, in_data_product_ids):
+    def _create_subscription(self, dproc, in_data_product_ids=None):
         stream_ids = [self._get_stream_from_dataproduct(i) for i in in_data_product_ids]
         #@TODO Maybe associate a data process with an exchange point but in the mean time:
         queue_name = 'sub_%s' % dproc.name
