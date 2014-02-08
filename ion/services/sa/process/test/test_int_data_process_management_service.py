@@ -1125,7 +1125,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         pressure_stream_def_id = self.get_named_stream_def('pressure_product stream_def')
 
         dpd = DataProcessDefinition(name='ctdL0')
-        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM
+        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM_PROCESS
         dpd.module = 'ion.processes.data.transforms.ctd.ctd_L0_all'
         dpd.class_name = 'ctd_L0_all'
 
@@ -1268,7 +1268,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         input_data_product_id = self.ctd_plain_input_data_product()
         output_data_product_id = self.google_dt_data_product()
         dpd = DataProcessDefinition(name='visual transform')
-        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM
+        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM_PROCESS
         dpd.module = 'ion.processes.data.transforms.viz.google_dt'
         dpd.class_name = 'VizTransformGoogleDT'
 
@@ -1392,7 +1392,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
 
     def dpd_stored_value_transform(self):
         dpd = DataProcessDefinition(name='stored value transform')
-        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM
+        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM_PROCESS
         dpd.module = 'ion.processes.data.transforms.stored_value_transform'
         dpd.class_name = 'StoredValueTransform'
 
