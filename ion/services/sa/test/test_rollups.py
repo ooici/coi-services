@@ -3,6 +3,7 @@
 """
 @author Ian Katz
 """
+from pyon.util.int_test import IonIntegrationTestCase
 import os
 from interface.objects import DeviceStatusType, AggregateStatusType, ComputedIntValue, ComputedValueAvailability, ComputedListValue
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -23,7 +24,6 @@ import unittest
 from pyon.core.exception import BadRequest
 from pyon.ion.resource import RT, PRED
 from pyon.util.containers import DotDict
-from pyon.util.int_test import IonIntegrationTestCase
 
 
 unittest # block pycharm inspection
@@ -347,7 +347,7 @@ class TestRollups(IonIntegrationTestCase):
                          self.my_get_agent_client(self.pdv[7]).get_agent(["aggstatus"])["aggstatus"][AggregateStatusType.AGGREGATE_DATA])
 
 
-    @unittest.skip("errors in outil prevent this from passing")
+    @unittest.skip("Phasing out this test due to radical changes in status rollup implementation.")
     def test_complex_rollup_structure(self):
 
         self.check_structure_assumptions()
@@ -387,7 +387,7 @@ class TestRollups(IonIntegrationTestCase):
 
 
     #TODO: REMOVE THIS TEST when test_complex_rollup_structure is fixed
-    #@unittest.skip("phasing out")
+    @unittest.skip("Phasing out this test due to radical changes in status rollup implementation.")
     def test_complex_rollup_structure_partially(self):
 
         o = DeviceStatusType.STATUS_OK
