@@ -326,10 +326,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasProcess, object=pid)
 
-
         return dproc_id
 
-    def create_data_process_new(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None):
+    def create_data_process_new(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None, argument_map=None, out_param_name=''):
         '''
         Creates a DataProcess resource.
         A DataProcess can be of a few types:
