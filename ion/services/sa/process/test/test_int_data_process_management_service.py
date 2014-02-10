@@ -1113,7 +1113,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_data_product(instrument_data_product_id)
         
         self.assertTrue(validated.wait(10))
-        
+
+    @unittest.skip("Functionality is unsupported but will be replaced in R3")
     def test_older_transform(self):
         input_data_product_id = self.ctd_plain_input_data_product()
 
