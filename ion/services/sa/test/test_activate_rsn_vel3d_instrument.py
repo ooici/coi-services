@@ -47,9 +47,7 @@ from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 # Alarm types and events.
 from interface.objects import StreamAlertType,AggregateStatusType, DeviceStatusType
 
-from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
-import elasticpy as ep
 from mock import patch
 
 

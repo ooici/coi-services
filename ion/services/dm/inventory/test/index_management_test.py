@@ -47,8 +47,6 @@ class IndexManagementUnitTest(PyonTestCase):
                 'get_datastore' : self.get_datastore
             })
         })
-        self.index_management.elasticsearch_host = 'notarealhost'
-        self.index_management.elasticsearch_port = 9000
         self.index_name = 'test_index'
 
     def test_create_index(self):
@@ -61,14 +59,10 @@ class IndexManagementUnitTest(PyonTestCase):
         self.rr_create.return_value = ('index_id','rev')
         self.rr_find_resources.return_value = ([],[])
 
-        retval = self.index_management.create_index(name='mock', content_type=IndexManagementService.ELASTICSEARCH_INDEX, options='ugh')
+        retval = self.index_management.create_index(name='mock', content_type=IndexManagementService.DATASTORE_INDEX, options='ugh')
 
         self.assertTrue(retval=='index_id','invalid return value: %s' % retval)
         self.assertTrue(self.rr_create.called)
-
-        retval = self.index_management.create_index(name='argh', content_type=IndexManagementService.COUCHDB_INDEX)
-
-        self.assertTrue(retval=='index_id','invalid return value: %s' % retval)
 
         with self.assertRaises(BadRequest):
             self.index_management.create_index(name='another', content_type='not_listed')
@@ -204,7 +198,7 @@ class IndexManagementIntTest(IonIntegrationTestCase):
         self.rr_cli  = ResourceRegistryServiceClient()
         self.index_name = 'test_index'
 
-    def test_create_elasticsearch_index(self):
+    def test_create_datastore_index(self):
         index_name = self.index_name
         ims_cli    = self.ims_cli
         rr_cli     = self.rr_cli
@@ -212,7 +206,7 @@ class IndexManagementIntTest(IonIntegrationTestCase):
         options.attribute_match = ['test_field']
         index_id = ims_cli.create_index(
            name=index_name,
-           content_type=IndexManagementService.ELASTICSEARCH_INDEX,
+           content_type=IndexManagementService.DATASTORE_INDEX,
            options=options
        )
         
@@ -225,28 +219,6 @@ class IndexManagementIntTest(IonIntegrationTestCase):
         #======================================
         rr_cli.delete(index_id)
 
-    def test_create_couchdb_index(self):
-        index_name = self.index_name
-        ims_cli    = self.ims_cli
-        rr_cli     = self.rr_cli
-        options = SearchOptions()
-        options.attribute_match = ['name']
-
-        index_id = ims_cli.create_index(
-            index_name, 
-            content_type=IndexManagementService.COUCHDB_INDEX,
-            options=options,
-            datastore_name='fake',
-            view_name='fake/by_fake'
-        )
-        index_result = self.rr_cli.read(index_id)
-        self.assertIsInstance(index_result,CouchDBIndex)
-        self.assertTrue(index_result.name==index_name)
-        #======================================
-        # Clean up
-        #======================================
-        rr_cli.delete(index_id)
-        
     def test_read_index(self):
         ims_cli = self.ims_cli
         rr_cli  = self.rr_cli

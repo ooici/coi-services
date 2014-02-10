@@ -12,7 +12,6 @@ import os, time, uuid
 from gevent import event, queue
 from gevent.timeout import Timeout
 from gevent.event import Event
-import elasticpy as ep
 from datetime import datetime, timedelta
 from sets import Set
 
@@ -27,7 +26,6 @@ from pyon.util.log import log
 from pyon.util.poller import poll
 from pyon.event.event import EventPublisher, EventSubscriber
 
-from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from ion.services.dm.inventory.index_management_service import IndexManagementService
@@ -46,13 +44,12 @@ from interface.services.cei.ischeduler_service import SchedulerServiceProcessCli
 from interface.objects import NotificationRequest, TemporalBounds, DeviceStatusType, AggregateStatusType
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client
 
-use_es = CFG.get_safe('system.elasticsearch',False)
-
 
 class FakeProcess(LocalContextMixin):
     name = 'scheduler_for_user_notification_test'
     id = 'scheduler_client'
     process_type = 'simple'
+
 
 @attr('UNIT',group='dm')
 class UserNotificationTest(PyonTestCase):
@@ -157,49 +154,6 @@ class UserNotificationTest(PyonTestCase):
             br.exception.message,
             '''User id not provided.'''
         )
-
-#    def test_update_notification(self):
-#
-#        # Test updating a notification
-#
-#        notification = 'notification'
-#        user_id = 'user_id_1'
-#
-#        self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
-#        self.mock_rr_client.read.return_value = notification
-#
-#        self.user_notification.update_user_info_object = mocksignature(self.user_notification.update_user_info_object)
-#        self.user_notification.update_user_info_object.return_value = 'user'
-#
-#        self.user_notification.notifications = []
-#
-#        self.user_notification._update_notification_in_notifications_dict = mocksignature(self.user_notification._update_notification_in_notifications_dict)
-#
-#        self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
-#
-#        #-------------------------------------------------------------------------------------------------------------------
-#        # Create a notification object
-#        #-------------------------------------------------------------------------------------------------------------------
-#
-#        notification_request = NotificationRequest(name='a name',
-#            origin = 'origin_1',
-#            origin_type = 'origin_type_1',
-#            event_type= 'event_type_1',
-#            event_subtype = 'event_subtype_1' )
-#
-#        notification_request._id = 'an id'
-#
-#        #-------------------------------------------------------------------------------------------------------------------
-#        # execution
-#        #-------------------------------------------------------------------------------------------------------------------
-#
-#        self.user_notification.update_notification(notification_request, user_id)
-#
-#        #-------------------------------------------------------------------------------------------------------------------
-#        # assertions
-#        #-------------------------------------------------------------------------------------------------------------------
-#
-#        self.user_notification.update_user_info_object.assert_called_once_with(user_id, notification, notification)
 
 
     def test_delete_user_notification(self):
@@ -389,10 +343,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(UserNotificationIntTest, self).setUp()
         config = DotDict()
-        config.bootstrap.use_es = True
 
         self._start_container()
-        self.addCleanup(UserNotificationIntTest.es_cleanup)
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml', config)
 
@@ -418,23 +370,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         return success
 
 
-    @staticmethod
-    def es_cleanup():
-        es_host = CFG.get_safe('server.elasticsearch.host', 'localhost')
-        es_port = CFG.get_safe('server.elasticsearch.port', '9200')
-        es = ep.ElasticSearch(
-            host=es_host,
-            port=es_port,
-            timeout=10
-        )
-        indexes = STD_INDEXES.keys()
-        indexes.append('%s_resources_index' % get_sys_name().lower())
-        indexes.append('%s_events_index' % get_sys_name().lower())
-
-        for index in indexes:
-            IndexManagementService._es_call(es.river_couchdb_delete,index)
-            IndexManagementService._es_call(es.index_delete,index)
-
     def poll(self, tries, callback, *args, **kwargs):
         '''
         Polling wrapper for queries
@@ -448,9 +383,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             time.sleep(0.2)
         return None
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_pub_reload_user_info_event(self):
         # Test that the publishing of reload user info event occurs every time a create, update
         # or delete notification occurs.
@@ -474,12 +406,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Make notification request objects
         #--------------------------------------------------------------------------------------
 
-        notification_request_correct = NotificationRequest(   name= 'notification_1',
+        notification_request_correct = NotificationRequest(name= 'notification_1',
             origin="instrument_1",
             origin_type="type_1",
             event_type='ResourceLifecycleEvent')
 
-        notification_request_2 = NotificationRequest(   name='notification_2',
+        notification_request_2 = NotificationRequest(name='notification_2',
             origin="instrument_2",
             origin_type="type_2",
             event_type='DetectionEvent')
@@ -557,9 +489,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(notifications, notifications_received)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+
     def test_notification_preferences(self):
         #--------------------------------------------------------------------------------------
         # Make a notification request object
@@ -606,10 +536,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
 
-
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_user_info_UNS(self):
         # Test that the user info dictionary maintained by the notification workers get updated when
         # a notification is created, updated, or deleted by UNS
@@ -729,9 +655,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+
     def test_user_info_notification_worker(self):
         # Test the user_info and reverse user info dictionary capability of the notification worker
 
@@ -772,11 +696,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_batch_id, _ = self.rrc.create(user_batch)
         user_disabled_id, _ = self.rrc.create(user_disabled)
 
-        # confirm that users_index got created by discovery
-        search_string = 'search "name" is "*" from "users_index"'
-
-        results = self.poll(9, self.discovery.parse,search_string)
-        self.assertIsNotNone(results, 'Results not found')
 
         #--------------------------------------------------------------------------------------
         # Create notification workers
@@ -916,9 +835,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         log.debug("Verified that the notification worker correctly updated its user info dictionaries after another create_notification()")
 
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_process_batch(self):
         # Test that the process_batch() method works
 
@@ -1091,9 +1007,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 #            self.assertTrue(event_time <= test_end_time)
 
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_worker_send_email(self):
         # Test that the workers process the notification event and send email using the
         # fake smtp client
@@ -1269,9 +1182,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 self.fail('Got email sent to msg recipient who did not set a correct notification preference.')
 
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_create_read_user_notifications(self):
         # Test the create and read notification methods
 
@@ -1400,11 +1310,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(notif._id, notification_id_user_2)
 
 
-
-
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_delete_user_notifications(self):
         # Test deleting a notification
 
@@ -1495,11 +1400,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                     elif notif.origin == "instrument_1":
                         self.assertNotEquals(notif.temporal_bounds.end_datetime, '')
                     else:
-                        self.fail("ACHTUNG: A completely different notification is being stored in the user info object")
+                        self.fail("WARNING: A completely different notification is being stored in the user info object")
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+
     def test_update_user_notification(self):
         # Test updating a user notification
 
@@ -1573,9 +1476,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertTrue(success)
 
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    @unittest.skip("Reenable after Postgres discovery can deal with events search")
     def test_find_events_extended(self):
         # Test the find events functionality of UNS
 
@@ -1591,7 +1492,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         max_time = get_ion_ts()
 
-        # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
+        # allow search to populate the indexes. This gives enough time for the reload of user_info
         def poller():
             events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_time=min_time, max_time=max_time)
             return len(events) >= 4
@@ -1599,9 +1500,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         success = self.event_poll(poller, 10)
         self.assertTrue(success)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+
     def test_create_several_workers(self):
         # Create more than one worker. Test that they process events in round robin
 
@@ -1609,9 +1508,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(len(pids), 2)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+
     def test_publish_event_object(self):
         # Test the publish_event_object() method of UNS
 
@@ -1664,9 +1561,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         ar.wait(timeout=10)
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+
     def test_publish_event(self):
         # Test the publish_event() method of UNS
 
@@ -1736,9 +1631,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         ar_2.wait(timeout=10)
 
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_batch_notifications(self):
         # Test how the UNS listens to timer events and through the call back runs the process_batch()
         # with the correct arguments.
@@ -1884,9 +1776,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(times, times_of_events_published)
         self.assertEquals(origins_of_events, Set(['instrument_1', 'instrument_2']))
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_get_user_notifications(self):
         # Test that the get_user_notifications() method returns the notifications for a user
 
@@ -1964,9 +1853,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(notification.origin_type, 'type_1')
         self.assertEquals(notification.event_type, OT.ResourceLifecycleEvent )
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+
     def test_get_recent_events(self):
         # Test that the get_recent_events(resource_id, limit) method returns the events whose origin is
         # the specified resource.
@@ -2388,9 +2275,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertTrue(notific_in_db.origin_type == 'active_2' or notific_in_db.origin_type == 'past_2')
             self.assertTrue(notific_in_db.event_type== OT.ResourceLifecycleEvent or notific_in_db.event_type=='DetectionEvent')
 
-    @attr('LOCOINT')
-    @unittest.skipIf(not use_es, 'No ElasticSearch')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+
     def test_delete_then_create_subscription(self):
 
     # Test that the get_subscriptions works correctly after deleting a previous and then creating the same on again

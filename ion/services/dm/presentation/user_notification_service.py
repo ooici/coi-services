@@ -23,8 +23,6 @@ from interface.objects import ComputedValueAvailability, ComputedListValue
 from interface.objects import ProcessDefinition, TemporalBounds
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 
-CFG_ELASTIC_SEARCH = CFG.get_safe('system.elasticsearch', False)
-
 
 """
 For every user that has existing notification requests (who has called
@@ -376,7 +374,7 @@ class UserNotificationService(BaseUserNotificationService):
 
     def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit=-1, descending=False, offset=0):
         """
-        This method leverages couchdb view and simple filters. It does not use elastic search.
+        This method leverages couchdb view and simple filters.
 
         Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
         if no events exist for the given parameters.
@@ -649,40 +647,14 @@ class UserNotificationService(BaseUserNotificationService):
                 if notification.temporal_bounds.end_datetime:
                     continue
 
-                if CFG_ELASTIC_SEARCH:
-                    if notification.origin:
-                        search_origin = 'search "origin" is "%s" from "events_index"' % notification.origin
-                    else:
-                        search_origin = 'search "origin" is "*" from "events_index"'
+                event_tuples = self.container.event_repository.find_events(
+                    origin=notification.origin,
+                    event_type=notification.event_type,
+                    start_ts=start_time,
+                    end_ts=end_time)
+                events = [item[2] for item in event_tuples]
 
-                    if notification.origin_type:
-                        search_origin_type= 'search "origin_type" is "%s" from "events_index"' % notification.origin_type
-                    else:
-                        search_origin_type= 'search "origin_type" is "*" from "events_index"'
-
-                    if notification.event_type:
-                        search_event_type = 'search "type_" is "%s" from "events_index"' % notification.event_type
-                    else:
-                        search_event_type = 'search "type_" is "*" from "events_index"'
-
-                    search_string = search_time + ' and ' + search_origin + ' and ' + search_origin_type + ' and ' + search_event_type
-
-                    # get the list of ids corresponding to the events
-                    log.debug('process_batch  search_string: %s', search_string)
-                    ret_vals = self.discovery.parse(search_string)
-
-                    events_for_message.extend(self.datastore.read_mult(ret_vals))
-
-                else:
-                    # Adding a branch
-                    event_tuples = self.container.event_repository.find_events(
-                        origin=notification.origin,
-                        event_type=notification.event_type,
-                        start_ts=start_time,
-                        end_ts=end_time)
-                    events = [item[2] for item in event_tuples]
-
-                    events_for_message.extend(events)
+                events_for_message.extend(events)
 
             log.debug("Found following events of interest to user, %s: %s", user_id, events_for_message)
 

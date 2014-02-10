@@ -230,10 +230,8 @@ class TestDMExtended(DMTestCase):
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     def preload_indexes(self):
-        config = DotDict()
-        config.op = 'clean_bootstrap'
-        self.container.spawn_process('indexer', 'ion.processes.bootstrap.index_bootstrap','IndexBootStrap', config)
-    
+        pass
+
     def launch_ui_facepage(self, data_product_id):
         '''
         Opens the UI face page on localhost for a particular data product

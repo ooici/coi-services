@@ -13,15 +13,5 @@ class BootstrapIndex(BootstrapPlugin):
     """
 
     def on_initial_bootstrap(self, process, config, **kwargs):
-        if config.get_safe('system.elasticsearch') and config.get_safe('bootstrap.use_es'):
-            #---------------------------------------------
-            # Spawn the index bootstrap
-            #---------------------------------------------
-            config = DotDict(config)
-            config.op                   = 'clean_bootstrap'
-
-            process.container.spawn_process('index_bootstrap','ion.processes.bootstrap.index_bootstrap','IndexBootStrap',config)
-            #---------------------------------------------
-        else:
-            log.info("Not creating the ES indexes.")
-
+        # There used to be initialization of ElasticSearch, now removed by using Postgres
+        pass

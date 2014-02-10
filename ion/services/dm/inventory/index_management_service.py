@@ -27,44 +27,10 @@ class IndexManagementService(BaseIndexManagementService):
     @see https://confluence.oceanobservatories.org/display/syseng/CIAD+DM+OV+Index+Management+Service
     """
 
-    COUCHDB_INDEX       = 'couchdb_index'
-    ELASTICSEARCH_INDEX = 'elasticsearch_index'
-
-    '''
-    couchdb_river indices  are generic bulk collection river indices which don't use a filter and simply indexes the entire datastore
-    simple indices         are completely empty indexes in elastic search
-    advanced indices       are similar to a blank slate but give the inital options for shards and replicas (ideal)
-    '''
+    DATASTORE_INDEX     = 'datastore_index'
 
     def on_start(self):
         super(IndexManagementService,self).on_start()
-
-        self.elasticsearch_host = CFG.server.elasticsearch.host
-        self.elasticsearch_port = CFG.server.elasticsearch.port
-
-    @staticmethod
-    def _es_call(es, *args, **kwargs):
-        res = AsyncResult()
-        def async_call(es, *args, **kwargs):
-            res.set(es(*args,**kwargs))
-        spawn(async_call,es,*args,**kwargs)
-        try:
-            retval = res.get(timeout=CFG.get_safe('server.elasticsearch.timeout', 10))
-        except Timeout:
-            raise exceptions.Timeout("Call to ElasticSearch timed out.")
-        return retval
-
-    @staticmethod
-    def _check_response(response):
-        validate_is_instance(response,dict,"Malformed response from ElasticSearch (%s)" % response, ServerError)
-        if response.has_key('error'):
-            raise ServerError("ElasticSearch error: %s" % response['error'])
-        if response.has_key('ok') and not response['ok']:
-            # Cant determine a better exception to throw, add a new one perhapse?
-            raise NotFound("ElasticSearch Response: %s" % response)
-        
-
-
 
 
     def create_index(self, name='', description='', content_type='', options=None, datastore_name='', view_name=''):
@@ -73,21 +39,10 @@ class IndexManagementService(BaseIndexManagementService):
         if len(res)>0:
             raise BadRequest('Resource with name %s already exists.' % name)
 
-        if content_type == IndexManagementService.ELASTICSEARCH_INDEX:
+        if content_type == IndexManagementService.DATASTORE_INDEX:
             index = ElasticSearchIndex(name=name, description=description)
-            index.content_type=IndexManagementService.ELASTICSEARCH_INDEX
+            index.content_type=IndexManagementService.DATASTORE_INDEX
             index.index_name = name 
-            if options:
-                index.options = options
-            index_id, _ = self.clients.resource_registry.create(index)
-            return index_id
-
-
-        elif content_type == IndexManagementService.COUCHDB_INDEX:
-            index = CouchDBIndex(name=name, description=description)
-            index.datastore_name = datastore_name
-            index.view_name = view_name
-            index.content_type=IndexManagementService.COUCHDB_INDEX
             if options:
                 index.options = options
             index_id, _ = self.clients.resource_registry.create(index)
@@ -109,8 +64,6 @@ class IndexManagementService(BaseIndexManagementService):
         @param index_id    str
         @retval index    Index
         """
-
-
         index_resources = self.clients.resource_registry.read(index_id)
         return index_resources
 
@@ -132,10 +85,6 @@ class IndexManagementService(BaseIndexManagementService):
         indices = list()
         std_indexes, _           = self.clients.resource_registry.find_resources(restype=RT.Index, id_only=False)
         indices.extend(std_indexes)
-        elasticsearch_indexes, _ = self.clients.resource_registry.find_resources(restype=RT.ElasticSearchIndex, id_only=False)
-        indices.extend(elasticsearch_indexes)
-        couchdb_indexes, _       = self.clients.resource_registry.find_resources(restype=RT.CouchDBIndex,id_only=False)
-        indices.extend(couchdb_indexes)
 
         retval = dict()
         for index in indices:
@@ -218,6 +167,3 @@ class IndexManagementService(BaseIndexManagementService):
                 results = results.union(collections)
 
         return list(results)
-
-
-

@@ -39,20 +39,13 @@ import unittest, os
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 
-
-
-from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
 import gevent
-import elasticpy as ep
 from mock import patch
 
 import time
 import sys
 from ion.agents.instrument.driver_process import ZMQEggDriverProcess
-
-use_es = CFG.get_safe('system.elasticsearch',False)
-
 
 
 # A VEL3D driver.
@@ -98,7 +91,6 @@ class TestRSNIntegration(IonIntegrationTestCase):
         # Start container
         super(TestRSNIntegration, self).setUp()
         config = DotDict()
-        #config.bootstrap.use_es = True
 
         self._start_container()
 
