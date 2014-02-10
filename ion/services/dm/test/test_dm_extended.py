@@ -18,7 +18,8 @@ from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.provenance import graph
 from ion.processes.data.registration.registration_process import RegistrationProcess
-from coverage_model import ParameterFunctionType, ParameterDictionary
+from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext
+from ion.processes.data.transforms.transform_worker import TransformWorker
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.util.file_sys import FileSystem
@@ -806,6 +807,7 @@ class TestDMExtended(DMTestCase):
         extent = self.dataset_management.dataset_extents_by_axis(dataset_id, 'time')
         self.assertEquals(extent, 34)
 
+    @unittest.skip("Complex Coverages aren't used for the time being")
     @attr('INT')
     def test_ccov_domain_slicing(self):
         '''
@@ -1266,4 +1268,49 @@ def rotate_v(u,v,theta):
         retrieve_process = RetrieveProcess(dataset_id)
         rdt = retrieve_process.retrieve(date0, date0 + timedelta(hours=1))
         np.testing.assert_array_equal(rdt['temp'], np.arange(30))
+
+    @attr('UTIL')
+    def test_append_parameter(self):
+        # Make a CTDBP Data Product
+        data_product_id = self.make_ctd_data_product()
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        # Throw some data in it
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.arange(30)
+        rdt['temp'] = np.arange(30)
+        rdt['pressure'] = np.arange(30)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+        dataset_monitor.event.clear()
+
+        # Grab the egg
+        egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' 
+        egg_path = TransformWorker.download_egg(egg_url)
+        import pkg_resources
+        pkg_resources.working_set.add_entry(egg_path)
+        self.addCleanup(os.remove, egg_path)
+
+        # Make a parameter function
+        owner = 'ion_example.add_arrays'
+        func = 'add_arrays'
+        arglist = ['a', 'b']
+        pfunc = PythonFunction('add_arrays', owner, func, arglist, None, None)
+
+        pfunc_dump = pfunc.dump()
+        pfunc_id = self.dataset_management.create_parameter_function('add_arrays', pfunc_dump, 'Adds two arrays')
+        self.addCleanup(self.dataset_management.delete_parameter_function, pfunc_id)
+
+        # Make a context (instance of the function)
+        pfunc.param_map = {'a':'temp', 'b':'pressure'}
+        ctxt = ParameterContext('array_sum', param_type=ParameterFunctionType(pfunc))
+        ctxt_dump = ctxt.dump()
+        ctxt_id = self.dataset_management.create_parameter_context('array_sum', ctxt_dump)
+        self.dataset_management.add_parameter_to_dataset(ctxt_id, dataset_id)
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['array_sum'], np.arange(0,60,2))
 

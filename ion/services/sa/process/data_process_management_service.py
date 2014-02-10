@@ -22,6 +22,8 @@ from interface.objects import ParameterFunction, TransformFunction, DataProcessT
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from coverage_model.parameter_functions import AbstractFunction
+from coverage_model import ParameterContext, ParameterFunctionType, ParameterDictionary
 
 from pyon.util.arg_check import validate_is_instance
 from ion.util.module_uploader import RegisterModulePreparerPy
@@ -344,11 +346,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         #todo: out publishers can be either stream or event
         #todo: determine if/how routing tables will be managed
+        dpd_obj = self.read_data_process_definition(data_process_definition_id)
+        if dpd_obj.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
+            return self._initialize_parameter_function(data_process_definition_id, in_data_product_ids, argument_map, out_param_name)
+            
 
         configuration = DotDict(configuration or {})
         configuration.process.output_products = out_data_product_ids
 
-        dpd_obj = self.read_data_process_definition(data_process_definition_id)
         dataproduct_name = ''
         if in_data_product_ids:
             in_dataprod_obj = self.clients.data_product_management.read_data_product(in_data_product_ids[0])
@@ -385,6 +390,86 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #todo: assign to a transform worker
 
         return dproc_id
+
+    def _initialize_parameter_function(self, data_process_definition_id, data_product_ids, param_map, out_param_name):
+        '''
+        For each data product, append a parameter according to the dpd
+
+        1. Get a parameter context
+        2. Load the data product's datasets and check if the name is in the dict
+        3. Append parameter to all datasets
+        4. Associate context with data products' parameter dicts
+        '''
+        dpd = self.read_data_process_definition(data_process_definition_id)
+        ctxt, ctxt_id = self._get_param_ctx_from_dpd(data_process_definition_id, param_map, out_param_name)
+        # For each data product check for and add the parameter
+        data_process_ids = []
+        for data_product_id in data_product_ids:
+            self._check_data_product_for_parameter(data_product_id, out_param_name)
+            self._add_parameter_to_data_products(ctxt_id, data_product_id)
+            # Create a data process and we'll return all the ids we make
+            dp_id = self._create_data_process_for_parameter_function(dpd, data_product_id, param_map)
+            data_process_ids.append(dp_id)
+        return data_process_ids
+
+    def _get_param_ctx_from_dpd(self, data_process_definition_id, param_map, out_param_name):
+        '''
+        Creates a parameter context for the data process definition using the param_map
+        '''
+        # Get the parameter function associated with this data process definition
+        parameter_functions, _ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasParameterFunction, id_only=False)
+        if not parameter_functions:
+            raise BadRequest("No associated parameter functions with data process definition %s" % data_process_definition_id)
+        parameter_function = parameter_functions[0]
+
+        # Make a context specific to this data process
+        pf = AbstractFunction.load(parameter_function.parameter_function)
+        # Assign the parameter map
+        pf.param_map = param_map
+        ctxt = ParameterContext(out_param_name, param_type=ParameterFunctionType(pf))
+        ctxt_id = self.clients.dataset_management.create_parameter_context(pf.name, ctxt.dump())
+        return ctxt, ctxt_id
+
+    def _check_data_product_for_parameter(self, data_product_id, param_name):
+        '''
+        Verifies that the named parameter does not exist in the data product already
+        '''
+        # Get the dataset for this data product
+        # DataProduct -> Dataset [ hasDataset ]
+        datasets, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=False)
+        if not datasets:
+            raise BadRequest("No associated dataset with this data product %s" % data_product_id)
+        dataset = datasets[0]
+        # Load it with the class ParameterDictionary so I can see if the name
+        # is in the parameter dictionary
+        pdict = ParameterDictionary.load(dataset.parameter_dictionary)
+        if param_name in pdict:
+            raise BadRequest("Named parameter %s already exists in this dataset: %s" % (param_name, dataset._id))
+
+    def _add_parameter_to_data_products(self, parameter_context_id, data_product_id):
+        '''
+        Adds the parameter context to the data product
+        '''
+        # Get the dataset id
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
+        dataset_id = dataset_ids[0]
+
+        # Add the parameter
+        self.clients.dataset_management.add_parameter_to_dataset(parameter_context_id, dataset_id)
+
+    def _create_data_process_for_parameter_function(self, data_process_definition, data_product_id, param_map):
+        '''
+        Creates a data process to represent a parameter function on a data product
+        '''
+        # Get the data product object for the name
+        data_product = self.clients.data_product_management.read(data_product_id)
+        # There may or may not be a need to keep more information here
+        dp = DataProcess()
+        dp.name = 'Data Process %s for Data Product %s' % (data_process_definition.name, data_product.name)
+        dp.argument_map = param_map
+        # We make a data process
+        dp_id, _ = self.clients.resource_registry.create(dp)
+        return dp_id
 
     def _get_input_stream_ids(self, in_data_product_ids = None):
 

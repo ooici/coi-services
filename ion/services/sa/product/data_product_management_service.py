@@ -111,7 +111,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         '''
         For each data process launched also create a dataprocess for each parameter function in the data product
         '''
-        print 'data processes called'
         data_product = self.read_data_product(data_product_id)
 
         # DataProduct -> StreamDefinition

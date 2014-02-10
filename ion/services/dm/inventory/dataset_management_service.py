@@ -118,6 +118,19 @@ class DatasetManagementService(BaseDatasetManagementService):
         rpc_cli = RPCClient(to_name=pid)
         rpc_cli.request({'data_product_id':data_product_id}, op='register_dap_dataset')
 
+#--------
+
+    def add_parameter_to_dataset(self, parameter_context_id='', dataset_id=''):
+        cov = self._get_simplex_coverage(dataset_id, mode='r+')
+        parameter_ctx_res = self.read_parameter_context(parameter_context_id)
+        pc = ParameterContext.load(parameter_ctx_res.parameter_context)
+        cov.append_parameter(pc)
+        cov.close()
+        dataset = self.read_dataset(dataset_id)
+        pdict = cov.parameter_dictionary
+        dataset.parameter_dictionary = pdict.dump()
+        self.update_dataset(dataset)
+        return True
 
 #--------
 
@@ -473,14 +486,14 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
     def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
-        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        #file_root = FileSystem.get_url(FS.CACHE,'datasets')
         pdict = ParameterDictionary.load(parameter_dict)
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
         scov = self._create_simplex_coverage(dataset_id, pdict, sdom, tdom, self.inline_data_writes)
-        vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
+        #vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
         scov.close()
-        return vcov
+        return scov
 
     def _create_view_coverage(self, dataset_id, description, parent_dataset_id):
         # As annoying as it is we need to load the view coverage belonging to parent dataset id and use the information
@@ -496,7 +509,8 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def _create_simplex_coverage(cls, dataset_id, parameter_dictionary, spatial_domain, temporal_domain, inline_data_writes=True):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        scov = SimplexCoverage(file_root,uuid4().hex,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
+        #scov = SimplexCoverage(file_root,uuid4().hex,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
+        scov = SimplexCoverage(file_root,dataset_id,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
         return scov
 
     @classmethod
