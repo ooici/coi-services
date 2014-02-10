@@ -20,6 +20,7 @@ from ion.services.dm.utility.provenance import graph
 from ion.processes.data.registration.registration_process import RegistrationProcess
 from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext
 from ion.processes.data.transforms.transform_worker import TransformWorker
+from interface.objects import DataProcessDefinition
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.util.file_sys import FileSystem
@@ -1269,7 +1270,7 @@ def rotate_v(u,v,theta):
         rdt = retrieve_process.retrieve(date0, date0 + timedelta(hours=1))
         np.testing.assert_array_equal(rdt['temp'], np.arange(30))
 
-    @attr('UTIL')
+    @attr('INT')
     def test_append_parameter(self):
         # Make a CTDBP Data Product
         data_product_id = self.make_ctd_data_product()
@@ -1310,6 +1311,53 @@ def rotate_v(u,v,theta):
         ctxt_id = self.dataset_management.create_parameter_context('array_sum', ctxt_dump)
         self.dataset_management.add_parameter_to_dataset(ctxt_id, dataset_id)
 
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['array_sum'], np.arange(0,60,2))
+
+    @attr('INT')
+    def test_add_parameter_function(self):
+        # Make a CTDBP Data Product
+        data_product_id = self.make_ctd_data_product()
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        # Throw some data in it
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.arange(30)
+        rdt['temp'] = np.arange(30)
+        rdt['pressure'] = np.arange(30)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+        dataset_monitor.event.clear()
+
+        #--------------------------------------------------------------------------------
+        # This is what the user defines either via preload or through the UI
+        #--------------------------------------------------------------------------------
+        # Where the egg is
+        egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' 
+
+        # Make a parameter function
+        owner = 'ion_example.add_arrays'
+        func = 'add_arrays'
+        arglist = ['a', 'b']
+        pfunc = PythonFunction('add_arrays', owner, func, arglist, None, None, egg_url)
+
+        pfunc_dump = pfunc.dump()
+        pfunc_id = self.dataset_management.create_parameter_function('add_arrays', pfunc_dump, 'Adds two arrays')
+        #--------------------------------------------------------------------------------
+        self.addCleanup(self.dataset_management.delete_parameter_function, pfunc_id)
+
+        # Make a data process definition
+        dpd = DataProcessDefinition(name='add_arrays', description='Sums two arrays')
+        dpd_id = self.data_process_management.create_data_process_definition_new(dpd, pfunc_id)
+
+        # TODO: assert assoc exists
+        argmap = {'a':'temp', 'b':'pressure'}
+        dp_id = self.data_process_management.create_data_process_new(dpd_id, [data_product_id], argument_map=argmap, out_param_name='array_sum')
+
+        # Verify that the function worked!
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['array_sum'], np.arange(0,60,2))
