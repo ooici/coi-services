@@ -371,6 +371,8 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        # Prevent this test from hanging indefinitely until
+        # OOIION-1313 is resolved
         timeout_val = 60
         with gevent.Timeout(timeout_val, Exception('Agent failed to initialize after %fs' % timeout_val)):
             reply = self._ia_client.execute_agent(cmd)
