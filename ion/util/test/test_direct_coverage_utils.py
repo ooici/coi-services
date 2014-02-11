@@ -309,6 +309,7 @@ class TestDirectCoverageAccess(DMTestCase):
                 self.assertIsInstance(cov, AbstractCoverage)
 
     @attr('LOCOINT')
+    @unittest.skip('Complex Coverages not supported in R2')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_fill_temporal_gap(self):
         from ion.services.dm.inventory.dataset_management_service import DatasetManagementService

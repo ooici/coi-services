@@ -24,6 +24,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from coverage_model.recovery import CoverageDoctor
+from pyon.util.log import log
 
 from interface.objects import Dataset
 
@@ -219,29 +220,40 @@ class DirectCoverageAccess(object):
                 cpth = cov.persistence_dir
         except IOError, ex:
             fs = 'Unable to open reference coverage: \''
-            io = 'unable to create file (File accessability: Unable to open file)'
+            accessibility_errors = [
+                 'unable to create file (File accessability: Unable to open file)',
+                 'unable to open file (File accessibilty: Unable to open file)',
+                 'unable to open file (File accessability: Unable to open file)']
             if fs in ex.message:  # The view coverage couldn't load it's underlying reference coverage
                 cpth = ex.message[len(fs):-1]
-            elif io in ex.message:  # The simplex coverage was inaccessible
-                cpth = self.get_coverage_path(dataset_id)
-                self.pause_ingestion(self.get_stream_id(dataset_id))
+
+            for err in accessibility_errors:
+                if err in ex.message:
+                    cpth = self.get_coverage_path(dataset_id)
+                    self.pause_ingestion(self.get_stream_id(dataset_id))
+                    break
             else:
+                log.critical("Unmatched error: %s", ex.message)
                 raise
 
         # Return the CoverageDoctor instance
         return CoverageDoctor(cpth, dprod_obj, dset_obj)
 
     def run_coverage_doctor(self, dataset_id, data_product_id=None):
+        log.error('Running coverage doctor')
         dr = self.get_coverage_doctor(dataset_id, data_product_id=data_product_id)
 
         if dr.analyze().is_corrupt:
             dr.repair()
         else:
+            log.error("Repair Not Necessary")
             return "Repair Not Necessary"
 
         if not dr.analyze(reanalyze=True).is_corrupt:
+            log.error("Repair Successful")
             return "Repair Successful"
         else:
+            log.error("Repair Failed")
             return "Repair Failed"
 
     def fill_temporal_gap(self, dataset_id, gap_coverage_path=None, gap_coverage_id=None):
