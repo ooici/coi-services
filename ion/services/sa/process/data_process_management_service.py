@@ -391,6 +391,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return dproc_id
 
+    #--------------------------------------------------------------------------------
+    # Parameter Function Support
+    #--------------------------------------------------------------------------------
+
     def _initialize_parameter_function(self, data_process_definition_id, data_product_ids, param_map, out_param_name):
         '''
         For each data product, append a parameter according to the dpd
@@ -425,9 +429,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Make a context specific to this data process
         pf = AbstractFunction.load(parameter_function.parameter_function)
         # Assign the parameter map
+        if not param_map:
+            raise BadRequest('A parameter map must be specified for ParameterFunctions')
+        if not out_param_name:
+            raise BadRequest('A parameter name is required')
+        # TODO: Add sanitary check
         pf.param_map = param_map
         ctxt = ParameterContext(out_param_name, param_type=ParameterFunctionType(pf))
-        ctxt_id = self.clients.dataset_management.create_parameter_context(pf.name, ctxt.dump())
+        ctxt_id = self.clients.dataset_management.create_parameter_context(out_param_name, ctxt.dump())
         return ctxt, ctxt_id
 
     def _check_data_product_for_parameter(self, data_product_id, param_name):
@@ -462,14 +471,17 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         Creates a data process to represent a parameter function on a data product
         '''
         # Get the data product object for the name
-        data_product = self.clients.data_product_management.read(data_product_id)
+        data_product = self.clients.data_product_management.read_data_product(data_product_id)
         # There may or may not be a need to keep more information here
         dp = DataProcess()
         dp.name = 'Data Process %s for Data Product %s' % (data_process_definition.name, data_product.name)
         dp.argument_map = param_map
         # We make a data process
         dp_id, _ = self.clients.resource_registry.create(dp)
+        self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess, dp_id)
         return dp_id
+    
+    #--------------------------------------------------------------------------------
 
     def _get_input_stream_ids(self, in_data_product_ids = None):
 
