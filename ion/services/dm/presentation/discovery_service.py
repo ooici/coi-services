@@ -35,7 +35,7 @@ class DiscoveryService(BaseDiscoveryService):
     # Query Methods
     #===================================================================
 
-    def query(self, query=None, id_only=True):
+    def query(self, query=None, id_only=True, count=False):
         """Issue a query against the indexes as specified in the query, applying filters and operators
         accordingly. The query format is a structured dict.
         See the query format definition: https://confluence.oceanobservatories.org/display/CIDev/Discovery+Service+Query+Format
@@ -46,9 +46,9 @@ class DiscoveryService(BaseDiscoveryService):
         """
         validate_true(query, 'Invalid query')
 
-        return self.request(query, id_only)
+        return self.request(query, id_only, count=count)
 
-    def parse(self, search_request='', id_only=True):
+    def parse(self, search_request='', id_only=True, count=False):
         """Parses a given string request and assembles the query, processes the query and returns the results of the query.
         This is the primary means of interfacing with the search features in discovery.
         See the query language definition: https://confluence.oceanobservatories.org/display/CIDev/Discovery+Service+Query+Format
@@ -59,7 +59,7 @@ class DiscoveryService(BaseDiscoveryService):
         """
         log.info("Search DSL: %s", search_request)
         query_request = self._parse_query_string(search_request)
-        return self.request(query_request, id_only=id_only)
+        return self.request(query_request, id_only=id_only, count=count)
 
     def _parse_query_string(self, query_string):
         """Given a query string in Discovery service DSL, parse and return query structure"""
@@ -67,7 +67,7 @@ class DiscoveryService(BaseDiscoveryService):
         query_request = parser.parse(query_string)
         return query_request
 
-    def request(self, query=None, id_only=True):
+    def request(self, query=None, id_only=True, count=False):
         if not query:
             raise BadRequest('No request query provided')
 
@@ -78,7 +78,15 @@ class DiscoveryService(BaseDiscoveryService):
         elif 'query' not in query:
             raise BadRequest('Unsuported request. %s' % query)
 
+        if count:
+            """Only return the count of ID only search"""
+            query.pop("limit", None)
+            query.pop("skip", None)
+            res = self.ds_discovery.execute_query(query, id_only=True)
+            return [len(res)]
+
         res = self.ds_discovery.execute_query(query, id_only=id_only)
+
         return res
 
 
