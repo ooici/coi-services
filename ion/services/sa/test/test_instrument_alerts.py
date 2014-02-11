@@ -371,25 +371,33 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        reply = self._ia_client.execute_agent(cmd)
+        # Prevent this test from hanging indefinitely until
+        # OOIION-1313 is resolved
+        timeout_val = 60
+        with gevent.Timeout(timeout_val, Exception('Agent failed to initialize after %fs' % timeout_val)):
+            reply = self._ia_client.execute_agent(cmd)
         self.assertTrue(reply.status == 0)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
-        reply = self._ia_client.execute_agent(cmd)
+        with gevent.Timeout(timeout_val, Exception('Agent failed to go active after %fs' % timeout_val)):
+            reply = self._ia_client.execute_agent(cmd)
         self.assertTrue(reply.status == 0)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
-        retval = self._ia_client.execute_agent(cmd)
+        with gevent.Timeout(timeout_val, Exception('Agent failed to get resource after %fs' % timeout_val)):
+            retval = self._ia_client.execute_agent(cmd)
         state = retval.result
         log.debug("(L4-CI-SA-RQ-334): current state after sending go_active command %s", str(state))
         self.assertTrue(state, 'DRIVER_STATE_COMMAND')
 
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
-        reply = self._ia_client.execute_agent(cmd)
+        with gevent.Timeout(timeout_val, Exception('Agent failed to run after %fs' % timeout_val)):
+            reply = self._ia_client.execute_agent(cmd)
         self.assertTrue(reply.status == 0)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
-        retval = self._ia_client.execute_resource(cmd)
+        with gevent.Timeout(timeout_val, Exception('Agent failed to start autosample after %fs' % timeout_val)):
+            retval = self._ia_client.execute_resource(cmd)
 
         got_bad_temp = [False, False, False, False]
         got_late_data = False
