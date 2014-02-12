@@ -1830,8 +1830,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             if (evt.state == ResourceAgentState.STREAMING or evt.state == PlatformAgentState.MONITORING):
                 current_time = get_ion_ts() # this is in milliseconds
                 log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
-                result = self._convert_to_string(ret, int(current_time)/1000 - int(evt.ts_created)/1000 )
-
                 return self._convert_to_string(ret, int(current_time)/1000 - int(evt.ts_created)/1000 )
             elif evt.state in not_streaming_states:
                 log.debug("Got a most recent event state that means instrument is not streaming anymore: %s", evt.state)
