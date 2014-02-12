@@ -22,11 +22,12 @@ from interface.objects import ParameterFunction, TransformFunction, DataProcessT
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from coverage_model.parameter_functions import AbstractFunction
+from coverage_model.parameter_functions import AbstractFunction, PythonFunction, NumexprFunction
 from coverage_model import ParameterContext, ParameterFunctionType, ParameterDictionary
 
 from pyon.util.arg_check import validate_is_instance
 from ion.util.module_uploader import RegisterModulePreparerPy
+import inspect
 import os
 import pwd
 
@@ -110,11 +111,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                tf1.uri           == tf2.uri    and \
                tf1.function_type == tf2.function_type
 
-    def create_transform_function(self, transform_function=''):
+    def create_transform_function(self, transform_function=None):
         '''
         Creates a new transform function
         '''
-
+        if not transform_function:
+            raise BadRequest("Improper TransformFunction specified")
         return self.RR2.create(transform_function, RT.TransformFunction)
 
     def read_transform_function(self, transform_function_id=''):
@@ -160,9 +162,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             return dpd_id
 
         elif isinstance(function_definition, TransformFunction):
-            # TODO: Need service methods for this stuff
             data_process_definition.data_process_type = DataProcessTypeEnum.TRANSFORM_PROCESS
-
             dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
             self.clients.resource_registry.create_association(subject=dpd_id, object=function_id, predicate=PRED.hasTransformFunction)
             return dpd_id
@@ -348,6 +348,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #todo: determine if/how routing tables will be managed
         dpd_obj = self.read_data_process_definition(data_process_definition_id)
         if dpd_obj.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
+            # A different kind of data process
+            # this function creates a data process resource for each data product and appends the parameter
             return self._initialize_parameter_function(data_process_definition_id, in_data_product_ids, argument_map, out_param_name)
             
 
@@ -390,6 +392,45 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #todo: assign to a transform worker
 
         return dproc_id
+
+    #--------------------------------------------------------------------------------
+    # Inspection 
+    #--------------------------------------------------------------------------------
+
+    def inspect_data_process_definition(self, data_process_definition_id=''):
+        '''
+        Returns the source code for the data process definition 
+        '''
+        dpd = self.read_data_process_definition(data_process_definition_id)
+        if dpd.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
+            return self._inspect_parameter_function(data_process_definition_id)
+        #TODO: add the rest of the types
+        else:
+            raise BadRequest("Data process type not yet supported")
+
+    def _inspect_parameter_function(self, data_process_definition_id):
+        '''
+        Returns the source code definition for the DPD's parameter function
+        '''
+        pfuncs, _ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasParameterFunction, id_only=False)
+        if not pfuncs:
+            raise BadRequest('Data Process Definition %s has no parameter functions' % data_process_definition_id)
+        pfunc_res = pfuncs[0]
+        func = AbstractFunction.load(pfunc_res.parameter_function)
+        if isinstance(func, PythonFunction):
+            func._import_func()
+            # Gets a list of lines of the source code
+            src = inspect.getsourcelines(func._callable)[0]
+            # Join the lines into one contiguous string
+            src = ''.join(src)
+
+        elif isinstance(func, NumexprFunction):
+            src = func.expression
+
+        else:
+            raise BadRequest('%s is not supported for inspection' % type(func))
+
+        return src
 
     #--------------------------------------------------------------------------------
     # Parameter Function Support
@@ -1056,3 +1097,4 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         retval.value = ''
         retval.status = ComputedValueAvailability.NOTAVAILABLE
         return retval
+

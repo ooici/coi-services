@@ -62,6 +62,7 @@ class DMTestCase(IonIntegrationTestCase):
         self.user_notification = UserNotificationServiceClient()
         self.workflow_management = WorkflowManagementServiceClient()
         self.visualization = VisualizationServiceClient()
+        self.ph = ParameterHelper(self.dataset_management, self.addCleanup)
 
     def create_stream_definition(self, *args, **kwargs):
         stream_def_id = self.pubsub_management.create_stream_definition(*args, **kwargs)
@@ -98,6 +99,13 @@ class DMTestCase(IonIntegrationTestCase):
         return None
     def dataset_of_data_product(self, data_product_id):
         return self.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
+    
+    def make_ctd_data_product(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+        return data_product_id
 
 class Streamer(object):
     def __init__(self, data_product_id, interval=1, simple_time=False, connection=False):
