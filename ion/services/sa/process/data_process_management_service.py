@@ -111,11 +111,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                tf1.uri           == tf2.uri    and \
                tf1.function_type == tf2.function_type
 
-    def create_transform_function(self, transform_function=''):
+    def create_transform_function(self, transform_function=None):
         '''
         Creates a new transform function
         '''
-
+        if not transform_function:
+            raise BadRequest("Improper TransformFunction specified")
         return self.RR2.create(transform_function, RT.TransformFunction)
 
     def read_transform_function(self, transform_function_id=''):
@@ -161,9 +162,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             return dpd_id
 
         elif isinstance(function_definition, TransformFunction):
-            # TODO: Need service methods for this stuff
             data_process_definition.data_process_type = DataProcessTypeEnum.TRANSFORM_PROCESS
-
             dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
             self.clients.resource_registry.create_association(subject=dpd_id, object=function_id, predicate=PRED.hasTransformFunction)
             return dpd_id
@@ -349,6 +348,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #todo: determine if/how routing tables will be managed
         dpd_obj = self.read_data_process_definition(data_process_definition_id)
         if dpd_obj.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
+            # A different kind of data process
+            # this function creates a data process resource for each data product and appends the parameter
             return self._initialize_parameter_function(data_process_definition_id, in_data_product_ids, argument_map, out_param_name)
             
 
