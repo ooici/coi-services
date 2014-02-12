@@ -40,6 +40,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.init_module_uploader()
 
+        self.init_transform_worker()
+
         self.get_unique_id = (lambda : uuid4().hex)
 
         self.data_product_management = DataProductManagementServiceClient()
@@ -73,6 +75,19 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #shortcut names for the import sub-services
         if hasattr(self.clients, "resource_registry"):
             self.RR   = self.clients.resource_registry
+
+
+    def init_transform_worker(self):
+
+        #todo: temporary? where to store for use on restart?
+
+        # map contains worker_process_id : exchange_name
+        self.transform_worker_subscription_map = {}
+        # map contains worker_process_id : [dp_id1, dp_id2, etc]
+        self.transform_worker_dp_map = {}
+
+        self.TRANSFORM_WORKER_HOST_LIMIT = 10
+
 
 
     #todo: need to know what object will be worked with here
@@ -162,7 +177,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             return dpd_id
 
         elif isinstance(function_definition, TransformFunction):
+            # TODO: Need service methods for this stuff
             data_process_definition.data_process_type = DataProcessTypeEnum.TRANSFORM_PROCESS
+
             dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
             self.clients.resource_registry.create_association(subject=dpd_id, object=function_id, predicate=PRED.hasTransformFunction)
             return dpd_id
@@ -351,7 +368,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             # A different kind of data process
             # this function creates a data process resource for each data product and appends the parameter
             return self._initialize_parameter_function(data_process_definition_id, in_data_product_ids, argument_map, out_param_name)
-            
+
 
         configuration = DotDict(configuration or {})
         configuration.process.output_products = out_data_product_ids
@@ -390,10 +407,76 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.create_association(data_process_definition_id, PRED.hasDataProcess ,dproc_id)
 
         #todo: assign to a transform worker
+        #if no workers, start the first one
+        #todo: check if TW has reached limit of dps
+        transform_worker_pid = ''
+        log.debug('create_data_process_new  transform_worker_subscription_map: %s', self.transform_worker_subscription_map)
+        if not self.transform_worker_subscription_map:
+            log.debug('create_data_process_new start first worker')
+            transform_worker_pid = self._start_transform_worker()
+        else:
+            for worker_pid, dp_list in self.transform_worker_dp_map.iteritems():
+                if len(dp_list) < self.TRANSFORM_WORKER_HOST_LIMIT:
+                    # slots available on this worker, add the dp input stream to its queue
+                    transform_worker_pid = worker_pid
+
+        exchange_name = self.transform_worker_subscription_map[transform_worker_pid]
+        log.debug('create_data_process_new  exchange_name: %s', exchange_name)
+        queue_name = self._create_subscription(dproc, in_data_product_ids, exchange_name)
+        log.debug('create_data_process_new  queue_name: %s', queue_name)
+
+        self.transform_worker_dp_map[transform_worker_pid].append(dproc_id)
+        log.debug('_start_transform_worker  transform_worker_dp_map:  %s', self.transform_worker_dp_map)
 
         return dproc_id
 
+
+    def _start_transform_worker(self):
+
+        def create_queue_name():
+            import uuid
+            id = str(uuid.uuid4())
+            #import re
+            #queue_name = re.sub(r'[ -]','_',id)
+            queue_name = id.replace('-', '_')
+            log.debug('_create_queue_name:  %s', queue_name)
+            return queue_name
+
+        log.debug('_start_transform_worker: ')
+        config = DotDict()
+        config.process.queue_name = create_queue_name()
+        log.debug('_create_queue_name config  %s', config)
+
+        #create the process definition
+        process_definition = ProcessDefinition()
+        process_definition.name = 'TransformWorker'
+        process_definition.executable['module'] = 'ion.processes.data.transforms.transform_worker'
+        process_definition.executable['class'] = 'TransformWorker'
+        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition)
+
+        # Setting the restart mode
+        schedule = ProcessSchedule()
+        schedule.restart_mode = ProcessRestartMode.ABNORMAL
+        schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+
+        # Spawn the process
+        pid = self.clients.process_dispatcher.schedule_process(
+            process_definition_id=process_definition_id,
+            schedule= schedule,
+            configuration=config
+        )
+        log.debug('_create_queue_name pid  %s', pid)
+
+        #store the pid with the queu name
+        self.transform_worker_subscription_map[pid] = config.process.queue_name
+        log.debug('_start_transform_worker  transform_worker_subscription_map:  %s', self.transform_worker_subscription_map)
+        #init list of data process ids for this TW
+        self.transform_worker_dp_map[pid] = []
+
+        return pid
+
     #--------------------------------------------------------------------------------
+<<<<<<< HEAD
     # Validation
     #--------------------------------------------------------------------------------
     def validate_argument_input(self, data_product_id='', argument_map=None):
@@ -441,11 +524,14 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     #--------------------------------------------------------------------------------
     # Inspection 
+=======
+    # Inspection
+>>>>>>> 66974ab... add initial  management of transform workers to DPMS, add test to demonstrate multiple data processes using different input streams being hosted by the TW.
     #--------------------------------------------------------------------------------
 
     def inspect_data_process_definition(self, data_process_definition_id=''):
         '''
-        Returns the source code for the data process definition 
+        Returns the source code for the data process definition
         '''
         dpd = self.read_data_process_definition(data_process_definition_id)
         if dpd.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
@@ -567,7 +653,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         dp_id, _ = self.clients.resource_registry.create(dp)
         self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess, dp_id)
         return dp_id
-    
+
     #--------------------------------------------------------------------------------
 
     def _get_input_stream_ids(self, in_data_product_ids = None):
@@ -705,6 +791,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         dataprocess_details.function = pfunction_obj.function
         dataprocess_details.arguments = pfunction_obj.arguments
         dataprocess_details.argument_map=dp_obj.argument_map
+        dataprocess_details.uri=dpd_obj.uri
 
         log.debug('read_data_process_for_stream   dataprocess_details:  %s', dataprocess_details)
 
@@ -732,6 +819,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.data_acquisition_management.unassign_data_product(input_resource_id=data_process_id, data_product_id=data_product_id)
 
         #Unregister the data process with acquisition
+        #todo update when Data acquisition/Data Producer is ready
         self.clients.data_acquisition_management.unregister_process(data_process_id=data_process_id)
 
         #Delete the data process from the resource registry
@@ -867,11 +955,21 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def _manage_attachments(self):
         pass
 
-    def _create_subscription(self, dproc, in_data_product_ids=None):
+    def _create_subscription(self, dproc, in_data_product_ids=None, queue_name=None):
+
+        if not queue_name:
+            queue_name = 'sub_%s' % dproc.name
+
+        log.debug('_create_subscription queue_name: %s', queue_name)
+
         stream_ids = [self._get_stream_from_dataproduct(i) for i in in_data_product_ids]
+        log.debug('_create_subscription stream_ids: %s', stream_ids)
+
         #@TODO Maybe associate a data process with an exchange point but in the mean time:
-        queue_name = 'sub_%s' % dproc.name
+
+
         subscription_id = self.clients.pubsub_management.create_subscription(name=queue_name, stream_ids=stream_ids)
+        log.debug('_create_subscription subscription_id: %s', subscription_id)
         self.clients.resource_registry.create_association(subject=dproc._id, predicate=PRED.hasSubscription, object=subscription_id)
         return queue_name
 
@@ -1143,4 +1241,3 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         retval.value = ''
         retval.status = ComputedValueAvailability.NOTAVAILABLE
         return retval
-

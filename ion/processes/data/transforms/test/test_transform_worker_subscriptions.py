@@ -35,8 +35,6 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.processes.data.transforms.transform_worker import TransformWorker
-from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
-from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
 from coverage_model.coverage import AbstractCoverage
 
@@ -47,7 +45,7 @@ import os
 
 
 @attr('INT', group='dm')
-class TestTransformWorker(IonIntegrationTestCase):
+class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
 
     def setUp(self):
         self._start_container()
@@ -62,32 +60,12 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         self.time_dom, self.spatial_dom = time_series_domain()
 
-        self.ph = ParameterHelper(self.dataset_management_client, self.addCleanup)
-
-    def push_granule(self, data_product_id):
-        '''
-        Publishes and monitors that the granule arrived
-        '''
-        datasets, _ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, id_only=True)
-        dataset_monitor = DatasetMonitor(datasets[0])
-
-        rdt = self.ph.rdt_for_data_product(data_product_id)
-        self.ph.fill_parsed_rdt(rdt)
-        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-
-
-        assert dataset_monitor.wait()
-        dataset_monitor.stop()
-
 
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_transform_worker(self):
-        self.loggerpids = []
-        self.data_process_objs = []
-        self._output_stream_ids = []
-
+        self.dp_list = []
 
         self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
 
@@ -96,36 +74,48 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(self.pubsub_client.delete_stream_definition, self.stream_def_id)
 
         # create the DataProduct
-        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream',
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product_one', description='input test stream one',
                                              temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
-        self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
+        self.input_dp_one_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
+
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product_two', description='input test stream two',
+                                             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        self.input_dp_two_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
         #retrieve the Stream for this data product
-        stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_id, PRED.hasStream, RT.Stream, True)
-        self.stream_id = stream_ids[0]
+        stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_one_id, PRED.hasStream, RT.Stream, True)
+        self.stream_one_id = stream_ids[0]
 
-        #create the DPD and two DPs
-        self.dp_list = self.create_data_processes()
+        stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_two_id, PRED.hasStream, RT.Stream, True)
+        self.stream_two_id = stream_ids[0]
+
+
+        dpd_id = self.create_data_process_definition()
+        dp1_func_output_dp_id, dp2_func_output_dp_id =  self.create_output_data_products()
+        first_dp_id = self.create_data_process_one(dpd_id, dp1_func_output_dp_id)
 
         #retrieve subscription from data process
-        first_dp_id = self.dp_list[0]
         subscription_objs, _ = self.rrclient.find_objects(subject=first_dp_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
         log.debug('test_transform_worker subscription_obj:  %s', subscription_objs[0])
 
-        #create a queue to catch the published granules
-        self.subscription_id = self.pubsub_client.create_subscription(name='parsed_subscription', stream_ids=[self.stream_id], exchange_name=subscription_objs[0].exchange_name)
-        self.addCleanup(self.pubsub_client.delete_subscription, self.subscription_id)
+        #create subscription to stream ONE, create data process and publish granule on stream ONE
 
-        self.pubsub_client.activate_subscription(self.subscription_id)
-        self.addCleanup(self.pubsub_client.deactivate_subscription, self.subscription_id)
+        #create a queue to catch the published granules of stream ONE
+        self.subscription_one_id = self.pubsub_client.create_subscription(name='parsed_subscription_one', stream_ids=[self.stream_one_id], exchange_name=subscription_objs[0].exchange_name)
+        self.addCleanup(self.pubsub_client.delete_subscription, self.subscription_one_id)
 
-        stream_route = self.pubsub_client.read_stream_route(self.stream_id)
-        self.publisher = StandaloneStreamPublisher(stream_id=self.stream_id, stream_route=stream_route )
+        self.pubsub_client.activate_subscription(self.subscription_one_id)
+        self.addCleanup(self.pubsub_client.deactivate_subscription, self.subscription_one_id)
+
+        stream_route_one = self.pubsub_client.read_stream_route(self.stream_one_id)
+        self.publisher_one = StandaloneStreamPublisher(stream_id=self.stream_one_id, stream_route=stream_route_one )
 
         self.start_event_listener()
 
+
+
         self.data_modified = Event()
-        self.data_modified.wait(5)
+        self.data_modified.wait(2)
 
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time']         = [0] # time should always come first
@@ -133,22 +123,54 @@ class TestTransformWorker(IonIntegrationTestCase):
         rdt['pressure']     = [2]
         rdt['salinity']     = [8]
 
-        self.publisher.publish(rdt.to_granule())
-
-
+        self.publisher_one.publish(msg=rdt.to_granule(), stream_id=self.stream_one_id)
         self.data_modified.wait(5)
 
-        # Cleanup processes
-        for pid in self.loggerpids:
-            self.processdispatchclient.cancel_process(pid)
+
+        second_dp_id = self.create_data_process_two(dpd_id, dp2_func_output_dp_id)
+
+        #retrieve subscription from data process
+        subscription_objs, _ = self.rrclient.find_objects(subject=second_dp_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
+        log.debug('test_transform_worker subscription_obj:  %s', subscription_objs[0])
+
+        #create subscription to stream ONE and TWO, move TW subscription, create data process and publish granule on stream TWO
+
+        #create a queue to catch the published granules of stream TWO
+        self.subscription_two_id = self.pubsub_client.create_subscription(name='parsed_subscription_one_two', stream_ids=[self.stream_two_id], exchange_name=subscription_objs[0].exchange_name)
+        self.addCleanup(self.pubsub_client.delete_subscription, self.subscription_two_id)
+
+        self.pubsub_client.activate_subscription(self.subscription_two_id)
+        self.addCleanup(self.pubsub_client.deactivate_subscription, self.subscription_two_id)
+
+        stream_route_two = self.pubsub_client.read_stream_route(self.stream_two_id)
+        self.publisher_two = StandaloneStreamPublisher(stream_id=self.stream_two_id, stream_route=stream_route_two )
 
 
-    def create_data_processes(self):
+
+        self.data_modified.wait(2)
+
+        rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
+        rdt['time']         = [0] # time should always come first
+        rdt['conductivity'] = [1]
+        rdt['pressure']     = [2]
+        rdt['salinity']     = [8]
+
+        self.publisher_one.publish(msg=rdt.to_granule(), stream_id=self.stream_one_id)
+        self.data_modified.wait(5)
+
+        rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
+        rdt['time']         = [0] # time should always come first
+        rdt['conductivity'] = [3]
+        rdt['pressure']     = [4]
+        rdt['salinity']     = [8]
+
+        self.publisher_two.publish(msg=rdt.to_granule(), stream_id=self.stream_two_id)
+        self.data_modified.wait(5)
+
+
+    def create_data_process_definition(self):
 
         #two data processes using one transform and one DPD
-
-        dp1_func_output_dp_id, dp2_func_output_dp_id =  self.create_output_data_products()
-        configuration = { 'argument_map':{'arr1':'conductivity', 'arr2':'pressure'}, 'output_param' : 'salinity' }
 
         # Set up DPD and DP #2 - array add function
         tf_obj = IonObject(RT.TransformFunction,
@@ -168,22 +190,35 @@ class TestTransformWorker(IonIntegrationTestCase):
             data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS,
             uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
             )
-        self.add_array_dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition=dpd_obj, function_id=add_array_func_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, self.add_array_dpd_id, binding='add_array_func' )
+        add_array_dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition=dpd_obj, function_id=add_array_func_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='add_array_func' )
+
+        return add_array_dpd_id
+
+    def create_data_process_one(self, data_process_definition_id, output_dataproduct):
 
         # Create the data process
-        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=self.add_array_dpd_id, in_data_product_ids=[self.input_dp_id],
-                                                                             out_data_product_ids=[dp1_func_output_dp_id], configuration=configuration)
+        configuration = { 'argument_map':{'arr1':'conductivity', 'arr2':'pressure'}, 'output_param' : 'salinity' }
+        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=data_process_definition_id, in_data_product_ids=[self.input_dp_one_id],
+                                                                             out_data_product_ids=[output_dataproduct], configuration=configuration)
         self.damsclient.register_process(dp1_data_process_id)
         self.addCleanup(self.dataprocessclient.delete_data_process, dp1_data_process_id)
+        self.dp_list.append(dp1_data_process_id)
+
+        return dp1_data_process_id
+
+
+    def create_data_process_two(self, data_process_definition_id, output_dataproduct):
 
         # Create the data process
-        dp2_func_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=self.add_array_dpd_id, in_data_product_ids=[self.input_dp_id],
-                                                                                  out_data_product_ids=[dp2_func_output_dp_id], configuration=configuration)
+        configuration = { 'argument_map':{'arr1':'conductivity', 'arr2':'pressure'}, 'output_param' : 'salinity' }
+        dp2_func_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=data_process_definition_id, in_data_product_ids=[self.input_dp_two_id],
+                                                                                  out_data_product_ids=[output_dataproduct], configuration=configuration)
         self.damsclient.register_process(dp2_func_data_process_id)
         self.addCleanup(self.dataprocessclient.delete_data_process, dp2_func_data_process_id)
+        self.dp_list.append(dp2_func_data_process_id)
 
-        return [dp1_data_process_id, dp2_func_data_process_id]
+        return  dp2_func_data_process_id
 
 
     def create_output_data_products(self):
@@ -200,7 +235,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(self.dataproductclient.delete_data_product, dp1_func_output_dp_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
         stream_ids, _ = self.rrclient.find_objects(dp1_func_output_dp_id, PRED.hasStream, None, True)
-        self._output_stream_ids.append(stream_ids[0])
+        self._output_stream_one_id = stream_ids[0]
 
 
         dp2_func_outgoing_stream_id = self.pubsub_client.create_stream_definition(name='dp2_stream', parameter_dictionary_id=self.parameter_dict_id)
@@ -215,7 +250,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(self.dataproductclient.delete_data_product, dp2_func_output_dp_id)
         # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
         stream_ids, _ = self.rrclient.find_objects(dp2_func_output_dp_id, PRED.hasStream, None, True)
-        self._output_stream_ids.append(stream_ids[0])
+        self._output_stream_two_id = stream_ids[0]
 
 
         subscription_id = self.pubsub_client.create_subscription('validator', data_product_ids=[dp1_func_output_dp_id, dp2_func_output_dp_id])
@@ -246,12 +281,17 @@ class TestTransformWorker(IonIntegrationTestCase):
 
 
     def validate_output_granule(self, msg, route, stream_id):
-        self.assertTrue( stream_id in self._output_stream_ids)
+        self.assertTrue( stream_id in [self._output_stream_one_id, self._output_stream_two_id])
 
         rdt = RecordDictionaryTool.load_from_granule(msg)
         log.debug('validate_output_granule  rdt: %s', rdt)
         sal_val = rdt['salinity']
-        np.testing.assert_array_equal(sal_val, np.array([3]))
+        log.debug('validate_output_granule  sal_val: %s', sal_val)
+
+        if stream_id == self._output_stream_one_id:
+            np.testing.assert_array_equal(sal_val, np.array([3]))
+        else:
+            np.testing.assert_array_equal(sal_val, np.array([7]))
 
     def start_event_listener(self):
 
@@ -261,26 +301,5 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(es.stop)
 
 
-    #def start_transform_worker(self):
-    #    config = DotDict()
-    #    config.process.queue_name = 'parsed_subscription'
-    #
-    #    self.container.spawn_process(
-    #        name='transform_worker',
-    #        module='ion.processes.data.transforms.transform_worker',
-    #        cls='TransformWorker',
-    #        config=config
-    #    )
 
 
-    def test_download(self):
-        egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
-        egg_path = TransformWorker.download_egg(egg_url)
-
-        import pkg_resources
-        pkg_resources.working_set.add_entry(egg_path)
-
-        from ion_example.add_arrays import add_arrays
-
-        a = add_arrays(1,2)
-        self.assertEquals(a,3)

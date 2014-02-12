@@ -93,12 +93,14 @@ class TransformWorker(TransformStreamListener):
         with self.thread_lock:
             self.subscriber_thread = self._process.thread_manager.spawn(self.subscriber.listen, thread_name='%s-subscriber' % self.id)
 
+
     def stop_listener(self):
         # Avoid race conditions with coverage operations (Don't start a listener at the same time as closing one)
         with self.thread_lock:
             self.subscriber.close()
             self.subscriber_thread.join(timeout=10)
             self.subscriber_thread = None
+
 
 
 
@@ -117,6 +119,7 @@ class TransformWorker(TransformStreamListener):
 
 
         rdt = RecordDictionaryTool.load_from_granule(msg)
+        log.debug('received granule for stream rdt %s', rdt)
         if rdt is None:
             log.error('Invalid granule (no RDT) for stream %s', stream_id)
             return
@@ -141,6 +144,7 @@ class TransformWorker(TransformStreamListener):
                 #run the calc
                 #todo: nothing in the data process resource to specify multi-out map
                 result = function(*args)
+                log.debug('recv_packet  result: %s',result)
 
                 out_stream_definition, output_parameter = self.retrieve_dp_output_params(dp_id)
 
@@ -178,9 +182,13 @@ class TransformWorker(TransformStreamListener):
         try:
             #todo: load once into a 'set' of modules?
             #load the associated transform function
-            egg = self.download_egg(dataprocess_info.get_safe('uri',''))
-            import pkg_resources
-            pkg_resources.working_set.add_entry(egg)
+            egg_uri = dataprocess_info.get_safe('uri','')
+            if egg_uri:
+                egg = self.download_egg(egg_uri)
+                import pkg_resources
+                pkg_resources.working_set.add_entry(egg)
+            else:
+                log.warning('No uri provided for module in data process definition.')
 
             module = importlib.import_module(dataprocess_info.get_safe('module', '') )
             function = getattr(module, dataprocess_info.get_safe('function','') )
@@ -188,7 +196,7 @@ class TransformWorker(TransformStreamListener):
             argument_list = dataprocess_info.get_safe('argument_map', {})
         except ImportError:
             log.error('Error running transform')
-
+        log.debug('retrieve_function_and_define_args  argument_list: %s',argument_list)
         return function, argument_list
 
     def retrieve_dp_output_params(self, dataprocess_id):
@@ -220,6 +228,8 @@ class TransformWorker(TransformStreamListener):
         dataprocess_details.granule_counter = 0
 
         self._dataprocesses[dataprocess_id] = dataprocess_details
+        log.debug('load_data_process  dataprocess_id: %s', dataprocess_id)
+        log.debug('load_data_process  dataprocess_details: %s', dataprocess_details)
 
         #add the stream id to the map
         if 'in_stream_id' in dataprocess_details:
