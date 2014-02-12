@@ -397,7 +397,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     # Inspection 
     #--------------------------------------------------------------------------------
 
-    def inspect_data_process_definition(self, data_process_definition_id):
+    def inspect_data_process_definition(self, data_process_definition_id=''):
         '''
         Returns the source code for the data process definition 
         '''

@@ -91,6 +91,15 @@ class TestDMExtended(DMTestCase):
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
+    def preload_full_beta(self):
+        config = DotDict()
+        config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
     def preload_alpha(self):
         config = DotDict()
         config.cfg = 'res/preload/r2_ioc/config/ooi_alpha.yml'
@@ -1096,6 +1105,16 @@ class TestDMExtended(DMTestCase):
         try:
             from growl import growl
             growl("Alpha", "Loaded")
+        except ImportError:
+            pass
+        breakpoint(locals(), globals())
+    
+    @attr("UTIL")
+    def test_beta(self):
+        self.preload_full_beta()
+        try:
+            from growl import growl
+            growl("Beta", "Loaded")
         except ImportError:
             pass
         breakpoint(locals(), globals())

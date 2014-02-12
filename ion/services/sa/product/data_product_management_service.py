@@ -149,7 +149,9 @@ class DataProductManagementService(BaseDataProductManagementService):
             dp = DataProcess()
             dp.name = 'Data Process %s for Data Product %s' % ( dpd.name, data_product.name )
             # TODO: This is a stub until DPD is ready
-            self.clients.resource_registry.create(dp)
+            dp_id, _ = self.clients.resource_registry.create(dp)
+            self.clients.resource_registry.create_association(dpd._id, PRED.hasDataProcess, dp_id)
+            self.clients.resource_registry.create_association(dp_id, PRED.hasOutputProduct, data_product._id)
 
 
 
