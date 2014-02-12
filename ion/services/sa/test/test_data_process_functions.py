@@ -11,13 +11,21 @@ from interface.objects import DataProcessDefinition
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from datetime import datetime, timedelta
+from pyon.util.containers import DotDict
+from pyon.public import RT
 import os
 import unittest
 import numpy as np
-import time
 import calendar
 
 class TestDataProcessFunctions(DMTestCase):
+    def preload_units(self):
+        config = DotDict()
+        config.op = 'load'
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'BETA,LC_UNITS'
+        config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     @attr('INT')
     def test_retrieve_process(self):
@@ -133,4 +141,24 @@ class TestDataProcessFunctions(DMTestCase):
         # Verify that we can inspect it as well
         source_code = self.data_process_management.inspect_data_process_definition(dpd_id)
         self.assertEquals(source_code, 'def add_arrays(a, b):\n    return a+b\n')
+
+    @attr("INT")
+    def test_ui_functionality(self):
+        '''
+        Tests the service implementations and UI compliance through the service gateway
+        '''
+        # Get some initial dpds
+        # There's one specifically for converting from C to F
+        self.preload_units()
+        
+        # User clicks create data process
+        # User is presented with a dropdown of data process definitions
+        dpds, _ = self.resource_registry.find_resources(restype=RT.DataProcessDefinition)
+        # User selects the c_to_f data process definition
+        relevant = filter(lambda x: 'c_to_f' in x.name, dpds)
+        breakpoint(locals(), globals())
+
+
+        # User can select an existing data
+
 
