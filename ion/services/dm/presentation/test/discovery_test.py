@@ -277,6 +277,17 @@ class DiscoveryQueryTest(IonIntegrationTestCase):
         self.assertEquals(len(result), len(result1))
         self.assertEquals(result, result1)
 
+        # Resource attribute match only count (results should return single value, a count of available results)
+        search_string = "search 'firmware_version' is 'A*' from 'resources_index' limit 2"
+        result  = self.discovery.parse(search_string, id_only=False, count=True)
+        self.assertEquals(len(result), 1)
+
+        query_str = "{'and': [], 'limit': 2, 'or': [], 'query': {'field': 'firmware_version', 'index': 'resources_index', 'value': 'A*'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=False, count=True)
+        self.assertEquals(len(result), len(result1))
+        self.assertEquals(result, result1)
+
         # Check data products
         search_string = "search 'name' is 'testData*' from 'resources_index'"
         result  = self.discovery.parse(search_string, id_only=False)
