@@ -89,6 +89,7 @@ class TestDMExtended(DMTestCase):
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA'
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        config.path = 'master'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     def preload_full_beta(self):
@@ -98,6 +99,7 @@ class TestDMExtended(DMTestCase):
         config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA'
+        config.path = 'master'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     def preload_alpha(self):
@@ -114,6 +116,7 @@ class TestDMExtended(DMTestCase):
         config.ui_path =  "http://userexperience.oceanobservatories.org/database-exports/Candidates"
         config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA,TMPSF'
+        config.path = 'master'
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
     

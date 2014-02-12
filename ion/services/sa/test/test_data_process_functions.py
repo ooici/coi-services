@@ -23,8 +23,9 @@ class TestDataProcessFunctions(DMTestCase):
         config = DotDict()
         config.op = 'load'
         config.attachments = "res/preload/r2_ioc/attachments"
-        config.scenario = 'BETA,LC_UNITS'
+        config.scenario = 'LC_UNITS'
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        config.path = 'master'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     @attr('INT')
@@ -142,7 +143,7 @@ class TestDataProcessFunctions(DMTestCase):
         source_code = self.data_process_management.inspect_data_process_definition(dpd_id)
         self.assertEquals(source_code, 'def add_arrays(a, b):\n    return a+b\n')
 
-    @attr("INT")
+    @attr("UTIL")
     def test_ui_functionality(self):
         '''
         Tests the service implementations and UI compliance through the service gateway
