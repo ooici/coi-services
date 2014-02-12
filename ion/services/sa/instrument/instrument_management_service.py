@@ -1810,18 +1810,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # These below are the possible new event states while taking the instrument off streaming mode or the platform off monitoring mode
         # This is info got from possible actions to wind down the instrument or platform that one can take in the UI when the device is already streaming/monitoring
         #----------------------------------------------------------------------------------------------
-        event_state = ''
         not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
-
-        if device.type_ == 'InstrumentDevice':
-            event_state = ResourceAgentState.STREAMING
-        elif device.type_ == 'PlatformDevice':
-            event_state = PlatformAgentState.MONITORING
 
         #----------------------------------------------------------------------------------------------
         # Get events associated with device from the events db
         #----------------------------------------------------------------------------------------------
-        log.debug("For uptime, we are checking the device with id: %s, type_: %s, and searching recent events for the following event_state: %s",device_id, device.type_, event_state)
+        log.debug("For uptime, we are checking the device with id: %s, type_: %s, and searching recent streaming or monitoring events: %s",device_id, device.type_)
         event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
 
         recent_events = [tuple[2] for tuple in event_tuples]
@@ -1832,9 +1826,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         for evt in recent_events:
             log.debug("Got a recent event with event_state: %s", evt.state)
 
-            if evt.state == event_state: # "RESOURCE_AGENT_STATE_STREAMING"
+            #RSN Platform agent publishes PlatformAgentState.MONITORING while Instrument and Dataset Agents publish ResourceAgentState.STREAMING
+            if (evt.state == ResourceAgentState.STREAMING or evt.state == PlatformAgentState.MONITORING):
                 current_time = get_ion_ts() # this is in milliseconds
                 log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
+                result = self._convert_to_string(ret, int(current_time)/1000 - int(evt.ts_created)/1000 )
+
                 return self._convert_to_string(ret, int(current_time)/1000 - int(evt.ts_created)/1000 )
             elif evt.state in not_streaming_states:
                 log.debug("Got a most recent event state that means instrument is not streaming anymore: %s", evt.state)
