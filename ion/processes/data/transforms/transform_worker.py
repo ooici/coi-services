@@ -178,9 +178,9 @@ class TransformWorker(TransformStreamListener):
         try:
             #todo: load once into a 'set' of modules?
             #load the associated transform function
-            egg = self.download_egg(dataprocess_info.get_safe('uri',''))
-            import pkg_resources
-            pkg_resources.working_set.add_entry(egg)
+            #egg = self.download_egg(dataprocess_info.get_safe('uri',''))
+            #import pkg_resources
+            #pkg_resources.working_set.add_entry(egg)
 
             module = importlib.import_module(dataprocess_info.get_safe('module', '') )
             function = getattr(module, dataprocess_info.get_safe('function','') )
