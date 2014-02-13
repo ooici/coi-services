@@ -19,6 +19,8 @@ import numpy as np
 import calendar
 
 class TestDataProcessFunctions(DMTestCase):
+
+    egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' 
     def preload_units(self):
         config = DotDict()
         config.op = 'load'
@@ -65,7 +67,7 @@ class TestDataProcessFunctions(DMTestCase):
         dataset_monitor.event.clear()
 
         # Grab the egg
-        egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' 
+        egg_url = self.egg_url
         egg_path = TransformWorker.download_egg(egg_url)
         import pkg_resources
         pkg_resources.working_set.add_entry(egg_path)
@@ -114,7 +116,7 @@ class TestDataProcessFunctions(DMTestCase):
         # This is what the user defines either via preload or through the UI
         #--------------------------------------------------------------------------------
         # Where the egg is
-        egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' 
+        egg_url = self.egg_url
 
         # Make a parameter function
         owner = 'ion_example.add_arrays'
