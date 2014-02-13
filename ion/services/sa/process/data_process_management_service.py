@@ -394,6 +394,52 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return dproc_id
 
     #--------------------------------------------------------------------------------
+    # Validation
+    #--------------------------------------------------------------------------------
+    def validate_argument_input(self, data_product_id='', argument_map=None):
+        '''
+        Returns true if the argument map is valid for a particular data product
+        '''
+        if not argument_map:
+            raise BadRequest("A valid arugment map is required")
+        if not data_product_id:
+            raise BadRequest("A valid data product is required")
+
+        parameters = self.parameters_for_data_product(data_product_id)
+        parameter_names = parameters.keys()
+        for argument_name in argument_map.itervalues():
+            if argument_name not in parameter_names:
+                return False
+        return True
+        
+    def parameters_for_data_product(self, data_product_id='', filtered=False):
+        '''
+        Returns a dict of parameter and parameter ids for a data product. Applies a 
+        filter if specified (using the stream def)
+        '''
+
+        stream_defs, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
+        if not stream_defs:
+            raise BadRequest("No Stream Definition Found for data product %s" % data_product_id)
+        stream_def = stream_defs[0]
+
+        pdicts, _ = self.clients.resource_registry.find_objects(stream_def._id, PRED.hasParameterDictionary, id_only=True)
+        if not pdicts:
+            raise BadRequest("No Parameter Dictionary Found for data product %s" % data_product_id)
+        pdict_id = pdicts[0]
+        parameters, _ = self.clients.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=False)
+
+        # too complicated for one line of code
+        #retval = { p.name : p._id for p in parameters if not filtered or (filtered and p in stream_def.available_fields) } 
+        retval = {}
+        for p in parameters:
+            if filtered and p.name in stream_def.available_fields:
+                retval[p.name] = p._id
+            elif not filtered:
+                retval[p.name] = p._id
+        return retval
+
+    #--------------------------------------------------------------------------------
     # Inspection 
     #--------------------------------------------------------------------------------
 

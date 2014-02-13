@@ -12,7 +12,7 @@ from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from datetime import datetime, timedelta
 from pyon.util.containers import DotDict
-from pyon.public import RT
+from pyon.public import RT, PRED
 import os
 import unittest
 import numpy as np
@@ -96,6 +96,7 @@ class TestDataProcessFunctions(DMTestCase):
     def test_add_parameter_function(self):
         # Make a CTDBP Data Product
         data_product_id = self.make_ctd_data_product()
+        self.data_product_id = data_product_id
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
@@ -162,4 +163,22 @@ class TestDataProcessFunctions(DMTestCase):
 
         # User can select an existing data
 
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_validate_argument_input(self):
+        self.test_add_parameter_function()
+        data_product_id = self.data_product_id
+
+        dpms = self.container.proc_manager.procs_by_name['data_process_management']
+        self.assertTrue(dpms.validate_argument_input(data_product_id, {'a':'temp', 'b':'pressure'}))
+        self.assertFalse(dpms.validate_argument_input(data_product_id, {'a':'temp', 'b':'not_pressure'}))
+
+        stream_defs, _ = self.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
+        stream_def = stream_defs[0]
+        stream_def.available_fields = ['time', 'temp']
+        self.resource_registry.update(stream_def)
+
+        params = dpms.parameters_for_data_product(data_product_id, True)
+        self.assertEquals(len(params), 2)
 
