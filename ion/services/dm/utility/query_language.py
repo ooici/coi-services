@@ -200,7 +200,7 @@ class QueryLanguage(object):
         order_parameter = CaselessLiteral("ORDER") + CaselessLiteral("BY") + limited_string
         order_parameter.setParseAction(lambda x: self.json_query.update({'order' : {x[2] : 'asc'}}))
         offset_parameter = CaselessLiteral("SKIP") + integer
-        offset_parameter.setParseAction(lambda x : self.json_query.update({'offset' : int(x[1])}))
+        offset_parameter.setParseAction(lambda x : self.json_query.update({'skip' : int(x[1])}))
         query_parameter = limit_parameter | order_parameter | offset_parameter
 
         #--------------------------------------------------------------------------------------

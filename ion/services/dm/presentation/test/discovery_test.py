@@ -233,6 +233,9 @@ class DiscoveryQueryTest(IonIntegrationTestCase):
             ("DP3", DataProduct(name='testData3', **self._geodp(30, 10, 40, 20, 50, 200, t0+100*day, t0+110*day))),
             ("DP4", DataProduct(name='testData4', **self._geodp(30, 5, 32, 10, 5, 20, t0+100*day, t0+110*day))),
         ]
+        # create a large range of resources to test skip(offset)
+        for i in range(200):
+            resources.append(("INS%03d" % i, InstrumentDevice(name='range%03d' % i)))
         res_by_alias = {}
         for (alias, resource) in resources:
             rid,_ = self.rr.create(resource)
@@ -274,6 +277,46 @@ class DiscoveryQueryTest(IonIntegrationTestCase):
         query_str = "{'and': [], 'limit': 2, 'or': [], 'query': {'field': 'firmware_version', 'index': 'resources_index', 'value': 'A*'}}"
         query_obj = eval(query_str)
         result1  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result), len(result1))
+        self.assertEquals(result, result1)
+
+        # Resource attribute match with limit and skip (offset)
+        # TODO these tests are unlikely to always work until order_by is implemented (1/200 chance fails)
+        
+        # -- limit 1 without skip (using QueryLanguage)
+        search_string = "search 'name' is 'range*' from 'resources_index' limit 1"
+        result  = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 1)
+        # -- limit 1 with skip (using QueryLanguage)
+        search_string = "search 'name' is 'range*' from 'resources_index' SKIP 100 limit 1"
+        result1  = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result1), 1)
+        # check same length and not equal (one uses SKIP 100, other doesn't)
+        self.assertEquals(len(result), len(result1))
+        self.assertNotEquals(result, result1)
+
+        # -- limit 1 without skip (using Discovery Intermediate Format)
+        query_str = "{'and': [], 'limit': 1, 'or': [], 'query': {'field': 'name', 'index': 'resources_index', 'value': 'range*'}}"
+        query_obj = eval(query_str)
+        result  = self.discovery.query(query_obj, id_only=False)
+        # -- limit 1 with skip (using Discovery Intermediate Format)
+        query_str = "{'and': [], 'limit': 1, 'skip': 100, 'or': [], 'query': {'field': 'name', 'index': 'resources_index', 'value': 'range*'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=False)
+        # check same length and not equal (one uses SKIP 100, other doesn't)
+        self.assertEquals(len(result), len(result1))
+        self.assertNotEquals(result, result1)
+
+        # Resource attribute match only count (results should return single value, a count of available results)
+        search_args_str = "{'count': True}"
+        search_args = eval(search_args_str)
+        search_string = "search 'firmware_version' is 'A*' from 'resources_index' limit 2"
+        result  = self.discovery.parse(search_string, id_only=False, search_args=search_args)
+        self.assertEquals(len(result), 1)
+
+        query_str = "{'and': [], 'limit': 2, 'or': [], 'query': {'field': 'firmware_version', 'index': 'resources_index', 'value': 'A*'}}"
+        query_obj = eval(query_str)
+        result1  = self.discovery.query(query_obj, id_only=False, search_args=search_args)
         self.assertEquals(len(result), len(result1))
         self.assertEquals(result, result1)
 

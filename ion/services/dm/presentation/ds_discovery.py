@@ -69,8 +69,9 @@ class DatastoreDiscovery(object):
         if ds_name is None:
             raise BadRequest("Unknown index: %s" % index)
         limit = discovery_query.get("limit", 0)
+        skip = discovery_query.get("skip", 0)
 
-        qb = DatastoreQueryBuilder(limit=limit, id_only=id_only)
+        qb = DatastoreQueryBuilder(limit=limit, skip=skip, id_only=id_only)
         where = None
         for qm in self._qmatchers:
             where = qm(discovery_query, qb)
