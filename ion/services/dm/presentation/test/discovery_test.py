@@ -308,13 +308,15 @@ class DiscoveryQueryTest(IonIntegrationTestCase):
         self.assertNotEquals(result, result1)
 
         # Resource attribute match only count (results should return single value, a count of available results)
+        search_args_str = "{'count': True}"
+        search_args = eval(search_args_str)
         search_string = "search 'firmware_version' is 'A*' from 'resources_index' limit 2"
-        result  = self.discovery.parse(search_string, id_only=False, count=True)
+        result  = self.discovery.parse(search_string, id_only=False, search_args=search_args)
         self.assertEquals(len(result), 1)
 
         query_str = "{'and': [], 'limit': 2, 'or': [], 'query': {'field': 'firmware_version', 'index': 'resources_index', 'value': 'A*'}}"
         query_obj = eval(query_str)
-        result1  = self.discovery.query(query_obj, id_only=False, count=True)
+        result1  = self.discovery.query(query_obj, id_only=False, search_args=search_args)
         self.assertEquals(len(result), len(result1))
         self.assertEquals(result, result1)
 
