@@ -1316,6 +1316,7 @@ class InstrumentAgentTest(IonIntegrationTestCase):
             SBE37ProtocolEvent.START_AUTOSAMPLE,
             SBE37ProtocolEvent.STOP_AUTOSAMPLE,
             SBE37ProtocolEvent.ACQUIRE_CONFIGURATION,
+            SBE37ProtocolEvent.GAP_RECOVERY,
         ]
         
         res_iface_all = [
@@ -1585,7 +1586,8 @@ class InstrumentAgentTest(IonIntegrationTestCase):
             SBE37ProtocolEvent.TEST,
             SBE37ProtocolEvent.ACQUIRE_SAMPLE,
             SBE37ProtocolEvent.START_AUTOSAMPLE,
-            SBE37ProtocolEvent.ACQUIRE_CONFIGURATION
+            SBE37ProtocolEvent.ACQUIRE_CONFIGURATION,
+            SBE37ProtocolEvent.GAP_RECOVERY
         ]
         
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
@@ -1636,6 +1638,7 @@ class InstrumentAgentTest(IonIntegrationTestCase):
 
         res_cmds_streaming = [
             SBE37ProtocolEvent.STOP_AUTOSAMPLE,
+            SBE37ProtocolEvent.GAP_RECOVERY
         ]
 
         res_iface_streaming = [
@@ -2431,6 +2434,83 @@ class InstrumentAgentTest(IonIntegrationTestCase):
 
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+    def test_reachback_recovery(self):
+        """
+        This test verifies we can tell the driver to reachback and
+        recover data.  Currently the driver is spoofing this behavior
+        but once the driver/port angent code is updated this test should
+        provide a finish line.
+
+        NOTE: once the code is complete this test will need to be slightly
+        revamped, but it provides an initial finish line.
+        """
+        recovery_start = 1
+        recovery_end = 11
+
+        # Start data subscribers.
+        self._start_data_subscribers(3, 10)
+        self.addCleanup(self._stop_data_subscribers)
+
+        # Set up a subscriber to collect error events.
+        self._start_event_subscriber('ResourceAgentResourceStateEvent', 7)
+        self.addCleanup(self._stop_event_subscriber)
+
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+
+        # Now start the recovery process.  We are going to look for 10 granules
+        # published in the time range we asked for.
+
+        gevent.sleep(15)
+        cmd = AgentCommand(command=SBE37ProtocolEvent.GAP_RECOVERY, args=[recovery_start, recovery_end])
+        retval = self._ia_client.execute_resource(cmd)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertGreaterEqual(len(self._events_received), 7)
+
+        self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertGreaterEqual(len(self._samples_received), 3)
+
+        new_queue = []
+        replay_queue = []
+        for x in self._samples_received:
+            rdt = RecordDictionaryTool.load_from_granule(x)
+            log.error("Sample Received: %s", rdt)
+            if rdt['port_timestamp'] >= recovery_start and rdt['port_timestamp'] <= recovery_end:
+                replay_queue.append(x)
+            else:
+                new_queue.append(x)
+
+        self.assertEqual(len(replay_queue), 10)
+        self.assertGreaterEqual(len(new_queue), 3)
+
 
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 600}}})
