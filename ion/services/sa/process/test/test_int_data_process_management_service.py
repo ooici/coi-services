@@ -585,7 +585,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
     
-
+@unittest.skip('Not used in R2 and architecture deprecated in R3')
 @attr('INT',grou='sa')
 class TestDataProcessManagementPrime(IonIntegrationTestCase):
     def setUp(self):
