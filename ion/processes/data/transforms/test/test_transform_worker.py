@@ -12,7 +12,7 @@ import numpy as np
 from pyon.ion.stream import StandaloneStreamPublisher, StreamSubscriber, StandaloneStreamSubscriber
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.file_sys import FileSystem, FS
-from pyon.event.event import EventSubscriber
+from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.public import OT, RT, PRED
 from pyon.util.containers import DotDict
 from pyon.core.object import IonObjectDeserializer
@@ -44,6 +44,17 @@ from gevent.event import Event
 
 import unittest
 import os
+
+
+def validate_salinity_array(a):
+    from pyon.agent.agent import ResourceAgentState
+    from pyon.event.event import  EventPublisher
+    from pyon.public import OT
+
+    event_publisher = EventPublisher(OT.DeviceStatusAlertEvent)
+
+    event_publisher.publish_event(  origin = "stream_id", values=[a], description="Invalid value for salinity")
+
 
 
 @attr('INT', group='dm')
@@ -142,6 +153,103 @@ class TestTransformWorker(IonIntegrationTestCase):
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
 
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_event_transform_worker(self):
+        self.loggerpids = []
+        self.data_process_objs = []
+        self._output_stream_ids = []
+
+
+        self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
+
+        # create the StreamDefinition
+        self.stream_def_id = self.pubsub_client.create_stream_definition(name='stream_def', parameter_dictionary_id=self.parameter_dict_id)
+        self.addCleanup(self.pubsub_client.delete_stream_definition, self.stream_def_id)
+
+        # create the DataProduct
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream',
+                                             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
+
+        #retrieve the Stream for this data product
+        stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_id, PRED.hasStream, RT.Stream, True)
+        self.stream_id = stream_ids[0]
+
+        #create the DPD and two DPs
+        dp1_data_process_id = self.create_event_data_processes()
+
+        #retrieve subscription from data process
+        subscription_objs, _ = self.rrclient.find_objects(subject=dp1_data_process_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
+        log.debug('test_event_transform_worker subscription_obj:  %s', subscription_objs[0])
+
+        #create a queue to catch the published granules
+        self.subscription_id = self.pubsub_client.create_subscription(name='parsed_subscription', stream_ids=[self.stream_id], exchange_name=subscription_objs[0].exchange_name)
+        self.addCleanup(self.pubsub_client.delete_subscription, self.subscription_id)
+
+        self.pubsub_client.activate_subscription(self.subscription_id)
+        self.addCleanup(self.pubsub_client.deactivate_subscription, self.subscription_id)
+
+        stream_route = self.pubsub_client.read_stream_route(self.stream_id)
+        self.publisher = StandaloneStreamPublisher(stream_id=self.stream_id, stream_route=stream_route )
+
+        self.start_event_transform_listener()
+
+        self.data_modified = Event()
+        self.data_modified.wait(5)
+
+        rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
+        rdt['time']         = [0] # time should always come first
+        rdt['conductivity'] = [1]
+        rdt['pressure']     = [2]
+        rdt['salinity']     = [8]
+
+        self.publisher.publish(rdt.to_granule())
+
+
+        self.data_modified.wait(5)
+
+        # Cleanup processes
+        for pid in self.loggerpids:
+            self.processdispatchclient.cancel_process(pid)
+
+
+    def create_event_data_processes(self):
+
+        #two data processes using one transform and one DPD
+
+        dp1_func_output_dp_id, dp2_func_output_dp_id =  self.create_output_data_products()
+        configuration = { 'argument_map':{'a':'salinity'}, 'output_param' : None }
+
+        # Set up DPD and DP #2 - array add function
+        tf_obj = IonObject(RT.TransformFunction,
+            name='validate_salinity_array',
+            description='validate_salinity_array',
+            function='validate_salinity_array',
+            module="ion.processes.data.transforms.test.test_transform_worker",
+            arguments=['a'],
+            function_type=TransformFunctionType.TRANSFORM
+            )
+
+        add_array_func_id, rev = self.rrclient.create(tf_obj)
+
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+            name='validate_salinity_array',
+            description='validate_salinity_array',
+            data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS,
+            )
+        self.add_array_dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition=dpd_obj, function_id=add_array_func_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, self.add_array_dpd_id, binding='validate_salinity_array' )
+
+        # Create the data process
+        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=self.add_array_dpd_id, in_data_product_ids=[self.input_dp_id],
+                                                                             out_data_product_ids=[dp1_func_output_dp_id], configuration=configuration)
+        self.damsclient.register_process(dp1_data_process_id)
+        self.addCleanup(self.dataprocessclient.delete_data_process, dp1_data_process_id)
+
+
+        return dp1_data_process_id
 
     def create_data_processes(self):
 
@@ -260,17 +368,22 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         self.addCleanup(es.stop)
 
+    def validate_test_event(self, *args, **kwargs):
+        """
+        This method is a callback function for receiving DataProcessStatusEvent.
+        """
+        status_alert_event = args[0]
+        np.testing.assert_array_equal(status_alert_event.values, np.array([[8]]))
+        log.debug("DeviceStatusAlertEvent: %s" ,  str(status_alert_event.__dict__))
 
-    #def start_transform_worker(self):
-    #    config = DotDict()
-    #    config.process.queue_name = 'parsed_subscription'
-    #
-    #    self.container.spawn_process(
-    #        name='transform_worker',
-    #        module='ion.processes.data.transforms.transform_worker',
-    #        cls='TransformWorker',
-    #        config=config
-    #    )
+
+    def start_event_transform_listener(self):
+
+        es = EventSubscriber(event_type=OT.DeviceStatusAlertEvent, callback=self.validate_test_event)
+        es.start()
+
+        self.addCleanup(es.stop)
+
 
 
     def test_download(self):

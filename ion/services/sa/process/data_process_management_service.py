@@ -420,6 +420,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                     # slots available on this worker, add the dp input stream to its queue
                     transform_worker_pid = worker_pid
 
+        #link the Process to the DataProcess that it is hosting
+        self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasProcess, object=transform_worker_pid)
         exchange_name = self.transform_worker_subscription_map[transform_worker_pid]
         log.debug('create_data_process_new  exchange_name: %s', exchange_name)
         queue_name = self._create_subscription(dproc, in_data_product_ids, exchange_name)
@@ -467,7 +469,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         )
         log.debug('_create_queue_name pid  %s', pid)
 
-        #store the pid with the queu name
+        #store the pid with the queue name
         self.transform_worker_subscription_map[pid] = config.process.queue_name
         log.debug('_start_transform_worker  transform_worker_subscription_map:  %s', self.transform_worker_subscription_map)
         #init list of data process ids for this TW
@@ -817,6 +819,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_product_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
         for data_product_id, assoc in zip(data_product_ids, assocs):
             self.clients.data_acquisition_management.unassign_data_product(input_resource_id=data_process_id, data_product_id=data_product_id)
+
+        #Remove assocs to the TransformWorker process which hosts this data process
+        process_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasProcess, object_type=RT.Process)
+        for process_id, assoc in zip(process_ids, assocs):
+            self.clients.resource_registry.delete_association(assoc)
 
         #Unregister the data process with acquisition
         #todo update when Data acquisition/Data Producer is ready

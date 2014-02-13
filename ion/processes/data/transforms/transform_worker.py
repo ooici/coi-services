@@ -137,7 +137,8 @@ class TransformWorker(TransformStreamListener):
             rdt = RecordDictionaryTool.load_from_granule(msg)
 
             #create the input arguments list
-            #todo: this logic is tied to the example funcation, generalize
+            #todo: this logic is tied to the example function, generalize
+            #todo: how to inject params not in the granule such as stream_id, dp_id, etc?
             for func_param, record_param in argument_list.iteritems():
                 args.append(rdt[record_param])
             try:
@@ -148,15 +149,16 @@ class TransformWorker(TransformStreamListener):
 
                 out_stream_definition, output_parameter = self.retrieve_dp_output_params(dp_id)
 
-                rdt = RecordDictionaryTool(stream_definition_id=out_stream_definition)
-                publisher = self._publisher_map.get(dp_id,'')
+                if out_stream_definition and output_parameter:
+                    rdt = RecordDictionaryTool(stream_definition_id=out_stream_definition)
+                    publisher = self._publisher_map.get(dp_id,'')
 
-                rdt[ output_parameter ] = result
+                    rdt[ output_parameter ] = result
 
-                if publisher:
-                    publisher.publish(rdt.to_granule())
-                else:
-                    log.error('Publisher not found for data process %s', dp_id)
+                    if publisher:
+                        publisher.publish(rdt.to_granule())
+                    else:
+                        log.error('Publisher not found for data process %s', dp_id)
 
                 self.update_dp_metrics( dp_id )
 
@@ -191,6 +193,7 @@ class TransformWorker(TransformStreamListener):
                 log.warning('No uri provided for module in data process definition.')
 
             module = importlib.import_module(dataprocess_info.get_safe('module', '') )
+
             function = getattr(module, dataprocess_info.get_safe('function','') )
             arguments = dataprocess_info.get_safe('arguments', '')
             argument_list = dataprocess_info.get_safe('argument_map', {})
@@ -230,6 +233,11 @@ class TransformWorker(TransformStreamListener):
         self._dataprocesses[dataprocess_id] = dataprocess_details
         log.debug('load_data_process  dataprocess_id: %s', dataprocess_id)
         log.debug('load_data_process  dataprocess_details: %s', dataprocess_details)
+
+        # validate details
+        # if not outstream info avaialable log a warning but TF may publish an event so proceed
+        if not dataprocess_details.out_stream_def or not dataprocess_details.output_param:
+            log.warning('No output stream details provided for data process %s, will not publish a granule', dataprocess_id)
 
         #add the stream id to the map
         if 'in_stream_id' in dataprocess_details:
