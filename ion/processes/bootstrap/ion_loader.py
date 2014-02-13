@@ -3031,7 +3031,8 @@ Reason: %s
             self._register_id(row[COL_ID], res_id, res_obj)
 
             if not self.debug and get_typed_value(row['persist_data'], targettype="bool"):
-                dpms_client.activate_data_product_persistence(res_id, headers=headers)
+                timeout = self.CFG.get_safe('endpoint.receive.timeout', 30)
+                dpms_client.activate_data_product_persistence(res_id, headers=headers, timeout=timeout)
 
         self._resource_assign_org(row, res_id)
         self._resource_advance_lcs(row, res_id)
