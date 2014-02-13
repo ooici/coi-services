@@ -121,10 +121,10 @@ class QueryLanguageUnitTest(PyonTestCase):
         self.assertTrue(struct.order == {'blah' : 'asc'})
         self.assertTrue(struct.limit == 2)
 
-    def test_offset(self):
+    def test_skip(self):
         test_string = "search 'field' is 'value' from 'index' skip 3"
         retval = self.parser.parse(test_string)
-        self.assertTrue(retval == {'and':[], 'or':[], 'query':{'field':'field', 'index':'index', 'value':'value'}, 'offset':3})
+        self.assertTrue(retval == {'and':[], 'or':[], 'query':{'field':'field', 'index':'index', 'value':'value'}, 'skip':3})
 
     def test_geo_distance(self):
         test_string = "search 'location' geo distance 20 km from lat 20 lon 30.0 from 'index'"
