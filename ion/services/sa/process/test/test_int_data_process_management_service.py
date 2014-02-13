@@ -1099,7 +1099,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_data_product(instrument_data_product_id)
         
         self.assertTrue(validated.wait(10))
-        
+
+    @unittest.skip('Not used in R2 and architecture deprecated in R3')
     def test_older_transform(self):
         input_data_product_id = self.ctd_plain_input_data_product()
 
@@ -1158,6 +1159,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         stream_def_ids, _ = self.resource_registry.find_resources(name=name, restype=RT.StreamDefinition, id_only=True)
         return stream_def_ids[0]
 
+    @unittest.skip('Not used in R2 and architecture deprecated in R3')
     def test_actors(self):
         input_data_product_id = self.ctd_plain_input_data_product()
         output_data_product_id = self.ctd_plain_density()
