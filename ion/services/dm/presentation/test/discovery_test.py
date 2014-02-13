@@ -137,7 +137,7 @@ class DiscoveryUnitTest(IonUnitTestCase):
         self.discovery.request = Mock()
         self.discovery.request.return_value = 'correct_value'
         retval = self.discovery.parse('blah blah', id_only=sentinel.id_only)
-        self.discovery.request.assert_called_once_with('arg', id_only=sentinel.id_only)
+        self.discovery.request.assert_called_once_with('arg', search_args={}, id_only=sentinel.id_only)
         self.assertTrue(retval=='correct_value', '%s' % retval)
 
     def test_parse(self):
