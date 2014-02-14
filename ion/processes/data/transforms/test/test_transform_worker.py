@@ -34,6 +34,8 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.processes.data.transforms.transform_worker import TransformWorker
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
 from coverage_model.coverage import AbstractCoverage
 
@@ -57,6 +59,23 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
 
         self.time_dom, self.spatial_dom = time_series_domain()
+
+        self.ph = ParameterHelper(self.dataset_management_client, self.addCleanup)
+
+    def push_granule(self, data_product_id):
+        '''
+        Publishes and monitors that the granule arrived
+        '''
+        datasets, _ = self.rrclient.find_objects(data_product_id, PRED.hasDataset, id_only=True)
+        dataset_monitor = DatasetMonitor(datasets[0])
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        self.ph.fill_parsed_rdt(rdt)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+
+
+        assert dataset_monitor.wait()
+        dataset_monitor.stop()
 
 
 

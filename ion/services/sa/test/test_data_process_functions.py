@@ -11,13 +11,24 @@ from interface.objects import DataProcessDefinition
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from datetime import datetime, timedelta
+from pyon.util.containers import DotDict
+from pyon.public import RT, PRED
 import os
 import unittest
 import numpy as np
-import time
 import calendar
 
 class TestDataProcessFunctions(DMTestCase):
+
+    egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' 
+    def preload_units(self):
+        config = DotDict()
+        config.op = 'load'
+        config.attachments = "res/preload/r2_ioc/attachments"
+        config.scenario = 'LC_UNITS'
+        config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
+        config.path = 'master'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     @attr('INT')
     def test_retrieve_process(self):
@@ -56,7 +67,7 @@ class TestDataProcessFunctions(DMTestCase):
         dataset_monitor.event.clear()
 
         # Grab the egg
-        egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' 
+        egg_url = self.egg_url
         egg_path = TransformWorker.download_egg(egg_url)
         import pkg_resources
         pkg_resources.working_set.add_entry(egg_path)
@@ -87,6 +98,7 @@ class TestDataProcessFunctions(DMTestCase):
     def test_add_parameter_function(self):
         # Make a CTDBP Data Product
         data_product_id = self.make_ctd_data_product()
+        self.data_product_id = data_product_id
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
@@ -104,7 +116,7 @@ class TestDataProcessFunctions(DMTestCase):
         # This is what the user defines either via preload or through the UI
         #--------------------------------------------------------------------------------
         # Where the egg is
-        egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' 
+        egg_url = self.egg_url
 
         # Make a parameter function
         owner = 'ion_example.add_arrays'
@@ -133,4 +145,42 @@ class TestDataProcessFunctions(DMTestCase):
         # Verify that we can inspect it as well
         source_code = self.data_process_management.inspect_data_process_definition(dpd_id)
         self.assertEquals(source_code, 'def add_arrays(a, b):\n    return a+b\n')
+
+    @attr("UTIL")
+    def test_ui_functionality(self):
+        '''
+        Tests the service implementations and UI compliance through the service gateway
+        '''
+        # Get some initial dpds
+        # There's one specifically for converting from C to F
+        self.preload_units()
+        
+        # User clicks create data process
+        # User is presented with a dropdown of data process definitions
+        dpds, _ = self.resource_registry.find_resources(restype=RT.DataProcessDefinition)
+        # User selects the c_to_f data process definition
+        relevant = filter(lambda x: 'c_to_f' in x.name, dpds)
+        breakpoint(locals(), globals())
+
+
+        # User can select an existing data
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_validate_argument_input(self):
+        self.test_add_parameter_function()
+        data_product_id = self.data_product_id
+
+        dpms = self.container.proc_manager.procs_by_name['data_process_management']
+        self.assertTrue(dpms.validate_argument_input(data_product_id, {'a':'temp', 'b':'pressure'}))
+        self.assertFalse(dpms.validate_argument_input(data_product_id, {'a':'temp', 'b':'not_pressure'}))
+
+        stream_defs, _ = self.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
+        stream_def = stream_defs[0]
+        stream_def.available_fields = ['time', 'temp']
+        self.resource_registry.update(stream_def)
+
+        params = dpms.parameters_for_data_product(data_product_id, True)
+        self.assertEquals(len(params), 2)
 
