@@ -1684,7 +1684,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         dsm = DeviceStateManager()
         state_list = dsm.read_states([taskable_resource_id])
 
-        if state_list and 'state' in state_list[0] and 'current' in state_list[0]['state']:
+        if state_list and filter(None, state_list) and 'state' in state_list[0] and 'current' in state_list[0]['state']:
             cur_state = state_list[0]['state']['current']
             if cur_state in resource_agent_state_labels:
                 retval.value = resource_agent_state_labels[cur_state]
