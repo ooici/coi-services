@@ -568,7 +568,16 @@ class UnixPortAgentProcess(PortAgentProcess):
 
     def stop(self):
         log.info('Stop port agent')
-        
+        # When calling stop, IMS grabs a new port agent process via PortAgentProcess.get_process
+        # So self._pid is None and needs to be initialized
+        pid_file = PID_FILE % (PROCESS_BASE_DIR, self._command_port)
+        with open(pid_file, 'r') as f:
+            pid = f.read().strip('\0\n\4')
+            if pid:
+                try:
+                    self._pid = int(pid)
+                except ValueError:
+                    pass
         command_line = [ self._binary_path ]
 
         command_line.append("-c")
@@ -580,3 +589,14 @@ class UnixPortAgentProcess(PortAgentProcess):
         command_line.append("%s" % (self._command_port));
         
         self.run_command(command_line);
+        timeout = Timeout(5)
+        timeout.start()
+        try:
+            while self.poll():
+                log.warn('WAITING HERE with pid %s' % self._pid)
+                gevent.sleep(1)
+        except Timeout, t:
+            log.error('Timed out waiting for pagent to die.  Going in for kill.')
+            os.kill(self._pid, signal.SIGKILL)
+        finally:
+            timeout.cancel()
