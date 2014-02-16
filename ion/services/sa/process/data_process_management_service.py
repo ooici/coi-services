@@ -82,9 +82,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #todo: temporary? where to store for use on restart?
 
         # map contains worker_process_id : exchange_name
-        self.transform_worker_subscription_map = {}
+        #self.transform_worker_subscription_map = {}
         # map contains worker_process_id : [dp_id1, dp_id2, etc]
-        self.transform_worker_dp_map = {}
+        #self.transform_worker_dp_map = {}
 
         self.TRANSFORM_WORKER_HOST_LIMIT = 10
 
@@ -410,27 +410,87 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #if no workers, start the first one
         #todo: check if TW has reached limit of dps
         transform_worker_pid = ''
-        log.debug('create_data_process_new  transform_worker_subscription_map: %s', self.transform_worker_subscription_map)
-        if not self.transform_worker_subscription_map:
+        exchange_name = ''
+        transform_worker_dp_map = self._find_transform_workers()
+        log.debug('_start_transform_worker  transform_worker_dp_map:  %s', transform_worker_dp_map)
+        if not transform_worker_dp_map:
             log.debug('create_data_process_new start first worker')
-            transform_worker_pid = self._start_transform_worker()
+            #for the first data process in a TW, generate the exchange name
+            transform_worker_pid, exchange_name = self._start_transform_worker()
         else:
-            for worker_pid, dp_list in self.transform_worker_dp_map.iteritems():
+            for worker_pid, dp_list in transform_worker_dp_map.iteritems():
                 if len(dp_list) < self.TRANSFORM_WORKER_HOST_LIMIT:
                     # slots available on this worker, add the dp input stream to its queue
                     transform_worker_pid = worker_pid
+                    # get the exchange name for a hosted data process
+                    exchange_name = self._get_transform_worker_subscription_name(transform_worker_pid)
 
         #link the Process to the DataProcess that it is hosting
         self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasProcess, object=transform_worker_pid)
-        exchange_name = self.transform_worker_subscription_map[transform_worker_pid]
+        #exchange_name = self.transform_worker_subscription_map[transform_worker_pid]
         log.debug('create_data_process_new  exchange_name: %s', exchange_name)
         queue_name = self._create_subscription(dproc, in_data_product_ids, exchange_name)
         log.debug('create_data_process_new  queue_name: %s', queue_name)
 
-        self.transform_worker_dp_map[transform_worker_pid].append(dproc_id)
-        log.debug('_start_transform_worker  transform_worker_dp_map:  %s', self.transform_worker_dp_map)
+
+        self._find_transform_workers()
+        self._get_transform_worker_subscription_name(transform_worker_pid)
 
         return dproc_id
+
+
+    #--------------------------------------------------------------------------------
+    # Validation
+    #--------------------------------------------------------------------------------
+    def validate_argument_input(self, data_product_id='', argument_map=None):
+        '''
+        Returns true if the argument map is valid for a particular data product
+        '''
+        if not argument_map:
+            raise BadRequest("A valid arugment map is required")
+        if not data_product_id:
+            raise BadRequest("A valid data product is required")
+
+        parameters = self.parameters_for_data_product(data_product_id)
+        parameter_names = parameters.keys()
+        for argument_name in argument_map.itervalues():
+            if argument_name not in parameter_names:
+                return False
+        return True
+
+    def parameters_for_data_product(self, data_product_id='', filtered=False):
+        '''
+        Returns a dict of parameter and parameter ids for a data product. Applies a
+        filter if specified (using the stream def)
+        '''
+
+        stream_defs, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
+        if not stream_defs:
+            raise BadRequest("No Stream Definition Found for data product %s" % data_product_id)
+        stream_def = stream_defs[0]
+
+        pdicts, _ = self.clients.resource_registry.find_objects(stream_def._id, PRED.hasParameterDictionary, id_only=True)
+        if not pdicts:
+            raise BadRequest("No Parameter Dictionary Found for data product %s" % data_product_id)
+        pdict_id = pdicts[0]
+        parameters, _ = self.clients.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=False)
+
+        # too complicated for one line of code
+        #retval = { p.name : p._id for p in parameters if not filtered or (filtered and p in stream_def.available_fields) }
+        retval = {}
+        for p in parameters:
+            if filtered and p.name in stream_def.available_fields:
+                retval[p.name] = p._id
+            elif not filtered:
+                retval[p.name] = p._id
+        return retval
+
+
+
+
+    #--------------------------------------------------------------------------------
+    # Transform Worker Management
+    #--------------------------------------------------------------------------------
 
 
     def _start_transform_worker(self):
@@ -469,13 +529,56 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         )
         log.debug('_create_queue_name pid  %s', pid)
 
-        #store the pid with the queue name
-        self.transform_worker_subscription_map[pid] = config.process.queue_name
-        log.debug('_start_transform_worker  transform_worker_subscription_map:  %s', self.transform_worker_subscription_map)
-        #init list of data process ids for this TW
-        self.transform_worker_dp_map[pid] = []
+        return pid, config.process.queue_name
 
-        return pid
+
+    def _find_transform_workers(self):
+
+        transform_worker_map = {}
+        # returns a map of process resources that are transform workers and the list of data processes they are hosting
+        # { transformworker1 : [ dataprocess1, dataprocess2] }
+
+        # DataProcess hasProcess Process
+        #    Subj        Pred       Object
+
+        dataprocess_ids, _ = self.clients.resource_registry.find_resources(restype=RT.DataProcess, id_only=True)
+        log.debug('_find_transform_workers data_process_ids: %s ', dataprocess_ids)
+
+        #todo: look for Process resources that are assoc with DataProcess resources
+
+        # now look for hasProcess associations to determine which Processes are TransformWorkers
+        objects, associations = self.clients.resource_registry.find_objects_mult(subjects=dataprocess_ids)
+        log.debug('have %d dataprocess-associated objects, %d are hasProcess', len(associations), sum([1 if assoc.p==PRED.hasProcess else 0 for assoc in associations]))
+        for subject, assoc in zip(objects, associations):
+            if assoc.p == PRED.hasProcess:
+                if assoc.o in transform_worker_map:
+                    transform_worker_map[assoc.o].append(assoc.s)
+                else:
+                    transform_worker_map[assoc.o] = [assoc.s]
+
+        log.debug('find_transform_workers  transform_worker_map:  %s', transform_worker_map)
+        return transform_worker_map
+
+
+
+    def _get_transform_worker_subscription_name(self, transform_worker_pid=''):
+
+        # returns the
+
+        #todo: find a data process assoc (hosted by) this transform worker process and retrieve its subscription to get exchange name
+        data_process_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataProcess, predicate=PRED.hasProcess, object=transform_worker_pid, id_only=True)
+        if not data_process_ids: raise BadRequest('No data processes associated with this transform worker process')
+
+        subscription_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_ids[0], predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=True)
+        if not subscription_ids: raise BadRequest('No Subscription associated with this transform worker process')
+
+        #todo: retrieve the subscrption exchange name
+
+        subscription_obj = self.clients.pubsub_management.read_subscription(subscription_ids[0])
+        log.debug('get_transform_worker_subscription_name subscription_obj: %s ', subscription_obj)
+
+        return subscription_obj.exchange_name
+
 
     #--------------------------------------------------------------------------------
 <<<<<<< HEAD
@@ -770,34 +873,40 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
     def read_data_process_for_stream(self, stream_id="", worker_process_id=""):
+        dataprocess_details_list = []
+
         #get the data product assoc with this stream
         dataproduct_id = self._get_dataproduct_from_stream(stream_id)
-        dataprocess_id = self._get_dataprocess_from_input_product(dataproduct_id)
+        dataprocess_ids = self._get_dataprocess_from_input_product(dataproduct_id)
 
-        #only send the info required by the TW
-        dataprocess_details = DotDict()
+        #create a dict of information for each data process assoc with this stream is
+        for dataprocess_id in dataprocess_ids:
 
-        dp_obj = self.read_data_process(dataprocess_id)
-        dataprocess_details.dataprocess_id = dataprocess_id
-        dataprocess_details.in_stream_id = stream_id
+            #only send the info required by the TW
+            dataprocess_details = DotDict()
 
-        out_stream_id, out_stream_route, out_stream_definition = self.load_out_stream_info(dataprocess_id)
-        dataprocess_details.out_stream_id = out_stream_id
-        dataprocess_details.out_stream_route = out_stream_route
-        dataprocess_details.output_param = dp_obj.output_param
-        dataprocess_details.out_stream_def = out_stream_definition
+            dp_obj = self.read_data_process(dataprocess_id)
+            dataprocess_details.dataprocess_id = dataprocess_id
+            dataprocess_details.in_stream_id = stream_id
 
-        dpd_obj, pfunction_obj = self.load_data_process_definition_and_transform(dataprocess_id)
+            out_stream_id, out_stream_route, out_stream_definition = self.load_out_stream_info(dataprocess_id)
+            dataprocess_details.out_stream_id = out_stream_id
+            dataprocess_details.out_stream_route = out_stream_route
+            dataprocess_details.output_param = dp_obj.output_param
+            dataprocess_details.out_stream_def = out_stream_definition
 
-        dataprocess_details.module = pfunction_obj.module
-        dataprocess_details.function = pfunction_obj.function
-        dataprocess_details.arguments = pfunction_obj.arguments
-        dataprocess_details.argument_map=dp_obj.argument_map
-        dataprocess_details.uri=dpd_obj.uri
+            dpd_obj, pfunction_obj = self.load_data_process_definition_and_transform(dataprocess_id)
 
-        log.debug('read_data_process_for_stream   dataprocess_details:  %s', dataprocess_details)
+            dataprocess_details.module = pfunction_obj.module
+            dataprocess_details.function = pfunction_obj.function
+            dataprocess_details.arguments = pfunction_obj.arguments
+            dataprocess_details.argument_map=dp_obj.argument_map
+            dataprocess_details.uri=dpd_obj.uri
 
-        return dataprocess_details
+            log.debug('read_data_process_for_stream   dataprocess_details:  %s', dataprocess_details)
+            dataprocess_details_list.append(dataprocess_details)
+
+        return dataprocess_details_list
 
     def delete_data_process(self, data_process_id=""):
 
@@ -895,9 +1004,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_product_ids[0]
 
     def _get_dataprocess_from_input_product(self, data_product_id):
-        data_product_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataProcess, predicate=PRED.hasInputProduct, object=data_product_id, id_only=True)
-        if not data_product_ids: raise BadRequest('No data processes associated with this input product')
-        return data_product_ids[0]
+        data_process_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataProcess, predicate=PRED.hasInputProduct, object=data_product_id, id_only=True)
+        if not data_process_ids: raise BadRequest('No data processes associated with this input product')
+        log.debug('_get_dataprocess_from_input_product data_process_ids: %s ', data_process_ids)
+        return data_process_ids
 
     def _has_lookup_values(self, data_product_id):
         stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
@@ -967,13 +1077,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if not queue_name:
             queue_name = 'sub_%s' % dproc.name
 
-        log.debug('_create_subscription queue_name: %s', queue_name)
-
         stream_ids = [self._get_stream_from_dataproduct(i) for i in in_data_product_ids]
-        log.debug('_create_subscription stream_ids: %s', stream_ids)
 
         #@TODO Maybe associate a data process with an exchange point but in the mean time:
-
 
         subscription_id = self.clients.pubsub_management.create_subscription(name=queue_name, stream_ids=stream_ids)
         log.debug('_create_subscription subscription_id: %s', subscription_id)

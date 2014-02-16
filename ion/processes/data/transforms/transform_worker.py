@@ -156,6 +156,7 @@ class TransformWorker(TransformStreamListener):
                     rdt[ output_parameter ] = result
 
                     if publisher:
+                        log.debug('output rdt: %s',rdt)
                         publisher.publish(rdt.to_granule())
                     else:
                         log.error('Publisher not found for data process %s', dp_id)
@@ -223,36 +224,42 @@ class TransformWorker(TransformStreamListener):
 
         dpms_client = DataProcessManagementServiceClient()
 
-        dataprocess_details = dpms_client.read_data_process_for_stream(stream_id)
-        dataprocess_details = DotDict(dataprocess_details or {})
-        dataprocess_id = dataprocess_details.dataprocess_id
+        dataprocess_details_list = dpms_client.read_data_process_for_stream(stream_id)
 
-        #set metrics attributes
-        dataprocess_details.granule_counter = 0
+        dataprocess_ids = []
+        #this returns a list of data process info dicts
+        for dataprocess_details in dataprocess_details_list:
 
-        self._dataprocesses[dataprocess_id] = dataprocess_details
-        log.debug('load_data_process  dataprocess_id: %s', dataprocess_id)
-        log.debug('load_data_process  dataprocess_details: %s', dataprocess_details)
+            dataprocess_details = DotDict(dataprocess_details or {})
+            dataprocess_id = dataprocess_details.dataprocess_id
 
-        # validate details
-        # if not outstream info avaialable log a warning but TF may publish an event so proceed
-        if not dataprocess_details.out_stream_def or not dataprocess_details.output_param:
-            log.warning('No output stream details provided for data process %s, will not publish a granule', dataprocess_id)
+            #set metrics attributes
+            dataprocess_details.granule_counter = 0
 
-        #add the stream id to the map
-        if 'in_stream_id' in dataprocess_details:
-            if dataprocess_details['in_stream_id'] in self._streamid_map:
-                (self._streamid_map[ dataprocess_details['in_stream_id'] ]).append(dataprocess_id)
-            else:
-                self._streamid_map[ dataprocess_details['in_stream_id'] ]  = [dataprocess_id]
-        #todo: add transform worker id
-        self.event_publisher.publish_event(origin=dataprocess_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
-                                           description='data process loaded into transform worker')
+            self._dataprocesses[dataprocess_id] = dataprocess_details
+            log.debug('load_data_process  dataprocess_id: %s', dataprocess_id)
+            log.debug('load_data_process  dataprocess_details: %s', dataprocess_details)
 
-        #create a publisher for output stream
-        self.create_publisher(dataprocess_id, dataprocess_details)
+            # validate details
+            # if not outstream info avaialable log a warning but TF may publish an event so proceed
+            if not dataprocess_details.out_stream_def or not dataprocess_details.output_param:
+                log.warning('No output stream details provided for data process %s, will not publish a granule', dataprocess_id)
 
-        return [dataprocess_id]
+            #add the stream id to the map
+            if 'in_stream_id' in dataprocess_details:
+                if dataprocess_details['in_stream_id'] in self._streamid_map:
+                    (self._streamid_map[ dataprocess_details['in_stream_id'] ]).append(dataprocess_id)
+                else:
+                    self._streamid_map[ dataprocess_details['in_stream_id'] ]  = [dataprocess_id]
+            #todo: add transform worker id
+            self.event_publisher.publish_event(origin=dataprocess_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
+                                               description='data process loaded into transform worker')
+
+            #create a publisher for output stream
+            self.create_publisher(dataprocess_id, dataprocess_details)
+            dataprocess_ids.append(dataprocess_id)
+
+        return dataprocess_ids
 
 
     def create_publisher(self, dataprocess_id, dataprocess_details):

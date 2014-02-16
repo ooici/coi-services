@@ -66,6 +66,8 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_transform_worker(self):
         self.dp_list = []
+        self.event1_verified = Event()
+        self.event2_verified = Event()
 
         self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
 
@@ -112,11 +114,6 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
 
         self.start_event_listener()
 
-
-
-        self.data_modified = Event()
-        self.data_modified.wait(2)
-
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time']         = [0] # time should always come first
         rdt['conductivity'] = [1]
@@ -124,8 +121,6 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         rdt['salinity']     = [8]
 
         self.publisher_one.publish(msg=rdt.to_granule(), stream_id=self.stream_one_id)
-        self.data_modified.wait(5)
-
 
         second_dp_id = self.create_data_process_two(dpd_id, dp2_func_output_dp_id)
 
@@ -146,9 +141,6 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         self.publisher_two = StandaloneStreamPublisher(stream_id=self.stream_two_id, stream_route=stream_route_two )
 
 
-
-        self.data_modified.wait(2)
-
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time']         = [0] # time should always come first
         rdt['conductivity'] = [1]
@@ -156,7 +148,6 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         rdt['salinity']     = [8]
 
         self.publisher_one.publish(msg=rdt.to_granule(), stream_id=self.stream_one_id)
-        self.data_modified.wait(5)
 
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time']         = [0] # time should always come first
@@ -165,7 +156,10 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         rdt['salinity']     = [8]
 
         self.publisher_two.publish(msg=rdt.to_granule(), stream_id=self.stream_two_id)
-        self.data_modified.wait(5)
+
+
+        self.assertTrue(self.event2_verified.wait(10))
+        self.assertTrue(self.event1_verified.wait(10))
 
 
     def create_data_process_definition(self):
@@ -290,8 +284,10 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
 
         if stream_id == self._output_stream_one_id:
             np.testing.assert_array_equal(sal_val, np.array([3]))
+            self.event1_verified.set()
         else:
             np.testing.assert_array_equal(sal_val, np.array([7]))
+            self.event2_verified.set()
 
     def start_event_listener(self):
 

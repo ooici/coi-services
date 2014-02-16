@@ -95,10 +95,9 @@ class TestTransformWorker(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_transform_worker(self):
-        self.loggerpids = []
         self.data_process_objs = []
         self._output_stream_ids = []
-
+        self.event_verified = Event()
 
         self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
 
@@ -135,9 +134,6 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         self.start_event_listener()
 
-        self.data_modified = Event()
-        self.data_modified.wait(5)
-
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time']         = [0] # time should always come first
         rdt['conductivity'] = [1]
@@ -147,20 +143,16 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.publisher.publish(rdt.to_granule())
 
 
-        self.data_modified.wait(5)
+        self.assertTrue(self.event_verified.wait(10))
 
-        # Cleanup processes
-        for pid in self.loggerpids:
-            self.processdispatchclient.cancel_process(pid)
 
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_event_transform_worker(self):
-        self.loggerpids = []
         self.data_process_objs = []
         self._output_stream_ids = []
-
+        self.event_verified = Event()
 
         self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
 
@@ -208,11 +200,8 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.publisher.publish(rdt.to_granule())
 
 
-        self.data_modified.wait(5)
+        self.assertTrue(self.event_verified.wait(10))
 
-        # Cleanup processes
-        for pid in self.loggerpids:
-            self.processdispatchclient.cancel_process(pid)
 
 
     def create_event_data_processes(self):
@@ -332,6 +321,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         def on_granule(msg, route, stream_id):
             log.debug('recv_packet stream_id: %s route: %s   msg: %s', stream_id, route, msg)
             self.validate_output_granule(msg, route, stream_id)
+            self.event_verified.set()
 
 
         validator = StandaloneStreamSubscriber('validator', callback=on_granule)
@@ -375,6 +365,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         status_alert_event = args[0]
         np.testing.assert_array_equal(status_alert_event.values, np.array([[8]]))
         log.debug("DeviceStatusAlertEvent: %s" ,  str(status_alert_event.__dict__))
+        self.event_verified.set()
 
 
     def start_event_transform_listener(self):
