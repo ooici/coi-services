@@ -61,13 +61,17 @@ class ExecutionEngineAgent(SimpleResourceAgent):
             self.heartbeater = HeartBeater(
                 self.CFG, self._factory, self.resource_id, self, log=log)
             self.heartbeater.poll()
-            self.heartbeat_thread = looping_call(0.1, self.heartbeater.poll)
+            self.heartbeat_thread, self._heartbeat_thread_event = looping_call(0.1, self.heartbeater.poll)
         else:
             self.heartbeat_thread = None
+            self._heartbeat_threaad_event = None
 
     def on_quit(self):
-        if self.heartbeat_thread is not None:
-            self.heartbeat_thread.kill()
+        if self._heartbeat_thread_event is not None:
+            self._heartbeat_thread_event.set()
+            self.heartbeat_thread.join()
+            self.heartbeat_thread.kill()        # just in case
+
         self._factory.terminate()
 
     def rcmd_launch_process(self, u_pid, round, run_type, parameters):
