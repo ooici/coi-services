@@ -752,10 +752,10 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
             self.container.terminate_process(self._haa_pid)
         except BadRequest:
             log.exception("Couldn't terminate HA Agent in teardown (May have been terminated by a test)")
-            if pthread:
-                pthread.kill()
             raise
         finally:
+            if pthread:
+                pthread.kill()
             self._stop_webserver()
             self._stop_container()
 
