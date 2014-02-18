@@ -389,6 +389,40 @@ class DiscoveryQueryTest(IonIntegrationTestCase):
         result  = self.discovery.parse(search_string, id_only=False)
         self.assertEquals(len(result), 1)
 
+
+        # Geospatial - WKT (a box 4,4 to 4,14 to 14,14 to 14,4, to 4,4 overlaps DP1 but is not contained by it or does not have it within)
+        query_str = "{'and': [], 'or': [], 'query': {'wkt': 'POLYGON((4 4,4 14,14 14,14 4,4 4))', 'field': 'geospatial_bounds', 'index': 'resources_index', 'cmpop': 'overlaps'}}"
+        query_obj = eval(query_str)
+        result  = self.discovery.query(query_obj, id_only=False)
+        print result
+        self.assertEquals(len(result), 1)
+
+        query_str = "{'and': [], 'or': [], 'query': {'wkt': 'POLYGON((4 4,4 14,14 14,14 4,4 4))', 'field': 'geospatial_bounds', 'index': 'resources_index', 'cmpop': 'contains'}}"
+        query_obj = eval(query_str)
+        result  = self.discovery.query(query_obj, id_only=False)
+        print result
+        self.assertEquals(len(result), 0)
+
+        query_str = "{'and': [], 'or': [], 'query': {'wkt': 'POLYGON((4 4,4 14,14 14,14 4,4 4))', 'field': 'geospatial_bounds', 'index': 'resources_index', 'cmpop': 'within'}}"
+        query_obj = eval(query_str)
+        result  = self.discovery.query(query_obj, id_only=False)
+        print result
+        self.assertEquals(len(result), 0)
+
+        # -- with buffer (eg. point with radius CIRCLE)
+        query_str = "{'and': [], 'or': [], 'query': {'wkt': 'POINT(10.0 10.0)', 'buffer': 1.0, 'field': 'geospatial_point_center', 'index': 'resources_index', 'cmpop': 'within'}}"
+        query_obj = eval(query_str)
+        result  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result), 1)
+
+        query_str = "{'and': [], 'or': [], 'query': {'wkt': 'POINT(10.0 10.0)', 'buffer': 1.0, 'field': 'geospatial_point_center', 'index': 'resources_index', 'cmpop': 'contains'}}"
+        query_obj = eval(query_str)
+        result  = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result), 0)
+
+
+
+
         # ----------------------------------------------------
         # Vertical search
 

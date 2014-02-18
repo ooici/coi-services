@@ -41,6 +41,7 @@ class DatastoreDiscovery(object):
                            self._qmatcher_field_time,
                            self._qmatcher_fieldeq,
                            self._qmatcher_geo_loc,
+                           self._qmatcher_geo_wkt,
                            self._qmatcher_geo_vert,
                           ]
 
