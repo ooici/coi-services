@@ -581,7 +581,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
     #--------------------------------------------------------------------------------
-<<<<<<< HEAD
     # Validation
     #--------------------------------------------------------------------------------
     def validate_argument_input(self, data_product_id='', argument_map=None):
@@ -628,10 +627,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return retval
 
     #--------------------------------------------------------------------------------
-    # Inspection 
-=======
     # Inspection
->>>>>>> 66974ab... add initial  management of transform workers to DPMS, add test to demonstrate multiple data processes using different input streams being hosted by the TW.
     #--------------------------------------------------------------------------------
 
     def inspect_data_process_definition(self, data_process_definition_id=''):
