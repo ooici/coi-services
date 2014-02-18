@@ -347,7 +347,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return dproc_id
 
-    def create_data_process_new(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None, argument_map=None, out_param_name=''):
+    def create_data_process_new(self, data_process_definition_id='', inputs=None, outputs=None, configuration=None, argument_map=None, out_param_name=''):
         '''
         Creates a DataProcess resource.
         A DataProcess can be of a few types:
@@ -355,8 +355,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
            - a parameter function in a coverage that transforms data on request
 
         @param data_process_definition_id : The Data Process Definition parent which contains the transform or parameter funcation specification
-        @param in_stream_id : A stream identifier fo  identifiers
-        @param out_data_product_ids : A list of output data product identifiers
+        @param inputs: A list of inputs
+        @param outputs: A list of outputs
 
         @param configuration : The configuration dictionary for the process, and the routing table:
         '''
@@ -367,9 +367,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if dpd_obj.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
             # A different kind of data process
             # this function creates a data process resource for each data product and appends the parameter
-            return self._initialize_parameter_function(data_process_definition_id, in_data_product_ids, argument_map, out_param_name)
+            return self._initialize_parameter_function(data_process_definition_id, inputs, argument_map, out_param_name)
+        elif dpd_obj.data_process_type == DataProcessTypeEnum.TRANSFORM_PROCESS:
+            return self._initialize_transform_process(dpd_obj, inputs, outputs, configuration, argument_map, out_param_name)
 
 
+    def _initialize_transform_process(self, data_process_definition, in_data_product_ids, out_data_product_ids, configuration=None, argument_map=None, out_param_name=''):
+        dpd_obj = data_process_definition
         configuration = DotDict(configuration or {})
         configuration.process.output_products = out_data_product_ids
 
@@ -391,8 +395,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         dproc.name = ''.join([dpd_obj.name, '_on_', dataproduct_name])
         dproc.configuration = configuration
         # todo: document that these two attributes must be added into the configuration dict of the create call
-        dproc.argument_map = configuration.get_safe('argument_map', {})
-        dproc.output_param = configuration.get_safe('output_param', "")
+        dproc.argument_map = argument_map
+        dproc.output_param = out_param_name
 
         dproc_id, rev = self.clients.resource_registry.create(dproc)
         dproc._id = dproc_id
@@ -403,8 +407,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasInputProduct, object=data_product_id)
         for data_product_id in out_data_product_ids:
             self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasOutputProduct, object=data_product_id)
-        if data_process_definition_id:
-            self.clients.resource_registry.create_association(data_process_definition_id, PRED.hasDataProcess ,dproc_id)
+        if data_process_definition._id:
+            self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess ,dproc_id)
 
         #todo: assign to a transform worker
         #if no workers, start the first one

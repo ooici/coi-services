@@ -74,14 +74,6 @@ class TransformWorker(TransformStreamListener):
 
 
 
-        url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
-        filepath = self.download_egg(url)
-        print filepath
-        import pkg_resources
-        pkg_resources.working_set.add_entry('ion_example-0.1-py2.7.egg')
-        from ion_example.add_arrays import add_arrays
-
-
     def on_quit(self): #pragma no cover
         self.event_publisher.close()
         if self.subscriber_thread:
@@ -151,8 +143,9 @@ class TransformWorker(TransformStreamListener):
                 try:
                     result = function(*args)
                     log.debug('recv_packet  result: %s',result)
-                except Exception, e:
-                    log.error('Error running transform %s with args %s. Exception: %s', dp_id, args, e)
+                except:
+                    log.error('Error running transform %s with args %s.', dp_id, args, exc_info=True)
+                    raise
 
                 out_stream_definition, output_parameter = self.retrieve_dp_output_params(dp_id)
 
