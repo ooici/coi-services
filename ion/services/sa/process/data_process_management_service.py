@@ -24,8 +24,10 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from coverage_model.parameter_functions import AbstractFunction, PythonFunction, NumexprFunction
 from coverage_model import ParameterContext, ParameterFunctionType, ParameterDictionary
+from ion.processes.data.replay.replay_client import ReplayClient
 
 from pyon.util.arg_check import validate_is_instance
+from pyon.util.breakpoint import debug_wrapper
 from ion.util.module_uploader import RegisterModulePreparerPy
 import inspect
 import os
@@ -178,7 +180,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         elif isinstance(function_definition, TransformFunction):
             # TODO: Need service methods for this stuff
-            data_process_definition.data_process_type = DataProcessTypeEnum.TRANSFORM_PROCESS
+            if data_process_definition.data_process_type not in (DataProcessTypeEnum.TRANSFORM_PROCESS, DataProcessTypeEnum.RETRIEVE_PROCESS):
+                data_process_definition.data_process_type = DataProcessTypeEnum.TRANSFORM_PROCESS
 
             dpd_id, _ = self.clients.resource_registry.create(data_process_definition)
             self.clients.resource_registry.create_association(subject=dpd_id, object=function_id, predicate=PRED.hasTransformFunction)
@@ -446,6 +449,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.create_association(subject=data_process_id, predicate=PRED.hasProcess, object=transform_worker_pid)
         return exchange_name
 
+    @debug_wrapper
     def _initialize_retrieve_process(self, data_process_definition, in_data_product_ids, out_data_product_ids, configuration, argument_map, out_param_name):
         '''
         Initializes a retreive process
@@ -456,12 +460,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         4. Initiate replay
         '''
 
-        configuration = configuration or {}
+        configuration = configuration or DotDict()
         # Manage cases and misconfigurations
-        if 'start_time' not in configuration:
-            raise BadRequest('Start time must be specified for a retrieve process')
-        if 'end_time' not in configuration:
-            raise BadRequest('End time must be specified for a retrieve process')
         if not in_data_product_ids:
             raise BadRequest('Input data products are required')
 
@@ -484,7 +484,63 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if data_process_definition._id:
             self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess ,data_process_id)
 
+        # Launch the worker
+        exchange_name = self._assign_worker(data_process_id)
 
+        # Create streams and subscription for a replay
+        self._create_replay(data_process_id, in_data_product_ids, exchange_name, configuration)
+        return data_process_id
+
+
+    def _create_replay(self, data_process_id, in_data_product_ids, exchange_name, configuration):
+        streams = []
+        replay_ids = []
+        for data_product_id in in_data_product_ids:
+            '''
+            For each data product
+                1. Create a stream for the replay
+                2. Setup the query
+                3. Define the replay
+            '''
+            data_product = self.clients.data_product_management.read_data_product(data_product_id)
+            stream_defs, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
+            stream_def_id = stream_defs[0]
+            # Create the stream for replay
+            stream_id, stream_route = self.clients.pubsub_management.create_stream(
+                    name='Replay stream for %s' % data_product.name,
+                    exchange_point=configuration.get_safe('exchange_point','science_data'),
+                    stream_definition_id=stream_def_id)
+
+            # Associate the stream with the data process
+            # We have to cleanup the streams when we're done with the data process
+            self.clients.resource_registry.create_association(data_process_id, PRED.hasStream, stream_id)
+            # Store the stream for the subscription
+            streams.append(stream_id)
+
+            # Get the dataset id for the replay definition
+            dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
+            if not dataset_ids:
+                raise BadRequest("Data Product has no dataset")
+            dataset_id = dataset_ids[0]
+
+            # Setup the replay query
+            query = {"start_time" : configuration.get_safe("start_time"),
+                    "end_time" : configuration.get_safe("end_time"),
+                    "parameters" : configuration.get_safe("parameters")}
+            
+            # Create the replay
+            replay_id, pid = self.clients.data_retriever.define_replay(dataset_id, 
+                    query=query, delivery_format=stream_def_id, stream_id=stream_id)
+            replay_ids.append(replay_id)
+            self.clients.data_retriever.start_replay_agent(replay_id)
+
+            # Link the data process to this replay
+            self.clients.resource_registry.create_association(data_process_id, PRED.hasReplay, replay_id)
+
+        subscription_id = self.clients.pubsub_management.create_subscription(name=exchange_name, 
+                                                                             stream_ids=streams)
+        self.clients.resource_registry.create_association(data_process_id, PRED.hasSubscription, object=subscription_id)
+        return replay_ids
 
 
     #--------------------------------------------------------------------------------
@@ -954,6 +1010,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def delete_data_process(self, data_process_id=""):
 
+        data_process_definitions, _ = self.clients.resource_registry.find_subjects(object=data_process_id, predicate=PRED.hasDataProcess, id_only=False)
+        dpd = data_process_definitions[0]
+
         #Stops processes and deletes the data process associations
         #TODO: Delete the processes also?
         self.deactivate_data_process(data_process_id)
@@ -977,6 +1036,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         process_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasProcess, object_type=RT.Process)
         for process_id, assoc in zip(process_ids, assocs):
             self.clients.resource_registry.delete_association(assoc)
+
+        # Remove the streams associated with the data process if it's a retrieve process
+        if dpd.data_process_type == DataProcessTypeEnum.RETRIEVE_PROCESS:
+            stream_ids, _ = self.clients.find_objects(data_process_id, PRED.hasStream, id_only=True)
+            for stream_id in stream_ids:
+                self.clients.pubsub_management.delete_stream(stream_id)
 
         #Unregister the data process with acquisition
         #todo update when Data acquisition/Data Producer is ready
@@ -1016,9 +1081,24 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         for subscription_id in subscription_ids:
             if not self.clients.pubsub_management.subscription_is_active(subscription_id):
                 self.clients.pubsub_management.activate_subscription(subscription_id)
+
+        # Start the replays
+        replays, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasReplay, id_only=False)
+        # replays only get associated if it's a RETRIEVE_PROCESS, so I don't need to make that check
+        for replay in replays:
+            process_id = replay.process_id
+            replay_client = ReplayClient(process_id)
+            replay_client.start_replay()
         return True
 
     def deactivate_data_process(self, data_process_id=''):
+        # Stop the replays
+        replays, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasReplay, id_only=False)
+        # replays only get associated if it's a RETRIEVE_PROCESS, so I don't need to make that check
+        for replay in replays:
+            process_id = replay.process_id
+            replay_client = ReplayClient(process_id)
+            replay_client.stop_replay()
         #@todo: data process producer context stuff
         subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
         for subscription_id in subscription_ids:

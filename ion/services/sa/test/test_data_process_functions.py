@@ -201,6 +201,7 @@ class TestDataProcessFunctions(DMTestCase):
         self.assertTrue(dataset_monitor.wait())
 
         # Setup replay
+        self.data_process_management.activate_data_process(data_process_id)
 
     def create_data_process_logger(self, data_product_id, argument_map):
         '''
@@ -225,10 +226,14 @@ class TestDataProcessFunctions(DMTestCase):
         dpd_obj = IonObject(RT.DataProcessDefinition,
                             name='stream_logger',
                             description='logs some stream stuff',
-                            data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS)
+                            data_process_type=DataProcessTypeEnum.RETRIEVE_PROCESS)
         dpd_id = self.data_process_management.create_data_process_definition_new(dpd_obj, func_id)
-        data_process_id = self.data_process_management.create_data_process_new(dpd_id, in_data_product_ids=[data_product_id], out_data_product_ids=[clone_id], 
-                                                                         argument_map=argument_map, out_param_name=out_name) 
+        data_process_id = self.data_process_management.create_data_process_new(
+                            data_process_definition_id=dpd_id, 
+                            inputs=[data_product_id], 
+                            outputs=[clone_id], 
+                            argument_map=argument_map, 
+                            out_param_name=out_name) 
         return data_process_id
 
     def clone_data_product(self, data_product_id):

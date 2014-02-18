@@ -189,12 +189,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
     def replay_data_process(self, dataset_id, query, delivery_format, replay_stream_id):
         dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)
-        datastore_name = dataset.datastore_name
         delivery_format = delivery_format or {}
-
-        view_name = dataset.view_name
-        key_id = dataset.primary_view_key
-        # Make a new definition container
 
 
         replay = Replay()
@@ -207,10 +202,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         replay._rev = rev
         config = {'process':{
             'query':query,
-            'datastore_name':datastore_name,
             'dataset_id':dataset_id,
-            'view_name':view_name,
-            'key_id':key_id,
             'delivery_format':delivery_format,
             'publish_streams':{'output':replay_stream_id}
             }
