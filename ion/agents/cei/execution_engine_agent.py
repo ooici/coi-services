@@ -64,7 +64,7 @@ class ExecutionEngineAgent(SimpleResourceAgent):
             self.heartbeat_thread, self._heartbeat_thread_event = looping_call(0.1, self.heartbeater.poll)
         else:
             self.heartbeat_thread = None
-            self._heartbeat_threaad_event = None
+            self._heartbeat_thread_event = None
 
     def on_quit(self):
         if self._heartbeat_thread_event is not None:
