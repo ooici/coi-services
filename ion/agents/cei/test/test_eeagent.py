@@ -393,6 +393,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         assert False, "Process %s took too long to get to %s, had %s" % (upid, desired_state, last_state)
 
+
     @needs_eeagent
     def test_basics(self):
         u_pid = "test0"
@@ -783,6 +784,15 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
         get_proc_for_upid(state, u_pid)
+
+    @attr('broken')
+    @needs_eeagent
+    def test_broken(self):
+        for i in range(50):
+            print 'rount %d' % i
+            self.container.terminate_process(self._eea_pid)
+            self._start_eeagent()
+            gevent.sleep(1)
 
 
 @attr('INT', group='cei')

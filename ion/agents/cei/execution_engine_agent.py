@@ -61,13 +61,17 @@ class ExecutionEngineAgent(SimpleResourceAgent):
             self.heartbeater = HeartBeater(
                 self.CFG, self._factory, self.resource_id, self, log=log)
             self.heartbeater.poll()
-            self.heartbeat_thread = looping_call(0.1, self.heartbeater.poll)
+            self.heartbeat_thread, self._heartbeat_thread_event = looping_call(0.1, self.heartbeater.poll)
         else:
             self.heartbeat_thread = None
+            self._heartbeat_thread_event = None
 
     def on_quit(self):
-        if self.heartbeat_thread is not None:
-            self.heartbeat_thread.kill()
+        if self._heartbeat_thread_event is not None:
+            self._heartbeat_thread_event.set()
+            self.heartbeat_thread.join()
+            self.heartbeat_thread.kill()        # just in case
+
         self._factory.terminate()
 
     def rcmd_launch_process(self, u_pid, round, run_type, parameters):
@@ -105,8 +109,8 @@ class HeartBeater(object):
         self._factory = factory
         self.process = process
         self.process_id = process_id
-        self._publisher = Publisher()
         self._pd_name = CFG.eeagent.get('heartbeat_queue', 'heartbeat_queue')
+        self._publisher = Publisher(to_name=self._pd_name)
 
         self._factory.set_state_change_callback(
             self._state_change_callback, None)
@@ -159,7 +163,6 @@ class HeartBeater(object):
             message = dict(
                 beat=beat, eeagent_id=self.process_id,
                 resource_id=self._CFG.agent.resource_id)
-            to_name = self._pd_name
 
             if self._log.isEnabledFor(logging.DEBUG):
                 processes = beat.get('processes')
@@ -170,7 +173,7 @@ class HeartBeater(object):
                 self._log.debug("Sending heartbeat to %s %s",
                                 self._pd_name, processes_str)
 
-            self._publisher.publish(message, to_name=to_name)
+            self._publisher.publish(message)
         except Exception:
             self._log.exception("beat failed")
 
