@@ -109,8 +109,8 @@ class HeartBeater(object):
         self._factory = factory
         self.process = process
         self.process_id = process_id
-        self._publisher = Publisher()
         self._pd_name = CFG.eeagent.get('heartbeat_queue', 'heartbeat_queue')
+        self._publisher = Publisher(to_name=self._pd_name)
 
         self._factory.set_state_change_callback(
             self._state_change_callback, None)
@@ -163,7 +163,6 @@ class HeartBeater(object):
             message = dict(
                 beat=beat, eeagent_id=self.process_id,
                 resource_id=self._CFG.agent.resource_id)
-            to_name = self._pd_name
 
             if self._log.isEnabledFor(logging.DEBUG):
                 processes = beat.get('processes')
@@ -174,7 +173,7 @@ class HeartBeater(object):
                 self._log.debug("Sending heartbeat to %s %s",
                                 self._pd_name, processes_str)
 
-            self._publisher.publish(message, to_name=to_name)
+            self._publisher.publish(message)
         except Exception:
             self._log.exception("beat failed")
 
