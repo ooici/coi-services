@@ -93,12 +93,14 @@ class TransformWorker(TransformStreamListener):
         with self.thread_lock:
             self.subscriber_thread = self._process.thread_manager.spawn(self.subscriber.listen, thread_name='%s-subscriber' % self.id)
 
+
     def stop_listener(self):
         # Avoid race conditions with coverage operations (Don't start a listener at the same time as closing one)
         with self.thread_lock:
             self.subscriber.close()
             self.subscriber_thread.join(timeout=10)
             self.subscriber_thread = None
+
 
 
 
@@ -117,6 +119,7 @@ class TransformWorker(TransformStreamListener):
 
 
         rdt = RecordDictionaryTool.load_from_granule(msg)
+        log.debug('received granule for stream rdt %s', rdt)
         if rdt is None:
             log.error('Invalid granule (no RDT) for stream %s', stream_id)
             return
@@ -128,31 +131,42 @@ class TransformWorker(TransformStreamListener):
 
         for dp_id in dp_id_list:
 
-            function, argument_list = self.retrieve_function_and_define_args(dp_id)
+            function, argument_list, context = self.retrieve_function_and_define_args(stream_id, dp_id)
 
             args = []
             rdt = RecordDictionaryTool.load_from_granule(msg)
 
             #create the input arguments list
-            #todo: this logic is tied to the example funcation, generalize
+            #todo: this logic is tied to the example function, generalize
+            #todo: how to inject params not in the granule such as stream_id, dp_id, etc?
             for func_param, record_param in argument_list.iteritems():
                 args.append(rdt[record_param])
+            if context:
+                args.append(context)
+
             try:
                 #run the calc
                 #todo: nothing in the data process resource to specify multi-out map
-                result = function(*args)
+                result = ''
+                try:
+                    result = function(*args)
+                    log.debug('recv_packet  result: %s',result)
+                except Exception, e:
+                    log.error('Error running transform %s with args %s. Exception: %s', dp_id, args, e)
 
                 out_stream_definition, output_parameter = self.retrieve_dp_output_params(dp_id)
 
-                rdt = RecordDictionaryTool(stream_definition_id=out_stream_definition)
-                publisher = self._publisher_map.get(dp_id,'')
+                if out_stream_definition and output_parameter:
+                    rdt = RecordDictionaryTool(stream_definition_id=out_stream_definition)
+                    publisher = self._publisher_map.get(dp_id,'')
 
-                rdt[ output_parameter ] = result
+                    rdt[ output_parameter ] = result
 
-                if publisher:
-                    publisher.publish(rdt.to_granule())
-                else:
-                    log.error('Publisher not found for data process %s', dp_id)
+                    if publisher:
+                        log.debug('output rdt: %s',rdt)
+                        publisher.publish(rdt.to_granule())
+                    else:
+                        log.error('Publisher not found for data process %s', dp_id)
 
                 self.update_dp_metrics( dp_id )
 
@@ -169,7 +183,7 @@ class TransformWorker(TransformStreamListener):
         return dp_id_list
 
 
-    def retrieve_function_and_define_args(self, dataprocess_id):
+    def retrieve_function_and_define_args(self, stream_id, dataprocess_id):
         import importlib
         argument_list = {}
         args = []
@@ -178,18 +192,28 @@ class TransformWorker(TransformStreamListener):
         try:
             #todo: load once into a 'set' of modules?
             #load the associated transform function
-            egg = self.download_egg(dataprocess_info.get_safe('uri',''))
-            import pkg_resources
-            pkg_resources.working_set.add_entry(egg)
+            egg_uri = dataprocess_info.get_safe('uri','')
+            if egg_uri:
+                egg = self.download_egg(egg_uri)
+                import pkg_resources
+                pkg_resources.working_set.add_entry(egg)
+            else:
+                log.warning('No uri provided for module in data process definition.')
 
             module = importlib.import_module(dataprocess_info.get_safe('module', '') )
+
             function = getattr(module, dataprocess_info.get_safe('function','') )
             arguments = dataprocess_info.get_safe('arguments', '')
             argument_list = dataprocess_info.get_safe('argument_map', {})
+
+            context = {}
+            if self.has_context_arg(function,argument_list ):
+                context = self.create_context_arg(stream_id, dataprocess_id)
+
         except ImportError:
             log.error('Error running transform')
-
-        return function, argument_list
+        log.debug('retrieve_function_and_define_args  argument_list: %s',argument_list)
+        return function, argument_list, context
 
     def retrieve_dp_output_params(self, dataprocess_id):
         dataprocess_info = self._dataprocesses[dataprocess_id]
@@ -212,29 +236,42 @@ class TransformWorker(TransformStreamListener):
 
         dpms_client = DataProcessManagementServiceClient()
 
-        dataprocess_details = dpms_client.read_data_process_for_stream(stream_id)
-        dataprocess_details = DotDict(dataprocess_details or {})
-        dataprocess_id = dataprocess_details.dataprocess_id
+        dataprocess_details_list = dpms_client.read_data_process_for_stream(stream_id)
 
-        #set metrics attributes
-        dataprocess_details.granule_counter = 0
+        dataprocess_ids = []
+        #this returns a list of data process info dicts
+        for dataprocess_details in dataprocess_details_list:
 
-        self._dataprocesses[dataprocess_id] = dataprocess_details
+            dataprocess_details = DotDict(dataprocess_details or {})
+            dataprocess_id = dataprocess_details.dataprocess_id
 
-        #add the stream id to the map
-        if 'in_stream_id' in dataprocess_details:
-            if dataprocess_details['in_stream_id'] in self._streamid_map:
-                (self._streamid_map[ dataprocess_details['in_stream_id'] ]).append(dataprocess_id)
-            else:
-                self._streamid_map[ dataprocess_details['in_stream_id'] ]  = [dataprocess_id]
-        #todo: add transform worker id
-        self.event_publisher.publish_event(origin=dataprocess_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
-                                           description='data process loaded into transform worker')
+            #set metrics attributes
+            dataprocess_details.granule_counter = 0
 
-        #create a publisher for output stream
-        self.create_publisher(dataprocess_id, dataprocess_details)
+            self._dataprocesses[dataprocess_id] = dataprocess_details
+            log.debug('load_data_process  dataprocess_id: %s', dataprocess_id)
+            log.debug('load_data_process  dataprocess_details: %s', dataprocess_details)
 
-        return [dataprocess_id]
+            # validate details
+            # if not outstream info avaialable log a warning but TF may publish an event so proceed
+            if not dataprocess_details.out_stream_def or not dataprocess_details.output_param:
+                log.warning('No output stream details provided for data process %s, will not publish a granule', dataprocess_id)
+
+            #add the stream id to the map
+            if 'in_stream_id' in dataprocess_details:
+                if dataprocess_details['in_stream_id'] in self._streamid_map:
+                    (self._streamid_map[ dataprocess_details['in_stream_id'] ]).append(dataprocess_id)
+                else:
+                    self._streamid_map[ dataprocess_details['in_stream_id'] ]  = [dataprocess_id]
+            #todo: add transform worker id
+            self.event_publisher.publish_event(origin=dataprocess_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
+                                               description='data process loaded into transform worker')
+
+            #create a publisher for output stream
+            self.create_publisher(dataprocess_id, dataprocess_details)
+            dataprocess_ids.append(dataprocess_id)
+
+        return dataprocess_ids
 
 
     def create_publisher(self, dataprocess_id, dataprocess_details):
@@ -268,3 +305,14 @@ class TransformWorker(TransformStreamListener):
                         f.flush()
             return path
         raise IOError("Couldn't download the file at %s" % url)
+
+    def has_context_arg(self, func , argument_map):
+        import inspect
+        argspec = inspect.getargspec(func)
+        return argspec.args != argument_map and 'context' in argspec.args
+
+    def create_context_arg(self, stream_id, dataprocess_id):
+        context = DotDict()
+        context.stream_id = stream_id
+        context.dataprocess_id = dataprocess_id
+        return context
