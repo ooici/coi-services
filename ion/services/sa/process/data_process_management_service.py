@@ -370,6 +370,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             return self._initialize_parameter_function(data_process_definition_id, inputs, argument_map, out_param_name)
         elif dpd_obj.data_process_type == DataProcessTypeEnum.TRANSFORM_PROCESS:
             return self._initialize_transform_process(dpd_obj, inputs, outputs, configuration, argument_map, out_param_name)
+        elif dpd_obj.data_process_type == DataProcessTypeEnum.RETRIEVE_PROCESS:
+            return self._initialize_retrieve_process(dpd_obj, inputs, outputs, configuration, argument_map, out_param_name)
 
 
     def _initialize_transform_process(self, data_process_definition, in_data_product_ids, out_data_product_ids, configuration=None, argument_map=None, out_param_name=''):
@@ -410,6 +412,17 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if data_process_definition._id:
             self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess ,dproc_id)
 
+        exchange_name = self._assign_worker(dproc_id)
+        #exchange_name = self.transform_worker_subscription_map[transform_worker_pid]
+        log.debug('create_data_process_new  exchange_name: %s', exchange_name)
+        queue_name = self._create_subscription(dproc, in_data_product_ids, exchange_name)
+        log.debug('create_data_process_new  queue_name: %s', queue_name)
+
+
+
+        return dproc_id
+
+    def _assign_worker(self, data_process_id):
         #todo: assign to a transform worker
         #if no workers, start the first one
         #todo: check if TW has reached limit of dps
@@ -430,17 +443,48 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                     exchange_name = self._get_transform_worker_subscription_name(transform_worker_pid)
 
         #link the Process to the DataProcess that it is hosting
-        self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasProcess, object=transform_worker_pid)
-        #exchange_name = self.transform_worker_subscription_map[transform_worker_pid]
-        log.debug('create_data_process_new  exchange_name: %s', exchange_name)
-        queue_name = self._create_subscription(dproc, in_data_product_ids, exchange_name)
-        log.debug('create_data_process_new  queue_name: %s', queue_name)
+        self.clients.resource_registry.create_association(subject=data_process_id, predicate=PRED.hasProcess, object=transform_worker_pid)
+        return exchange_name
+
+    def _initialize_retrieve_process(self, data_process_definition, in_data_product_ids, out_data_product_ids, configuration, argument_map, out_param_name):
+        '''
+        Initializes a retreive process
+
+        1. Launch the process
+        2. Create streams for the inputs to replay on
+        3. Subscribe and activate
+        4. Initiate replay
+        '''
+
+        configuration = configuration or {}
+        # Manage cases and misconfigurations
+        if 'start_time' not in configuration:
+            raise BadRequest('Start time must be specified for a retrieve process')
+        if 'end_time' not in configuration:
+            raise BadRequest('End time must be specified for a retrieve process')
+        if not in_data_product_ids:
+            raise BadRequest('Input data products are required')
+
+        data_product_id = in_data_product_ids[0]
+        data_product = self.clients.data_product_management.read_data_product(data_product_id)
+
+        data_process = DataProcess()
+        data_process.name = '_on_'.join([data_process_definition.name, data_product.name])
+        data_process.configuration = configuration
+        data_process.argument_map = argument_map
+        data_process.output_param = out_param_name
+
+        data_process_id, _ = self.clients.resource_registry.create(data_process)
+
+        # Create the associations
+        for data_product_id in in_data_product_ids:
+            self.clients.resource_registry.create_association(subject=data_process_id, predicate=PRED.hasInputProduct, object=data_product_id)
+        for data_product_id in out_data_product_ids:
+            self.clients.resource_registry.create_association(subject=data_process_id, predicate=PRED.hasOutputProduct, object=data_product_id)
+        if data_process_definition._id:
+            self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess ,data_process_id)
 
 
-        self._find_transform_workers()
-        self._get_transform_worker_subscription_name(transform_worker_pid)
-
-        return dproc_id
 
 
     #--------------------------------------------------------------------------------
