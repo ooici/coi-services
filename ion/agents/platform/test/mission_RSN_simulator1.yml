@@ -1,0 +1,46 @@
+name: OMS Simulator Mission
+version: 0.1
+description: Sample OMS Simulator Mission 1
+
+platform:
+  platformID: LJ01D
+
+# This sets up a mission for 2 CTD simulators (SBE37_SIM_01 and SBE37_SIM_02) 
+# on LJ01D from the RSN OMS simulator
+# SBE37_SIM_01 mission will start at 20:00:00, wait, sample, and idle
+# This mission will loop every 30 mins until an operator intervenes
+# SBE37_SIM_02 mission will start at 20:00:00, wait, sample, and idle
+# This mission will loop every 30 mins until an operator intervenes
+
+mission:
+    - instrument: 
+      instrumentID: SBE37_SIM_01
+
+      schedule:
+        startTime: 02/17/2014 20:00:00
+        loop:
+          quantity: 1  # No. of loops (-1 for infinite)
+          value: 30     # Repeat missionParams every 'xx' 'units'
+          units: mins   # mins, hrs, days
+
+      missionParams:
+        - command: Wait
+          params: [15, 'secs']      #[duration, duration units]
+        - command: Sample
+          params: [10, 'secs', 1]  #[duration, duration units, frequency(Hz)]
+
+    - instrument: 
+      instrumentID: SBE37_SIM_02
+
+      schedule:
+        startTime: 02/17/2014 20:15:00
+        loop:
+          quantity: 1  # No. of loops (-1 for infinite)
+          value: 30     # Repeat missionParams every 'xx' 'units'
+          units: mins   # mins, hrs, days
+
+      missionParams:
+        - command: Wait
+          params: [1, 'secs']     #[duration, duration units]
+        - command: Sample
+          params: [15, 'secs', 1]  #[duration, duration units, frequency(Hz)]
