@@ -131,7 +131,7 @@ class TransformWorker(TransformStreamListener):
 
         for dp_id in dp_id_list:
 
-            function, argument_list = self.retrieve_function_and_define_args(dp_id)
+            function, argument_list, context = self.retrieve_function_and_define_args(stream_id, dp_id)
 
             args = []
             rdt = RecordDictionaryTool.load_from_granule(msg)
@@ -141,11 +141,18 @@ class TransformWorker(TransformStreamListener):
             #todo: how to inject params not in the granule such as stream_id, dp_id, etc?
             for func_param, record_param in argument_list.iteritems():
                 args.append(rdt[record_param])
+            if context:
+                args.append(context)
+
             try:
                 #run the calc
                 #todo: nothing in the data process resource to specify multi-out map
-                result = function(*args)
-                log.debug('recv_packet  result: %s',result)
+                result = ''
+                try:
+                    result = function(*args)
+                    log.debug('recv_packet  result: %s',result)
+                except Exception, e:
+                    log.error('Error running transform %s with args %s. Exception: %s', dp_id, args, e)
 
                 out_stream_definition, output_parameter = self.retrieve_dp_output_params(dp_id)
 
@@ -176,7 +183,7 @@ class TransformWorker(TransformStreamListener):
         return dp_id_list
 
 
-    def retrieve_function_and_define_args(self, dataprocess_id):
+    def retrieve_function_and_define_args(self, stream_id, dataprocess_id):
         import importlib
         argument_list = {}
         args = []
@@ -198,10 +205,15 @@ class TransformWorker(TransformStreamListener):
             function = getattr(module, dataprocess_info.get_safe('function','') )
             arguments = dataprocess_info.get_safe('arguments', '')
             argument_list = dataprocess_info.get_safe('argument_map', {})
+
+            context = {}
+            if self.has_context_arg(function,argument_list ):
+                context = self.create_context_arg(stream_id, dataprocess_id)
+
         except ImportError:
             log.error('Error running transform')
         log.debug('retrieve_function_and_define_args  argument_list: %s',argument_list)
-        return function, argument_list
+        return function, argument_list, context
 
     def retrieve_dp_output_params(self, dataprocess_id):
         dataprocess_info = self._dataprocesses[dataprocess_id]
@@ -293,3 +305,14 @@ class TransformWorker(TransformStreamListener):
                         f.flush()
             return path
         raise IOError("Couldn't download the file at %s" % url)
+
+    def has_context_arg(self, func , argument_map):
+        import inspect
+        argspec = inspect.getargspec(func)
+        return argspec.args != argument_map and 'context' in argspec.args
+
+    def create_context_arg(self, stream_id, dataprocess_id):
+        context = DotDict()
+        context.stream_id = stream_id
+        context.dataprocess_id = dataprocess_id
+        return context

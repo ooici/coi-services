@@ -46,14 +46,17 @@ import unittest
 import os
 
 
-def validate_salinity_array(a):
+def validate_salinity_array(a, context={}):
     from pyon.agent.agent import ResourceAgentState
     from pyon.event.event import  EventPublisher
     from pyon.public import OT
 
+    stream_id = context['stream_id']
+    dataprocess_id = context['dataprocess_id']
+
     event_publisher = EventPublisher(OT.DeviceStatusAlertEvent)
 
-    event_publisher.publish_event(  origin = "stream_id", values=[a], description="Invalid value for salinity")
+    event_publisher.publish_event(  origin = stream_id, values=[dataprocess_id], description="Invalid value for salinity")
 
 
 
@@ -170,10 +173,10 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.stream_id = stream_ids[0]
 
         #create the DPD and two DPs
-        dp1_data_process_id = self.create_event_data_processes()
+        self.event_data_process_id = self.create_event_data_processes()
 
         #retrieve subscription from data process
-        subscription_objs, _ = self.rrclient.find_objects(subject=dp1_data_process_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
+        subscription_objs, _ = self.rrclient.find_objects(subject=self.event_data_process_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
         log.debug('test_event_transform_worker subscription_obj:  %s', subscription_objs[0])
 
         #create a queue to catch the published granules
@@ -363,7 +366,9 @@ class TestTransformWorker(IonIntegrationTestCase):
         This method is a callback function for receiving DataProcessStatusEvent.
         """
         status_alert_event = args[0]
-        np.testing.assert_array_equal(status_alert_event.values, np.array([[8]]))
+
+        np.testing.assert_array_equal(status_alert_event.origin, self.stream_id )
+        np.testing.assert_array_equal(status_alert_event.values, np.array([self.event_data_process_id]))
         log.debug("DeviceStatusAlertEvent: %s" ,  str(status_alert_event.__dict__))
         self.event_verified.set()
 
