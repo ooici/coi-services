@@ -41,6 +41,7 @@ class DatastoreDiscovery(object):
                            self._qmatcher_field_time,
                            self._qmatcher_fieldeq,
                            self._qmatcher_geo_loc,
+                           self._qmatcher_geo_wkt,
                            self._qmatcher_geo_vert,
                           ]
 
@@ -209,6 +210,23 @@ class DatastoreDiscovery(object):
             return qb.within_bbox(geom_col, top_left[0], bottom_right[1], bottom_right[0], top_left[1])
         else:
             return qb.overlaps_bbox(geom_col, top_left[0], bottom_right[1], bottom_right[0], top_left[1])
+
+    def _qmatcher_geo_wkt(self, query, qb):
+        query_exp = query.get("query", query)
+        field = query_exp.get("field", None)
+        wkt = query_exp.get("wkt", None)
+        if not (field and wkt):
+            return
+
+        geom_col = COL_MAP.get(field, DQ.RA_GEOM)
+        buf = query_exp.get("buffer", None)
+        range_op = query_exp.get("cmpop", None)
+        if range_op == "contains":
+            return qb.contains_wkt(geom_col, wkt, buf)
+        elif range_op == "within":
+            return qb.within_wkt(geom_col, wkt, buf)
+        else:
+            return qb.overlaps_wkt(geom_col, wkt, buf)
 
     def _qmatcher_geo_vert(self, query, qb):
         query_exp = query.get("query", query)
