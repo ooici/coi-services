@@ -361,7 +361,7 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         self.addCleanup(es.stop)
 
-    def validate_test_event(self, *args, **kwargs):
+    def validate_transform_event(self, *args, **kwargs):
         """
         This method is a callback function for receiving DataProcessStatusEvent.
         """
@@ -375,7 +375,7 @@ class TestTransformWorker(IonIntegrationTestCase):
 
     def start_event_transform_listener(self):
 
-        es = EventSubscriber(event_type=OT.DeviceStatusAlertEvent, callback=self.validate_test_event)
+        es = EventSubscriber(event_type=OT.DeviceStatusAlertEvent, callback=self.validate_transform_event)
         es.start()
 
         self.addCleanup(es.stop)
