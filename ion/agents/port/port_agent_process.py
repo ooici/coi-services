@@ -49,6 +49,7 @@ from ion.agents.port.exceptions import PortAgentLaunchException
 from ion.agents.port.exceptions import NotImplementedException
 from ion.agents.port.exceptions import PortAgentTimeout
 from ion.agents.port.exceptions import PortAgentMissingConfig
+from gevent import Timeout
 
 PYTHON_PATH = 'bin/python'
 UNIX_PROCESS = 'port_agent'
