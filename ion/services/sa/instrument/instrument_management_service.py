@@ -1815,7 +1815,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #----------------------------------------------------------------------------------------------
         # Get events associated with device from the events db
         #----------------------------------------------------------------------------------------------
-        log.debug("For uptime, we are checking the device with id: %s, type_: %s, and searching recent streaming or monitoring events: %s",device_id, device.type_)
+        log.debug("For uptime, we are checking the device with id: %s, type_: %s, and searching recent streaming or monitoring events. ",device_id, device.type_)
         event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
 
         recent_events = [tuple[2] for tuple in event_tuples]
