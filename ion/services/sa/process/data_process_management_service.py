@@ -1017,7 +1017,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def delete_data_process(self, data_process_id=""):
 
-        data_process_definitions, _ = self.clients.resource_registry.find_subjects(object=data_process_id, predicate=PRED.hasDataProcess, id_only=False)
+        data_process_definitions, _ = self.clients.resource_registry.find_subjects(object=data_process_id, predicate=PRED.hasDataProcess, subject_type=RT.DataProcessDefinition, id_only=False)
         dpd = data_process_definitions[0]
 
         #Stops processes and deletes the data process associations
