@@ -12,7 +12,9 @@ from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from datetime import datetime, timedelta
 from pyon.util.containers import DotDict
-from pyon.public import RT, PRED
+from pyon.util.log import log
+from pyon.public import RT, PRED, IonObject
+from interface.objects import TransformFunctionType, DataProcessTypeEnum
 import os
 import unittest
 import numpy as np
@@ -184,3 +186,85 @@ class TestDataProcessFunctions(DMTestCase):
         params = dpms.parameters_for_data_product(data_product_id, True)
         self.assertEquals(len(params), 2)
 
+    @attr('UTIL')
+    def test_logger(self):
+        data_product_id = self.make_ctd_data_product()
+        # Clone the data product so we have an output
+        clone_id = self.clone_data_product(data_product_id)
+
+        data_process_id = self.create_data_process_logger(data_product_id, clone_id, {'x':'temp'})
+        
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        # Put some data into the the data product
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.arange(40)
+        rdt['temp'] = np.arange(40)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        # Watch the output
+        dataset_monitor = DatasetMonitor(data_product_id=clone_id)
+        self.addCleanup(dataset_monitor.stop)
+        # Run the replay
+        self.data_process_management.activate_data_process(data_process_id)
+
+        # Make sure data came out
+        self.assertTrue(dataset_monitor.wait())
+
+    def create_data_process_logger(self, data_product_id, clone_id, argument_map):
+        '''
+        Launches a data process that just prints input
+        '''
+        out_name = argument_map.values()[0]
+
+        # Make the transfofm function
+        tf_obj = IonObject(RT.TransformFunction,
+                           name='stream_logger',
+                           description='',
+                           function='stream_logger',
+                           module='ion.services.sa.test.test_data_process_functions',
+                           arguments=['x'],
+                           function_type=TransformFunctionType.TRANSFORM)
+        func_id = self.data_process_management.create_transform_function(tf_obj)
+        self.addCleanup(self.data_process_management.delete_transform_function, func_id)
+        
+        # Make the data process definition
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+                            name='stream_logger',
+                            description='logs some stream stuff',
+                            data_process_type=DataProcessTypeEnum.RETRIEVE_PROCESS)
+        configuration = DotDict()
+        configuration.publish_limit = 40
+        dpd_id = self.data_process_management.create_data_process_definition_new(dpd_obj, func_id)
+        data_process_id = self.data_process_management.create_data_process_new(
+                            data_process_definition_id=dpd_id, 
+                            inputs=[data_product_id], 
+                            outputs=[clone_id], 
+                            configuration=configuration,
+                            argument_map=argument_map, 
+                            out_param_name=out_name) 
+        return data_process_id
+
+    def clone_data_product(self, data_product_id):
+        '''
+        Clones a data product but gives it a different name and a new id
+        '''
+        stream_def_ids, _ = self.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
+        dp = self.data_product_management.read_data_product(data_product_id)
+        del dp._id
+        del dp._rev
+        dp.name += '_clone'
+
+        clone_id = self.data_product_management.create_data_product(dp, stream_def_ids[0])
+        self.addCleanup(self.data_product_management.delete_data_product, clone_id)
+
+        self.data_product_management.activate_data_product_persistence(clone_id)
+        self.addCleanup(self.data_product_management.suspend_data_product_persistence, clone_id)
+
+        return clone_id
+
+def stream_logger(x):
+    log.info(repr(x))
+    return x

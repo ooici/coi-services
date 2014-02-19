@@ -74,14 +74,6 @@ class TransformWorker(TransformStreamListener):
 
 
 
-        url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
-        filepath = self.download_egg(url)
-        print filepath
-        import pkg_resources
-        pkg_resources.working_set.add_entry('ion_example-0.1-py2.7.egg')
-        from ion_example.add_arrays import add_arrays
-
-
     def on_quit(self): #pragma no cover
         self.event_publisher.close()
         if self.subscriber_thread:
@@ -151,20 +143,24 @@ class TransformWorker(TransformStreamListener):
                 try:
                     result = function(*args)
                     log.debug('recv_packet  result: %s',result)
-                except Exception, e:
-                    log.error('Error running transform %s with args %s. Exception: %s', dp_id, args, e)
+                except:
+                    log.error('Error running transform %s with args %s.', dp_id, args, exc_info=True)
+                    raise
 
                 out_stream_definition, output_parameter = self.retrieve_dp_output_params(dp_id)
 
                 if out_stream_definition and output_parameter:
-                    rdt = RecordDictionaryTool(stream_definition_id=out_stream_definition)
+                    rdt_out = RecordDictionaryTool(stream_definition_id=out_stream_definition)
                     publisher = self._publisher_map.get(dp_id,'')
 
-                    rdt[ output_parameter ] = result
+                    for param in rdt:
+                        if param in rdt_out:
+                            rdt_out[param] = rdt[param]
+                    rdt_out[ output_parameter ] = result
 
                     if publisher:
                         log.debug('output rdt: %s',rdt)
-                        publisher.publish(rdt.to_granule())
+                        publisher.publish(rdt_out.to_granule())
                     else:
                         log.error('Publisher not found for data process %s', dp_id)
 
@@ -236,6 +232,7 @@ class TransformWorker(TransformStreamListener):
 
         dpms_client = DataProcessManagementServiceClient()
 
+        print 'looking at', stream_id
         dataprocess_details_list = dpms_client.read_data_process_for_stream(stream_id)
 
         dataprocess_ids = []

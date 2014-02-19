@@ -212,7 +212,8 @@ class TestTransformWorker(IonIntegrationTestCase):
         #two data processes using one transform and one DPD
 
         dp1_func_output_dp_id, dp2_func_output_dp_id =  self.create_output_data_products()
-        configuration = { 'argument_map':{'a':'salinity'}, 'output_param' : None }
+        argument_map= {"a": "salinity"}
+
 
         # Set up DPD and DP #2 - array add function
         tf_obj = IonObject(RT.TransformFunction,
@@ -235,8 +236,8 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, self.add_array_dpd_id, binding='validate_salinity_array' )
 
         # Create the data process
-        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=self.add_array_dpd_id, in_data_product_ids=[self.input_dp_id],
-                                                                             out_data_product_ids=[dp1_func_output_dp_id], configuration=configuration)
+        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=self.add_array_dpd_id, inputs=[self.input_dp_id],
+                                                                             outputs=[dp1_func_output_dp_id], argument_map=argument_map)
         self.damsclient.register_process(dp1_data_process_id)
         self.addCleanup(self.dataprocessclient.delete_data_process, dp1_data_process_id)
 
@@ -248,7 +249,9 @@ class TestTransformWorker(IonIntegrationTestCase):
         #two data processes using one transform and one DPD
 
         dp1_func_output_dp_id, dp2_func_output_dp_id =  self.create_output_data_products()
-        configuration = { 'argument_map':{'arr1':'conductivity', 'arr2':'pressure'}, 'output_param' : 'salinity' }
+        argument_map = {"arr1": "conductivity", "arr2": "pressure"}
+        output_param = "salinity"
+
 
         # Set up DPD and DP #2 - array add function
         tf_obj = IonObject(RT.TransformFunction,
@@ -272,14 +275,14 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, self.add_array_dpd_id, binding='add_array_func' )
 
         # Create the data process
-        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=self.add_array_dpd_id, in_data_product_ids=[self.input_dp_id],
-                                                                             out_data_product_ids=[dp1_func_output_dp_id], configuration=configuration)
+        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=self.add_array_dpd_id, inputs=[self.input_dp_id],
+                                                                             outputs=[dp1_func_output_dp_id], argument_map=argument_map, out_param_name=output_param)
         self.damsclient.register_process(dp1_data_process_id)
         self.addCleanup(self.dataprocessclient.delete_data_process, dp1_data_process_id)
 
         # Create the data process
-        dp2_func_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=self.add_array_dpd_id, in_data_product_ids=[self.input_dp_id],
-                                                                                  out_data_product_ids=[dp2_func_output_dp_id], configuration=configuration)
+        dp2_func_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=self.add_array_dpd_id, inputs=[self.input_dp_id],
+                                                                                  outputs=[dp2_func_output_dp_id], argument_map=argument_map, out_param_name=output_param)
         self.damsclient.register_process(dp2_func_data_process_id)
         self.addCleanup(self.dataprocessclient.delete_data_process, dp2_func_data_process_id)
 
