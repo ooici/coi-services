@@ -150,14 +150,17 @@ class TransformWorker(TransformStreamListener):
                 out_stream_definition, output_parameter = self.retrieve_dp_output_params(dp_id)
 
                 if out_stream_definition and output_parameter:
-                    rdt = RecordDictionaryTool(stream_definition_id=out_stream_definition)
+                    rdt_out = RecordDictionaryTool(stream_definition_id=out_stream_definition)
                     publisher = self._publisher_map.get(dp_id,'')
 
-                    rdt[ output_parameter ] = result
+                    for param in rdt:
+                        if param in rdt_out:
+                            rdt_out[param] = rdt[param]
+                    rdt_out[ output_parameter ] = result
 
                     if publisher:
                         log.debug('output rdt: %s',rdt)
-                        publisher.publish(rdt.to_granule())
+                        publisher.publish(rdt_out.to_granule())
                     else:
                         log.error('Publisher not found for data process %s', dp_id)
 

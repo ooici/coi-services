@@ -27,7 +27,6 @@ from coverage_model import ParameterContext, ParameterFunctionType, ParameterDic
 from ion.processes.data.replay.replay_client import ReplayClient
 
 from pyon.util.arg_check import validate_is_instance
-from pyon.util.breakpoint import debug_wrapper, breakpoint
 from ion.util.module_uploader import RegisterModulePreparerPy
 import inspect
 import os
@@ -367,6 +366,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #todo: out publishers can be either stream or event
         #todo: determine if/how routing tables will be managed
         dpd_obj = self.read_data_process_definition(data_process_definition_id)
+        configuration = DotDict(configuration or {})
         if dpd_obj.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
             # A different kind of data process
             # this function creates a data process resource for each data product and appends the parameter
@@ -449,7 +449,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.create_association(subject=data_process_id, predicate=PRED.hasProcess, object=transform_worker_pid)
         return exchange_name
 
-    @debug_wrapper
     def _initialize_retrieve_process(self, data_process_definition, in_data_product_ids, out_data_product_ids, configuration, argument_map, out_param_name):
         '''
         Initializes a retreive process
@@ -973,7 +972,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_obj
 
 
-    @debug_wrapper
     def read_data_process_for_stream(self, stream_id="", worker_process_id=""):
         dataprocess_details_list = []
 
@@ -987,9 +985,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if replay_id:
             dataprocess_ids.extend(self._get_data_process_from_replay(replay_id))
 
-        import threading
-        print threading.current_thread().name 
-        print 'IDS:', dataprocess_ids
 
         #create a dict of information for each data process assoc with this stream is
         for dataprocess_id in dataprocess_ids:
