@@ -323,7 +323,7 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         def on_granule(msg, route, stream_id):
             log.debug('recv_packet stream_id: %s route: %s   msg: %s', stream_id, route, msg)
-            self.validate_output_granule(msg, route, stream_id)
+            self._validate_output_granule(msg, route, stream_id)
             self.event_verified.set()
 
 
@@ -337,7 +337,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         return dp1_func_output_dp_id, dp2_func_output_dp_id
 
 
-    def validate_event(self, *args, **kwargs):
+    def _validate_event(self, *args, **kwargs):
         """
         This method is a callback function for receiving DataProcessStatusEvent.
         """
@@ -346,7 +346,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.assertTrue( data_process_event.origin in self.dp_list)
 
 
-    def validate_output_granule(self, msg, route, stream_id):
+    def _validate_output_granule(self, msg, route, stream_id):
         self.assertTrue( stream_id in self._output_stream_ids)
 
         rdt = RecordDictionaryTool.load_from_granule(msg)
@@ -356,15 +356,17 @@ class TestTransformWorker(IonIntegrationTestCase):
 
     def start_event_listener(self):
 
-        es = EventSubscriber(event_type=OT.DataProcessStatusEvent, callback=self.validate_event)
+        es = EventSubscriber(event_type=OT.DataProcessStatusEvent, callback=self._validate_event)
         es.start()
 
         self.addCleanup(es.stop)
 
-    def validate_test_event(self, *args, **kwargs):
+    def _validate_test_event(self, *args, **kwargs):
         """
         This method is a callback function for receiving DataProcessStatusEvent.
         """
+        log.debug('validate_test_event  args: %s ', args)
+
         status_alert_event = args[0]
 
         np.testing.assert_array_equal(status_alert_event.origin, self.stream_id )
@@ -375,7 +377,7 @@ class TestTransformWorker(IonIntegrationTestCase):
 
     def start_event_transform_listener(self):
 
-        es = EventSubscriber(event_type=OT.DeviceStatusAlertEvent, callback=self.validate_test_event)
+        es = EventSubscriber(event_type=OT.DeviceStatusAlertEvent, callback=self._validate_test_event)
         es.start()
 
         self.addCleanup(es.stop)
