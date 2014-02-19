@@ -229,6 +229,7 @@ class TransformWorker(TransformStreamListener):
 
         dpms_client = DataProcessManagementServiceClient()
 
+        print 'looking at', stream_id
         dataprocess_details_list = dpms_client.read_data_process_for_stream(stream_id)
 
         dataprocess_ids = []

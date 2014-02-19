@@ -27,7 +27,7 @@ from coverage_model import ParameterContext, ParameterFunctionType, ParameterDic
 from ion.processes.data.replay.replay_client import ReplayClient
 
 from pyon.util.arg_check import validate_is_instance
-from pyon.util.breakpoint import debug_wrapper
+from pyon.util.breakpoint import debug_wrapper, breakpoint
 from ion.util.module_uploader import RegisterModulePreparerPy
 import inspect
 import os
@@ -526,7 +526,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             # Setup the replay query
             query = {"start_time" : configuration.get_safe("start_time"),
                     "end_time" : configuration.get_safe("end_time"),
-                    "parameters" : configuration.get_safe("parameters")}
+                    "parameters" : configuration.get_safe("parameters"),
+                    "publish_limit": configuration.get_safe("publish_limit")}
             
             # Create the replay
             replay_id, pid = self.clients.data_retriever.define_replay(dataset_id, 
@@ -972,12 +973,23 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_obj
 
 
+    @debug_wrapper
     def read_data_process_for_stream(self, stream_id="", worker_process_id=""):
         dataprocess_details_list = []
 
         #get the data product assoc with this stream
+        dataprocess_ids = []
         dataproduct_id = self._get_dataproduct_from_stream(stream_id)
-        dataprocess_ids = self._get_dataprocess_from_input_product(dataproduct_id)
+        if dataproduct_id:
+            dataprocess_ids.extend(self._get_dataprocess_from_input_product(dataproduct_id))
+        
+        replay_id = self._get_replay_from_stream(stream_id)
+        if replay_id:
+            dataprocess_ids.extend(self._get_data_process_from_replay(replay_id))
+
+        import threading
+        print threading.current_thread().name 
+        print 'IDS:', dataprocess_ids
 
         #create a dict of information for each data process assoc with this stream is
         for dataprocess_id in dataprocess_ids:
@@ -1124,13 +1136,23 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def _get_dataproduct_from_stream(self, stream_id):
         data_product_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataProduct, predicate=PRED.hasStream, object=stream_id, id_only=True)
-        if not data_product_ids: raise BadRequest('No dataproducts associated with this stream')
+        if not data_product_ids: return None
         return data_product_ids[0]
+
 
     def _get_dataprocess_from_input_product(self, data_product_id):
         data_process_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataProcess, predicate=PRED.hasInputProduct, object=data_product_id, id_only=True)
         if not data_process_ids: raise BadRequest('No data processes associated with this input product')
         log.debug('_get_dataprocess_from_input_product data_process_ids: %s ', data_process_ids)
+        return data_process_ids
+
+    def _get_replay_from_stream(self, stream_id):
+        replays, _ = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream, subject_type=RT.Replay, id_only=True)
+        if not replays: return None
+        return replays[0]
+
+    def _get_data_process_from_replay(self, replay_id):
+        data_process_ids, _ = self.clients.resource_registry.find_subjects(object=replay_id, predicate=PRED.hasReplay, subject_type=RT.DataProcess, id_only=True)
         return data_process_ids
 
     def _has_lookup_values(self, data_product_id):
@@ -1358,7 +1380,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         else:
             data_process_def_obj = dpd_objs[0]
 
-        if data_process_def_obj.data_process_type is DataProcessTypeEnum.TRANSFORM_PROCESS:
+        if data_process_def_obj.data_process_type in (DataProcessTypeEnum.TRANSFORM_PROCESS, DataProcessTypeEnum.RETRIEVE_PROCESS):
 
             tfunc_objs, _ = self.clients.resource_registry.find_objects(subject=data_process_def_obj, predicate=PRED.hasTransformFunction, id_only=False)
 
@@ -1366,6 +1388,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 log.exception('The data process definition for a data process is not correctly associated with a ParameterFunction resource.')
             else:
                 transform_function_obj = tfunc_objs[0]
+
 
         return data_process_def_obj, transform_function_obj
 

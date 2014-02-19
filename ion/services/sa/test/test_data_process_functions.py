@@ -202,6 +202,7 @@ class TestDataProcessFunctions(DMTestCase):
 
         # Setup replay
         self.data_process_management.activate_data_process(data_process_id)
+        breakpoint(locals(), globals())
 
     def create_data_process_logger(self, data_product_id, argument_map):
         '''
@@ -216,7 +217,7 @@ class TestDataProcessFunctions(DMTestCase):
                            name='stream_logger',
                            description='',
                            function='stream_logger',
-                           module='ion.processes.data.transforms.test.test_transform_worker',
+                           module='ion.services.sa.test.test_data_process_functions',
                            arguments=['x'],
                            function_type=TransformFunctionType.TRANSFORM)
         func_id = self.data_process_management.create_transform_function(tf_obj)
@@ -227,11 +228,14 @@ class TestDataProcessFunctions(DMTestCase):
                             name='stream_logger',
                             description='logs some stream stuff',
                             data_process_type=DataProcessTypeEnum.RETRIEVE_PROCESS)
+        configuration = DotDict()
+        configuration.publish_limit = 1000
         dpd_id = self.data_process_management.create_data_process_definition_new(dpd_obj, func_id)
         data_process_id = self.data_process_management.create_data_process_new(
                             data_process_definition_id=dpd_id, 
                             inputs=[data_product_id], 
                             outputs=[clone_id], 
+                            configuration=configuration,
                             argument_map=argument_map, 
                             out_param_name=out_name) 
         return data_process_id
