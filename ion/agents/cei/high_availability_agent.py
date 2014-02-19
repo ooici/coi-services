@@ -51,6 +51,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         self.service_id = None
         self.policy_thread = None
         self.policy_event = None
+        self._policy_loop_event = Event()
 
     def on_init(self):
         if not HighAvailabilityCore:
@@ -172,6 +173,8 @@ class HighAvailabilityAgent(SimpleResourceAgent):
 
     def on_quit(self):
         self.control.stop()
+        self._policy_loop_event.set()
+        self.policy_thread.join()
         self.policy_thread.kill(block=True, timeout=3)
         if self.dashi_handler:
             self.dashi_handler.stop()
@@ -219,7 +222,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
     def _policy_thread_loop(self):
         """Single thread runs policy loops, to prevent races
         """
-        while True:
+        while not self._policy_loop_event.wait(timeout=0.1):
             # wait until our event is set, up to policy_interval seconds
             self.policy_event.wait(self.policy_interval)
             if self.policy_event.is_set():
