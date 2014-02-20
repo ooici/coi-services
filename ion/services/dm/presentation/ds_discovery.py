@@ -222,11 +222,11 @@ class DatastoreDiscovery(object):
         buf = query_exp.get("buffer", None)
         range_op = query_exp.get("cmpop", None)
         if range_op == "contains":
-            return qb.contains_wkt(geom_col, wkt, buf)
+            return qb.contains_geom(geom_col, wkt, buf)
         elif range_op == "within":
-            return qb.within_wkt(geom_col, wkt, buf)
+            return qb.within_geom(geom_col, wkt, buf)
         else:
-            return qb.overlaps_wkt(geom_col, wkt, buf)
+            return qb.overlaps_geom(geom_col, wkt, buf)
 
     def _qmatcher_geo_vert(self, query, qb):
         query_exp = query.get("query", query)
