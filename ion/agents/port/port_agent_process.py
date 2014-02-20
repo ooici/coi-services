@@ -572,13 +572,17 @@ class UnixPortAgentProcess(PortAgentProcess):
         # When calling stop, IMS grabs a new port agent process via PortAgentProcess.get_process
         # So self._pid is None and needs to be initialized
         pid_file = PID_FILE % (PROCESS_BASE_DIR, self._command_port)
-        with open(pid_file, 'r') as f:
-            pid = f.read().strip('\0\n\4')
-            if pid:
-                try:
-                    self._pid = int(pid)
-                except ValueError:
-                    pass
+        try:
+            with open(pid_file, 'r') as f:
+                pid = f.read().strip('\0\n\4')
+                if pid:
+                    try:
+                        self._pid = int(pid)
+                    except ValueError:
+                        pass
+        except IOError:
+            log.exception('Port agent pid file not found!')
+
         command_line = [ self._binary_path ]
 
         command_line.append("-c")
