@@ -1,0 +1,73 @@
+The OOI hosted VM image comes with a demo account pre-installed with 
+coi-services and ion-ux under the account ooici.
+
+This should serve as a reference install to verify the VM is working as expected.
+
+To setup our environment on this VM (assuming using your own account) follow the
+following steps.
+
+1. Setup a github account:
+	https://confluence.oceanobservatories.org/display/CIDev/Github+Account+Setup
+
+2. Clone the repository:
+	git clone git@github.com:ooici/coi-services.git
+
+3. Go into the coi-services directory:
+	cd coi-services/
+
+4. Download the submodules needed by the system:
+	git submodule update --init
+
+5. Create a virtual environment to work in:
+	mkvirtualenv --no-site-packages coi
+
+   Virtualenv for python allows a user to install packages without installing 
+   them to privileged system directories. The benefit of this is that an 
+   environment can be easily discarded and rebuilt without tainting the base 
+   system.
+
+   The 2 key commands to know when working with virtualenv's is
+
+	mkvirtualenv -- creates a new virtual environment
+
+	workon -- loads in an existing virtual environment.
+
+6. Install 2 packages needed inside the virtual environment:
+	pip install -U setuptools==0.8
+	pip install numpy==1.7.1
+
+7. Inform the system about postgres account details by defining them in a
+   config file.
+	vi res/config/pyon.local.yml
+
+   For the ooi created VM's this file should look like:
+	system:
+	  name: your_favorite_name
+	server:
+	  postgresql:
+	    username: ion
+	    password: ion
+	    admin_username: ion
+	    admin_password: ion
+
+   Alternatively, it can be coppied from the ooici home directory to your
+   res/config directory by doing:
+	cp ~ooici/pyon.local.yml res/config/
+
+8. Build the system:
+	python bootstrap.py -v 2.2.0
+	bin/buildout
+	bin/generate_interfaces
+
+9. Check that you have a good install:
+	bin/nosetests -a SMOKE
+
+   If none of these tests fail/error, then it is safe to assume you have 
+   a working install.
+
+10. OOI guidelines on using GIT:
+	Prior to following this guide, it is assumed you have already
+	performed:
+		git remote rename origin ooici
+
+	https://confluence.oceanobservatories.org/display/CIDev/Transition+from+Release+2.0+to+Pre-Release+3.
