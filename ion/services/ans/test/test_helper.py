@@ -194,32 +194,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 for val in numpy.nditer(v):
                     assertions(val > 0)
 
-    def create_salinity_data_process_definition(self):
-
-        # Salinity: Data Process Definition
-
-        #First look to see if it exists and if not, then create it
-        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='ctd_salinity')
-        if len(dpd) > 0:
-            return dpd[0]
-
-        log.debug("Create data process definition SalinityTransform")
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-            name='ctd_salinity',
-            description='create a salinity data product',
-            module='ion.processes.data.transforms.ctd.ctd_L2_salinity',
-            class_name='SalinityTransform')
-        try:
-            ctd_L2_salinity_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except Exception as ex:
-            self.fail("failed to create new SalinityTransform data process definition: %s" %ex)
-
-        # create a stream definition for the data from the salinity Transform
-        ctd_pdict_id = self.datasetclient.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        sal_stream_def_id = self.pubsubclient.create_stream_definition(name='Salinity', parameter_dictionary_id=ctd_pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(sal_stream_def_id, ctd_L2_salinity_dprocdef_id, binding='salinity' )
-
-        return ctd_L2_salinity_dprocdef_id
 
     def create_salinity_doubler_data_process_definition(self):
 
