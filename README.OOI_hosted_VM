@@ -42,7 +42,7 @@ following steps.
 
    For the ooi created VM's this file should look like:
 	system:
-	  name: uidev
+	  name: your_favorite_name
 	server:
 	  postgresql:
 	    username: ion
