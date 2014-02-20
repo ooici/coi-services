@@ -192,9 +192,14 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
     def create_data_process_one(self, data_process_definition_id, output_dataproduct):
 
         # Create the data process
-        configuration = { 'argument_map':{'arr1':'conductivity', 'arr2':'pressure'}, 'output_param' : 'salinity' }
-        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=data_process_definition_id, in_data_product_ids=[self.input_dp_one_id],
-                                                                             out_data_product_ids=[output_dataproduct], configuration=configuration)
+        argument_map = {"arr1":"conductivity", "arr2":"pressure"}
+        output_param = "salinity" 
+        dp1_data_process_id = self.dataprocessclient.create_data_process_new(
+                    data_process_definition_id=data_process_definition_id, 
+                    inputs=[self.input_dp_one_id], 
+                    outputs=[output_dataproduct], 
+                    argument_map=argument_map, 
+                    out_param_name=output_param)
         self.damsclient.register_process(dp1_data_process_id)
         self.addCleanup(self.dataprocessclient.delete_data_process, dp1_data_process_id)
         self.dp_list.append(dp1_data_process_id)
@@ -205,9 +210,14 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
     def create_data_process_two(self, data_process_definition_id, output_dataproduct):
 
         # Create the data process
-        configuration = { 'argument_map':{'arr1':'conductivity', 'arr2':'pressure'}, 'output_param' : 'salinity' }
-        dp2_func_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=data_process_definition_id, in_data_product_ids=[self.input_dp_two_id],
-                                                                                  out_data_product_ids=[output_dataproduct], configuration=configuration)
+        argument_map = {'arr1':'conductivity', 'arr2':'pressure'} 
+        output_param = 'salinity' 
+        dp2_func_data_process_id = self.dataprocessclient.create_data_process_new(
+                    data_process_definition_id=data_process_definition_id, 
+                    inputs=[self.input_dp_two_id], 
+                    outputs=[output_dataproduct], 
+                    argument_map=argument_map, 
+                    out_param_name=output_param)
         self.damsclient.register_process(dp2_func_data_process_id)
         self.addCleanup(self.dataprocessclient.delete_data_process, dp2_func_data_process_id)
         self.dp_list.append(dp2_func_data_process_id)
