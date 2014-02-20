@@ -53,9 +53,11 @@ For Mac, use homebrew
     https://confluence.oceanobservatories.org/display/CIDev/Postgres+Datastore
     https://confluence.oceanobservatories.org/display/CIDev/M112+Geospatial+Search
 
-- Optional: Install CouchDB (not needed if running with PostgreSQL)
-
-    > brew install couchdb
+    As user postgres:
+    > createuser -s ion
+    > echo "create database ion;" | psql
+    > echo "grant all on database ion to ion;" | psql
+    > echo "alter user ion with password 'ion';" | psql
 
 - Install libgswteos-10 for marine science calculations
     > brew tap lukecampbell/homebrew-libgswteos
@@ -146,54 +148,6 @@ Note: See the New Developer Tutorial for automatic start using supervisord
     > sudo sbin/rabbitmq-server
 
 
-ELASTICSEARCH (SEARCH ENGINE) - not needed when running with PostgreSQL:
-
-    ------------
-    Installation
-    ------------
-    
-    Installation is performed with a script which downloads the file from 
-    github, extracts the contents to the INSTALL_DIR and installs the correct 
-    version of the plugins.
-        > bash scripts/install_es.sh 
-    Note: Works on both Mac and (Untested) Linux. This installs ElasticSearch 
-    to /usr/local/elasticsearch-$(VERSION)/ by default and can be overridden 
-    with the INSTALL_DIR environment variable
-    e.g. > INSTALL_DIR=/opt/elasticsearch bash scripts/install_es.sh
-
-    ---------------------
-    Running ElasticSearch
-    ---------------------
-    
-    After ElasticSearch has been installed it can be started in foreground mode 
-    or daemon mode.  Assuming that the install directory was /usr/local
-    Foreground mode:
-        > /usr/local/elasticsearch-0.18.7/bin/elasticsearch -f
-
-    Daemon mode:
-        > /usr/local/elasticsearch-0.18.7/bin/elasticsearch
-
-    ElasticSearch is an instance of the JVM with the ElasticSearch cluster node,
-    each node is equivalent to one JVM instance running ElasticSearch.  
-    Additional nodes means more instances of the JVM running ElasticSearch.  The
-    JVM minimum heap and maximum heap size and performance flags can be changed 
-    in the script /usr/local/elasticsearch-0.18.7/bin/elasticsearch which is 
-    strongly recommended for production. 
-
-    To install the ElasticSearch-Head plugin which provides a graphical 
-    interface for browsing and viewing the contents 
-    of the engine run:
-        > bash scripts/install_es.sh -h
-    
-    ---------------------------------
-    Viewing ElasticSearch Graphically
-    ---------------------------------
-    
-    If the ElasticSearch-Head plugin is installed (see above) then access to the
-    plugin is located at:
-        http://localhost:9200/_plugin/head/
-
-
 SOURCE PATH
 
 Add the current directory to your PYTHONPATH for an easier time running
@@ -213,7 +167,6 @@ Provide local configuration overrides (e.g. broker host, debug levels) in:
 List supported Pyon Capability Container arguments:
     > bin/pycc --help
 
-
 Run unit tests:
     > bin/nosetests -v -a UNIT
 
@@ -223,17 +176,15 @@ Run smoke tests to verify sanity of the system:
 Run full integration tests - this will take a long time so may be optional:
     > bin/nosetests -v -a INT
 
-
-Start an example (bank) locally:
-    > bin/pycc --rel res/deploy/examples/bank_complete.yml
-    Note: It does not do anything but start a service. You need a client to trigger actions.
-
 Start development instance of the ION system with all services:
     > bin/pycc --rel res/deploy/r2deploy.yml
 
 
 TROUBLESHOOTING
 ===============
+
+To reset the system use:
+    > bin/pycc -X -fc -bc
 
 Outdated *.pyc files can causes your
 tests to fail unexpectedly.  Do an ant clean and try again.
