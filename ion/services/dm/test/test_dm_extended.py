@@ -312,6 +312,52 @@ class TestDMExtended(DMTestCase):
         self.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
 
         return procdef_id
+    
+    def create_highcharts_workflow_def(self):
+        # Check to see if the workflow defnition already exist
+        workflow_def_ids,_ = self.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_HighCharts', id_only=True)
+
+        if len(workflow_def_ids) > 0:
+            workflow_def_id = workflow_def_ids[0]
+        else:
+            # Build the workflow definition
+            workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_HighCharts',description='Convert stream data to highcharts Datatable')
+
+            #Add a transformation process definition
+            highcharts_dt_procdef_id = self.create_highcharts_data_process_definition()
+            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=highcharts_dt_procdef_id)
+            workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+            #Create it in the resource registry
+            workflow_def_id = self.workflow_management.create_workflow_definition(workflow_def_obj)
+
+        return workflow_def_id
+   
+    def create_highcharts_data_process_definition(self):
+
+        #First look to see if it exists and if not, then create it
+        dpd,_ = self.resource_registry.find_resources(restype=RT.DataProcessDefinition, name='HIGHCHARTS')
+        if len(dpd) > 0:
+            return dpd[0]
+
+        # Data Process Definition
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+            name='HIGHCHARTS',
+            description='HighCharts charts',
+            module='ion.processes.data.transforms.viz.highcharts',
+            class_name='VizTransformHighCharts')
+        try:
+            procdef_id = self.data_process_management.create_data_process_definition(dpd_obj)
+        except Exception as ex:
+            self.fail("failed to create new VizTransformhighchartsDT data process definition: %s" %ex)
+
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('highcharts', id_only=True)
+
+        # create a stream definition for the data from the
+        stream_def_id = self.pubsub_management.create_stream_definition(name='VizTransformhighchartsDT', parameter_dictionary_id=pdict_id)
+        self.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='highcharts' )
+
+        return procdef_id
 
     @attr('UTIL')
     def test_tmpsf_arrays(self):
@@ -365,7 +411,7 @@ class TestDMExtended(DMTestCase):
         self.preload_beta()
 
         # Create the google_dt workflow definition since there is no preload for the test
-        workflow_def_id = self.create_google_dt_workflow_def()
+        workflow_def_id = self.create_highcharts_workflow_def()
 
         #Create the input data product
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_simulator', id_only=True)
@@ -379,8 +425,8 @@ class TestDMExtended(DMTestCase):
         self.addCleanup(streamer.stop)
 
         
-        self.preload_ui()
-        self.strap_erddap(data_product_id)
+        #self.preload_ui()
+        #self.strap_erddap(data_product_id)
         self.launch_ui_facepage(data_product_id)
         breakpoint(locals(), globals())
 #        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()

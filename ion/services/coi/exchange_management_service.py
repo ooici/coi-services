@@ -156,7 +156,7 @@ class ExchangeManagementService(BaseExchangeManagementService):
         return exchange_name_id  #QUestion - is this the correct canonical name?
 
     def undeclare_exchange_name(self, canonical_name='', exchange_space_id=''):
-        """Remove an exhange nane resource
+        """Remove an exhange name resource
 
         @param canonical_name    str
         @param exchange_space_id    str
