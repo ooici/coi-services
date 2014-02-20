@@ -89,6 +89,7 @@ class ReplayProcess(BaseReplayProcess):
         self.stream_id       = self.CFG.get_safe('process.publish_streams.output', '')
         self.stream_def      = pubsub.read_stream_definition(stream_id=self.stream_id)
         self.stream_def_id   = self.stream_def._id
+        self.replay_thread   = None
 
         self.publishing.clear()
         self.play.set()
@@ -254,7 +255,7 @@ class ReplayProcess(BaseReplayProcess):
         '''
         if self.publishing.is_set():
             return False
-        gevent.spawn(self.replay)
+        self.replay_thread = self._process.thread_manager.spawn(self.replay)
         return True
 
     def replay(self):
