@@ -24,7 +24,9 @@ import gevent
 from gevent import Greenlet
 from interface.objects import AgentCommand
 from ion.agents.platform.platform_agent import PlatformAgentEvent
+from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 
+from ion.agents.platform.test.base_test_platform_agent_with_rsn import FakeProcess
 
 class MissionEvents(BaseEnum):
     """
@@ -250,16 +252,6 @@ class MissionLoader(object):
         #Now check timing schedule of duplicate instruments
         if len(indices) > 1:
             self._check_intersections(indices)
-        
-        # self.threads = []
-        # self.threads.append(Greenlet.spawn(self.foo))
-        # if start_time:  
-        #     start_in = start_time - time.time() if (time.time() < start_time) else 0
-        #     print 'start in ' + str(start_in) + ' seconds'
-        #     self.threads.append(Greenlet.spawn_later(start_in, self.run_mission, 1))
-
-        #     gevent.joinall(self.threads)
-        #     # mission_entries
 
     def load_mission_file(self, filename):
         
@@ -298,10 +290,22 @@ class MissionScheduler(object):
     platform mission
     """
 
-    def __init__(self, platform_agent_obj = None, mission = []):
+    def __init__(self, platform_agent_obj = None, instrument_obj = None, mission = []):
         # TODO: Implement the platform agent 
         self._pa_client = platform_agent_obj
-        
+        self._instruments = {}
+
+        # Get instrument clients for each instrument in the mission file
+        for missionIndex in range(len(mission)):
+            instrument_id = mission[missionIndex]['instrument_id']
+
+            if instrument_id in instrument_obj:
+                instrument_device_id = instrument_obj[instrument_id]['instrument_device_id']
+                # Start a resource agent client to talk with each instrument agent.
+                ia_client = ResourceAgentClient(instrument_device_id, process=FakeProcess())
+                # make a dictionary storing the instrument ids and client objects
+                self._instruments.update({instrument_id: ia_client})
+
         # Start up the platform
         self.startup_platform()
 
@@ -313,41 +317,46 @@ class MissionScheduler(object):
     def _schedule(self, mission):
         """
         Set up gevent threads for each mission
+        TODO: Replace gevent with spawn_process
         """
         self.threads = []
         for missionIndex in range(len(mission)): 
             start_time = mission[missionIndex]['start_time']
             if start_time:  
                 start_in = start_time - time.time() if (time.time() < start_time) else 0
-                print 'start in ' + str(start_in) + ' seconds'
+                print 'Start in ' + str(start_in) + ' seconds'
                 self.threads.append(Greenlet.spawn_later(start_in, self.run_mission, mission[missionIndex]))
 
         gevent.joinall(self.threads)
 
-    def run_mission(self, mission_cmds):
+    def run_mission(self, mission_params):
         """
         This function needs to live within the platform agent
+        TODO: Make a MissionExecutive class?
         """
+        instrument_id = mission_params['instrument_id']
         self.check_preconditions()
         
         loop_running = True
         loop_count = 0
 
+
         # Master loop
         while loop_running:
             current_time = time.time()
-            for cmd in mission_cmds['mission_cmds']:
+            for cmd in mission_params['mission_cmds']:
                 # Parse command and parameters
-                self.parse_cmd(cmd)
+                self.parse_cmd(instrument_id, cmd)
 
-            if mission_cmds['num_loops'] > 0:
+            if mission_params['num_loops'] > 0:
                 loop_count += 1
-                if loop_count >= mission_cmds['num_loops']:
+                if loop_count >= mission_params['num_loops']:
                     loop_running = False
 
             gevent.sleep(1)
 
-    def parse_cmd(self, cmd):
+    def parse_cmd(self, instrument_id, cmd):
+
         command = cmd['command'].lower() 
         if command == 'wait':
             print ('Waiting ' + str(cmd['params'][0]) + ' Seconds ' +
@@ -356,24 +365,46 @@ class MissionScheduler(object):
             print 'Wait Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
 
         elif command == 'sample':
+            
+            self.send_command(instrument_id, command)
+
             print ('Sampling ' + str(cmd['params'][0]) + ' Seconds ' +
                     time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
-            self.send_command(command)
             gevent.sleep(cmd['params'][0])
             print 'Sample Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
 
+            self.send_command(instrument_id, 'stop')
 
-    def send_command(self, command):
-        pass
+    def send_command(self, instrument_id, command):
+
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+
+        num_tries = 0
+        state = None
+
+        ia_client = self._instruments[instrument_id] 
+        if command == 'sample':
+            while (num_tries < 3) and (state != ResourceAgentState.STREAMING):
+                num_tries += 1
+                cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+                retval = ia_client.execute_resource(cmd)
+                state = ia_client.get_agent_state()
+                print state
+        elif command == 'stop':
+            while (num_tries < 3) and (state != ResourceAgentState.COMMAND):
+                num_tries += 1
+                cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+                retval = ia_client.execute_resource(cmd)
+                state = ia_client.get_agent_state()
+                print state
 
     def startup_platform(self):
         # TODO: Check if platform is already running
-
         from pyon.public import CFG
         self._receive_timeout = CFG.endpoint.receive.timeout
 
-        # Ping the platform agent
-        retval = self._pa_client.ping_agent()
+        # # Ping the platform agent
+        # retval = self._pa_client.ping_agent()
 
         # Initialize platform
         kwargs = dict(recursion=True)
@@ -394,19 +425,15 @@ class MissionScheduler(object):
         cmd = AgentCommand(command=PlatformAgentEvent.RUN, kwargs=kwargs)
         retval = self._pa_client.execute_agent(cmd)
 
-        # Resource Monitoring
-        # kwargs = dict(recursion=True)
-        # cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING, kwargs=kwargs)
-        # retval = self._pa_client.execute_agent(cmd)
-
 
     def check_preconditions(self):
         # TODO: Implement precondition checks
         pass
 
-
 if __name__ == "__main__":  # pragma: no cover
-
+    """
+    Stand alone to check the mission loading/parsing capabilities
+    """
     filename =  "ion/agents/platform/test/mission_RSN_simulator1.yml"
 
     mission = MissionLoader()

@@ -19,9 +19,10 @@ Logger.set_logger(log)
 from ion.agents.mission_executive import MissionLoader, MissionScheduler
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from pyon.util.breakpoint import breakpoint
+from pyon.agent.agent import ResourceAgentState
+from interface.objects import AgentCommand
 
-
-@attr('UNIT', group='rjf')
+@attr('UNIT')
 class TestParseMission(PyonTestCase):
 	"""
     Unit tests for the mission parser
@@ -42,7 +43,7 @@ class TestParseMission(PyonTestCase):
 
 
 # @unittest.skipIf(os.getenv("OMS") is not None, "OMS environment variable is defined.")
-@attr('INT', group='rjf')
+@attr('INT')
 class TestSimpleMission(BaseIntTestPlatform):
     """
     Test cases for the RSN OMS simulator, which is instantiated directly (ie.,
@@ -73,44 +74,17 @@ class TestSimpleMission(BaseIntTestPlatform):
         self._set_receive_timeout()
 
         instruments = []
-        # mission_cmds = []
+
         for missionIndex in range(len(self.mission.mission_entries)): 
             instruments.append(self.mission.mission_entries[missionIndex]['instrument_id'])
-            # mission_cmds.append(self.mission.mission_entries[missionIndex]['instrument_id'])
-
 
         p_root = self._set_up_single_platform_with_some_instruments(instruments)
         self._start_platform(p_root)
-        # breakpoint(locals())
+
         self.addCleanup(self._stop_platform, p_root)
         self.addCleanup(self._run_shutdown_commands)
 
-        self.missionSchedule = MissionScheduler(self._pa_client, self.mission.mission_entries)
+        self.missionSchedule = MissionScheduler(self._pa_client, self._setup_instruments, self.mission.mission_entries)
 
-        # self._run_startup_commands()
 
-        # self._start_resource_monitoring()
-
-        # self._wait_for_a_data_sample()
-
-        # i_obj1 = self._get_instrument('SBE37_SIM_01')
-        # #check that the instrument is in streaming mode.
-        # _ia_client1 = self._create_resource_agent_client(i_obj1.instrument_device_id)
-        # state1 = _ia_client1.get_agent_state()
-        # self.assertEquals(state1, ResourceAgentState.STREAMING)
-
-        # i_obj2 = self._get_instrument('SBE37_SIM_02')
-        # #check that the instrument is in streaming mode.
-        # _ia_client2 = self._create_resource_agent_client(i_obj2.instrument_device_id)
-        # state2 = _ia_client2.get_agent_state()
-        # self.assertEquals(state2, ResourceAgentState.STREAMING)
-
-        # self._stop_resource_monitoring()
-
-        # #check that the instrument is NOT in streaming mode.
-        # state1 = _ia_client1.get_agent_state()
-        # self.assertEquals(state1, ResourceAgentState.COMMAND)
-
-        # state2 = _ia_client2.get_agent_state()
-        # self.assertEquals(state2, ResourceAgentState.COMMAND)
 
