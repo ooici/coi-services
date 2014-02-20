@@ -1,0 +1,10 @@
+OOI provides a virtualbox appliance image that can be ran locally.A
+
+Step 1: Create a github account:
+	https://confluence.oceanobservatories.org/display/CIDev/Github+Account+Setup
+
+Step 2: Download and configure the virtualbox image:
+	https://confluence.oceanobservatories.org/display/CIDev/VirtualBox+image
+
+Step 3: OOI guidelines on using GIT:
+	https://confluence.oceanobservatories.org/display/CIDev/Transition+from+Release+2.0+to+Pre-Release+3.0

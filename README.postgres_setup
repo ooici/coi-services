@@ -1,0 +1,37 @@
+If you are running the OOI system in a custom environment or on a mac, 
+it is required that postgres be correctly configured.
+
+as user postgres:
+	echo "drop user ion;" | psql
+	createuser -s ion
+	echo "create database ion;" | psql
+	echo "grant all on database ion to ion;" | psql
+	echo "alter user ion with password 'ion';" | psql
+
+This will create a superuser postgress account called ion with password ion.
+It is strongly reccomended you change the password to something much better.
+
+You can test that you have postgres correctly configured by returning to your 
+own user account and running:
+	psql -U ion -h localhost -p 5432
+
+	<enter the password you used above>
+
+You should see something similar to:
+	psql (9.3.2)
+	Type "help" for help.
+	
+	ion=>
+
+In order to configure coi-services to know the database connection details,
+create a file in coi-services/res/config/pyon.local.yml containing:
+        system:
+          name: uidev
+        server:
+          postgresql:
+            username: ion
+            password: ion
+            admin_username: ion
+            admin_password: ion
+
+
