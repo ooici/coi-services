@@ -187,7 +187,7 @@ class ZmqDriverClient(DriverClient):
         while True:
             try:
                 # Attempt command send. Retry if necessary.
-                self.zmq_cmd_socket.send_pyobj(msg)
+                self.zmq_cmd_socket.send_pyobj(msg, flags=zmq.NOBLOCK)
                 if msg == 'stop_driver_process':
                     return 'driver stopping'
 
