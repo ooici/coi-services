@@ -26,7 +26,7 @@ You should see something similar to:
 In order to configure coi-services to know the database connection details,
 create a file in coi-services/res/config/pyon.local.yml containing:
         system:
-          name: uidev
+          name: your_favorite_name
         server:
           postgresql:
             username: ion
