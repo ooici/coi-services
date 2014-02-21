@@ -380,6 +380,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def _initialize_transform_process(self, data_process_definition, in_data_product_ids, out_data_product_ids, configuration=None, argument_map=None, out_param_name=''):
         dpd_obj = data_process_definition
         configuration = DotDict(configuration or {})
+        # work with empty lists if nothing provided for inputs / outputs
+        in_data_product_ids = (in_data_product_ids or [])
+        out_data_product_ids = (out_data_product_ids or [])
+
         configuration.process.output_products = out_data_product_ids
 
         dataproduct_name = ''
@@ -392,8 +396,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         else:
             configuration.process.lookup_docs = self._get_lookup_docs(in_data_product_ids, out_data_product_ids)
 
-
-        #todo: validate input mappings and output mappings.
+        #Validate input and output mappings
+        for in_data_product_id in in_data_product_ids:
+            if not self.validate_argument_input(data_product_id=in_data_product_id, argument_map=argument_map):
+                raise BadRequest('Input data product does not contain the parameters defined in argument map')
+        for out_data_product_id in out_data_product_ids:
+            if not self.validate_argument_input(data_product_id=out_data_product_id, output_param=out_param_name):
+                raise BadRequest('Output data product does not contain the output parameter name provided')
 
         dproc = DataProcess()
         #name the data process the DPD name + in_data_product name to make more readable
@@ -414,14 +423,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasOutputProduct, object=data_product_id)
         if data_process_definition._id:
             self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess ,dproc_id)
+        self._link_transform_dataproducts(inputs=in_data_product_ids,outputs=out_data_product_ids)
 
         exchange_name = self._assign_worker(dproc_id)
         #exchange_name = self.transform_worker_subscription_map[transform_worker_pid]
         log.debug('create_data_process_new  exchange_name: %s', exchange_name)
         queue_name = self._create_subscription(dproc, in_data_product_ids, exchange_name)
         log.debug('create_data_process_new  queue_name: %s', queue_name)
-
-
 
         return dproc_id
 
@@ -543,23 +551,39 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return replay_ids
 
 
+    def _link_transform_dataproducts(self, inputs=None, outputs=None):
+
+        for out_dp in outputs:
+            for in_dp in inputs:
+                assocs = self.clients.resource_registry.find_associations(out_dp, PRED.hasDataProductParent, in_dp)
+                if not assocs:
+                    #if the hasDataProductParent link was not already created, then add
+                    self.RR2.assign_data_product_to_data_product_with_has_data_product_parent(in_dp, out_dp)
+
+
+
     #--------------------------------------------------------------------------------
     # Validation
     #--------------------------------------------------------------------------------
-    def validate_argument_input(self, data_product_id='', argument_map=None):
+    def validate_argument_input(self, data_product_id='', argument_map=None, output_param=''):
         '''
-        Returns true if the argument map is valid for a particular data product
+        Returns true if the argument map or output parameter is valid for a particular data product
         '''
-        if not argument_map:
-            raise BadRequest("A valid arugment map is required")
+        if not ( argument_map or output_param):
+            raise BadRequest("A valid arugment map or output parameter is required")
         if not data_product_id:
             raise BadRequest("A valid data product is required")
 
         parameters = self.parameters_for_data_product(data_product_id)
         parameter_names = parameters.keys()
-        for argument_name in argument_map.itervalues():
-            if argument_name not in parameter_names:
+        if argument_map:
+            for argument_name in argument_map.itervalues():
+                if argument_name not in parameter_names:
+                    return False
+        else:
+            if output_param not in parameter_names:
                 return False
+
         return True
 
     def parameters_for_data_product(self, data_product_id='', filtered=False):
@@ -622,7 +646,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Setting the restart mode
         schedule = ProcessSchedule()
-        schedule.restart_mode = ProcessRestartMode.ABNORMAL
+        schedule.restart_mode = ProcessRestartMode.ALWAYS
         schedule.queueing_mode = ProcessQueueingMode.ALWAYS
 
         # Spawn the process
@@ -683,52 +707,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return subscription_obj.exchange_name
 
-
-    #--------------------------------------------------------------------------------
-    # Validation
-    #--------------------------------------------------------------------------------
-    def validate_argument_input(self, data_product_id='', argument_map=None):
-        '''
-        Returns true if the argument map is valid for a particular data product
-        '''
-        if not argument_map:
-            raise BadRequest("A valid arugment map is required")
-        if not data_product_id:
-            raise BadRequest("A valid data product is required")
-
-        parameters = self.parameters_for_data_product(data_product_id)
-        parameter_names = parameters.keys()
-        for argument_name in argument_map.itervalues():
-            if argument_name not in parameter_names:
-                return False
-        return True
-        
-    def parameters_for_data_product(self, data_product_id='', filtered=False):
-        '''
-        Returns a dict of parameter and parameter ids for a data product. Applies a 
-        filter if specified (using the stream def)
-        '''
-
-        stream_defs, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
-        if not stream_defs:
-            raise BadRequest("No Stream Definition Found for data product %s" % data_product_id)
-        stream_def = stream_defs[0]
-
-        pdicts, _ = self.clients.resource_registry.find_objects(stream_def._id, PRED.hasParameterDictionary, id_only=True)
-        if not pdicts:
-            raise BadRequest("No Parameter Dictionary Found for data product %s" % data_product_id)
-        pdict_id = pdicts[0]
-        parameters, _ = self.clients.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=False)
-
-        # too complicated for one line of code
-        #retval = { p.name : p._id for p in parameters if not filtered or (filtered and p in stream_def.available_fields) } 
-        retval = {}
-        for p in parameters:
-            if filtered and p.name in stream_def.available_fields:
-                retval[p.name] = p._id
-            elif not filtered:
-                retval[p.name] = p._id
-        return retval
 
     #--------------------------------------------------------------------------------
     # Inspection
@@ -1347,6 +1325,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #get the input stream id
         out_stream_id = ''
         out_stream_route = ''
+        out_stream_definition = ''
 
         out_dataprods_objs, _ = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=False)
         if len(out_dataprods_objs) != 1:
