@@ -420,43 +420,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_almost_equal(rdt2['time'], np.arange(20))
 
-    def test_retrieve_and_transform(self):
-        # Make a simple dataset and start ingestion, pretty standard stuff.
-        ctd_stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
-        self.start_ingestion(ctd_stream_id, dataset_id)
-        self.addCleanup(self.stop_ingestion, ctd_stream_id)
-
-        # Stream definition for the salinity data
-        salinity_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        sal_stream_def_id = self.pubsub_management.create_stream_definition('sal data', parameter_dictionary_id=salinity_pdict_id)
-
-
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = np.arange(10)
-        rdt['temp'] = np.random.randn(10) * 10 + 30
-        rdt['conductivity'] = np.random.randn(10) * 2 + 10
-        rdt['pressure'] = np.random.randn(10) * 1 + 12
-
-        publisher = StandaloneStreamPublisher(ctd_stream_id, route)
-        publisher.publish(rdt.to_granule())
-
-        rdt['time'] = np.arange(10,20)
-
-        publisher.publish(rdt.to_granule())
-
-
-        self.wait_until_we_have_enough_granules(dataset_id, 20)
-
-        granule = self.data_retriever.retrieve(dataset_id, 
-                                             None,
-                                             None, 
-                                             'ion.processes.data.transforms.ctd.ctd_L2_salinity',
-                                             'CTDL2SalinityTransformAlgorithm', 
-                                             kwargs=dict(params=sal_stream_def_id))
-        rdt = RecordDictionaryTool.load_from_granule(granule)
-        for i in rdt['salinity']:
-            self.assertNotEquals(i,0)
-
     def test_last_granule(self):
         stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
         self.start_ingestion(stream_id, dataset_id)
