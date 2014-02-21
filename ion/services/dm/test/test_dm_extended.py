@@ -29,6 +29,7 @@ from pyon.util.containers import DotDict
 from pydap.client import open_url
 from shutil import rmtree
 from datetime import datetime, timedelta
+import simplejson as json
 import pkg_resources
 import tempfile
 import os
@@ -405,13 +406,56 @@ class TestDMExtended(DMTestCase):
 
         s.stop()
 
+    @attr('INT')
+    def test_realtime_visualization(self):
+        self.preload_beta()
+
+        # Create the input data product
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_simulator', id_only=True)
+        stream_def_id = self.create_stream_definition('ctd sim L2', parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd simulator', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
+
+        # Launch the realtime visualization process
+        viz_token = self.visualization.initiate_realtime_visualization_data(data_product_id=data_product_id)
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = [1, 2]
+        rdt['temp'] = [10, 20]
+        rdt['conductivity'] = [30, 40]
+        rdt['pressure'] = [40, 50]
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        # Get the token from the JSON str
+        viz_id = json.loads(viz_token)['rt_query_token']
+
+        # Poll the queue until we get our data from realtime
+        from pyon.util.poller import poll_wrapper
+        @poll_wrapper(timeout=CFG.get_safe('endpoint.receive.timeout',10))
+        def poller(inst, viz_id):
+            r = inst.visualization.get_realtime_visualization_data(viz_id)
+            if r == '[]':
+                return False
+            return r
+        r = poller(self, viz_id)
+        r = json.loads(r)
+
+        # Decode the json string and assert that the data is correct
+        result_set = { k['name'] : k for k in r }
+        np.testing.assert_almost_equal(result_set['temp']['data'][0][1], 10.0)
+        np.testing.assert_almost_equal(result_set['conductivity']['data'][0][1], 30.0)
+        np.testing.assert_almost_equal(result_set['pressure']['data'][0][1], 40.0)
+
+        # Make sure that we can terminate
+        self.visualization.terminate_realtime_visualization_data(viz_id)
+
+        viz, _ = self.resource_registry.find_resources(restype=RT.RealtimeVisualization, id_only=True)
+        self.assertFalse(viz)
 
     @attr('UTIL')
     def test_dm_realtime_visualization(self):
         self.preload_beta()
-
-        # Create the google_dt workflow definition since there is no preload for the test
-        workflow_def_id = self.create_highcharts_workflow_def()
 
         #Create the input data product
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_simulator', id_only=True)

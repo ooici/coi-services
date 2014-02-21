@@ -202,7 +202,7 @@ class VisualizationService(BaseVisualizationService):
         # doesn't wait there for nothing to happen.
         schedule = ProcessSchedule()
         schedule.restart_mode = ProcessRestartMode.NEVER
-        schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        schedule.queueing_mode = ProcessQueueingMode.NEVER
 
         # Launch the process
         procdef_id = self._get_highcharts_procdef()
