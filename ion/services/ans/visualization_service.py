@@ -14,7 +14,7 @@ Note:
 # Note pyon imports need to be first for monkey patching to occur
 from pyon.public import IonObject, RT, log, PRED, EventPublisher, OT
 from pyon.util.containers import create_unique_identifier, get_safe
-from pyon.core.exception import Inconsistent, BadRequest, NotFound
+from pyon.core.exception import Inconsistent, BadRequest, NotFound, ServiceUnavailable
 from datetime import datetime
 
 import simplejson, json
@@ -28,7 +28,9 @@ from ion.processes.data.transforms.viz.highcharts import VizTransformHighChartsA
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphsAlgorithm
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
-from interface.objects import Granule, RealtimeVisualization
+from interface.objects import Granule, RealtimeVisualization, ProcessDefinition, ProcessSchedule
+from interface.objects import ProcessRestartMode, ProcessQueueingMode, ProcessStateEnum
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from pyon.util.containers import get_safe
 # for direct hdf access
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
@@ -92,61 +94,86 @@ class VisualizationService(BaseVisualizationService):
                 if vp.has_key('query'):
                     query=vp['query']
 
-        # Perform a look up to check and see if the DP is indeed a realtime GDT stream
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
-        data_product = self.clients.resource_registry.read(data_product_id)
+        data_product = self.clients.data_product_management.read_data_product(data_product_id)
         
         if not data_product:
             raise NotFound("Data product %s does not exist" % data_product_id)
 
-        viz_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasRealtimeVisualization, id_only=True)
-        if viz_ids:
-            pass
-        else:
-            # Create and associate the visualization
-            viz = RealtimeVisualization(name='Visualization for %s' % data_product_id,
-                                        visualization_parameters=visualization_parameters)
-            viz_id, rev = self.clients.resource_registry.create(viz)
-            query_token = viz_id
-            self.clients.resource_registry.create_association(data_product_id, PRED.hasRealtimeVisualization, viz_id)
 
-            streamdefs, _ = self.clients.resource_registry.find_resources(restype=RT.StreamDefinition,name='HighCharts_out', id_only=True)
-            if streamdefs: # If there's not one create it
-                stream_def_id = streamdefs[0]
-            else:
-                pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('highcharts')
-                stream_def_id = self.clients.pubsub_management.create_stream_definition('HighCharts_out', parameter_dictionary_id=pdict_id)
+        # Create and associate the visualization
+        viz = RealtimeVisualization(name='Visualization for %s' % data_product_id,
+                                    visualization_parameters=visualization_parameters)
+        viz_id, rev = self.clients.resource_registry.create(viz)
+        query_token = viz_id
+        self.clients.resource_registry.create_association(data_product_id, PRED.hasRealtimeVisualization, viz_id)
 
-            stream_id, route = self.clients.pubsub_management.create_stream(name="viz_%s" % data_product_id, exchange_point="visualization", stream_definition_id=stream_def_id)
+        stream_def_id = self._get_highcharts_streamdef()
 
-            # Create a queue for the visualization subscriber and bind the stream to it.
-            # The stream will be used by the visualization process to publish on
-            queue_name = '-'.join([USER_VISUALIZATION_QUEUE, query_token])
-            self.container.ex_manager.create_xn_queue(queue_name)
-            subscription_id = self.clients.pubsub_management.create_subscription(
-                    stream_ids=[stream_id],
-                    exchange_name = queue_name,
-                    name = query_token)
+        stream_id, route = self.clients.pubsub_management.create_stream(name="viz_%s" % viz_id, exchange_point="visualization", stream_definition_id=stream_def_id)
 
-            # after the queue has been created it is safe to activate the subscription
-            self.clients.pubsub_management.activate_subscription(subscription_id)
+        # Create a queue for the visualization subscriber and bind the stream to it.
+        # The stream will be used by the visualization process to publish on
+        queue_name = '-'.join([USER_VISUALIZATION_QUEUE, query_token])
+        self.container.ex_manager.create_xn_queue(queue_name)
+        subscription_id = self.clients.pubsub_management.create_subscription(
+                stream_ids=[stream_id],
+                exchange_name = queue_name,
+                name = query_token)
 
-            # Associate the subscription with the viz so we can clean it up later
-            self.clients.resource_registry.create_association(viz_id, PRED.hasSubscription, subscription_id)
-            # Associate the stream
-            self.clients.resource_registry.create_association(viz_id, PRED.hasStream, stream_id)
+        # after the queue has been created it is safe to activate the subscription
+        self.clients.pubsub_management.activate_subscription(subscription_id)
 
-            # Launch the worker
-            pid = self._launch_highcharts(viz_id, data_product_id, stream_id)
-            viz._id = viz_id
-            viz._rev = rev
-            viz.pid = pid
-            self.clients.resource_registry.update(viz)
+        # Associate the subscription with the viz so we can clean it up later
+        self.clients.resource_registry.create_association(viz_id, PRED.hasSubscription, subscription_id)
+        # Associate the stream
+        self.clients.resource_registry.create_association(viz_id, PRED.hasStream, stream_id)
+
+        # Launch the worker
+        pid = self._launch_highcharts(viz_id, data_product_id, stream_id)
+        viz._id = viz_id
+        viz._rev = rev
+        viz.pid = pid
+        self.clients.resource_registry.update(viz)
 
 
         ret_dict = {'rt_query_token': query_token}
         return simplejson.dumps(ret_dict)
+
+    def _get_highcharts_streamdef(self):
+        '''
+        A somewhat idempotent retrieve of the stream definition
+        Returns the high charts stream definition
+        '''
+
+        streamdefs, _ = self.clients.resource_registry.find_resources(restype=RT.StreamDefinition,name='HighCharts_out', id_only=True)
+        if streamdefs: # If there's not one create it
+            stream_def_id = streamdefs[0]
+        else:
+            pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('highcharts')
+            stream_def_id = self.clients.pubsub_management.create_stream_definition('HighCharts_out', parameter_dictionary_id=pdict_id)
+        return stream_def_id
+
+    def _get_highcharts_procdef(self):
+        '''
+        A somewhat idempotent retrieve of the process definition
+        Returns the high charts process definition id 
+        '''
+        procdefs, _ = self.clients.resource_registry.find_resources(
+                    name='HighChartsDefinition',
+                    restype=RT.ProcessDefinition, 
+                    id_only=True)
+        if procdefs:
+            return procdefs[0]
+
+        procdef = ProcessDefinition(name='HighChartsDefinition')
+        procdef.executable['module'] = 'ion.processes.data.transforms.viz.highcharts'
+        procdef.executable['class'] = 'VizTransformHighCharts'
+
+        procdef_id = self.clients.process_dispatcher.create_process_definition(procdef)
+        return procdef_id
+
 
 
     def _launch_highcharts(self, viz_id, data_product_id, out_stream_id):
@@ -171,11 +198,24 @@ class VisualizationService(BaseVisualizationService):
         config.process.publish_streams.highcharts = out_stream_id
         config.process.queue_name = queue_name
 
-        pid = self.container.spawn_process(
-                    name='viz_%s' % data_product_id, 
-                    module='ion.processes.data.transforms.viz.highcharts',
-                    cls='VizTransformHighCharts',
-                    config=config)
+        # This process MUST be launched the first time or fail so the user
+        # doesn't wait there for nothing to happen.
+        schedule = ProcessSchedule()
+        schedule.restart_mode = ProcessRestartMode.NEVER
+        schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+
+        # Launch the process
+        procdef_id = self._get_highcharts_procdef()
+        pid = self.clients.process_dispatcher.schedule_process(
+                process_definition_id=procdef_id,
+                schedule=schedule,
+                configuration=config)
+
+        # Make sure it launched or raise an error
+
+        process_gate = ProcessStateGate(self.clients.process_dispatcher.read_process, pid, ProcessStateEnum.RUNNING)
+        if not process_gate.await(self.CFG.get_safe('endpoint.receive.timeout', 10)):
+            raise ServiceUnavailable("Failed to launch high charts realtime visualization")
 
         return pid
 
@@ -309,7 +349,8 @@ class VisualizationService(BaseVisualizationService):
             self.clients.pubsub_management.delete_stream(stream)
 
         pid = viz.pid
-        self.container.proc_manager.terminate_process(pid)
+        self.clients.process_dispatcher.cancel_process(pid)
+        self.clients.resource_registry.delete(query_token)
 
 
     def get_visualization_data(self, data_product_id='', visualization_parameters=None):
