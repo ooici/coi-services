@@ -143,7 +143,7 @@ class DiscoveryUnitTest(IonUnitTestCase):
     def test_parse(self):
         ds_mock = Mock()
         self.discovery.ds_discovery._get_datastore = Mock(return_value=ds_mock)
-        ds_mock.find_resources_mult = Mock(return_value=["FOO"])
+        ds_mock.find_by_query = Mock(return_value=["FOO"])
 
         search_string = "search 'serial_number' is 'abc' from 'resources_index'"
         retval = self.discovery.parse(search_string)
@@ -154,7 +154,7 @@ class DiscoveryUnitTest(IonUnitTestCase):
     def test_tier1_request(self):
         ds_mock = Mock()
         self.discovery.ds_discovery._get_datastore = Mock(return_value=ds_mock)
-        ds_mock.find_resources_mult = Mock(return_value=["FOO"])
+        ds_mock.find_by_query = Mock(return_value=["FOO"])
 
         query = {'query':{'field': 'name', 'value': 'foo'}}
         retval = self.discovery.request(query)
@@ -164,7 +164,7 @@ class DiscoveryUnitTest(IonUnitTestCase):
     def test_tier2_request(self):
         ds_mock = Mock()
         self.discovery.ds_discovery._get_datastore = Mock(return_value=ds_mock)
-        ds_mock.find_resources_mult = Mock(return_value=["FOO"])
+        ds_mock.find_by_query = Mock(return_value=["FOO"])
 
         query = {'query':{'field': 'name', 'value': 'foo'}, 'and':[{'field': 'lcstate', 'value': 'foo2'}]}
         retval = self.discovery.request(query)

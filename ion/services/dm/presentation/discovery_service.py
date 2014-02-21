@@ -35,7 +35,7 @@ class DiscoveryService(BaseDiscoveryService):
     # Query Methods
     #===================================================================
 
-    def query(self, query=None, id_only=True, search_args={}):
+    def query(self, query=None, id_only=True, search_args=None):
         """Issue a query against the indexes as specified in the query, applying filters and operators
         accordingly. The query format is a structured dict.
         See the query format definition: https://confluence.oceanobservatories.org/display/CIDev/Discovery+Service+Query+Format
@@ -49,7 +49,7 @@ class DiscoveryService(BaseDiscoveryService):
 
         return self.request(query, id_only, search_args=search_args)
 
-    def parse(self, search_request='', id_only=True, search_args={}):
+    def parse(self, search_request='', id_only=True, search_args=None):
         """Parses a given string request and assembles the query, processes the query and returns the results of the query.
         This is the primary means of interfacing with the search features in discovery.
         See the query language definition: https://confluence.oceanobservatories.org/display/CIDev/Discovery+Service+Query+Format

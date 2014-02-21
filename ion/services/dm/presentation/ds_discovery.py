@@ -11,7 +11,8 @@ import pprint
 
 from pyon.datastore.datastore import DataStore
 from pyon.datastore.datastore_query import DatastoreQueryBuilder, DQ
-from pyon.public import PRED, CFG, RT, log, BadRequest
+from pyon.ion.resource import create_access_args
+from pyon.public import PRED, CFG, RT, log, BadRequest, get_ion_actor_id
 
 DATASTORE_MAP = {"resources_index": DataStore.DS_RESOURCES,
                  "data_products_index": DataStore.DS_RESOURCES,
@@ -55,7 +56,9 @@ class DatastoreDiscovery(object):
             log.debug("DatastoreDiscovery.execute_query(): ds_query=\n%s", pprint.pformat(ds_query))
 
             ds = self._get_datastore(ds_name)
-            res = ds.find_resources_mult(ds_query)
+            access_args = create_access_args(current_actor_id=get_ion_actor_id(self.process),
+                                             superuser_actor_ids=self.container.resource_registry.get_superuser_actors())
+            res = ds.find_by_query(ds_query, access_args=access_args)
             log.info("Datastore discovery query resulted in %s rows", len(res))
 
             return res
@@ -63,10 +66,12 @@ class DatastoreDiscovery(object):
             log.exception("DatastoreDiscovery.execute_query() failed")
         return []
 
+
     def _build_ds_query(self, discovery_query, id_only=True):
         query_exp = discovery_query["query"] or {}
         index = query_exp.get("index", "resources_index")
         ds_name = DATASTORE_MAP.get(index, None)
+        # TODO: Enable service defined indexes in addition to standard indexes
         if ds_name is None:
             raise BadRequest("Unknown index: %s" % index)
         limit = discovery_query.get("limit", 0)
@@ -252,5 +257,3 @@ class DatastoreDiscovery(object):
     # Organization (simple: name contains)
     # Status?
     # Type Event?
-
-    # Check the data_products_index definition

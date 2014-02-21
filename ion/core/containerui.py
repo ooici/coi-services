@@ -28,8 +28,8 @@ DEFAULT_WEB_SERVER_PORT = 8080
 containerui_instance = None
 
 standard_types = ['str', 'int', 'bool', 'float', 'list', 'dict']
-standard_resattrs = ['name', 'description', 'lcstate', 'availability', 'ts_created', 'ts_updated']
-EDIT_IGNORE_FIELDS = ['rid', 'restype', 'lcstate', 'availability', 'ts_created', 'ts_updated']
+standard_resattrs = ['name', 'description', 'lcstate', 'availability', 'visibility', 'ts_created', 'ts_updated']
+EDIT_IGNORE_FIELDS = ['rid', 'restype', 'lcstate', 'availability', 'visibility', 'ts_created', 'ts_updated']
 EDIT_IGNORE_TYPES = ['list', 'dict', 'bool']
 standard_eventattrs = ['origin', 'ts_created', 'description']
 date_fieldnames = ['ts_created', 'ts_updated']
@@ -410,13 +410,13 @@ def build_commands(resource_id, restype):
     fragments.append(build_command("Associate from subject", "/cmd/createassoc?rid=%s&dir=to" % resource_id, args))
     fragments.append(build_command("Associate to object", "/cmd/createassoc?rid=%s&dir=to" % resource_id, args))
 
-    from pyon.ion.resource import CommonResourceLifeCycleSM
-    event_list = CommonResourceLifeCycleSM.MAT_EVENTS + CommonResourceLifeCycleSM.AVAIL_EVENTS
+    from pyon.ion.resource import LCE, LCS, AS
+    event_list = LCE.keys()
     options = zip(event_list, event_list)
     args = [('select', 'lcevent', options)]
     fragments.append(build_command("Execute Lifecycle Event", "/cmd/execute_lcs?rid=%s" % resource_id, args))
 
-    state_list = CommonResourceLifeCycleSM.MATURITY + CommonResourceLifeCycleSM.AVAILABILITY
+    state_list = LCS.keys() + AS.keys()
     options = zip(state_list, state_list)
     args = [('select', 'lcstate', options)]
     fragments.append(build_command("Change Lifecycle State", "/cmd/set_lcs?rid=%s" % resource_id, args))
@@ -798,7 +798,9 @@ def _process_cmd_sites(resource_id, res_obj=None):
             fragments.append("<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>" % (
                 entryname,
                 par_detail._get_type() if par_detail else "?",
-                stat(par_status, 'agg'), stat(par_status, 'power'), stat(par_status, 'comms'), stat(par_status, 'data'), stat(par_status, 'loc')))
+                stat(par_status, 'agg'), stat(par_status, objects.AggregateStatusType.AGGREGATE_POWER),
+                stat(par_status, objects.AggregateStatusType.AGGREGATE_COMMS), stat(par_status, objects.AggregateStatusType.AGGREGATE_DATA),
+                stat(par_status, objects.AggregateStatusType.AGGREGATE_LOCATION)))
             fragments.append("</tr>")
             device = devices.get(parent_id, None)
             if device and len(device) > 1:

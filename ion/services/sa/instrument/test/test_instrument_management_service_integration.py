@@ -162,8 +162,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
         # Lifecycle
-        self.assertEquals(len(extended_instrument.lcstate_transitions), 5)
-        self.assertEquals(set(extended_instrument.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate']))
+        self.assertEquals(len(extended_instrument.lcstate_transitions), 6)
+        self.assertEquals(set(extended_instrument.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate', 'delete']))
         self.assertEquals(len(extended_instrument.availability_transitions), 2)
         self.assertEquals(set(extended_instrument.availability_transitions.keys()), set(['enable', 'announce']))
 
@@ -206,8 +206,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_model_id, extended_platform.instrument_models[0]._id)
         self.assertEquals(extended_platform.platform_agent._id, platform_agent_id)
 
-        self.assertEquals(len(extended_platform.lcstate_transitions), 5)
-        self.assertEquals(set(extended_platform.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate']))
+        self.assertEquals(len(extended_platform.lcstate_transitions), 6)
+        self.assertEquals(set(extended_platform.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate', 'delete']))
         self.assertEquals(len(extended_platform.availability_transitions), 2)
         self.assertEquals(set(extended_platform.availability_transitions.keys()), set(['enable', 'announce']))
 

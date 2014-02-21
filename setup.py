@@ -16,13 +16,13 @@ version = '3.0.1-dev'
 
 setup(  name = 'coi-services',
         version = version,
-        description = 'OOI ION COI Services',
+        description = 'OOINet System',
         url = 'https://github.com/ooici/coi-services',
         download_url = 'http://sddevrepo.oceanobservatories.org/releases/',
         license = 'Apache 2.0',
         author = 'Michael Meisinger',
         author_email = 'mmeisinger@ucsd.edu',
-        keywords = ['ooici','ioncore', 'pyon', 'coi'],
+        keywords = ['ooi','ooinet', 'pyon'],
         packages = find_packages(),
         dependency_links = [
             'http://sddevrepo.oceanobservatories.org/releases/',
