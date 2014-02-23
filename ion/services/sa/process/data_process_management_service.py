@@ -490,6 +490,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.create_association(subject=data_process_id, predicate=PRED.hasOutputProduct, object=data_product_id)
         if data_process_definition._id:
             self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess ,data_process_id)
+        self._link_transform_dataproducts(inputs=in_data_product_ids,outputs=out_data_product_ids)
 
         # Launch the worker
         exchange_name = self._assign_worker(data_process_id)
@@ -719,6 +720,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         dpd = self.read_data_process_definition(data_process_definition_id)
         if dpd.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
             return self._inspect_parameter_function(data_process_definition_id)
+        if dpd.data_process_type == DataProcessTypeEnum.TRANSFORM_PROCESS:
+            return self._inspect_transform_function(data_process_definition_id)
         #TODO: add the rest of the types
         else:
             raise BadRequest("Data process type not yet supported")
@@ -746,6 +749,62 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             raise BadRequest('%s is not supported for inspection' % type(func))
 
         return src
+
+
+    def _inspect_transform_function(self, data_process_definition_id):
+        '''
+        Returns the source code definition for the DPD's transform function
+        '''
+        import importlib
+
+        data_process_definition_obj = self.read_data_process_definition(data_process_definition_id)
+
+        tfuncs, _ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasTransformFunction, id_only=False)
+        if not tfuncs:
+            raise BadRequest('Data Process Definition %s has no transform functions' % data_process_definition_id)
+        tfunc_obj =  tfuncs[0]
+
+        #load the associated transform function
+        if data_process_definition_obj.uri:
+            egg = self._download_egg(data_process_definition_obj.uri)
+            import pkg_resources
+            pkg_resources.working_set.add_entry(egg)
+        else:
+            log.warning('No uri provided for module in data process definition.')
+
+        module = importlib.import_module(tfunc_obj.module)
+
+        function = getattr(module, tfunc_obj.function)
+        # Gets a list of lines of the source code
+        src = inspect.getsourcelines(function)[0]
+        # Join the lines into one contiguous string
+        src = ''.join(src)
+
+        return src
+
+    def _download_egg(cls, url):
+        '''
+        Downloads an egg from the URL specified into the cache directory
+        Returns the full path to the egg
+        '''
+        from tempfile import gettempdir
+        import requests
+
+        # Get the filename based on the URL
+        filename = url.split('/')[-1]
+        # Store it in the $TMPDIR
+        egg_cache = gettempdir()
+        path = os.path.join(egg_cache, filename)
+        r = requests.get(url, stream=True)
+        if r.status_code == 200:
+            # Download the file using requests stream
+            with open(path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+                        f.flush()
+            return path
+        raise IOError("Couldn't download the file at %s" % url)
 
     #--------------------------------------------------------------------------------
     # Parameter Function Support
