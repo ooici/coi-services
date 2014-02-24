@@ -20,11 +20,11 @@ from ion.services.dm.utility.provenance import graph
 from ion.processes.data.registration.registration_process import RegistrationProcess
 from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext
 from ion.processes.data.transforms.transform_worker import TransformWorker
-from interface.objects import DataProcessDefinition
+from interface.objects import DataProcessDefinition, InstrumentDevice
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.util.file_sys import FileSystem
-from pyon.public import IonObject, RT, CFG
+from pyon.public import IonObject, RT, CFG, PRED
 from pyon.util.containers import DotDict
 from pydap.client import open_url
 from shutil import rmtree
@@ -1178,6 +1178,10 @@ class TestDMExtended(DMTestCase):
                    'data_path' : 'test_data/vel3d_coeff.csv',
                    'config_path':'test_data/vel3d_coeff.yml' 
                 })
+        # req-tag: L4-CI-SA-RQ-365
+        # req-tag: L4-CI-SA-RQ-181 
+        # Evaluates the L1a data product for eastward_turbulent_velocity
+        # the same as a client downloading the data product would.
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['eastward_turbulent_velocity'], 
@@ -1186,6 +1190,7 @@ class TestDMExtended(DMTestCase):
                           -18.26946259,  61.37233734,  61.84563065,
                           60.203228  ], dtype=np.float32))
 
+        # Evaluates the L1a data product for eastward_turbulent_velocity
         np.testing.assert_array_equal(rdt['northward_turbulent_velocity'], 
                  np.array([  1.30138195, 63.76234055,  0.75369668,
                             62.45711136,  21.0368309, 61.89337921,
@@ -1260,6 +1265,8 @@ class TestDMExtended(DMTestCase):
 
     @attr("UTIL")
     def test_egg_packaging(self):
+
+        # req-tag: NEW SA - 2
         file_source = """
 #!/usr/bin/env python
 '''
@@ -1353,4 +1360,29 @@ def rotate_v(u,v,theta):
                              'seawater_pressure': {'cc_p_range': {}, 'pressure': {}},
                              'seawater_temperature': {'temperature': {}}}
         self.assertEquals(density_dependencies, what_it_should_be)
+
+
+    @attr("INT")
+    def test_data_product_assocs(self):
+        # req-tag: L4-CI-SA-RQ-364 
+        self.preload_mflm()
+        # Grab the CTDMO Data Product
+        data_product_id = self.data_product_by_id('DPROD142')
+
+        sources, _ = self.resource_registry.find_objects(data_product_id, PRED.hasSource, id_only=False)
+        # Assert that this data product has one and only one source
+        self.assertEquals(len(sources), 1)
+        for source in sources:
+            # Assert it's an instrument device
+            self.assertIsInstance(source, InstrumentDevice)
+            # Assert that it's the 'SP MFLM A CTDMO-01'
+            self.assertIn('PRE:ID36', source.alt_ids)
+
+        # req-tag: NEW SA-3
+        output_data_products, _ = self.resource_registry.find_subjects(
+                    object=data_product_id, 
+                    predicate=PRED.hasDataProductParent,
+                    subject_type=RT.DataProduct)
+        # Assert that we have children data products and they are associated
+        self.assertTrue(output_data_products)
 

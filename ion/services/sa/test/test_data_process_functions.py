@@ -98,6 +98,7 @@ class TestDataProcessFunctions(DMTestCase):
 
     @attr('INT')
     def test_add_parameter_function(self):
+        # req-tag: NEW SA - 31
         # Make a CTDBP Data Product
         data_product_id = self.make_ctd_data_product()
         self.data_product_id = data_product_id
