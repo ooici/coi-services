@@ -253,7 +253,8 @@ class PlatformAgentStreamPublisher(object):
             rdt[temp_param_name]       = numpy.array(timestamps)
             #@TODO: Ensure that the preferred_timestamp field is correct
             rdt['preferred_timestamp'] = numpy.array(['internal_timestamp'] * len(timestamps))
-            log.warn('Preferred timestamp is unresolved, using "internal_timestamp"')
+            if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+                log.debug('Preferred timestamp is unresolved, using "internal_timestamp"')
         else:
             log.warn("%r: Not including timestamp info in granule: "
                      "temporal_parameter_name not defined in parameter dictionary",
