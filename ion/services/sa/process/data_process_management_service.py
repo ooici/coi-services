@@ -9,7 +9,7 @@ from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryC
 
 from pyon.util.log import log
 from pyon.util.ion_time import IonTime
-from pyon.public import RT, PRED, OT, LCS
+from pyon.public import RT, PRED, OT, LCS, CFG
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.containers import create_unique_identifier
@@ -764,15 +764,21 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             raise BadRequest('Data Process Definition %s has no transform functions' % data_process_definition_id)
         tfunc_obj =  tfuncs[0]
 
+        module = None
+        #first try to load the module, if not avaialable, then import the egg
+        try:
+            module = importlib.import_module(tfunc_obj.module)
+        except ImportError:
         #load the associated transform function
-        if data_process_definition_obj.uri:
-            egg = self._download_egg(data_process_definition_obj.uri)
-            import pkg_resources
-            pkg_resources.working_set.add_entry(egg)
-        else:
-            log.warning('No uri provided for module in data process definition.')
+            import ion.processes.data.transforms.transform_worker.TransformWorker
+            if data_process_definition_obj.uri:
+                egg = TransformWorker.download_egg(data_process_definition_obj.uri)
+                import pkg_resources
+                pkg_resources.working_set.add_entry(egg)
 
-        module = importlib.import_module(tfunc_obj.module)
+                module = importlib.import_module(tfunc_obj.module)
+            else:
+                log.warning('No uri provided for module in data process definition.')
 
         function = getattr(module, tfunc_obj.function)
         # Gets a list of lines of the source code
@@ -782,29 +788,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return src
 
-    def _download_egg(cls, url):
-        '''
-        Downloads an egg from the URL specified into the cache directory
-        Returns the full path to the egg
-        '''
-        from tempfile import gettempdir
-        import requests
-
-        # Get the filename based on the URL
-        filename = url.split('/')[-1]
-        # Store it in the $TMPDIR
-        egg_cache = gettempdir()
-        path = os.path.join(egg_cache, filename)
-        r = requests.get(url, stream=True)
-        if r.status_code == 200:
-            # Download the file using requests stream
-            with open(path, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=1024):
-                    if chunk:
-                        f.write(chunk)
-                        f.flush()
-            return path
-        raise IOError("Couldn't download the file at %s" % url)
 
     #--------------------------------------------------------------------------------
     # Parameter Function Support

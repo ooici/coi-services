@@ -13,7 +13,7 @@ from pyon.ion.stream import StandaloneStreamPublisher, StreamSubscriber, Standal
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.file_sys import FileSystem, FS
 from pyon.event.event import EventSubscriber
-from pyon.public import OT, RT, PRED
+from pyon.public import OT, RT, PRED, CFG
 from pyon.util.containers import DotDict
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
@@ -59,6 +59,7 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
 
         self.time_dom, self.spatial_dom = time_series_domain()
+        self.wait_time = CFG.get_safe('endpoint.receive.timeout', 10)
 
 
 
@@ -160,8 +161,8 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         self.publisher_two.publish(msg=rdt.to_granule(), stream_id=self.stream_two_id)
 
 
-        self.assertTrue(self.event2_verified.wait(10))
-        self.assertTrue(self.event1_verified.wait(10))
+        self.assertTrue(self.event2_verified.wait(self.wait_time))
+        self.assertTrue(self.event1_verified.wait(self.wait_time))
 
 
     @attr('LOCOINT')
@@ -231,8 +232,8 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         self.publisher_one.publish(msg=rdt.to_granule(), stream_id=self.stream_one_id)
 
 
-        self.assertTrue(self.event2_verified.wait(10))
-        self.assertTrue(self.event1_verified.wait(10))
+        self.assertTrue(self.event2_verified.wait(self.wait_time))
+        self.assertTrue(self.event1_verified.wait(self.wait_time))
 
 
 

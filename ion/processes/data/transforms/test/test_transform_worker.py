@@ -13,7 +13,7 @@ from pyon.ion.stream import StandaloneStreamPublisher, StreamSubscriber, Standal
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.file_sys import FileSystem, FS
 from pyon.event.event import EventSubscriber, EventPublisher
-from pyon.public import OT, RT, PRED
+from pyon.public import OT, RT, PRED, CFG
 from pyon.util.containers import DotDict
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.exception import BadRequest
@@ -78,6 +78,8 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.time_dom, self.spatial_dom = time_series_domain()
 
         self.ph = ParameterHelper(self.dataset_management_client, self.addCleanup)
+
+        self.wait_time = CFG.get_safe('endpoint.receive.timeout', 10)
 
     def push_granule(self, data_product_id):
         '''
@@ -158,11 +160,11 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.publisher.publish(rdt.to_granule())
 
         #validate that the output granule is received and the updated value is correct
-        self.assertTrue(self.event_verified.wait(10))
+        self.assertTrue(self.event_verified.wait(self.wait_time))
 
         #validate that the code from the transform funcation can be retrieve via inspect_data_process_definition
         src = self.dataprocessclient.inspect_data_process_definition(dataprocessdef_id)
-        self.assertTrue( 'def add_arrays(a, b)' in src)
+        self.assertIn( 'def add_arrays(a, b)', src)
 
 
 
@@ -213,7 +215,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.start_event_transform_listener()
 
         self.data_modified = Event()
-        self.data_modified.wait(5)
+        #self.data_modified.wait(5)
 
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time']         = [0] # time should always come first
@@ -223,7 +225,7 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         self.publisher.publish(rdt.to_granule())
 
-        self.assertTrue(self.event_verified.wait(10))
+        self.assertTrue(self.event_verified.wait(self.wait_time))
 
 
 
@@ -413,11 +415,11 @@ class TestTransformWorker(IonIntegrationTestCase):
         """
         data_process_event = args[0]
         log.debug("DataProcessStatusEvent: %s" ,  str(data_process_event.__dict__))
-        self.assertTrue( data_process_event.origin in self.dp_list)
+        self.assertIn( data_process_event.origin, self.dp_list)
 
 
     def validate_output_granule(self, msg, route, stream_id):
-        self.assertTrue( stream_id in self._output_stream_ids)
+        self.assertIn( stream_id, self._output_stream_ids)
 
         rdt = RecordDictionaryTool.load_from_granule(msg)
         log.debug('validate_output_granule  rdt: %s', rdt)
