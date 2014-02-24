@@ -1875,7 +1875,7 @@ Reason: %s
         dpd.description = 'Parameter Function Definition for %s' % name
         dpd.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
 
-        data_process_management.create_data_process_definition_new(dpd, func_id, headers=self._get_system_actor_headers())
+        data_process_management.create_data_process_definition(dpd, func_id, headers=self._get_system_actor_headers())
         # Set alt_ids so that resource can be found in incremental preload runs
         func_obj = self.container.resource_registry.read(func_id)
         func_obj.alt_ids=['PRE:'+row[COL_ID]]

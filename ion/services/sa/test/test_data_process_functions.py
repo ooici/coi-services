@@ -133,11 +133,11 @@ class TestDataProcessFunctions(DMTestCase):
 
         # Make a data process definition
         dpd = DataProcessDefinition(name='add_arrays', description='Sums two arrays')
-        dpd_id = self.data_process_management.create_data_process_definition_new(dpd, pfunc_id)
+        dpd_id = self.data_process_management.create_data_process_definition(dpd, pfunc_id)
 
         # TODO: assert assoc exists
         argmap = {'a':'temp', 'b':'pressure'}
-        dp_id = self.data_process_management.create_data_process_new(dpd_id, [data_product_id], argument_map=argmap, out_param_name='array_sum')
+        dp_id = self.data_process_management.create_data_process(dpd_id, [data_product_id], argument_map=argmap, out_param_name='array_sum')
 
         # Verify that the function worked!
         granule = self.data_retriever.retrieve(dataset_id)
@@ -237,8 +237,8 @@ class TestDataProcessFunctions(DMTestCase):
                             data_process_type=DataProcessTypeEnum.RETRIEVE_PROCESS)
         configuration = DotDict()
         configuration.publish_limit = 40
-        dpd_id = self.data_process_management.create_data_process_definition_new(dpd_obj, func_id)
-        data_process_id = self.data_process_management.create_data_process_new(
+        dpd_id = self.data_process_management.create_data_process_definition(dpd_obj, func_id)
+        data_process_id = self.data_process_management.create_data_process(
                             data_process_definition_id=dpd_id, 
                             inputs=[data_product_id], 
                             outputs=[clone_id], 

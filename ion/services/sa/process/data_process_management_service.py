@@ -148,27 +148,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def force_delete_transform_function(self, transform_function_id=''):
         self.RR2.pluck_delete(transform_function_id, RT.TransformFunction)
 
-    def create_data_process_definition(self, data_process_definition=None):
 
-        data_process_definition_id = self.RR2.create(data_process_definition, RT.DataProcessDefinition)
-
-        #-------------------------------
-        # Process Definition
-        #-------------------------------
-        # Create the underlying process definition
-        process_definition = ProcessDefinition()
-        process_definition.name = data_process_definition.name
-        process_definition.description = data_process_definition.description
-
-        process_definition.executable = {'module':data_process_definition.module, 'class':data_process_definition.class_name}
-        process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
-
-        self.RR2.assign_process_definition_to_data_process_definition_with_has_process_definition(process_definition_id,
-                                                                                                  data_process_definition_id)
-
-        return data_process_definition_id
-
-    def create_data_process_definition_new(self, data_process_definition=None, function_id=''):
+    def create_data_process_definition(self, data_process_definition=None, function_id=''):
         function_definition = self.clients.resource_registry.read(function_id)
 
         if isinstance(function_definition,  ParameterFunction):
@@ -285,71 +266,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(association)
 
 
-    def create_data_process(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None):
-        '''
-        Creates a DataProcess resource and launches the process.
-        A DataProcess is a process that receives one (or more) data products and produces one (or more) data products.
 
-        @param data_process_definition_id : The Data Process Definition to use, if none is specified the standard TransformDataProcess is used
-        @param in_data_product_ids : A list of input data product identifiers
-        @param out_data_product_ids : A list of output data product identifiers
-        @param configuration : The configuration dictionary for the process, and the routing table:
-
-        The routing table is defined as such:
-            { in_data_product_id: {out_data_product_id : actor }}
-
-        Routes are specified in the configuration dictionary under the item "routes"
-        actor is either None (for ParameterFunctions) or a valid TransformFunction identifier
-        '''
-        configuration = DotDict(configuration or {})
-        in_data_product_ids = in_data_product_ids or []
-        out_data_product_ids = out_data_product_ids or []
-        routes = configuration.get_safe('process.routes', {})
-        if not routes and (1==len(in_data_product_ids)==len(out_data_product_ids)):
-            routes = {in_data_product_ids[0]: {out_data_product_ids[0]:None}}
-        # Routes are not supported for processes with discrete data process definitions
-        elif not routes and not data_process_definition_id:
-            raise BadRequest('No valid route defined for this data process.')
-
-        self.validate_compatibility(data_process_definition_id, in_data_product_ids, out_data_product_ids, routes)
-        routes = self._manage_routes(routes)
-        configuration.process.input_products = in_data_product_ids
-        configuration.process.output_products = out_data_product_ids
-        configuration.process.routes = routes
-        if 'lookup_docs' in configuration.process:
-            configuration.process.lookup_docs.extend(self._get_lookup_docs(in_data_product_ids, out_data_product_ids))
-        else:
-            configuration.process.lookup_docs = self._get_lookup_docs(in_data_product_ids, out_data_product_ids)
-        dproc = DataProcess()
-        dproc.name = 'data_process_%s' % self.get_unique_id()
-        dproc.configuration = configuration
-        dproc_id, rev = self.clients.resource_registry.create(dproc)
-        dproc._id = dproc_id
-        dproc._rev = rev
-
-        for data_product_id in in_data_product_ids:
-            self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasInputProduct, object=data_product_id)
-
-        if data_process_definition_id:
-            self.clients.resource_registry.create_association(data_process_definition_id, PRED.hasDataProcess ,dproc_id)
-
-        self._manage_producers(dproc_id, out_data_product_ids)
-
-        self._manage_attachments()
-
-        queue_name = self._create_subscription(dproc, in_data_product_ids)
-
-        pid = self._launch_data_process(
-                queue_name=queue_name,
-                data_process_definition_id=data_process_definition_id,
-                out_data_product_ids=out_data_product_ids,
-                configuration=configuration)
-
-        self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasProcess, object=pid)
-
-        return dproc_id
-
-    def create_data_process_new(self, data_process_definition_id='', inputs=None, outputs=None, configuration=None, argument_map=None, out_param_name=''):
+    def create_data_process(self, data_process_definition_id='', inputs=None, outputs=None, configuration=None, argument_map=None, out_param_name=''):
         '''
         Creates a DataProcess resource.
         A DataProcess can be of a few types:
@@ -427,9 +345,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         exchange_name = self._assign_worker(dproc_id)
         #exchange_name = self.transform_worker_subscription_map[transform_worker_pid]
-        log.debug('create_data_process_new  exchange_name: %s', exchange_name)
+        log.debug('create_data_process  exchange_name: %s', exchange_name)
         queue_name = self._create_subscription(dproc, in_data_product_ids, exchange_name)
-        log.debug('create_data_process_new  queue_name: %s', queue_name)
+        log.debug('create_data_process  queue_name: %s', queue_name)
 
         return dproc_id
 
@@ -442,7 +360,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         transform_worker_dp_map = self._find_transform_workers()
         log.debug('_start_transform_worker  transform_worker_dp_map:  %s', transform_worker_dp_map)
         if not transform_worker_dp_map:
-            log.debug('create_data_process_new start first worker')
+            log.debug('create_data_process start first worker')
             #for the first data process in a TW, generate the exchange name
             transform_worker_pid, exchange_name = self._start_transform_worker()
         else:

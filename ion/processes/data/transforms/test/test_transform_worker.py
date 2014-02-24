@@ -273,14 +273,14 @@ class TestTransformWorker(IonIntegrationTestCase):
             data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS,
             uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
             )
-        add_array_dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition=dpd_obj, function_id=add_array_func_id)
+        add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='add_array_func' )
 
         # Create the data process with invalid argument map
         argument_map = {"arr1": "foo", "arr2": "bar"}
         output_param = "salinity"
         with self.assertRaises(BadRequest) as cm:
-            dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
+            dp1_data_process_id = self.dataprocessclient.create_data_process(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
                                                                                  outputs=[dp1_func_output_dp_id], argument_map=argument_map, out_param_name=output_param)
 
         ex = cm.exception
@@ -291,7 +291,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         argument_map = {"arr1": "conductivity", "arr2": "pressure"}
         output_param = "foo"
         with self.assertRaises(BadRequest) as cm:
-            dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
+            dp1_data_process_id = self.dataprocessclient.create_data_process(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
                                                                                  outputs=[dp1_func_output_dp_id], argument_map=argument_map, out_param_name=output_param)
 
         ex = cm.exception
@@ -322,11 +322,11 @@ class TestTransformWorker(IonIntegrationTestCase):
             description='validate_salinity_array',
             data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS,
             )
-        add_array_dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition=dpd_obj, function_id=add_array_func_id)
+        add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='validate_salinity_array' )
 
         # Create the data process
-        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
+        dp1_data_process_id = self.dataprocessclient.create_data_process(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
                                                                              outputs=None, argument_map=argument_map)
         self.damsclient.register_process(dp1_data_process_id)
         self.addCleanup(self.dataprocessclient.delete_data_process, dp1_data_process_id)
@@ -361,11 +361,11 @@ class TestTransformWorker(IonIntegrationTestCase):
             data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS,
             uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
             )
-        add_array_dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition=dpd_obj, function_id=add_array_func_id)
+        add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='add_array_func' )
 
         # Create the data process
-        dp1_data_process_id = self.dataprocessclient.create_data_process_new(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
+        dp1_data_process_id = self.dataprocessclient.create_data_process(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
                                                                              outputs=[dp1_func_output_dp_id], argument_map=argument_map, out_param_name=output_param)
         self.damsclient.register_process(dp1_data_process_id)
         self.addCleanup(self.dataprocessclient.delete_data_process, dp1_data_process_id)
