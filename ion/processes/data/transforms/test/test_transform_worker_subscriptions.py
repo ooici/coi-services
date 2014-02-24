@@ -13,7 +13,7 @@ from pyon.ion.stream import StandaloneStreamPublisher, StreamSubscriber, Standal
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.file_sys import FileSystem, FS
 from pyon.event.event import EventSubscriber
-from pyon.public import OT, RT, PRED
+from pyon.public import OT, RT, PRED, CFG
 from pyon.util.containers import DotDict
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
@@ -59,12 +59,13 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
 
         self.time_dom, self.spatial_dom = time_series_domain()
+        self.wait_time = CFG.get_safe('endpoint.receive.timeout', 10)
 
 
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_transform_worker(self):
+    def test_multi_subscriptions(self):
         self.dp_list = []
         self.event1_verified = Event()
         self.event2_verified = Event()
@@ -114,6 +115,7 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
 
         self.start_event_listener()
 
+        #data process 1 adds conductivity + pressure and puts the result in salinity
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time']         = [0] # time should always come first
         rdt['conductivity'] = [1]
@@ -122,7 +124,7 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
 
         self.publisher_one.publish(msg=rdt.to_granule(), stream_id=self.stream_one_id)
 
-        second_dp_id = self.create_data_process_two(dpd_id, dp2_func_output_dp_id)
+        second_dp_id = self.create_data_process_two(dpd_id, self.input_dp_two_id, dp2_func_output_dp_id)
 
         #retrieve subscription from data process
         subscription_objs, _ = self.rrclient.find_objects(subject=second_dp_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
@@ -140,6 +142,86 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         stream_route_two = self.pubsub_client.read_stream_route(self.stream_two_id)
         self.publisher_two = StandaloneStreamPublisher(stream_id=self.stream_two_id, stream_route=stream_route_two )
 
+        #data process 1 adds conductivity + pressure and puts the result in salinity
+        rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
+        rdt['time']         = [0] # time should always come first
+        rdt['conductivity'] = [1]
+        rdt['pressure']     = [2]
+        rdt['salinity']     = [8]
+
+        self.publisher_one.publish(msg=rdt.to_granule(), stream_id=self.stream_one_id)
+
+        #data process 2 adds salinity + pressure and puts the result in conductivity
+        rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
+        rdt['time']         = [0] # time should always come first
+        rdt['conductivity'] = [22]
+        rdt['pressure']     = [4]
+        rdt['salinity']     = [1]
+
+        self.publisher_two.publish(msg=rdt.to_granule(), stream_id=self.stream_two_id)
+
+
+        self.assertTrue(self.event2_verified.wait(self.wait_time))
+        self.assertTrue(self.event1_verified.wait(self.wait_time))
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_two_transforms_inline(self):
+        self.dp_list = []
+        self.event1_verified = Event()
+        self.event2_verified = Event()
+
+        self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
+
+        # create the StreamDefinition
+        self.stream_def_id = self.pubsub_client.create_stream_definition(name='stream_def', parameter_dictionary_id=self.parameter_dict_id)
+        self.addCleanup(self.pubsub_client.delete_stream_definition, self.stream_def_id)
+
+        # create the DataProduct
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product_one', description='input test stream one',
+                                             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        self.input_dp_one_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
+
+
+        dpd_id = self.create_data_process_definition()
+        dp1_func_output_dp_id, dp2_func_output_dp_id =  self.create_output_data_products()
+
+        first_dp_id = self.create_data_process_one(dpd_id, dp1_func_output_dp_id)
+        second_dp_id = self.create_data_process_two(dpd_id, dp1_func_output_dp_id, dp2_func_output_dp_id)
+
+        #retrieve subscription from data process one
+        subscription_objs, _ = self.rrclient.find_objects(subject=first_dp_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
+        log.debug('test_transform_worker subscription_obj:  %s', subscription_objs[0])
+
+        #retrieve the Stream for these data product
+        stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_one_id, PRED.hasStream, RT.Stream, True)
+        self.stream_one_id = stream_ids[0]
+        #the input to data process two is the output from data process one
+        stream_ids, assoc_ids = self.rrclient.find_objects(dp1_func_output_dp_id, PRED.hasStream, RT.Stream, True)
+        self.stream_two_id = stream_ids[0]
+
+        #create subscription to stream ONE, create data process and publish granule on stream ONE
+
+        #create a queue to catch the published granules of stream ONE
+        subscription_id = self.pubsub_client.create_subscription(name='parsed_subscription', stream_ids=[self.stream_one_id, self.stream_two_id], exchange_name=subscription_objs[0].exchange_name)
+        self.addCleanup(self.pubsub_client.delete_subscription, subscription_id)
+
+        self.pubsub_client.activate_subscription(subscription_id)
+        self.addCleanup(self.pubsub_client.deactivate_subscription, subscription_id)
+
+        stream_route_one = self.pubsub_client.read_stream_route(self.stream_one_id)
+        self.publisher_one = StandaloneStreamPublisher(stream_id=self.stream_one_id, stream_route=stream_route_one )
+
+
+        #retrieve subscription from data process
+        subscription_objs, _ = self.rrclient.find_objects(subject=second_dp_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
+        log.debug('test_transform_worker subscription_obj:  %s', subscription_objs[0])
+
+        #data process 1 adds conductivity + pressure and puts the result in salinity
+        #data process 2 adds salinity + pressure and puts the result in conductivity
+
+        self.start_event_listener()
 
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time']         = [0] # time should always come first
@@ -149,17 +231,10 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
 
         self.publisher_one.publish(msg=rdt.to_granule(), stream_id=self.stream_one_id)
 
-        rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
-        rdt['time']         = [0] # time should always come first
-        rdt['conductivity'] = [3]
-        rdt['pressure']     = [4]
-        rdt['salinity']     = [8]
 
-        self.publisher_two.publish(msg=rdt.to_granule(), stream_id=self.stream_two_id)
+        self.assertTrue(self.event2_verified.wait(self.wait_time))
+        self.assertTrue(self.event1_verified.wait(self.wait_time))
 
-
-        self.assertTrue(self.event2_verified.wait(10))
-        self.assertTrue(self.event1_verified.wait(10))
 
 
     def create_data_process_definition(self):
@@ -192,6 +267,7 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
     def create_data_process_one(self, data_process_definition_id, output_dataproduct):
 
         # Create the data process
+        #data process 1 adds conductivity + pressure and puts the result in salinity
         argument_map = {"arr1":"conductivity", "arr2":"pressure"}
         output_param = "salinity" 
         dp1_data_process_id = self.dataprocessclient.create_data_process_new(
@@ -207,14 +283,15 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         return dp1_data_process_id
 
 
-    def create_data_process_two(self, data_process_definition_id, output_dataproduct):
+    def create_data_process_two(self, data_process_definition_id, input_dataproduct, output_dataproduct):
 
         # Create the data process
-        argument_map = {'arr1':'conductivity', 'arr2':'pressure'} 
-        output_param = 'salinity' 
+        #data process 2 adds salinity + pressure and puts the result in conductivity
+        argument_map = {'arr1':'salinity', 'arr2':'pressure'}
+        output_param = 'conductivity'
         dp2_func_data_process_id = self.dataprocessclient.create_data_process_new(
                     data_process_definition_id=data_process_definition_id, 
-                    inputs=[self.input_dp_two_id], 
+                    inputs=[input_dataproduct],
                     outputs=[output_dataproduct], 
                     argument_map=argument_map, 
                     out_param_name=output_param)
@@ -288,15 +365,17 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         self.assertTrue( stream_id in [self._output_stream_one_id, self._output_stream_two_id])
 
         rdt = RecordDictionaryTool.load_from_granule(msg)
-        log.debug('validate_output_granule  rdt: %s', rdt)
-        sal_val = rdt['salinity']
-        log.debug('validate_output_granule  sal_val: %s', sal_val)
+        log.debug('validate_output_granule  stream_id: %s', stream_id)
 
         if stream_id == self._output_stream_one_id:
+            sal_val = rdt['salinity']
+            log.debug('validate_output_granule  sal_val: %s', sal_val)
             np.testing.assert_array_equal(sal_val, np.array([3]))
             self.event1_verified.set()
         else:
-            np.testing.assert_array_equal(sal_val, np.array([7]))
+            cond_val = rdt['conductivity']
+            log.debug('validate_output_granule  cond_val: %s', cond_val)
+            np.testing.assert_array_equal(cond_val, np.array([5]))
             self.event2_verified.set()
 
     def start_event_listener(self):
