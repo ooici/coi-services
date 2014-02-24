@@ -377,7 +377,7 @@ class PubsubManagementService(BasePubsubManagementService):
         if self.subscription_is_active(subscription_id):
             raise BadRequest('Clients can not delete an active subscription.')
 
-        xn_objs, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=False)
+        xn_objs, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, subject_type=RT.ExchangeName, id_only=False)
         if len(xn_objs) > 1:
             log.warning('Subscription %s was attached to multiple queues')
         self._deassociate_subscription(subscription_id)

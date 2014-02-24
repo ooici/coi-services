@@ -14,7 +14,7 @@ Note:
 # Note pyon imports need to be first for monkey patching to occur
 from pyon.public import IonObject, RT, log, PRED, EventPublisher, OT
 from pyon.util.containers import create_unique_identifier, get_safe
-from pyon.core.exception import Inconsistent, BadRequest, NotFound
+from pyon.core.exception import Inconsistent, BadRequest, NotFound, ServiceUnavailable
 from datetime import datetime
 
 import simplejson, json
@@ -28,11 +28,14 @@ from ion.processes.data.transforms.viz.highcharts import VizTransformHighChartsA
 from ion.processes.data.transforms.viz.matplotlib_graphs import VizTransformMatplotlibGraphsAlgorithm
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
-from interface.objects import Granule
+from interface.objects import Granule, RealtimeVisualization, ProcessDefinition, ProcessSchedule
+from interface.objects import ProcessRestartMode, ProcessQueueingMode, ProcessStateEnum
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from pyon.util.containers import get_safe
 # for direct hdf access
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from pyon.util.containers import DotDict
 
 # PIL
 #import Image
@@ -42,7 +45,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 # Google viz library for google charts
 #import ion.services.ans.gviz_api as gviz_api
 
-USER_VISUALIZATION_QUEUE = 'UserVisQueue'
+USER_VISUALIZATION_QUEUE = 'viz-out'
 PERSIST_REALTIME_DATA_PRODUCTS = False
 
 class VisualizationService(BaseVisualizationService):
@@ -91,62 +94,132 @@ class VisualizationService(BaseVisualizationService):
                 if vp.has_key('query'):
                     query=vp['query']
 
-        # Perform a look up to check and see if the DP is indeed a realtime GDT stream
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
-        data_product = self.clients.resource_registry.read(data_product_id)
+        data_product = self.clients.data_product_management.read_data_product(data_product_id)
         
         if not data_product:
             raise NotFound("Data product %s does not exist" % data_product_id)
 
-        #Look for a workflow which is already executing for this data product
-        workflow_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasInputProduct, object=data_product_id)
 
-        #If an existing workflow is not found then create one
-        if len(workflow_ids) == 0:
-            #TODO - Add this workflow definition to preload data
-            # Check to see if the workflow defnition already exist
-            workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_HighCharts', id_only=True)
+        # Create and associate the visualization
+        viz = RealtimeVisualization(name='Visualization for %s' % data_product_id,
+                                    visualization_parameters=visualization_parameters)
+        viz_id, rev = self.clients.resource_registry.create(viz)
+        query_token = viz_id
+        self.clients.resource_registry.create_association(data_product_id, PRED.hasRealtimeVisualization, viz_id)
 
-            if len(workflow_def_ids) > 0:
-                workflow_def_id = workflow_def_ids[0]
-            else:
-                raise NotFound(" Workflow definition named 'Realtime_HighCharts' does not exist")
+        stream_def_id = self._get_highcharts_streamdef()
 
-            #Create and start the workflow
-            workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_definition_id=workflow_def_id,
-                input_data_product_id=data_product_id, persist_workflow_data_product=PERSIST_REALTIME_DATA_PRODUCTS, timeout=self.create_workflow_timeout)
-        else:
-            workflow_id = workflow_ids[0]._id
+        stream_id, route = self.clients.pubsub_management.create_stream(name="viz_%s" % viz_id, exchange_point="visualization", stream_definition_id=stream_def_id)
 
-            # detect the output data product of the workflow
-            workflow_dp_ids,_ = self.clients.resource_registry.find_objects(subject=workflow_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
-            if len(workflow_dp_ids) < 1:
-                log.error("Could not find output data product for existing workflow : ", workflow_id)
-                raise NotFound("Could not find output data product for existing workflow : ", workflow_id)
-
-            workflow_product_id = workflow_dp_ids[0]
-
-        # find associated stream id with the output
-        workflow_output_stream_ids, _ = self.clients.resource_registry.find_objects(subject=workflow_product_id, predicate=PRED.hasStream, object_type=None, id_only=True)
-
-        # Create a queue to collect the stream granules - idempotency saves the day!
-        query_token = create_unique_identifier(USER_VISUALIZATION_QUEUE)
-
-        xq = self.container.ex_manager.create_xn_queue(query_token)
+        # Create a queue for the visualization subscriber and bind the stream to it.
+        # The stream will be used by the visualization process to publish on
+        queue_name = '-'.join([USER_VISUALIZATION_QUEUE, query_token])
+        self.container.ex_manager.create_xn_queue(queue_name)
         subscription_id = self.clients.pubsub_management.create_subscription(
-            stream_ids=workflow_output_stream_ids,
-            exchange_name = query_token,
-            name = query_token
-        )
+                stream_ids=[stream_id],
+                exchange_name = queue_name,
+                name = query_token)
 
         # after the queue has been created it is safe to activate the subscription
         self.clients.pubsub_management.activate_subscription(subscription_id)
 
+        # Associate the subscription with the viz so we can clean it up later
+        self.clients.resource_registry.create_association(viz_id, PRED.hasSubscription, subscription_id)
+        # Associate the stream
+        self.clients.resource_registry.create_association(viz_id, PRED.hasStream, stream_id)
+
+        # Launch the worker
+        pid = self._launch_highcharts(viz_id, data_product_id, stream_id)
+        viz._id = viz_id
+        viz._rev = rev
+        viz.pid = pid
+        self.clients.resource_registry.update(viz)
+
+
         ret_dict = {'rt_query_token': query_token}
         return simplejson.dumps(ret_dict)
 
+    def _get_highcharts_streamdef(self):
+        '''
+        A somewhat idempotent retrieve of the stream definition
+        Returns the high charts stream definition
+        '''
 
+        streamdefs, _ = self.clients.resource_registry.find_resources(restype=RT.StreamDefinition,name='HighCharts_out', id_only=True)
+        if streamdefs: # If there's not one create it
+            stream_def_id = streamdefs[0]
+        else:
+            pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('highcharts')
+            stream_def_id = self.clients.pubsub_management.create_stream_definition('HighCharts_out', parameter_dictionary_id=pdict_id)
+        return stream_def_id
+
+    def _get_highcharts_procdef(self):
+        '''
+        A somewhat idempotent retrieve of the process definition
+        Returns the high charts process definition id 
+        '''
+        procdefs, _ = self.clients.resource_registry.find_resources(
+                    name='HighChartsDefinition',
+                    restype=RT.ProcessDefinition, 
+                    id_only=True)
+        if procdefs:
+            return procdefs[0]
+
+        procdef = ProcessDefinition(name='HighChartsDefinition')
+        procdef.executable['module'] = 'ion.processes.data.transforms.viz.highcharts'
+        procdef.executable['class'] = 'VizTransformHighCharts'
+
+        procdef_id = self.clients.process_dispatcher.create_process_definition(procdef)
+        return procdef_id
+
+
+
+    def _launch_highcharts(self, viz_id, data_product_id, out_stream_id):
+        '''
+        Launches the high-charts transform
+        '''
+        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest("Can't launch high charts streaming: data product doesn't have associated stream (%s)" % data_product_id)
+
+        queue_name = 'viz_%s' % data_product_id
+        sub_id = self.clients.pubsub_management.create_subscription(
+                    name='viz transform for %s' % data_product_id, 
+                    exchange_name=queue_name,
+                    stream_ids=stream_ids)
+
+        self.clients.pubsub_management.activate_subscription(sub_id)
+
+        self.clients.resource_registry.create_association(viz_id, PRED.hasSubscription, sub_id)
+        
+        config = DotDict()
+        config.process.publish_streams.highcharts = out_stream_id
+        config.process.queue_name = queue_name
+
+        # This process MUST be launched the first time or fail so the user
+        # doesn't wait there for nothing to happen.
+        schedule = ProcessSchedule()
+        schedule.restart_mode = ProcessRestartMode.NEVER
+        schedule.queueing_mode = ProcessQueueingMode.NEVER
+
+        # Launch the process
+        procdef_id = self._get_highcharts_procdef()
+        pid = self.clients.process_dispatcher.schedule_process(
+                process_definition_id=procdef_id,
+                schedule=schedule,
+                configuration=config)
+
+        # Make sure it launched or raise an error
+
+        process_gate = ProcessStateGate(self.clients.process_dispatcher.read_process, pid, ProcessStateEnum.RUNNING)
+        if not process_gate.await(self.CFG.get_safe('endpoint.receive.timeout', 10)):
+            raise ServiceUnavailable("Failed to launch high charts realtime visualization")
+
+        return pid
+
+        
     def _process_visualization_message(self, messages):
 
         final_hc_data = []
@@ -219,7 +292,8 @@ class VisualizationService(BaseVisualizationService):
 
         try:
             #Taking advantage of idempotency
-            xq = self.container.ex_manager.create_xn_queue(query_token)
+            queue_name = '-'.join([USER_VISUALIZATION_QUEUE, query_token])
+            xq = self.container.ex_manager.create_xn_queue(queue_name)
 
             subscriber = Subscriber(from_name=xq)
             subscriber.initialize()
@@ -255,82 +329,28 @@ class VisualizationService(BaseVisualizationService):
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
 
-        subscriptions, _ = self.clients.resource_registry.find_resources(restype=RT.Subscription, name=query_token, id_only=False)
+        viz = self.clients.resource_registry.read(query_token)
 
+        subscriptions, _ = self.clients.resource_registry.find_objects(query_token, PRED.hasSubscription, id_only=True)
         if not subscriptions:
             raise NotFound("A Subscription object for the query_token parameter %s is not found" % query_token)
-
-        if len(subscriptions) > 1:
-            log.warn("An inconsistent number of Subscription resources associated with the name: %s - will use the first one in the list",query_token )
-
-        if not subscriptions[0].activated:
-            log.warn("Subscription and Visualization queue %s is deactivated, so another worker may be cleaning this up already - skipping", query_token)
-            return
-
-        #Get the Subscription id
-        subscription_id = subscriptions[0]._id
-
-        #need to find the associated data product BEFORE deleting the subscription
-        stream_ids, _  = self.clients.resource_registry.find_objects(object_type=RT.Stream, predicate=PRED.hasStream, subject=subscription_id, id_only=True)
-
-        sub_stream_id = ''
-        if len(stream_ids) == 0:
-            log.error("Cannot find Stream for Subscription id %s", subscription_id)
-        else:
-            sub_stream_id = stream_ids[0]
-
-        #Now delete the subscription if activated
-        try:
-            self.clients.pubsub_management.deactivate_subscription(subscription_id)
-
-            #This pubsub operation deletes the underlying echange queues as well, so no need to manually delete.
-            self.clients.pubsub_management.delete_subscription(subscription_id)
-
-        #Need to continue on even if this fails
-        except BadRequest, e:
-            #It is okay if the workflow is no longer available as it may have been cleaned up by another worker
-            if 'Subscription is not active' not in e.message:
-                log.exception(e)
-                sub_stream_id = ''
-
-        except Exception, e:
-            log.exception(e)
-            sub_stream_id = ''
-
-
-        log.debug("Real-time queue %s cleaned up", query_token)
-
-        if sub_stream_id != '':
+        for subscription in subscriptions:
             try:
-                #Can only clean up if we have all of the data
-                workflow_data_product_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.DataProduct, predicate=PRED.hasStream, object=sub_stream_id, id_only=True)
+                self.clients.pubsub_management.deactivate_subscription(subscription)
+            except BadRequest as m:
+                if 'Subscription is not active.' != m.message:
+                    raise
+            self.clients.pubsub_management.delete_subscription(subscription)
 
-                #Need to clean up associated workflow from the data product as long as they are going to be created for each user
-                if len(workflow_data_product_id) == 0:
-                    log.error("Cannot find Data Product for Stream id %s", sub_stream_id )
-                else:
+        streams, _ = self.clients.resource_registry.find_objects(query_token, PRED.hasStream, id_only=True)
+        if not streams:
+            raise NotFound("A stream object for the query_token %s was not found" % query_token)
+        for stream in streams:
+            self.clients.pubsub_management.delete_stream(stream)
 
-                    #Get the total number of subscriptions
-                    total_subscriptions, _  = self.clients.resource_registry.find_subjects(subject_type=RT.Subscription, predicate=PRED.hasStream, object=sub_stream_id, id_only=False)
-
-                    #Filter the list down to just those that are subscriptions for user real-time queues
-                    total_subscriptions = [subs for subs in total_subscriptions if subs.name.startswith(USER_VISUALIZATION_QUEUE)]
-
-                    #Only cleanup data product and workflow when the last subscription has been deleted
-                    if len(total_subscriptions) == 0:
-
-                        workflow_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasOutputProduct, object=workflow_data_product_id[0], id_only=True)
-                        if len(workflow_id) == 0:
-                            log.error("Cannot find Workflow for Data Product id %s", workflow_data_product_id[0] )
-                        else:
-                            self.clients.workflow_management.terminate_data_process_workflow(workflow_id=workflow_id[0], delete_data_products=True, timeout=self.terminate_workflow_timeout)
-
-            except NotFound, e:
-                #It is okay if the workflow is no longer available as it may have been cleaned up by another worker
-                pass
-
-            except Exception, e:
-                log.exception(e)
+        pid = viz.pid
+        self.clients.process_dispatcher.cancel_process(pid)
+        self.clients.resource_registry.delete(query_token)
 
 
     def get_visualization_data(self, data_product_id='', visualization_parameters=None):
