@@ -125,11 +125,12 @@ class TestDeviceActivation(IonIntegrationTestCase):
         # scenario developed. Will require adjustments to the test likely.
         self._augment_preload()
 
-        # Dump augmented registry for inspection.
+        # Dump augmented registry for inspection. For debugging.
+        """
         self.container.spawn_process('DSLoader',
             'ion.processes.bootstrap.datastore_loader', 'DatastoreLoader',
             config=dict(op='dumpres'))
-
+        """
 
     def _preload(self):
         """
