@@ -157,11 +157,17 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         '''
         Adds a new dataset to the internal cache of the ingestion worker
         '''
-        rr_client = ResourceRegistryServiceClient()
+        rr_client = self.container.resource_registry
         datasets, _ = rr_client.find_subjects(subject_type=RT.Dataset,predicate=PRED.hasStream,object=stream_id,id_only=True)
         if datasets:
             return datasets[0]
         return None
+
+    def _get_data_products(self, dataset_id):
+        rr_client = self.container.resource_registry
+        data_products, _ = rr_client.find_subjects(object=dataset_id, predicate=PRED.hasDataset, subject_type=RT.DataProduct, id_only=False)
+        return data_products
+
 
     def initialize_metadata(self, dataset_id, rdt):
         '''
@@ -194,6 +200,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         '''
         Updates the metada document with the latest information available
         '''
+
+        self.update_data_product_metadata(dataset_id, rdt)
+
         # Grab the document
         object_store = self.container.object_store
         key = dataset_id
@@ -227,6 +236,43 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         # Sanitize it
         doc = numpy_walk(doc)
         object_store.update_doc(doc)
+
+    def update_data_product_metadata(self, dataset_id, rdt):
+        data_products = self._get_data_products(dataset_id)
+        for data_product in data_products:
+            self.update_time(data_product, rdt[rdt.temporal_parameter][:])
+            self.update_geo(data_product, rdt)
+            self.container.resource_registry.update(data_product)
+
+    def update_time(self, data_product, t):
+        #TODO: Account for non NTP-based timestamps
+        t_min = np.min(t)
+        t_min -= 2208988800
+        t_max = np.max(t)
+        t_max -= 2208988800
+
+        if not data_product.nominal_datetime.start_datetime:
+            data_product.nominal_datetime.start_datetime = t_min
+        data_product.nominal_datetime.end_datetime = t_max
+
+    def update_geo(self, data_product, rdt):
+        lat = None
+        lon = None
+        for p in rdt.fields:
+            # TODO: Not an all encompassing list of acceptable names for lat and lon
+            if p.lower() in ('lat', 'latitude', 'y_axis'):
+                lat = np.asscalar(rdt[p][-1])
+            elif p.lower() in ('lon', 'longitude', 'x_axis'):
+                lon = np.asscalar(rdt[p][-1])
+            if lat and lon:
+                break
+
+        if lat and lon:
+            data_product.geospatial_bounds.geospatial_latitude_limit_north = lat
+            data_product.geospatial_bounds.geospatial_latitude_limit_south = lat
+            data_product.geospatial_bounds.geospatial_longitude_limit_east = lon
+            data_product.geospatial_bounds.geospatial_longitude_limit_west = lon
+
 
     
     def get_dataset(self,stream_id):
