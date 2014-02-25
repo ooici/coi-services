@@ -358,7 +358,10 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         """
         data_process_event = args[0]
         log.debug("DataProcessStatusEvent: %s" ,  str(data_process_event.__dict__))
-        self.assertTrue( data_process_event.origin in self.dp_list)
+
+        #if data process already created, check origin
+        if not 'data process assigned to transform worker' in data_process_event.description:
+            self.assertIn( data_process_event.origin, self.dp_list)
 
 
     def validate_output_granule(self, msg, route, stream_id):
