@@ -240,16 +240,39 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
     def update_data_product_metadata(self, dataset_id, rdt):
         data_products = self._get_data_products(dataset_id)
         for data_product in data_products:
-            #TODO: Account for non NTP-based timestamps
-            t_min = np.min(rdt[rdt.temporal_parameter][:])
-            t_min -= 2208988800
-            t_max = np.max(rdt[rdt.temporal_parameter][:])
-            t_max -= 2208988800
-
-            if not data_product.nominal_datetime.start_datetime:
-                data_product.nominal_datetime.start_datetime = t_min
-            data_product.nominal_datetime.end_datetime = t_max
+            self.update_time(data_product, rdt[rdt.temporal_parameter][:])
+            self.update_geo(data_product, rdt)
             self.container.resource_registry.update(data_product)
+
+    def update_time(self, data_product, t):
+        #TODO: Account for non NTP-based timestamps
+        t_min = np.min(t)
+        t_min -= 2208988800
+        t_max = np.max(t)
+        t_max -= 2208988800
+
+        if not data_product.nominal_datetime.start_datetime:
+            data_product.nominal_datetime.start_datetime = t_min
+        data_product.nominal_datetime.end_datetime = t_max
+
+    def update_geo(self, data_product, rdt):
+        lat = None
+        lon = None
+        for p in rdt.fields:
+            # TODO: Not an all encompassing list of acceptable names for lat and lon
+            if p.lower() in ('lat', 'latitude', 'y_axis'):
+                lat = np.asscalar(rdt[p][-1])
+            elif p.lower() in ('lon', 'longitude', 'x_axis'):
+                lon = np.asscalar(rdt[p][-1])
+            if lat and lon:
+                break
+
+        if lat and lon:
+            data_product.geospatial_bounds.geospatial_latitude_limit_north = lat
+            data_product.geospatial_bounds.geospatial_latitude_limit_south = lat
+            data_product.geospatial_bounds.geospatial_longitude_limit_east = lon
+            data_product.geospatial_bounds.geospatial_longitude_limit_west = lon
+
 
     
     def get_dataset(self,stream_id):

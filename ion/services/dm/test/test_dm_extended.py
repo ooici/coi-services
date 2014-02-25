@@ -1387,15 +1387,19 @@ def rotate_v(u,v,theta):
         self.assertTrue(output_data_products)
 
     @attr('INT')
-    def test_data_product_temporal_search(self):
+    def test_data_product_spatiotemporal_search(self):
         data_product_id = self.make_ctd_data_product()
         dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        self.addCleanup(dataset_monitor.stop)
 
         rdt = self.ph.rdt_for_data_product(data_product_id)
         rdt['time'] = np.array([ 3.602342268e+09,   3.602342269e+09,   3.602342270e+09,
                                  3.602342271e+09,   3.602342272e+09,   3.602342273e+09,
                                  3.602342274e+09,   3.602342275e+09,   3.602342276e+09,
                                  3.602342277e+09])
+
+        rdt['lat'] = np.array([40.0] * 10)
+        rdt['lon'] = np.array([-70.0] * 10)
 
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         self.assertTrue(dataset_monitor.wait())
@@ -1407,7 +1411,36 @@ def rotate_v(u,v,theta):
 
         # We should also be able to search for it
         search_string = "SEARCH 'nominal_datetime' TIME FROM '2014-02-01' TO '2014-03-01' FROM 'resources_index' AND SEARCH 'type_' IS 'DataProduct' FROM 'resources_index'"
-        dp_ids, = self.discovery.parse(search_string)
+        dp_ids = self.discovery.parse(search_string)
         self.assertIn(data_product_id, dp_ids)
+
+        search_query = {'and': [], 'query': {'field': 'geospatial_bounds', 'top_left': [-72.5208, 41.9595], 'bottom_right': [-67.6208, 38.333], 'index': 'data_products_index', 'cmpop':'overlaps'}, 'limit': 100, 'or': []}
+        dp_ids = self.discovery.query(search_query)
+        self.assertIn(data_product_id, dp_ids)
+
+        # Now make changes
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.arange(3.602342277e+09,3.602342277e+09+10)
+        rdt['lat'] = np.array([45.0] * 10)
+        rdt['lon'] = np.array([-70.0] * 10)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        # The data product resource should now include the temporal range
+        data_product = self.resource_registry.read(data_product_id)
+        np.testing.assert_equal(data_product.nominal_datetime.start_datetime, 3.602342268e+09 - 2208988800) # Shifted for NTP epoch difference
+        np.testing.assert_equal(data_product.nominal_datetime.end_datetime, 3.602342277e+09+9 - 2208988800) # Shifted for NTP epoch difference
+
+        search_query = {'and': [], 'query': {'field': 'geospatial_bounds', 'top_left': [-72.5208, 41.9595], 'bottom_right': [-67.6208, 38.333], 'index': 'data_products_index', 'cmpop':'overlaps'}, 'limit': 100, 'or': []}
+        dp_ids = self.discovery.query(search_query)
+        self.assertNotIn(data_product_id, dp_ids)
+
+        search_query = {'and': [], 'query': {'field': 'geospatial_bounds', 'top_left': [-72.5208, 45.9595], 'bottom_right': [-67.6208, 38.333], 'index': 'data_products_index', 'cmpop':'overlaps'}, 'limit': 100, 'or': []}
+        dp_ids = self.discovery.query(search_query)
+        self.assertIn(data_product_id, dp_ids)
+
 
 
