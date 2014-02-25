@@ -248,7 +248,8 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
             function='add_arrays',
             module="ion_example.add_arrays",
             arguments=['arr1', 'arr2'],
-            function_type=TransformFunctionType.TRANSFORM
+            function_type=TransformFunctionType.TRANSFORM,
+            uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
 
             )
         add_array_func_id, rev = self.rrclient.create(tf_obj)
@@ -257,9 +258,8 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
             name='add_arrays',
             description='adds the values of two arrays',
             data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS,
-            uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
             )
-        add_array_dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition=dpd_obj, function_id=add_array_func_id)
+        add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='add_array_func' )
 
         return add_array_dpd_id
@@ -270,7 +270,7 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         #data process 1 adds conductivity + pressure and puts the result in salinity
         argument_map = {"arr1":"conductivity", "arr2":"pressure"}
         output_param = "salinity" 
-        dp1_data_process_id = self.dataprocessclient.create_data_process_new(
+        dp1_data_process_id = self.dataprocessclient.create_data_process(
                     data_process_definition_id=data_process_definition_id, 
                     inputs=[self.input_dp_one_id], 
                     outputs=[output_dataproduct], 
@@ -289,7 +289,7 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         #data process 2 adds salinity + pressure and puts the result in conductivity
         argument_map = {'arr1':'salinity', 'arr2':'pressure'}
         output_param = 'conductivity'
-        dp2_func_data_process_id = self.dataprocessclient.create_data_process_new(
+        dp2_func_data_process_id = self.dataprocessclient.create_data_process(
                     data_process_definition_id=data_process_definition_id, 
                     inputs=[input_dataproduct],
                     outputs=[output_dataproduct], 

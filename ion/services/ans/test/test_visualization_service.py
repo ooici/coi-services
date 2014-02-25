@@ -190,8 +190,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 #            vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
 #            self.addCleanup(self.container.terminate_process, vpid2)
 
-        # Create the Highcharts workflow definition since there is no preload for the test
-        workflow_def_id = self.create_highcharts_workflow_def()
+        ## Create the Highcharts workflow definition since there is no preload for the test
+        #workflow_def_id = self.create_highcharts_workflow_def()
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
@@ -255,8 +255,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
             log.warn('Unable to get queue information from broker management plugin: ' + e.message)
             pass
 
-        # Create the highcharts workflow definition since there is no preload for the test
-        workflow_def_id = self.create_highcharts_workflow_def()
+        ## Create the highcharts workflow definition since there is no preload for the test
+        #workflow_def_id = self.create_highcharts_workflow_def()
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
@@ -346,53 +346,4 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
 
-
-    #@unittest.skip('Skipped because of broken record dictionary work-around')
-    def test_highcharts_overview_visualization(self):
-
-        #Create the input data product
-        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
-
-        # start producing data
-        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
-
-        # Generate some data for a few seconds
-        gevent.sleep(5.0)
-
-        #Turning off after everything - since it is more representative of an always on stream of data!
-        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
-
-        viz_params={'query_type': 'highcharts_data'}
-        # Use the data product to test the data retrieval and highcharts generation capability of the vis service
-        try:
-            vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id, simplejson.dumps(viz_params))
-        except:
-            log.exception("Error while executing get_visualization_data():")
-            raise
-
-        # validate the returned data
-        self.validate_vis_service_highcharts_results(vis_data)
-
-
-    #@unittest.skip('Skipped because of broken record dictionary work-around')
-    def test_mpl_graphs_overview_visualization(self):
-
-        #Create the input data product
-        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
-        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
-
-        # Generate some data for a few seconds
-        gevent.sleep(5.0)
-
-        #Turning off after everything - since it is more representative of an always on stream of data!
-        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
-
-        viz_params={'query_type': 'mpl_image'}
-        # Use the data product to test the data retrieval and image generation capability of the vis service
-        vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id, simplejson.dumps(viz_params))
-
-        # validate the returned data
-        self.validate_vis_service_mpl_graphs_results(vis_data)
-
-        return
 

@@ -88,7 +88,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         data_process_definition = DataProcessDefinition()
         data_process_definition.name = 'Simple'
 
-        dpd_id = self.dataprocessclient.create_data_process_definition_new(data_process_definition, func_id)
+        dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition, func_id)
         self.addCleanup(self.dataprocessclient.delete_data_process_definition, dpd_id)
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
 

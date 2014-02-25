@@ -18,7 +18,7 @@ import simplejson
 import base64
 import ast
 
-from interface.objects import Granule
+from interface.objects import Granule, DataProcessTypeEnum
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 from seawater.gibbs import SP_from_cndr
@@ -195,86 +195,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                     assertions(val > 0)
 
 
-    def create_salinity_doubler_data_process_definition(self):
-
-        #First look to see if it exists and if not, then create it
-        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='salinity_doubler')
-        if len(dpd) > 0:
-            return dpd[0]
-
-        # Salinity Doubler: Data Process Definition
-        log.debug("Create data process definition SalinityDoublerTransform")
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-            name='salinity_doubler',
-            description='create a salinity doubler data product',
-            module='ion.processes.data.transforms.example_double_salinity',
-            class_name='SalinityDoubler')
-        try:
-            salinity_doubler_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except Exception as ex:
-            self.fail("failed to create new SalinityDoubler data process definition: %s" %ex)
-
-
-        # create a stream definition for the data from the salinity Transform
-        ctd_pdict_id = self.datasetclient.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        salinity_double_stream_def_id = self.pubsubclient.create_stream_definition(name='SalinityDoubler', parameter_dictionary_id=ctd_pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(salinity_double_stream_def_id, salinity_doubler_dprocdef_id, binding='salinity' )
-
-        return salinity_doubler_dprocdef_id
-
-
-    def create_transform_process(self, data_process_definition_id, data_process_input_dp_id, stream_name):
-
-        data_process_definition = self.rrclient.read(data_process_definition_id)
-
-        # Find the link between the output Stream Definition resource and the Data Process Definition resource
-        stream_ids,_ = self.rrclient.find_objects(data_process_definition._id, PRED.hasStreamDefinition, RT.StreamDefinition,  id_only=True)
-        if not stream_ids:
-            raise Inconsistent("The data process definition %s is missing an association to an output stream definition" % data_process_definition._id )
-        process_output_stream_def_id = stream_ids[0]
-
-        #Concatenate the name of the workflow and data process definition for the name of the data product output
-        data_process_name = data_process_definition.name
-
-        # Create the output data product of the transform
-
-        tdom, sdom = time_series_domain()
-
-        transform_dp_obj = IonObject(RT.DataProduct,
-            name=data_process_name,
-            description=data_process_definition.description,
-            temporal_domain = tdom.dump(),
-            spatial_domain = sdom.dump())
-
-        transform_dp_id = self.dataproductclient.create_data_product(transform_dp_obj, process_output_stream_def_id)
-
-        self.dataproductclient.activate_data_product_persistence(data_product_id=transform_dp_id)
-
-        #last one out of the for loop is the output product id
-        output_data_product_id = transform_dp_id
-
-        # Create the  transform data process
-        log.debug("create data_process and start it")
-        data_process_id = self.dataprocessclient.create_data_process(
-            data_process_definition_id = data_process_definition._id,
-            in_data_product_ids = [data_process_input_dp_id],
-            out_data_product_ids = [transform_dp_id])
-
-        self.dataprocessclient.activate_data_process(data_process_id)
-
-
-        #Find the id of the output data stream
-        stream_ids, _ = self.rrclient.find_objects(transform_dp_id, PRED.hasStream, None, True)
-        if not stream_ids:
-            raise Inconsistent("The data process %s is missing an association to an output stream" % data_process_id )
-
-        return data_process_id, output_data_product_id
-
-
-
-    def create_highcharts_data_process_definition(self):
-        return helper_create_highcharts_data_process_definition(self.container)
-
 
     def validate_highcharts_transform_results(self, results):
 
@@ -304,33 +224,6 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
                 assertions(len(hc_data[0]["data"]) >= 0)
 
 
-
-    def create_mpl_graphs_data_process_definition(self):
-
-        #First look to see if it exists and if not, then create it
-        dpd,_ = self.rrclient.find_resources(restype=RT.DataProcessDefinition, name='mpl_graphs_transform')
-        if len(dpd) > 0:
-            return dpd[0]
-
-        #Data Process Definition
-        log.debug("Create data process definition MatplotlibGraphsTransform")
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-            name='mpl_graphs_transform',
-            description='Convert data streams to Matplotlib graphs',
-            module='ion.processes.data.transforms.viz.matplotlib_graphs',
-            class_name='VizTransformMatplotlibGraphs')
-        try:
-            procdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
-        except Exception as ex:
-            self.fail("failed to create new VizTransformMatplotlibGraphs data process definition: %s" %ex)
-
-
-        pdict_id = self.datasetclient.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
-        # create a stream definition for the data
-        stream_def_id = self.pubsubclient.create_stream_definition(name='VizTransformMatplotlibGraphs', parameter_dictionary_id=pdict_id)
-        self.dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='graph_image_param_dict' )
-
-        return procdef_id
 
     def validate_mpl_graphs_transform_results(self, results):
 
@@ -420,76 +313,8 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         return
 
-    def create_highcharts_workflow_def(self):
-
-        return helper_create_highcharts_workflow_def(self.container)
 
 
-
-def helper_create_highcharts_data_process_definition(container):
-
-    from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-    rrclient = ResourceRegistryServiceClient(node=container.node)
-
-    #First look to see if it exists and if not, then create it
-    dpd,_ = rrclient.find_resources(restype=RT.DataProcessDefinition, name='highcharts_transform')
-    if len(dpd) > 0:
-        return dpd[0]
-
-    # Data Process Definition
-    log.debug("Create data process definition for highcharts transform")
-    dpd_obj = IonObject(RT.DataProcessDefinition,
-        name='highcharts_transform',
-        description='Convert data streams to Highcharts data',
-        module='ion.processes.data.transforms.viz.highcharts',
-        class_name='VizTransformHighCharts')
-
-    from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-    dataprocessclient = DataProcessManagementServiceClient(node=container.node)
-
-    procdef_id = dataprocessclient.create_data_process_definition(dpd_obj)
-
-    from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-    datasetclient = DatasetManagementServiceClient(node=container.node)
-
-    pdict_id = datasetclient.read_parameter_dictionary_by_name('highcharts', id_only=True)
-
-    from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-    pubsubclient = PubsubManagementServiceClient(node=container.node)
-
-    # create a stream definition for the data from the
-    stream_def_id = pubsubclient.create_stream_definition(name='VizTransformHighCharts', parameter_dictionary_id=pdict_id)
-    dataprocessclient.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='highcharts' )
-
-    return procdef_id
-
-
-def helper_create_highcharts_workflow_def(container):
-
-    from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-    rrclient = ResourceRegistryServiceClient(node=container.node)
-
-    # Check to see if the workflow defnition already exist
-    workflow_def_ids,_ = rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_HighCharts', id_only=True)
-
-    if len(workflow_def_ids) > 0:
-        workflow_def_id = workflow_def_ids[0]
-    else:
-        # Build the workflow definition
-        workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_HighCharts',description='Convert stream data to HighCharts data')
-
-        #Add a transformation process definition
-        procdef_id = helper_create_highcharts_data_process_definition(container)
-        workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=procdef_id)
-        workflow_def_obj.workflow_steps.append(workflow_step_obj)
-
-        #Create it in the resource registry
-        from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
-        workflowclient = WorkflowManagementServiceClient(node=container.node)
-
-        workflow_def_id = workflowclient.create_workflow_definition(workflow_def_obj)
-
-    return workflow_def_id
 
 
 def preload_ion_params(container):
@@ -501,7 +326,7 @@ def preload_ion_params(container):
         scenario="BETA",
         #path="master",
         path="https://docs.google.com/spreadsheet/pub?key=0ArYknstLVPe7dDZleTRRZzVfaFowSEpzaGVLTU9hUnc&output=xls",
-        categories="ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProcessDefinition,WorkflowDefinition",
+        categories="ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition",
         clearcols="owner_id,org_ids",
         #assets="res/preload/r2_ioc/ooi_assets",
         parseooi="True",

@@ -118,7 +118,8 @@ CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exp
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dHZoTjN6OEE5Ml95Rm9HbXdibi1JTnc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dDZoajE3d1Z3WkE0T0tyOW9oYmZqenc&output=xls"
+
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
 
@@ -168,8 +169,6 @@ DEFAULT_CATEGORIES = [
     'Parser',
     'Attachment',
     'DataProductLink',                  # no resource but complex service call
-    'WorkflowDefinition',
-    'Workflow',
     'Deployment',
     'Scheduler',
     'Reference',                        # No resource
@@ -1875,7 +1874,7 @@ Reason: %s
         dpd.description = 'Parameter Function Definition for %s' % name
         dpd.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
 
-        data_process_management.create_data_process_definition_new(dpd, func_id, headers=self._get_system_actor_headers())
+        data_process_management.create_data_process_definition(dpd, func_id, headers=self._get_system_actor_headers())
         # Set alt_ids so that resource can be found in incremental preload runs
         func_obj = self.container.resource_registry.read(func_id)
         func_obj.alt_ids=['PRE:'+row[COL_ID]]
@@ -3525,7 +3524,7 @@ Reason: %s
                 svc_client.assign_data_product(input_res_id, dp_id, headers=headers, timeout=500)
 
     # -------------------------------------------------------------------------
-    # Attachments, workflows, deployments, misc
+    # Attachments, deployments, misc
 
     def _load_Attachment(self, row):
         self.row_count += 1
@@ -3550,47 +3549,6 @@ Reason: %s
         att_id = self.container.resource_registry.create_attachment(res_id, att_obj)
         self._register_id(row[COL_ID], att_id, att_obj)
 
-    def _load_WorkflowDefinition(self, row):
-        # Create the workflow steps
-        steps_string = row["steps"]
-        workflow_step_ids = []
-        if steps_string:
-            workflow_step_ids = get_typed_value(steps_string, targettype="simplelist")
-        else:
-            log.info("No steps found for workflow definition. Ignoring this entry")
-            return
-
-        # Locate the data process def objects and add them to the workflow def
-        workflow_steps = []
-        for step_id in workflow_step_ids:
-            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=self.resource_ids[step_id])
-            workflow_steps.append(workflow_step_obj)
-
-        res_id = self._basic_resource_create(row, "WorkflowDefinition", "wfd/",
-                                             "workflow_management", "create_workflow_definition",
-                                             set_attributes=dict(workflow_steps=workflow_steps))
-
-    def _load_Workflow(self, row):
-        self.row_count += 1
-        workflow_obj = self._create_object_from_row("Workflow", row, "wf/")
-        workflow_client = self._get_service_client("workflow_management")
-        workflow_def_id = self.resource_ids[row["wfd_id"]]
-        in_dp_id = self.resource_ids[row["in_dp_id"]]
-
-        # prepare the config dict
-        configuration = row['configuration']
-        if configuration:
-            configuration = get_typed_value(configuration, targettype="dict")
-            configuration["in_dp_id"] = in_dp_id
-
-        headers = self._get_op_headers(row)
-
-        # Create and start the workflow
-        workflow_client.create_data_process_workflow(
-            workflow_definition_id=workflow_def_id,
-            input_data_product_id=in_dp_id, persist_workflow_data_product=get_typed_value(row["persist_data"], targettype="bool"),
-            configuration=configuration, timeout=30,
-            headers=headers)
 
     def _load_Deployment(self, row):
         constraints = self._get_constraints(row, type='Deployment')
