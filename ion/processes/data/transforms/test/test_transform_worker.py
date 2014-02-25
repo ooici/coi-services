@@ -135,6 +135,24 @@ class TestTransformWorker(IonIntegrationTestCase):
         assocs = self.rrclient.find_associations(dataproduct_id, PRED.hasDataProductParent, self.input_dp_id)
         self.assertTrue(len(assocs) == 1)
 
+        # Test for provenance. Get Data product produced by the data processes
+        output_data_product1_id,_ = self.rrclient.find_objects(subject=self.dp_list[0],
+            object_type=RT.DataProduct,
+            predicate=PRED.hasOutputProduct,
+            id_only=True)
+
+        output_data_product1_provenance = self.dataproductclient.get_data_product_provenance(output_data_product1_id[0])
+        # Do a basic check to see if there were 2 entries in the provenance graph. Parent and Child.
+        self.assertTrue(len(output_data_product1_provenance) == 2)
+
+        output_data_product2_id,_ = self.rrclient.find_objects(subject=self.dp_list[1],
+            object_type=RT.DataProduct,
+            predicate=PRED.hasOutputProduct,
+            id_only=True)
+        output_data_product2_provenance = self.dataproductclient.get_data_product_provenance(output_data_product2_id[0])
+
+        self.assertTrue(len(output_data_product2_provenance) == 2)
+
         #retrieve subscription from data process
         subscription_objs, _ = self.rrclient.find_objects(subject=dataprocess_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
         log.debug('test_transform_worker subscription_obj:  %s', subscription_objs[0])

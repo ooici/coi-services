@@ -484,10 +484,82 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Retrieve information that characterizes how this data was produced
         # Return in a dictionary
 
+        # There are two parts to the prrovenance tree as returned by this method. The first part is
+        # a path that follows the DataProduct to its parent DataProduct .. all the way to the InstrumentAgent
+        # The second part is along the parameters contained within the DataProducts. The Provenance along the
+        # parameters can follow its own pathways.
         self.provenance_results = {}
-        log.warning("Provenance functionality is not available at this time")
 
+        validate_is_not_none(data_product_id, 'A data product identifier must be passed to create a provenance report')
+
+        # Walk up the DataProduct tree
+        def data_product_traversal(resource_id, result):
+
+            '''
+            #Get data product object to verify it exists and what type it is
+            resource_obj = self.clients.resource_registry.read(resource_id)
+            if resource_obj == None:
+                raise BadRequest('Resource object does not exist.')
+            #assume that there are no parents and proceed
+            result[resource_id] = {'parents' : None, 'type' : resource_obj.type}
+            '''
+            result[resource_id] = {'parents' : None}
+            parent_ids = []
+
+            # If its a derived data product, it should have a parent
+            parent_ids,_ = self.clients.resource_registry.find_objects(subject=resource_id,
+                                                                        object_type=RT.DataProduct,
+                                                                        predicate=PRED.hasDataProductParent,
+                                                                        id_only=True)
+
+            # if the parents list was empty, maybe we have reached a parsed data product, in which case we want to
+            # follow a link to an Instrument Device via a hasSource predicate
+            if(parent_ids == []):
+                instrument_device_ids,_ = self.clients.resource_registry.find_objects(subject=resource_id,
+                                                                                    object_type=RT.InstrumentDevice,
+                                                                                    predicate=PRED.hasSource,
+                                                                                    id_only=True)
+                if (instrument_device_ids == []):
+                    return
+                else:
+                    result[resource_id]['parents'] = instrument_device_ids
+            else:
+                result[resource_id]['parents'] = parent_ids
+
+            # Call the method again for the next level up
+            for parent in parent_ids:
+                data_product_traversal(parent, result)
+
+        data_product_traversal(data_product_id, self.provenance_results)
+
+
+        for resource_id in self.provenance_results.keys():
+            # Get the list of all parameter funcs associated with creating this Data Product
+            data_process_ids, _ = self.clients.resource_registry.find_subjects(object=resource_id,
+                                                                            subject_type=RT.DataProcess,
+                                                                            predicate=PRED.hasOutputProduct,
+                                                                            id_only=True)
+
+
+            self.provenance_results[resource_id]['parameter_provenance'] = []
+            parameter_provenance = self.provenance_results[resource_id]['parameter_provenance']
+
+            for dproc_id in data_process_ids:
+                dpd_objs,_ = self.clients.resource_registry.find_subjects(object=dproc_id,
+                                                                        subject_type=RT.DataProcessDefinition,
+                                                                        predicate=PRED.hasDataProcess,
+                                                                        id_only=False)
+                # Store the dpd_id
+                parameter_provenance.append({'dpd_name': dpd_objs[0].name,
+                                             'dpd_id' : dpd_objs[0]._id})
+
+            # Todo: At this point the parameter functions associated with the data products only work on the data products
+            # internal parameters. In the future this might change and we need to follow that association chain
+
+
+        # We are actually interested in the DataProcessDefinitions for the DataProcess. Find those
         return self.provenance_results
+
 
 
     def get_data_product_provenance_report(self, data_product_id=''):
