@@ -81,7 +81,7 @@ class DiscoveryService(BaseDiscoveryService):
             raise BadRequest('Unsuported request. %s' % query)
 
         # if count requested, run id_only query without limit/skip
-        count = search_args.get("count", False)
+        count = search_args and search_args.get("count", False)
         if count:
             """Only return the count of ID only search"""
             query.pop("limit", None)
