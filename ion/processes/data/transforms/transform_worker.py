@@ -182,9 +182,13 @@ class TransformWorker(TransformStreamListener):
     def retrieve_function_and_define_args(self, stream_id, dataprocess_id):
         import importlib
         argument_list = {}
-        args = []
+        function = ''
+        context = {}
+
         #load the details of this data process
         dataprocess_info = self._dataprocesses[dataprocess_id]
+
+
         try:
             #todo: load once into a 'set' of modules?
             #load the associated transform function
@@ -202,7 +206,6 @@ class TransformWorker(TransformStreamListener):
             arguments = dataprocess_info.get_safe('arguments', '')
             argument_list = dataprocess_info.get_safe('argument_map', {})
 
-            context = {}
             if self.has_context_arg(function,argument_list ):
                 context = self.create_context_arg(stream_id, dataprocess_id)
 

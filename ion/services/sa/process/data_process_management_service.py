@@ -689,8 +689,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         except ImportError:
         #load the associated transform function
             import ion.processes.data.transforms.transform_worker.TransformWorker
-            if data_process_definition_obj.uri:
-                egg = TransformWorker.download_egg(data_process_definition_obj.uri)
+            if tfunc_obj.uri:
+                egg = TransformWorker.download_egg(tfunc_obj.uri)
                 import pkg_resources
                 pkg_resources.working_set.add_entry(egg)
 
@@ -946,7 +946,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             dataprocess_details.function = pfunction_obj.function
             dataprocess_details.arguments = pfunction_obj.arguments
             dataprocess_details.argument_map=dp_obj.argument_map
-            dataprocess_details.uri=dpd_obj.uri
+            dataprocess_details.uri=pfunction_obj.uri
 
             log.debug('read_data_process_for_stream   dataprocess_details:  %s', dataprocess_details)
             dataprocess_details_list.append(dataprocess_details)

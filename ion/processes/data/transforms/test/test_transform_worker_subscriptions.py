@@ -248,7 +248,8 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
             function='add_arrays',
             module="ion_example.add_arrays",
             arguments=['arr1', 'arr2'],
-            function_type=TransformFunctionType.TRANSFORM
+            function_type=TransformFunctionType.TRANSFORM,
+            uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
 
             )
         add_array_func_id, rev = self.rrclient.create(tf_obj)
@@ -257,7 +258,6 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
             name='add_arrays',
             description='adds the values of two arrays',
             data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS,
-            uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
             )
         add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='add_array_func' )
