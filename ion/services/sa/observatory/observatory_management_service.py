@@ -715,6 +715,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 if d in device_ids:
                     a = self.RR.get_association(s, PRED.hasDevice, d)
                     self.RR.delete_association(a)
+                    log.info("Removing geo and updating temporal attrs for device '%s'", d)
+                    self.update_device_remove_geo_update_temporal(d)
                     self.RR.execute_lifecycle_transition(d, LCE.INTEGRATE)
 
         # This should set the deployment resource to retired.
