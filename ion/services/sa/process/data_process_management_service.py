@@ -991,21 +991,20 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_list , _ = self.clients.resource_registry.find_resources(RT.DataProcess, None, None, True)
         return data_process_list
 
-    def activate_data_process(self, data_process_id=''):
-        #@Todo: Data Process Producer context stuff
-        subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
-        for subscription_id in subscription_ids:
-            if not self.clients.pubsub_management.subscription_is_active(subscription_id):
-                self.clients.pubsub_management.activate_subscription(subscription_id)
 
-        # Start the replays
-        replays, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasReplay, id_only=False)
-        # replays only get associated if it's a RETRIEVE_PROCESS, so I don't need to make that check
-        for replay in replays:
-            process_id = replay.process_id
-            replay_client = ReplayClient(process_id)
-            replay_client.start_replay()
-        return True
+    def activate_data_process(self, data_process_id=''):
+
+        #used for DataProcessTypeEnum.RETRIEVE_PROCESS to activate the replay.
+        #for other DataProcess types this is a no-op
+
+         # Start the replays
+         replays, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasReplay, id_only=False)
+         # replays only get associated if it's a RETRIEVE_PROCESS, so I don't need to make that check
+         for replay in replays:
+             process_id = replay.process_id
+             replay_client = ReplayClient(process_id)
+             replay_client.start_replay()
+         return True
 
     def deactivate_data_process(self, data_process_id=''):
         # Stop the replays
