@@ -346,7 +346,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                     persist_type = 'PERSIST_ON'
                     description = 'Data product is persisted.'
                 else:
-                    persist_type= 'PERSIST_OFF',
+                    persist_type= 'PERSIST_OFF'
                     description= 'Data product is not currently persisted'
 
                 pub = EventPublisher(OT.InformationContentStatusEvent, process=self)
