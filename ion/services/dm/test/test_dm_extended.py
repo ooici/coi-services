@@ -1129,10 +1129,10 @@ class TestDMExtended(DMTestCase):
         data_product_id = data_products[0]._id
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         rdt = ParameterHelper.rdt_for_data_product(data_product_id)
-        rdt['time'] = np.array([  3.59837010e+09,   3.59837010e+09,   3.59837010e+09,
-         3.59837010e+09,   3.59837010e+09,   3.59837010e+09,
-         3.59837010e+09,   3.59837010e+09,   3.59837010e+09,
-         3.59837010e+09])
+        rdt['time'] = np.array([  3.598370100e+09,   3.598370101e+09,   3.598370102e+09,
+                                  3.598370103e+09,   3.598370104e+09,   3.598370105e+09,
+                                  3.598370106e+09,   3.598370107e+09,   3.598370108e+09,
+                                  3.598370109e+09]) 
         rdt['amplitude_beam_1'] = np.array([48, 47, 47, 47, 47, 47, 47, 47, 47, 47], dtype=np.int16)
         rdt['amplitude_beam_2'] = np.array([49, 48, 49, 50, 49, 48, 49, 50, 50, 49], dtype=np.int16)
         rdt['amplitude_beam_3'] = np.array([50, 49, 49, 49, 49, 49, 49, 49, 49, 49], dtype=np.int16)
@@ -1147,13 +1147,13 @@ class TestDMExtended(DMTestCase):
         rdt['turbulent_velocity_east'] = np.array([  2629.,   4334.,   1272.,    546.,  64299.,    765.,    960., 64392.,  65205.,  63270.], dtype=np.float32)
         rdt['turbulent_velocity_north'] = np.array([   548.,  65409.,    395.,  65216.,   2105.,  64558.,  64841., 460.,   1485.,    789.], dtype=np.float32)
         rdt['turbulent_velocity_vertical'] = np.array([  4.60000000e+02,   6.68000000e+02,   7.00000000e+01,
-             6.53850000e+04,   1.89000000e+02,   6.54920000e+04,
-             5.00000000e+00,   1.43000000e+02,   2.55000000e+02,
-             6.53480000e+04], dtype=np.float32)
-        rdt['upward_turbulent_velocity'] = np.array([  4.60000008e-01,   6.67999983e-01,   7.00000003e-02,
-             6.53850021e+01,   1.88999996e-01,   6.54919968e+01,
-             4.99999989e-03,   1.43000007e-01,   2.54999995e-01,
-             6.53479996e+01], dtype=np.float32)
+                                                         6.53850000e+04,   1.89000000e+02,   6.54920000e+04,
+                                                         5.00000000e+00,   1.43000000e+02,   2.55000000e+02,
+                                                         6.53480000e+04], dtype=np.float32)
+        rdt['upward_turbulent_velocity'] = np.array([4.60000008e-01,   6.67999983e-01,   7.00000003e-02,
+                                                     6.53850021e+01,   1.88999996e-01,   6.54919968e+01,
+                                                     4.99999989e-03,   1.43000007e-01,   2.54999995e-01,
+                                                     6.53479996e+01], dtype=np.float32)
 
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
@@ -1186,9 +1186,9 @@ class TestDMExtended(DMTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['eastward_turbulent_velocity'], 
                  np.array([  2.3491168, -15.21462631,   1.09815776,
-                          -18.77588654,   60.7967453, -18.37199211,
-                          -18.26946259,  61.37233734,  61.84563065,
-                          60.203228  ], dtype=np.float32))
+                            -18.77588654,   60.7967453, -18.37199211,
+                            -18.26946259,  61.37233734,  61.84563065,
+                            60.203228  ], dtype=np.float32))
 
         # Evaluates the L1a data product for eastward_turbulent_velocity
         np.testing.assert_array_equal(rdt['northward_turbulent_velocity'], 
@@ -1385,4 +1385,29 @@ def rotate_v(u,v,theta):
                     subject_type=RT.DataProduct)
         # Assert that we have children data products and they are associated
         self.assertTrue(output_data_products)
+
+    @attr('INT')
+    def test_data_product_temporal_search(self):
+        data_product_id = self.make_ctd_data_product()
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.array([ 3.602342268e+09,   3.602342269e+09,   3.602342270e+09,
+                                 3.602342271e+09,   3.602342272e+09,   3.602342273e+09,
+                                 3.602342274e+09,   3.602342275e+09,   3.602342276e+09,
+                                 3.602342277e+09])
+
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        # The data product resource should now include the temporal range
+        data_product = self.resource_registry.read(data_product_id)
+        np.testing.assert_equal(data_product.nominal_datetime.start_datetime, 3.602342268e+09 - 2208988800) # Shifted for NTP epoch difference
+        np.testing.assert_equal(data_product.nominal_datetime.end_datetime, 3.602342277e+09 - 2208988800) # Shifted for NTP epoch difference
+
+        # We should also be able to search for it
+        search_string = "SEARCH 'nominal_datetime' TIME FROM '2014-02-01' TO '2014-03-01' FROM 'resources_index' AND SEARCH 'type_' IS 'DataProduct' FROM 'resources_index'"
+        dp_ids, = self.discovery.parse(search_string)
+        self.assertIn(data_product_id, dp_ids)
+
 

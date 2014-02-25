@@ -10,6 +10,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -52,7 +53,7 @@ class DMTestCase(IonIntegrationTestCase):
         self.data_acquisition_management = DataAcquisitionManagementServiceClient()
         self.pubsub_management =  PubsubManagementServiceClient()
         self.instrument_management = InstrumentManagementServiceClient()
-        self.data_product_management = DataProductManagementServiceClient()
+        self.discovery = DiscoveryServiceClient()
         self.dataset_management =  DatasetManagementServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
         self.data_process_management = DataProcessManagementServiceClient()
