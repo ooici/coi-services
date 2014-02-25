@@ -69,7 +69,8 @@ class DiscoveryService(BaseDiscoveryService):
         query_request = parser.parse(query_string)
         return query_request
 
-    def request(self, query=None, id_only=True, search_args={}):
+    def request(self, query=None, id_only=True, search_args=None):
+        search_args = search_args or {} # Service clients don't pass empty dicts they pass None or NULL
         if not query:
             raise BadRequest('No request query provided')
 
