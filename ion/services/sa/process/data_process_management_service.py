@@ -871,35 +871,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return configuration
 
-    def update_data_process_inputs(self, data_process_id="", in_stream_ids=None):
-        #@TODO: INPUT STREAM VALIDATION
-        log.debug("Updating inputs to data process '%s'", data_process_id)
-        data_process_obj = self.clients.resource_registry.read(data_process_id)
-        subscription_id = data_process_obj.input_subscription_id
-        was_active = False
-        if subscription_id:
-            # get rid of all the current streams
-            try:
-                log.debug("Deactivating subscription '%s'", subscription_id)
-                self.clients.pubsub_management.deactivate_subscription(subscription_id)
-                was_active = True
-
-            except BadRequest:
-                log.info('Subscription was not active')
-
-            self.clients.pubsub_management.delete_subscription(subscription_id)
-
-        new_subscription_id = self.clients.pubsub_management.create_subscription(data_process_obj.name,
-                                                                                 stream_ids=in_stream_ids)
-        data_process_obj.input_subscription_id = new_subscription_id
-
-        self.clients.resource_registry.update(data_process_obj)
-
-        if was_active:
-            log.debug("Activating subscription '%s'", new_subscription_id)
-            self.clients.pubsub_management.activate_subscription(new_subscription_id)
-
-
 
     def update_data_process(self):
         raise BadRequest('Cannot update an existing data process.')
@@ -1225,41 +1196,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if not len(out_stream_defs):
             raise BadRequest('No valid stream definition defined for data product stream')
         return self.clients.pubsub_management.compatible_stream_definitions(in_stream_definition_id=in_stream_defs[0], out_stream_definition_id=out_stream_defs[0])
-
-    def validate_compatibility(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, routes=None):
-        '''
-        Validates compatibility between input and output data products
-        routes are in this form:
-        { (in_data_product_id, out_data_product_id) : actor }
-            if actor is None then the data process is assumed to use parameter functions.
-            if actor is a TransformFunction, the validation is done at runtime
-        '''
-        if data_process_definition_id:
-            input_stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasInputStreamDefinition, id_only=True)
-            output_stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasStreamDefinition, id_only=True)
-            for in_data_product_id in in_data_product_ids:
-                input_stream_def = self.stream_def_from_data_product(in_data_product_id)
-                if input_stream_def not in input_stream_def_ids:
-                    log.warning('Creating a data process with an unmatched stream definition input')
-            for out_data_product_id in out_data_product_ids:
-                output_stream_def = self.stream_def_from_data_product(out_data_product_id)
-                if output_stream_def not in output_stream_def_ids:
-                    log.warning('Creating a data process with an unmatched stream definition output')
-
-        if not out_data_product_ids and data_process_definition_id:
-            return True
-        if len(out_data_product_ids)>1 and not routes and not data_process_definition_id:
-            raise BadRequest('Multiple output data products but no routes defined')
-        if len(out_data_product_ids)==1:
-            return all( [self._validator(i, out_data_product_ids[0]) for i in in_data_product_ids] )
-        elif len(out_data_product_ids)>1:
-            for in_dp_id,out in routes.iteritems():
-                for out_dp_id, actor in out.iteritems():
-                    if not self._validator(in_dp_id, out_dp_id):
-                        return False
-            return True
-        else:
-            raise BadRequest('No input data products specified')
 
 
     def stream_def_from_data_product(self, data_product_id=''):
