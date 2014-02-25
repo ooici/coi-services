@@ -4,14 +4,11 @@
 @file ion/processes/data/transform/transform_worker.py
 @description Data Process worker
 '''
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.objects import Granule, DataProcessStatusType
 from ion.core.process.transform import TransformStreamListener, TransformStreamProcess
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.ion.stream import StreamPublisher
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from ion.util.time_utils import TimeUtils
 from pyon.util.containers import DotDict
 
 

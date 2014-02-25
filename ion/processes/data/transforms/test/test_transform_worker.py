@@ -107,7 +107,7 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         # test that the input and output data products are linked to facilitate provenance
 
-
+        self.dp_list = []
         self.data_process_objs = []
         self._output_stream_ids = []
         self.event_verified = Event()
@@ -127,9 +127,11 @@ class TestTransformWorker(IonIntegrationTestCase):
         stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_id, PRED.hasStream, RT.Stream, True)
         self.stream_id = stream_ids[0]
 
+        self.start_event_listener()
+
         #create the DPD and two DPs
         dataprocessdef_id, dataprocess_id, dataproduct_id = self.create_data_process()
-        self.dp_list = [dataprocess_id]
+        self.dp_list.append(dataprocess_id)
 
         #verify that in and out data products are linked
         assocs = self.rrclient.find_associations(dataproduct_id, PRED.hasDataProductParent, self.input_dp_id)
@@ -167,7 +169,6 @@ class TestTransformWorker(IonIntegrationTestCase):
         stream_route = self.pubsub_client.read_stream_route(self.stream_id)
         self.publisher = StandaloneStreamPublisher(stream_id=self.stream_id, stream_route=stream_route )
 
-        self.start_event_listener()
 
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time']         = [0] # time should always come first
@@ -280,16 +281,15 @@ class TestTransformWorker(IonIntegrationTestCase):
             function='add_arrays',
             module="ion_example.add_arrays",
             arguments=['arr1', 'arr2'],
-            function_type=TransformFunctionType.TRANSFORM
-
+            function_type=TransformFunctionType.TRANSFORM,
+            uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
             )
         add_array_func_id, rev = self.rrclient.create(tf_obj)
 
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='add_arrays',
             description='adds the values of two arrays',
-            data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS,
-            uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
+            data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS
             )
         add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='add_array_func' )
@@ -368,8 +368,8 @@ class TestTransformWorker(IonIntegrationTestCase):
             function='add_arrays',
             module="ion_example.add_arrays",
             arguments=['arr1', 'arr2'],
-            function_type=TransformFunctionType.TRANSFORM
-
+            function_type=TransformFunctionType.TRANSFORM,
+             uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
             )
         add_array_func_id, rev = self.rrclient.create(tf_obj)
 
@@ -377,7 +377,6 @@ class TestTransformWorker(IonIntegrationTestCase):
             name='add_arrays',
             description='adds the values of two arrays',
             data_process_type=DataProcessTypeEnum.TRANSFORM_PROCESS,
-            uri='http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg'
             )
         add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='add_array_func' )
@@ -433,7 +432,13 @@ class TestTransformWorker(IonIntegrationTestCase):
         """
         data_process_event = args[0]
         log.debug("DataProcessStatusEvent: %s" ,  str(data_process_event.__dict__))
-        self.assertIn( data_process_event.origin, self.dp_list)
+
+        #if data process already created, check origin
+        if self.dp_list:
+            self.assertIn( data_process_event.origin, self.dp_list)
+        else:
+            #else check that this is the assign event
+            self.assertIn( 'data process assigned to transform worker', data_process_event.description)
 
 
     def validate_output_granule(self, msg, route, stream_id):

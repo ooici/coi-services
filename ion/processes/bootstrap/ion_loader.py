@@ -1873,6 +1873,7 @@ Reason: %s
         dpd.name = name
         dpd.description = 'Parameter Function Definition for %s' % name
         dpd.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
+        dpd.parameters = args
 
         data_process_management.create_data_process_definition(dpd, func_id, headers=self._get_system_actor_headers())
         # Set alt_ids so that resource can be found in incremental preload runs
@@ -2989,7 +2990,6 @@ Reason: %s
 
         self._resource_assign_org(row, res_id)
 
-        res_id = svc_client.activate_data_process(res_id, headers=self._get_system_actor_headers())
 
     def _load_DataProduct(self, row, do_bulk=False):
         self.row_count += 1
