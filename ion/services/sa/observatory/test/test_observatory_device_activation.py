@@ -534,10 +534,9 @@ class TestDeviceActivation(IonIntegrationTestCase):
         new_dev_id = self.ims.create_instrument_device(new_dev_obj)
         self.oms.assign_resource_to_observatory_org(new_dev_id,
                                                     self._orgs['rsn']['_id'])
+        self.ims.assign_instrument_model_to_instrument_device(mod_id, new_dev_id)
         self.container.resource_registry.set_lifecycle_state(new_dev_id,
                                                              LCS.DEVELOPED)
-        self.ims.assign_instrument_model_to_instrument_device(mod_id, new_dev_id)
-
         agt_instance = IonObject('InstrumentAgentInstance', RSN_AGENT_02)
         new_agt_inst_id = self.ims.create_instrument_agent_instance(
                                             agt_instance, agt_id, new_dev_id)
@@ -547,8 +546,6 @@ class TestDeviceActivation(IonIntegrationTestCase):
                                                         agt_id, new_agt_inst_id)
         self.ims.assign_instrument_agent_instance_to_instrument_device(
                                                     new_agt_inst_id, new_dev_id)
-        obj = self.container.resource_registry.read(new_dev_id)
-        self._dump_obj(obj)
         self._verify_rsn_inst_developed(new_dev_id)
 
         # OPERATIONS PHYSICAL STEP: Submerge, connect and integrate new device.
@@ -562,8 +559,6 @@ class TestDeviceActivation(IonIntegrationTestCase):
                                                              plat_id)
         self.container.resource_registry.set_lifecycle_state(new_dev_id,
                                                              LCS.INTEGRATED)
-        obj = self.container.resource_registry.read(new_dev_id)
-        self._dump_obj(obj)
         self._verify_rsn_inst_integrated(new_dev_id)
 
         # OPERATIONS SOFTWARE STEP: Test integrated device and attach results.
@@ -591,8 +586,6 @@ class TestDeviceActivation(IonIntegrationTestCase):
         self.container.resource_registry.set_lifecycle_state(new_dep_id,
                                                              LCS.DEPLOYED)
         self.oms.activate_deployment(new_dep_id)
-        obj = self.container.resource_registry.read(new_dev_id)
-        self._dump_obj(obj)
         self._verify_rsn_inst_deployed(new_dev_id, new_dep_id)
 
 
