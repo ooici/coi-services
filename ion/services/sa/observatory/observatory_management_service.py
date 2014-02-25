@@ -462,6 +462,37 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         self.RR2.unassign_device_from_site_with_has_device(device_id, site_id)
 
+    def update_device_add_geo_add_temporal(self, device_id='', site_id='', deployment_obj=''):
+        """Assigns to device:
+               temporal extent from deployment
+               geo location from site
+
+        @param device_id    str
+        @param site_id    str
+        @param deployment_obj Deployment
+        @throws NotFound    object with specified id does not exist
+        """
+        device_obj = self.RR.read(device_id)
+        site_obj = self.RR.read(site_id)
+        for constraint in site_obj.constraint_list:
+            if constraint.type_ == OT.GeospatialBounds:
+                device_obj.geospatial_bounds = constraint
+        for constraint in deployment_obj.constraint_list:
+            if constraint.type_ == OT.TemporalBounds:
+                device_obj.temporal_bounds = constraint
+        self.RR.update(device_obj)
+
+    def update_device_remove_geo_update_temporal(self, device_id=''):
+        """Remove the geo location and update temporal extent (end) from the device
+
+        @param device_id    str
+        @param site_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        device_obj = self.RR.read(device_id)
+        device_obj.geospatial_bounds = None
+        device_obj.temporal_bounds = None
+        self.RR.update(device_obj)
 
     def assign_device_to_network_parent(self, child_device_id='', parent_device_id=''):
         """Connects a device (any type) to parent in the RSN network
@@ -626,11 +657,15 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         for site_id, device_id in deployment_activator.hasdevice_associations_to_delete():
             log.info("Unassigning hasDevice; device '%s' from site '%s'", device_id, site_id)
             self.unassign_device_from_site(device_id, site_id)
+            log.info("Removing geo and updating temporal attrs for device '%s'", device_id)
+            self.update_device_remove_geo_update_temporal(device_id, depl_obj)
 
         # process the additions
         for site_id, device_id in deployment_activator.hasdevice_associations_to_create():
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
+            log.info("Adding geo and updating temporal attrs for device '%s'", device_id)
+            self.update_device_add_geo_add_temporal(device_id, site_id, depl_obj)
 
 
         #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
