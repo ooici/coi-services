@@ -2990,7 +2990,6 @@ Reason: %s
 
         self._resource_assign_org(row, res_id)
 
-        res_id = svc_client.activate_data_process(res_id, headers=self._get_system_actor_headers())
 
     def _load_DataProduct(self, row, do_bulk=False):
         self.row_count += 1

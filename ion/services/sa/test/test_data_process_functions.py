@@ -208,8 +208,6 @@ class TestDataProcessFunctions(DMTestCase):
         # Watch the output
         dataset_monitor = DatasetMonitor(data_product_id=clone_id)
         self.addCleanup(dataset_monitor.stop)
-        # Run the replay
-        self.data_process_management.activate_data_process(data_process_id)
 
         # Make sure data came out
         self.assertTrue(dataset_monitor.wait())
