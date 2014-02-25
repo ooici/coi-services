@@ -680,9 +680,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 if d in device_ids:
                     a = self.RR.get_association(s, PRED.hasDevice, d)
                     self.RR.delete_association(a)
-#
-#        # mark deployment as not deployed (developed seems appropriate)
-#        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
+                    self.RR.execute_lifecycle_transition(d, LCE.INTEGRATE)
+
+        # This should set the deployment resource to retired.
+        # Michael needs to fix the RR retire logic so it does not
+        # retire all associations before we can use it. Currently we switch
+        # back to INTEGRATE.
+        #self.RR.execute_lifecycle_transition(deployment_id, LCE.RETIRE)
+        self.RR.execute_lifecycle_transition(deployment_id, LCE.INTEGRATE)
 
     def prepare_deployment_support(self, deployment_id=''):
         extended_resource_handler = ExtendedResourceContainer(self)
