@@ -247,11 +247,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         # cleanup
         c = DotDict()
         c.resource_registry = self.RR
-        self.RR2.pluck(instrument_agent_id)
-        self.RR2.pluck(instrument_model_id)
-        self.RR2.pluck(instrument_device_id)
-        self.RR2.pluck(platform_agent_id)
-        self.RR2.pluck(sensor_device_id)
         self.IMS.force_delete_instrument_agent(instrument_agent_id)
         self.IMS.force_delete_instrument_model(instrument_model_id)
         self.IMS.force_delete_instrument_device(instrument_device_id)
@@ -580,12 +575,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         # cleanup
         c = DotDict()
         c.resource_registry = self.RR
-        self.RR2.pluck(instrument_agent_id)
-        self.RR2.pluck(instrument_model_id)
-        self.RR2.pluck(instrument_device_id)
-        self.RR2.pluck(platform_agent_id)
-        self.RR2.pluck(sensor_device_id)
-        self.RR2.pluck(sensor_device2_id)
         self.IMS.force_delete_instrument_agent(instrument_agent_id)
         self.IMS.force_delete_instrument_model(instrument_model_id)
         self.IMS.force_delete_instrument_device(instrument_device_id)

@@ -317,12 +317,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         """
 
-        self.RR2.retire(instrument_agent_instance_id, RT.InstrumentAgentInstance)
+        self.RR2.lcs_delete(instrument_agent_instance_id, RT.InstrumentAgentInstance)
 
 
     def force_delete_instrument_agent_instance(self, instrument_agent_instance_id=''):
 
-        self.RR2.pluck_delete(instrument_agent_instance_id, RT.InstrumentAgentInstance)
+        self.RR2.force_delete(instrument_agent_instance_id, RT.InstrumentAgentInstance)
 
 
 
@@ -679,7 +679,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         #retrieve the associated process definition
 
-        self.RR2.retire(instrument_agent_id, RT.InstrumentAgent)
+        self.RR2.lcs_delete(instrument_agent_id, RT.InstrumentAgent)
 
 
     def force_delete_instrument_agent(self, instrument_agent_id=''):
@@ -691,7 +691,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             self.RR2.unassign_process_definition_from_instrument_agent_with_has_process_definition(pd_obj._id, instrument_agent_id)
             self.clients.process_dispatcher.delete_process_definition(pd_obj._id)
 
-        self.RR2.pluck_delete(instrument_agent_id, RT.InstrumentAgent)
+        self.RR2.force_delete(instrument_agent_id, RT.InstrumentAgent)
 
 
     def register_instrument_agent(self, instrument_agent_id='', agent_egg='', qa_documents=''):
@@ -753,10 +753,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.RR2.retire(instrument_model_id, RT.InstrumentModel)
+        self.RR2.lcs_delete(instrument_model_id, RT.InstrumentModel)
 
     def force_delete_instrument_model(self, instrument_model_id=''):
-        self.RR2.pluck_delete(instrument_model_id, RT.InstrumentModel)
+        self.RR2.force_delete(instrument_model_id, RT.InstrumentModel)
 
 
 
@@ -808,11 +808,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.RR2.retire(instrument_device_id, RT.InstrumentDevice)
+        self.RR2.lcs_delete(instrument_device_id, RT.InstrumentDevice)
 
 
     def force_delete_instrument_device(self, instrument_device_id=''):
-        self.RR2.pluck_delete(instrument_device_id, RT.InstrumentDevice)
+        self.RR2.force_delete(instrument_device_id, RT.InstrumentDevice)
 
     ##
     ##
@@ -946,10 +946,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.RR2.retire(platform_agent_instance_id, RT.PlatformAgentInstance)
+        self.RR2.lcs_delete(platform_agent_instance_id, RT.PlatformAgentInstance)
 
     def force_delete_platform_agent_instance(self, platform_agent_instance_id=''):
-        self.RR2.pluck_delete(platform_agent_instance_id, RT.PlatformAgentInstance)
+        self.RR2.force_delete(platform_agent_instance_id, RT.PlatformAgentInstance)
 
 #    def _get_child_platforms(self, platform_device_id):
 #        """ recursively trace hasDevice relationships, return list of all PlatformDevice objects
@@ -1075,10 +1075,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.RR2.retire(platform_agent_id, RT.PlatformAgent)
+        self.RR2.lcs_delete(platform_agent_id, RT.PlatformAgent)
 
     def force_delete_platform_agent(self, platform_agent_id=''):
-        self.RR2.pluck_delete(platform_agent_id, RT.PlatformAgent)
+        self.RR2.force_delete(platform_agent_id, RT.PlatformAgent)
 
 
     ##########################################################################
@@ -1124,10 +1124,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.RR2.retire(platform_model_id, RT.PlatformModel)
+        self.RR2.lcs_delete(platform_model_id, RT.PlatformModel)
 
     def force_delete_platform_model(self, platform_model_id=''):
-        self.RR2.pluck_delete(platform_model_id, RT.PlatformModel)
+        self.RR2.force_delete(platform_model_id, RT.PlatformModel)
 
 
     ##########################################################################
@@ -1181,10 +1181,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.RR2.retire(platform_device_id, RT.PlatformDevice)
+        self.RR2.lcs_delete(platform_device_id, RT.PlatformDevice)
 
     def force_delete_platform_device(self, platform_device_id=''):
-        self.RR2.pluck_delete(platform_device_id, RT.PlatformDevice)
+        self.RR2.force_delete(platform_device_id, RT.PlatformDevice)
 
 
 
@@ -1233,10 +1233,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.RR2.retire(sensor_model_id, RT.SensorModel)
+        self.RR2.lcs_delete(sensor_model_id, RT.SensorModel)
 
     def force_delete_sensor_model(self, sensor_model_id=''):
-        self.RR2.pluck_delete(sensor_model_id, RT.SensorModel)
+        self.RR2.force_delete(sensor_model_id, RT.SensorModel)
 
 
     ##########################################################################
@@ -1283,10 +1283,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.RR2.retire(sensor_device_id, RT.SensorDevice)
+        self.RR2.lcs_delete(sensor_device_id, RT.SensorDevice)
 
     def force_delete_sensor_device(self, sensor_device_id=''):
-        self.RR2.pluck_delete(sensor_device_id, RT.SensorDevice)
+        self.RR2.force_delete(sensor_device_id, RT.SensorDevice)
 
 
 

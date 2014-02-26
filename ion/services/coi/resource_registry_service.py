@@ -3,7 +3,8 @@
 __author__ = 'Thomas R. Lennan, Michael Meisinger, Stephen Henrie'
 __license__ = 'Apache 2.0'
 
-from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
+from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, \
+    GovernanceHeaderValues, has_org_role
 from pyon.ion.resregistry import ResourceRegistryServiceWrapper
 from pyon.public import log, OT, RT, PRED, Inconsistent
 
@@ -15,16 +16,15 @@ class ResourceRegistryService(BaseResourceRegistryService):
     Service that manages resources instances and all cross-cutting concerns of
     system resources. Uses a datastore instance for resource object persistence.
     """
+
     def on_init(self):
+        # Use the wrapper to adapt the container resource registry to the service interface.
+        # It also provides mapping from process context actor_id to function arguments.
         self.resource_registry = ResourceRegistryServiceWrapper(self.container.resource_registry, self)
 
-        # For easier interactive debugging
-        self.dss = None
-        self.ds = self.resource_registry.rr_store
-        try:
-            self.dss = self.resource_registry.rr_store.server[self.resource_registry.rr_store.datastore_name]
-        except Exception:
-            pass
+
+    # -------------------------------------------------------------------------
+    # Resource CRUDs and mults
 
     def create(self, object=None):
         return self.resource_registry.create(object=object)
@@ -32,7 +32,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def read(self, object_id='', rev_id=''):
         return self.resource_registry.read(object_id=object_id, rev_id=rev_id)
 
-    def read_mult(self, object_ids=[]):
+    def read_mult(self, object_ids=None):
         return self.resource_registry.read_mult(object_ids)
 
     def update(self, object=None):
@@ -41,8 +41,15 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def delete(self, object_id=''):
         return self.resource_registry.delete(object_id=object_id)
 
+
+    # -------------------------------------------------------------------------
+    # Resource LCS change
+
     def retire(self, resource_id=''):
         return self.resource_registry.retire(resource_id=resource_id)
+
+    def lcs_delete(self, resource_id=''):
+        return self.resource_registry.lcs_delete(resource_id=resource_id)
 
     def execute_lifecycle_transition(self, resource_id='', transition_event=''):
         return self.resource_registry.execute_lifecycle_transition(resource_id=resource_id,
@@ -50,6 +57,10 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     def set_lifecycle_state(self, resource_id='', target_lcstate=''):
         return self.resource_registry.set_lifecycle_state(resource_id=resource_id, target_lcstate=target_lcstate)
+
+
+    # -------------------------------------------------------------------------
+    # Attachments
 
     def create_attachment(self, resource_id='', attachment=None):
         return self.resource_registry.create_attachment(resource_id=resource_id, attachment=attachment)
@@ -66,6 +77,10 @@ class ResourceRegistryService(BaseResourceRegistryService):
             descending=descending, include_content=include_content,
             id_only=id_only)
 
+
+    # -------------------------------------------------------------------------
+    # Association CRUDs and finds
+
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.resource_registry.create_association(subject=subject, predicate=predicate,
                                                          object=object, assoc_type=assoc_type)
@@ -75,6 +90,18 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     def delete_association(self, association=''):
         return self.resource_registry.delete_association(association=association)
+
+    def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False, limit=0, skip=0, descending=False):
+        return self.resource_registry.find_associations(subject=subject, predicate=predicate,
+            object=object, assoc_type=assoc_type, id_only=id_only, limit=limit, skip=skip, descending=descending)
+
+    def get_association(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
+        return self.resource_registry.get_association(subject=subject, predicate=predicate,
+            object=object, assoc_type=assoc_type, id_only=id_only)
+
+
+    # -------------------------------------------------------------------------
+    # Resource finds
 
     def read_object(self, subject="", predicate="", object_type="", assoc="", id_only=False):
         return self.resource_registry.read_object(subject=subject, predicate=predicate,
@@ -95,16 +122,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.find_subjects(subject_type=subject_type, predicate=predicate,
             object=object, id_only=id_only, limit=limit, skip=skip, descending=descending)
 
-    def find_subjects_mult(self, objects=[], id_only=False, predicate=""):
+    def find_subjects_mult(self, objects=None, id_only=False, predicate=""):
         return self.resource_registry.find_subjects_mult(objects=objects, id_only=id_only, predicate=predicate)
-
-    def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False, limit=0, skip=0, descending=False):
-        return self.resource_registry.find_associations(subject=subject, predicate=predicate,
-            object=object, assoc_type=assoc_type, id_only=id_only, limit=limit, skip=skip, descending=descending)
-
-    def get_association(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
-        return self.resource_registry.get_association(subject=subject, predicate=predicate,
-            object=object, assoc_type=assoc_type, id_only=id_only)
 
     def find_resources(self, restype="", lcstate="", name="", id_only=False):
         return self.resource_registry.find_resources(restype=restype, lcstate=lcstate, name=name, id_only=id_only)
@@ -118,11 +137,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
             id_only=id_only)
 
 
-    ############################
-    #
-    #  Extended resource framework
-    #
-    ############################
+    # -------------------------------------------------------------------------
+    # Extended resource framework
 
     def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None, optional_args=None):
         """Returns any ExtendedResource object containing additional related information derived from associations
@@ -150,11 +166,8 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.prepare_resource_support(resource_type=resource_type, resource_id=resource_id)
 
 
-    ############################
-    #
-    #  GOVERNANCE FUNCTIONS
-    #
-    ############################
+    # -------------------------------------------------------------------------
+    # Governance functions
 
     def check_attachment_policy(self, process, message, headers):
         try:

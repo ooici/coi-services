@@ -1008,7 +1008,7 @@ class OrgManagementService(BaseOrgManagementService):
         if not commitment_id:
             raise BadRequest("The commitment_id parameter is missing")
 
-        self.clients.resource_registry.retire(commitment_id)
+        self.clients.resource_registry.lcs_delete(commitment_id)
 
         commitment = self.clients.resource_registry.read(commitment_id)
 

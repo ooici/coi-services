@@ -25,6 +25,7 @@ class ResourceLCSPolicy(object):
         self.lce_precondition[LCE.DEVELOP]    = self.lce_precondition_develop
         self.lce_precondition[LCE.DEPLOY]     = self.lce_precondition_deploy
         self.lce_precondition[LCE.RETIRE]     = self.lce_precondition_retire
+        self.lce_precondition[LCE.DELETE]     = self.lce_precondition_delete
 
         self.lce_precondition[LCE.ANNOUNCE]   = self.lce_precondition_announce
         self.lce_precondition[LCE.UNANNOUNCE] = self.lce_precondition_unannounce
@@ -50,6 +51,9 @@ class ResourceLCSPolicy(object):
         return self._make_warn("ResourceLCSPolicy base class not overridden!")
 
     def lce_precondition_retire(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_delete(self, agent_id):
         return self._make_warn("ResourceLCSPolicy base class not overridden!")
 
     # visibility
@@ -273,6 +277,9 @@ class AgentPolicy(ResourceLCSPolicy):
         return self._has_keyworded_attachment(agent_id, KeywordFlag.CERTIFICATION)
 
     def lce_precondition_retire(self, agent_id):
+        return self._make_pass()
+
+    def lce_precondition_delete(self, agent_id):
         ret = (0 == self._find_having(RT.InstrumentAgentInstance, PRED.hasAgentDefinition, agent_id))
         return self._make_result(ret, "InstrumentAgentInstance(s) are still using this InstrumentAgent")
 
@@ -309,6 +316,9 @@ class ModelPolicy(ResourceLCSPolicy):
         return self._make_pass()
 
     def lce_precondition_retire(self, model_id):
+        return self._make_pass()
+
+    def lce_precondition_delete(self, model_id):
         # todo: more than checking agents, devices, and sites?
 
         model_type = self._get_resource_type_by_id(model_id)
@@ -544,6 +554,9 @@ class DevicePolicy(ResourceLCSPolicy):
         return self._make_fail("Wrong device resource type for deploy (got '%s')" % device_type)
 
     def lce_precondition_retire(self, device_id):
+        return self._make_pass()
+
+    def lce_precondition_delete(self, device_id):
 
         device_type = self._get_resource_type_by_id(device_id)
 
@@ -564,10 +577,10 @@ class DevicePolicy(ResourceLCSPolicy):
                 return self._make_fail("Device is still assigned to a deployment")
             return self._make_pass()
 
-        return self._make_fail("Wrong device resource type for retire(got '%s')" % device_type)
+        return self._make_fail("Wrong device resource type for delete(got '%s')" % device_type)
 
     def precondition_delete(self, device_id):
-        return self.lce_precondition_retire(device_id)
+        return self.lce_precondition_delete(device_id)
 
 
 class SitePolicy(ResourceLCSPolicy):
@@ -600,6 +613,9 @@ class SitePolicy(ResourceLCSPolicy):
         return self._make_pass()
 
     def lce_precondition_retire(self, site_id):
+        return self._make_pass()
+
+    def lce_precondition_delete(self, site_id):
         # todo: Sites and all subclasses can not be retired if they have children or if they are
         # not associated to a deployment
         site_type = self._get_resource_type_by_id(site_id)
@@ -619,7 +635,7 @@ class SitePolicy(ResourceLCSPolicy):
         return self._make_fail("Wrong site resource type (got '%s')" % site_type)
 
     def precondition_delete(self, site_id):
-        return self.lce_precondition_retire(site_id)
+        return self.lce_precondition_delete(site_id)
 
 
 class DataProductPolicy(ResourceLCSPolicy):
@@ -664,6 +680,9 @@ class DataProductPolicy(ResourceLCSPolicy):
 
 
     def lce_precondition_retire(self, data_product_id):
+        return self._make_pass()
+
+    def lce_precondition_delete(self, data_product_id):
         if 0 < len(self._find_stemming(data_product_id, PRED.hasStream, RT.Stream)):
             return self._make_fail("Associated to a stream")
         if 0 < len(self._find_stemming(data_product_id, PRED.hasDataset, RT.Dataset)):
@@ -707,6 +726,9 @@ class DataProcessPolicy(ResourceLCSPolicy):
 
 
     def lce_precondition_retire(self, data_process_id):
+        return self._make_pass()
+
+    def lce_precondition_delete(self, data_process_id):
         # todo:
         return self._make_pass()
 
@@ -714,40 +736,3 @@ class DataProcessPolicy(ResourceLCSPolicy):
 # currently same as DataProcess
 class DataProcessDefinitionPolicy(DataProcessPolicy):
     pass
-
-"""
-# in case i need another one
-class XxPolicy(Policy):
-    def lce_precondition_plan(self, x_id):
-        # always OK
-        return self._make_pass()
-
-    def lce_precondition_develop(self, x_id):
-        former = self.lce_precondition_plan(x_id)
-        if not former[0]: return former
-
-        # todo
-
-        return self._make_pass()
-
-    def lce_precondition_integrate(self, x_id):
-        former = self.lce_precondition_develop(x_id)
-        if not former[0]: return former
-
-        # todo
-
-        return self._make_pass()
-
-    def lce_precondition_deploy(self, x_id):
-        former = self.lce_precondition_integrate(x_id)
-        if not former[0]: return former
-
-        # todo
-
-        return self._make_pass()
-
-    def lce_precondition_retire(self, x_id):
-        # todo:
-        return self._make_pass()
-
-"""

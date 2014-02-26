@@ -249,7 +249,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # retire the data product
         #--------------------------------------------------------------------------------
-        self.RR2.retire(data_product_id, RT.DataProduct)
+        self.RR2.lcs_delete(data_product_id, RT.DataProduct)
 
 
     def force_delete_data_product(self, data_product_id=''):
@@ -258,11 +258,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         #get the assoc producers before deleteing the links
         producer_ids = self.RR2.find_data_producer_ids_of_data_product_using_has_data_producer(data_product_id)
 
-        self.RR2.pluck(data_product_id)
         for producer_id in producer_ids:
             self.RR2.delete(producer_id)
 
-        self.RR2.pluck_delete(data_product_id, RT.DataProduct)
+        self.RR2.force_delete(data_product_id, RT.DataProduct)
 
 
     def find_data_products(self, filters=None):
@@ -703,7 +702,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             if dataproduct_obj.lcstate != LCS.RETIRED:
                 raise BadRequest("All Data Products in a collection must be deleted before the collection is deleted.")
 
-        self.RR2.retire(data_product_collection_id, RT.DataProductCollection)
+        self.RR2.lcs_delete(data_product_collection_id, RT.DataProductCollection)
 
     def force_delete_data_product_collection(self, data_product_collection_id=''):
 
@@ -712,7 +711,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         if dp_obj.lcstate != LCS.RETIRED:
             self.delete_data_product_collection(data_product_collection_id)
 
-        self.RR2.pluck_delete(data_product_collection_id, RT.DataProductCollection)
+        self.RR2.force_delete(data_product_collection_id, RT.DataProductCollection)
 
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
         dp_collection_obj =self.clients.resource_registry.read(data_product_collection_id)

@@ -733,9 +733,6 @@ class TestAssembly(GenericIntHelperTestCase):
         c.OMS.activate_deployment(deployment_id, True)
 
         # cleanup
-        self.RR2.pluck(instrument_model_id)
-        self.RR2.pluck(deployment_id)
-        self.RR2.pluck(instrument_device_id)
         c.IMS.force_delete_instrument_model(instrument_model_id)
         c.IMS.force_delete_instrument_device(instrument_device_id)
         c.OMS.force_delete_instrument_site(instrument_site_id)
