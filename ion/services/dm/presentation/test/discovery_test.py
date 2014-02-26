@@ -421,8 +421,6 @@ class DiscoveryQueryTest(IonIntegrationTestCase):
         self.assertEquals(len(result), 0)
 
 
-
-
         # ----------------------------------------------------
         # Vertical search
 
@@ -474,6 +472,51 @@ class DiscoveryQueryTest(IonIntegrationTestCase):
         self.assertEquals(len(result), 1)
         for dp in ["DP1"]:
             self.assertIn(res_by_alias[dp], result)
+
+
+    def test_event_search(self):
+        from interface.objects import ResourceModifiedEvent, ResourceLifecycleEvent
+        t0 = 136304640000
+
+        events = [
+            ("RME1", ResourceModifiedEvent(origin="O1", origin_type="OT1", sub_type="ST1", ts_created=str(t0))),
+            ("RME2", ResourceModifiedEvent(origin="O2", origin_type="OT1", sub_type="ST2", ts_created=str(t0+1))),
+            ("RME3", ResourceModifiedEvent(origin="O2", origin_type="OT2", sub_type="ST3", ts_created=str(t0+2))),
+
+            ("RLE1", ResourceLifecycleEvent(origin="O1", origin_type="OT3", sub_type="ST4", ts_created=str(t0+3))),
+            ("RLE2", ResourceLifecycleEvent(origin="O3", origin_type="OT3", sub_type="ST5", ts_created=str(t0+4))),
+            ("RLE3", ResourceLifecycleEvent(origin="O3", origin_type="OT2", sub_type="ST6", ts_created=str(t0+5))),
+
+        ]
+        ev_by_alias = {}
+        for (alias, event) in events:
+            evid, _ = self.container.event_repository.put_event(event)
+            ev_by_alias[alias] = evid
+
+        # ----------------------------------------------------
+
+        search_string = "search 'origin' is 'O1' from 'events_index'"
+        result = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 2)
+
+        search_string = "search 'origin_type' is 'OT2' from 'events_index'"
+        result = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 2)
+
+        search_string = "search 'sub_type' is 'ST6' from 'events_index'"
+        result = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 1)
+
+        search_string = "search 'ts_created' values from 136304640000 to 136304640000 from 'events_index'"
+        result = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 1)
+
+        search_string = "search 'type_' is 'ResourceModifiedEvent' from 'events_index' order by 'ts_created'"
+        result = self.discovery.parse(search_string, id_only=False)
+        self.assertEquals(len(result), 3)
+
+        #from pyon.util.breakpoint import breakpoint
+        #breakpoint()
 
 
 @attr('INT', group='dm')

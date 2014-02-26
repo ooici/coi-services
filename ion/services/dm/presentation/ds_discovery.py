@@ -19,6 +19,10 @@ DATASTORE_MAP = {"resources_index": DataStore.DS_RESOURCES,
                  "events_index": DataStore.DS_EVENTS,
                  }
 
+PROFILE_MAP = {DataStore.DS_RESOURCES: DataStore.DS_PROFILE.RESOURCES,
+               DataStore.DS_EVENTS: DataStore.DS_PROFILE.EVENTS,
+              }
+
 COL_MAP = {"_all": DQ.RA_NAME,
            "name": DQ.RA_NAME,
            "_id": DQ.ATT_ID,
@@ -26,6 +30,10 @@ COL_MAP = {"_all": DQ.RA_NAME,
            "lcstate": DQ.RA_LCSTATE,
            "ts_created": DQ.RA_TS_CREATED,
            "ts_updated": DQ.RA_TS_UPDATED,
+           "origin": DQ.EA_ORIGIN,
+           "origin_type": DQ.EA_ORIGIN_TYPE,
+           "sub_type": DQ.EA_SUB_TYPE,
+           "actor_id": DQ.EA_ACTOR_ID,
            "geospatial_point_center": DQ.RA_GEOM,
            "geospatial_bounds": DQ.RA_GEOM_LOC,
            }
@@ -71,13 +79,15 @@ class DatastoreDiscovery(object):
         query_exp = discovery_query["query"] or {}
         index = query_exp.get("index", "resources_index")
         ds_name = DATASTORE_MAP.get(index, None)
+        ds_profile = PROFILE_MAP.get(ds_name, None)
         # TODO: Enable service defined indexes in addition to standard indexes
         if ds_name is None:
             raise BadRequest("Unknown index: %s" % index)
         limit = discovery_query.get("limit", 0)
         skip = discovery_query.get("skip", 0)
+        order = discovery_query.get("order", None)
 
-        qb = DatastoreQueryBuilder(limit=limit, skip=skip, id_only=id_only)
+        qb = DatastoreQueryBuilder(limit=limit, skip=skip, id_only=id_only, profile=ds_profile)
         where = None
         for qm in self._qmatchers:
             where = qm(discovery_query, qb)
@@ -93,7 +103,22 @@ class DatastoreDiscovery(object):
                             "Org", "Attachment", "ExternalDatasetAgent", "ExternalDatasetAgentInstance"]
             where = qb.and_(where, qb.in_(DQ.ATT_TYPE, *filter_types), qb.neq(DQ.RA_LCSTATE, "DELETED"))
 
-        qb.build_query(where=where)
+        order_by = None
+        if order:
+            order_list = []
+            if type(order) is dict:
+                for col, colsort in order.iteritems():
+                    order_list.append((col, colsort))
+            elif type(order) in (list, tuple):
+                for column in order:
+                    if type(column) in (list, tuple):
+                        col, colsort = column
+                    else:
+                        col, colsort = column, "asc"
+                    order_list.append((col, colsort))
+            order_by = qb.order_by(order_list)
+
+        qb.build_query(where=where, order_by=order_by)
         return qb.get_query(), ds_name
 
     def _get_datastore(self, ds_name):
@@ -176,9 +201,10 @@ class DatastoreDiscovery(object):
         value = query_exp.get("value", None)
         match = query_exp.get("match", None)
         fuzzy = query_exp.get("fuzzy", None)
+        range = query_exp.get("range", None)
         if not field:
             return
-        if value is None and match is None and fuzzy is None:
+        if value is None and match is None and fuzzy is None and range is None:
             return
 
         basic_col = COL_MAP.get(field, None)
@@ -190,8 +216,19 @@ class DatastoreDiscovery(object):
                 where = qb.like(basic_col, "%" + str(match) + "%", case_sensitive=False)
             elif value is not None:
                 where = qb.eq(basic_col, value)
+            elif range is not None:
+                rng_from, rng_to = range["from"], range["to"]
+                if basic_col == DQ.RA_TS_CREATED:
+                    rng_from, rng_to = str(int(rng_from)), str(int(rng_to))
+                    where = qb.and_(qb.gte(basic_col, rng_from), qb.lte(basic_col, rng_to))
+                else:
+                    rng_from, rng_to = int(rng_from), int(rng_to)
+                    where = qb.between(basic_col, rng_from, rng_to)
             else:
                 where = qb.fuzzy(basic_col, fuzzy)
+        elif range:
+            rng_from, rng_to = int(range["from"]), int(range["to"])
+            where = qb.between(field, rng_from, rng_to)
         else:
             match = match or value
             match = match.replace("*", "%")
