@@ -26,7 +26,8 @@ from ion.services.sa.observatory.deployment_util import describe_deployments
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue, AggregateStatusType, DeviceStatusType
-from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum
+from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum, GeospatialBounds
+
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
@@ -482,7 +483,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 device_obj.temporal_bounds = constraint
         self.RR.update(device_obj)
 
-    def update_device_remove_geo_update_temporal(self, device_id=''):
+    def update_device_remove_geo_update_temporal(self, device_id='', deployment_obj=''):
         """Remove the geo location and update temporal extent (end) from the device
 
         @param device_id    str
@@ -490,8 +491,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         device_obj = self.RR.read(device_id)
-        device_obj.geospatial_bounds = None
-        device_obj.temporal_bounds = None
+        bounds = GeospatialBounds(geospatial_latitude_limit_north=float(0),
+                                  geospatial_latitude_limit_south=float(0),
+                                  geospatial_longitude_limit_west=float(0),
+                                  geospatial_longitude_limit_east=float(0),
+                                  geospatial_vertical_min=float(0),
+                                  geospatial_vertical_max=float(0))
+        device_obj.geospatial_bounds = bounds
+        for constraint in deployment_obj.constraint_list:
+            if constraint.type_ == OT.TemporalBounds:
+                device_obj.temporal_bounds = constraint
         self.RR.update(device_obj)
 
     def assign_device_to_network_parent(self, child_device_id='', parent_device_id=''):
@@ -716,7 +725,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     a = self.RR.get_association(s, PRED.hasDevice, d)
                     self.RR.delete_association(a)
                     log.info("Removing geo and updating temporal attrs for device '%s'", d)
-                    self.update_device_remove_geo_update_temporal(d)
+                    self.update_device_remove_geo_update_temporal(d, deployment_obj)
                     self.RR.execute_lifecycle_transition(d, LCE.INTEGRATE)
 
         # This should set the deployment resource to retired.
