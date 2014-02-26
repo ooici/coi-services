@@ -6,16 +6,17 @@ import sys
 
 # Driver config.
 
-def load_egg():
+def load_egg(dvr_config=None):
     # Dynamically load the egg into the test path
 
-    dvr_config = make_config()
+    if dvr_config is None:
+        dvr_config = make_config()
     dvr_egg = dvr_config['dvr_egg']
-    dvr_sha = CFG.device.sbe37.dvr_sha
+    #dvr_sha = CFG.device.sbe37.dvr_sha
     launcher = ZMQEggDriverProcess(dvr_config)
 
     egg = launcher._get_egg(dvr_egg)
-    from hashlib import sha1
+    #from hashlib import sha1
     with open(egg,'r') as f:
         doc = f.read()
         #This does not work uniformly
@@ -27,10 +28,11 @@ def load_egg():
 
     return dvr_config
 
-def load_repo(mi_repo):
+def load_repo(mi_repo, dvr_config=None):
 
-    dvr_config = make_config()
-    if not mi_repo in sys.path: sys.path.insert(0, mi_repo)
+    if dvr_config is None:
+        dvr_config = make_config()
+    if not mi_repo in sys.path:  sys.path.insert(0, mi_repo)
     dvr_config['process_type'] = (DriverProcessType.PYTHON_MODULE,)
     dvr_config['mi_repo'] = mi_repo
     return dvr_config

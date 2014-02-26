@@ -1099,7 +1099,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Route async event received from driver.
         """
-        log.info('Instrument agent %s got async driver event %s', self.id, evt)
+        log.debug('Instrument agent %s got async driver event %s', self.id, evt)
         try:
             type = evt['type']
             val = evt['value']
