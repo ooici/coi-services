@@ -198,9 +198,6 @@ class AgentStreamPublisher(object):
                 rdt = RecordDictionaryTool(stream_definition=stream_def)
                 
             publisher = self._publishers[stream_name]
-
-            log.info('Outgoing granule: rdt: %s', rdt)
-
             vals = []
             for x in xrange(buf_len):
                 vals.append(self._stream_buffers[stream_name].pop())
