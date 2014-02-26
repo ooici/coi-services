@@ -14,6 +14,10 @@ from pyon.public import OT
 
 
 def fail(x):
+    '''
+    The goal behind this function is to publish an event so that threads
+    can synchronize with it to verify that it was run, regardless of context
+    '''
     event_publisher = EventPublisher(OT.GranuleIngestionErrorEvent)
     try:
         event_publisher.publish_event(error_msg='failure')

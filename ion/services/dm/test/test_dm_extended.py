@@ -1463,14 +1463,23 @@ def rotate_v(u,v,theta):
         failure_ctxt_id = self.dataset_management.create_parameter_context(name='failure', parameter_context=failure_ctx.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, failure_ctxt_id)
 
+        # I add the new parameter to the ctd_parsed_param_dict parameter dictionary by creating an association for it
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
         self.resource_registry.create_association(pdict_id, PRED.hasParameterContext, failure_ctxt_id)
 
+        # I make a standard CTDBP data product using the new parameter dictionary
         data_product_id = self.make_ctd_data_product()
+
+        # The goal with this part is to make an event subscriber that will listen to the events published by ion.util.functions:fail
+        # if it's run then it will publish an event. If I receive the event then I know ingestion is still evaluating the functions
+        # when it shouldn't.
         verified = Event()
+
         event_subscriber = EventSubscriber(event_type=OT.GranuleIngestionErrorEvent, callback=lambda *args, **kwargs : verified.set(), auto_delete=True)
         event_subscriber.start()
         self.addCleanup(event_subscriber.stop)
+        
+        # We also need to synchronize on when the data has made it through ingestion
         dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
         rdt = self.ph.rdt_for_data_product(data_product_id)
         rdt['time'] = [0]
@@ -1478,5 +1487,7 @@ def rotate_v(u,v,theta):
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         self.assertTrue(dataset_monitor.wait())
 
-        self.assertFalse(verified.wait(2))
+        # We'll give it about ten seconds, after that it *probably* didn't get run. It would be nice to be certain
+        # but, I don't know of any pattern that ensures this.
+        self.assertFalse(verified.wait(10))
 
