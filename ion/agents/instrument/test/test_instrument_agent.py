@@ -193,12 +193,15 @@ class FakeProcess(LocalContextMixin):
 #Refactored as stand alone method for starting an instrument agent for use in other tests, like governance
 #to do policy testing for resource agents
 #shenrie
-def start_instrument_agent_process(container, stream_config={}, resource_id=IA_RESOURCE_ID, resource_name=IA_NAME, org_governance_name=None, message_headers=None):
+def start_instrument_agent_process(container, stream_config={}, resource_id=IA_RESOURCE_ID, resource_name=IA_NAME, org_governance_name=None, message_headers=None, dvr_config=DVR_CONFIG):
     log.info("foobar")
+
+    if dvr_config is None:
+        dvr_config = DVR_CONFIG
 
     # Create agent config.
     agent_config = {
-        'driver_config' : DVR_CONFIG,
+        'driver_config' : dvr_config,
         'stream_config' : stream_config,
         'agent'         : {'resource_id': resource_id},
         'test_mode' : True,
@@ -221,6 +224,7 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
         module=IA_MOD,
         cls=IA_CLS,
         config=agent_config, headers=message_headers)
+    log.info("Agent Config: %s", agent_config)
 
     log.info('Agent pid=%s.', str(ia_pid))
 
@@ -396,6 +400,8 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
         stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
         stream_def = pubsub_client.read_stream_definition(stream_def_id)
+        self._raw_stream_def_id = stream_def_id
+        self._raw_stream_pdict_id = pd_id
         stream_def_dict = encoder.serialize(stream_def)
         pd = stream_def.parameter_dictionary
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
@@ -441,6 +447,7 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         stream_id = parsed_config['stream_id']
         exchange_name = create_unique_identifier("%s_queue" %
                     stream_name)
+        self._parsed_exchange_name = exchange_name
         self._purge_queue(exchange_name)
         sub = StandaloneStreamSubscriber(exchange_name, recv_data)
         sub.start()
@@ -454,6 +461,8 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         stream_id = parsed_config['stream_id']
         exchange_name = create_unique_identifier("%s_queue" %
                     stream_name)
+        self._raw_exchange_name = exchange_name
+        self._raw_stream_id = stream_id
         self._purge_queue(exchange_name)
         sub = StandaloneStreamSubscriber(exchange_name, recv_raw_data)
         sub.start()
