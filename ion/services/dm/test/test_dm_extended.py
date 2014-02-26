@@ -473,47 +473,13 @@ class TestDMExtended(DMTestCase):
         #self.strap_erddap(data_product_id)
         self.launch_ui_facepage(data_product_id)
         breakpoint(locals(), globals())
-#        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
-#        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
-#
-#        vis_params ={}
-#        vis_token_resp = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id, visualization_parameters=simplejson.dumps(vis_params))
-#        print ">>>>>>>>>>>>>>>>>>> vis_token_resp : ", vis_token_resp
-#
-#        import ast
-#        vis_token = ast.literal_eval(vis_token_resp)["rt_query_token"]
-#
-#        result = gevent.event.AsyncResult()
-#
-#        def get_vis_messages(get_data_count=7):  #SHould be an odd number for round robbin processing by service workers
-#
-#
-#            get_cnt = 0
-#            while get_cnt < get_data_count:
-#
-#                vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
-#                if (vis_data):
-#                    self.validate_google_dt_transform_results(vis_data)
-#
-#                get_cnt += 1
-#                gevent.sleep(5) # simulates the polling from UI
-#
-#            result.set(get_cnt)
-#
-#        gevent.spawn(get_vis_messages)
-#
-#        result.get(timeout=90)
-#
-#        #Trying to continue to receive messages in the queue
-#        gevent.sleep(2.0)  # Send some messages - don't care how many
-#
-#
-#        # Cleanup
-#        self.vis_client.terminate_realtime_visualization_data(vis_token)
-#
-#
-#        #Turning off after everything - since it is more representative of an always on stream of data!
-#        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
+    @attr('UTIL')
+    def test_dm_metadata(self):
+        self.preload_mflm()
+        data_product_id = self.data_product_by_id('DPROD142')
+        self.strap_erddap(data_product_id)
+        breakpoint(locals(), globals())
 
     
     @attr('INT',group='dm')

@@ -6,7 +6,8 @@ from pyon.public import PRED
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model import AbstractCoverage
+from coverage_model import AbstractCoverage, ParameterFunctionType
+from coverage_model.parameter_functions import PythonFunction, NumexprFunction
 #from coverage_model.parameter_types import QuantityType
 
 from xml.dom.minidom import parse, parseString
@@ -93,6 +94,13 @@ class RegistrationProcess(StandaloneProcess):
             else:
                 result[name] = name
         return result
+
+    def xml_attr(self, doc, head, attr_name, attr_value):
+        att_element = doc.createElement('att')
+        att_element.setAttribute('name', attr_name)
+        text_node = doc.createTextNode(attr_value)
+        att_element.appendChild(text_node)
+        head.appendChild(att_element)
 
     def get_dataset_xml(self, coverage_path, product_id, product_name='', available_fields=None):
         #http://coastwatch.pfeg.noaa.gov/erddap/download/setupDatasetsXml.html
@@ -192,11 +200,7 @@ class RegistrationProcess(StandaloneProcess):
             atts['standard_name_vocabulary'] = 'CF-12'
             
             for key, val in atts.iteritems():
-                att_element = doc.createElement('att')
-                att_element.setAttribute('name', key)
-                text_node = doc.createTextNode(val)
-                att_element.appendChild(text_node)
-                add_attributes_element.appendChild(att_element)
+                self.xml_attr(doc, add_attributes_element, key, val)
 
             if len(add_attributes_element.childNodes) > 0:
                 dataset_element.appendChild(add_attributes_element)
@@ -206,9 +210,7 @@ class RegistrationProcess(StandaloneProcess):
                 if re.match(r'.*_[a-z0-9]{32}', var.name):
                     continue # Let's not do this
                 
-                units = "unknown"
-                if hasattr(var,'uom') and var.uom:
-                    units = var.uom
+
 
                 #if len(param.shape) >=1 and not param.is_coordinate: #dataVariable
                 data_element = doc.createElement('dataVariable')
@@ -223,56 +225,80 @@ class RegistrationProcess(StandaloneProcess):
                 data_element.appendChild(destination_name_element)
                 
                 add_attributes_element = doc.createElement('addAttributes')
-                if var.ATTRS is not None:
-                    for key in var.ATTRS:
-                        if not hasattr(var,key):
-                            continue
-                        val = getattr(var,key)
-                        if not val:
-                            val = ''
-                        att_element = doc.createElement('att')
-                        att_element.setAttribute('name', key)
-                        text_node = doc.createTextNode(val)
-                        att_element.appendChild(text_node)
-                        add_attributes_element.appendChild(att_element)
+                units = "unknown"
+                if hasattr(var,'uom') and var.uom:
+                    units = var.uom
+                self.xml_attr(doc, add_attributes_element, 'units', units)
+                #if var.ATTRS is not None:
+                    #for key in var.ATTRS:
+                        #if not hasattr(var,key):
+                            #continue
+                        #val = getattr(var,key)
+                        #if not val:
+                            #val = ''
+                        #att_element = doc.createElement('att')
+                        #att_element.setAttribute('name', key)
+                        #text_node = doc.createTextNode(val)
+                        #att_element.appendChild(text_node)
+                        #add_attributes_element.appendChild(att_element)
 
-                att_element = doc.createElement('att')
-                att_element.setAttribute('name', 'ioos_category')
-                text_node = doc.createTextNode(self.get_ioos_category(var.name, units))
-                att_element.appendChild(text_node)
-                add_attributes_element.appendChild(att_element)
+                ioos_cat = self.get_ioos_category(var.name, units)
+                self.xml_attr(doc, add_attributes_element, 'ioos_category', ioos_cat)
 
-                att_element = doc.createElement('att')
-                att_element.setAttribute('name', 'long_name')
-                long_name = ""
                 if hasattr(var,'display_name') and var.display_name is not None:
-                    long_name = var.display_name
-                    text_node = doc.createTextNode(long_name)
-                    att_element.appendChild(text_node)
-                    add_attributes_element.appendChild(att_element)
+                    self.xml_attr(doc, add_attributes_element, 'long_name', var.display_name)
                 
-                att_element = doc.createElement('att')
-                standard_name = ""
                 if hasattr(var,'standard_name') and var.standard_name is not None:
-                    standard_name = var.standard_name
-                    att_element.setAttribute('name', 'standard_name')
-                    text_node = doc.createTextNode(standard_name)
-                    att_element.appendChild(text_node)
-                    add_attributes_element.appendChild(att_element)
-                
+                    self.xml_attr(doc, add_attributes_element, 'standard_name', var.standard_name)
 
                 if 'seconds' in units and 'since' in units:
-                    att_element = doc.createElement('att')
-                    att_element.setAttribute('name', 'time_precision')
-                    text_node = doc.createTextNode('1970-01-01T00:00:00.000Z')
-                    att_element.appendChild(text_node)
-                    add_attributes_element.appendChild(att_element)
+                    self.xml_attr(doc, add_attributes_element, 'time_precision', '1970-01-01T00:00:00.000Z')
 
-                att_element = doc.createElement('att')
-                att_element.setAttribute('name', 'units')
-                text_node = doc.createTextNode(units)
-                att_element.appendChild(text_node)
-                add_attributes_element.appendChild(att_element)
+                if hasattr(var, 'ooi_short_name') and var.ooi_short_name:
+                    sname = var.ooi_short_name
+                    sname = re.sub('[\t\n ]+', ' ', sname)
+                    self.xml_attr(doc, add_attributes_element, 'ooi_short_name', sname)
+
+                    if 'L2' in var.ooi_short_name:
+                        self.xml_attr(doc, add_attributes_element, 'data_product_level', 'L2')
+                    elif 'L1' in var.ooi_short_name:
+                        self.xml_attr(doc, add_attributes_element, 'data_product_level', 'L1')
+                    elif 'L0' in var.ooi_short_name:
+                        self.xml_attr(doc, add_attributes_element, 'data_product_level', 'L0')
+                    elif 'QC' in var.ooi_short_name:
+                        self.xml_attr(doc, add_attributes_element, 'data_product_level', 'QC')
+
+                elif not isinstance(var.param_type, ParameterFunctionType):
+                    self.xml_attr(doc, add_attributes_element, 'ooi_short_name', var.name)
+                    if units == 'counts':
+                        self.xml_attr(doc, add_attributes_element, 'data_product_level', 'L0')
+                    elif 'seconds' in units and 'since' in units:
+                        self.xml_attr(doc, add_attributes_element, 'data_product_level', 'axis')
+                    else:
+                        self.xml_attr(doc, add_attributes_element, 'data_product_level', 'unknown')
+
+                  
+                if hasattr(var, 'reference_urls') and var.reference_urls:
+                    if isinstance(var.reference_urls, list):
+                        references = ','.join(var.reference_urls)
+                    else:
+                        references = var.reference_urls
+                    self.xml_attr(doc, add_attributes_element, 'reference_urls', references)
+
+
+                if isinstance(var.param_type, ParameterFunctionType):
+                    if isinstance(var.function, PythonFunction):
+                        self.xml_attr(doc, add_attributes_element, 'function_module', var.function.owner or '')
+                        self.xml_attr(doc, add_attributes_element, 'function_name', var.function.func_name or '')
+                        if var.function.owner.startswith('ion_functions'):
+                            s = var.function.owner
+                            url = s.replace('.','/') + '.py'
+                            url = 'https://github.com/ooici/ion-functions/blob/master/' + url
+                            self.xml_attr(doc, add_attributes_element, 'function_url', url)
+                        elif var.function.egg_uri:
+                            self.xml_attr(doc, add_attributes_element, 'function_url', var.function.egg_uri or '')
+                    elif isinstance(var.function, NumexprFunction):
+                        self.xml_attr(doc, add_attributes_element, 'function_name', var.function.name or '')
 
                 data_element.appendChild(add_attributes_element)
                 dataset_element.appendChild(data_element)
