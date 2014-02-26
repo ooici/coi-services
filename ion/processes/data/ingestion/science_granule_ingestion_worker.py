@@ -258,7 +258,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
     def update_geo(self, data_product, rdt):
         lat = None
         lon = None
-        for p in rdt.fields:
+        for p in rdt:
+            if rdt._rd[p] is None:
+                continue
             # TODO: Not an all encompassing list of acceptable names for lat and lon
             if p.lower() in ('lat', 'latitude', 'y_axis'):
                 lat = np.asscalar(rdt[p][-1])
