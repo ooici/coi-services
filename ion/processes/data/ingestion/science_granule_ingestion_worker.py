@@ -470,7 +470,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
 
         self.fill_lookup_values(rdt)
         for field in rdt.fields:
-            if rdt[field] is None:
+            if rdt._rd[field] is None:
                 continue
             if not isinstance(rdt.context(field).param_type, SparseConstantType):
                 # We only set sparse values before insert
