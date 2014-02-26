@@ -42,6 +42,12 @@ class DiscoveryUnitTest(IonUnitTestCase):
         self.discovery = DiscoveryService()
         self.discovery.on_start()
         self.discovery.clients = mock_clients
+        self.ds_mock = Mock()
+        self.discovery.ds_discovery._get_datastore = Mock(return_value=self.ds_mock)
+        container_mock = Mock()
+        self.discovery.ds_discovery.container = container_mock
+        container_mock.resource_registry = Mock()
+        container_mock.resource_registry.get_superuser_actors = Mock(return_value={})
 
         self.rr_create = mock_clients.resource_registry.create
         self.rr_read = mock_clients.resource_registry.read
@@ -137,13 +143,11 @@ class DiscoveryUnitTest(IonUnitTestCase):
         self.discovery.request = Mock()
         self.discovery.request.return_value = 'correct_value'
         retval = self.discovery.parse('blah blah', id_only=sentinel.id_only)
-        self.discovery.request.assert_called_once_with('arg', search_args={}, id_only=sentinel.id_only)
+        self.discovery.request.assert_called_once_with('arg', search_args=None, id_only=sentinel.id_only)
         self.assertTrue(retval=='correct_value', '%s' % retval)
 
     def test_parse(self):
-        ds_mock = Mock()
-        self.discovery.ds_discovery._get_datastore = Mock(return_value=ds_mock)
-        ds_mock.find_by_query = Mock(return_value=["FOO"])
+        self.ds_mock.find_by_query = Mock(return_value=["FOO"])
 
         search_string = "search 'serial_number' is 'abc' from 'resources_index'"
         retval = self.discovery.parse(search_string)
@@ -152,9 +156,7 @@ class DiscoveryUnitTest(IonUnitTestCase):
 
 
     def test_tier1_request(self):
-        ds_mock = Mock()
-        self.discovery.ds_discovery._get_datastore = Mock(return_value=ds_mock)
-        ds_mock.find_by_query = Mock(return_value=["FOO"])
+        self.ds_mock.find_by_query = Mock(return_value=["FOO"])
 
         query = {'query':{'field': 'name', 'value': 'foo'}}
         retval = self.discovery.request(query)
@@ -162,9 +164,7 @@ class DiscoveryUnitTest(IonUnitTestCase):
         self.assertEquals(retval, ["FOO"])
 
     def test_tier2_request(self):
-        ds_mock = Mock()
-        self.discovery.ds_discovery._get_datastore = Mock(return_value=ds_mock)
-        ds_mock.find_by_query = Mock(return_value=["FOO"])
+        self.ds_mock.find_by_query = Mock(return_value=["FOO"])
 
         query = {'query':{'field': 'name', 'value': 'foo'}, 'and':[{'field': 'lcstate', 'value': 'foo2'}]}
         retval = self.discovery.request(query)
