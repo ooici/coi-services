@@ -1664,7 +1664,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         resource_agent_state_labels = {
             'RESOURCE_AGENT_STATE_POWERED_DOWN': 'POWERED DOWN',
-            'RESOURCE_AGENT_STATE_UNINITIALIZED':'UNINITIALIZED',
+            'RESOURCE_AGENT_STATE_UNINITIALIZED': 'UNINITIALIZED',
             'RESOURCE_AGENT_STATE_INACTIVE': 'INACTIVE',
             'RESOURCE_AGENT_STATE_IDLE': 'IDLE',
             'RESOURCE_AGENT_STATE_STOPPED': 'STOPPED',
@@ -1675,8 +1675,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'RESOUCE_AGENT_STATE_DIRECT_ACCESS': 'DIRECT ACCESS',
             'RESOURCE_AGENT_STATE_BUSY': 'BUSY',
             'RESOURCE_AGENT_STATE_LOST_CONNECTION': 'LOST CONNECTION',
-            'PLATFORM_AGENT_STATE_AUTOSAMPLE' : 'STREAMING',
-            'PLATFORM_AGENT_STATE_LAUNCHING' : 'LAUNCHING'
+            'PLATFORM_AGENT_STATE_AUTOSAMPLE': 'STREAMING',
+            'PLATFORM_AGENT_STATE_LAUNCHING': 'LAUNCHING'
         }
 
         retval = IonObject(OT.ComputedStringValue)
@@ -1684,110 +1684,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         dsm = DeviceStateManager()
         state_list = dsm.read_states([taskable_resource_id])
 
-        if state_list and filter(None, state_list) and 'state' in state_list[0] and 'current' in state_list[0]['state']:
+        if state_list and type(state_list[0]) is dict and 'state' in state_list[0] and 'current' in state_list[0]['state']:
             cur_state = state_list[0]['state']['current']
-            if cur_state in resource_agent_state_labels:
-                retval.value = resource_agent_state_labels[cur_state]
-            else:
-                retval.value = cur_state
+            retval.value = resource_agent_state_labels.get(cur_state, cur_state)
             retval.status = ComputedValueAvailability.PROVIDED
 
         else:
             retval.value = 'UNKNOWN'
             retval.status = ComputedValueAvailability.NOTAVAILABLE
             retval.reason = "State event not available in object store."
-
-        """
-        [{'_rev': '4-4f40a511ef24d3564ea7dcde9205a1a4',
-        'dev_alert': {
-            'status': 0,
-            'stream_name': '',
-            'name': '',
-            'time_stamps': [],
-            'valid_values': [],
-            'values': [],
-            'value_id': '',
-            'ts_changed': ''},
-        'ts_updated': '1386467082377',
-        'state': {
-            'current': 'RESOURCE_AGENT_STATE_COMMAND',
-            'prior': 'RESOURCE_AGENT_STATE_IDLE',
-            'ts_changed': '1386467081759'},
-        'dev_status': {
-            'status': 1,
-            'ts_changed': '',
-            'valid_values': [],
-            'values': [],
-            'time_stamps': []},
-        'res_state': {
-            'current': 'DRIVER_STATE_COMMAND',
-            'prior': 'DRIVER_STATE_UNKNOWN',
-            'ts_changed': '1386467081655'},
-            'agg_status': {
-                '1': {
-                    'status': 2,
-                    'time_stamps': [],
-                    'prev_status': 1,
-                    'roll_up_status': False,
-                    'valid_values': [],
-                    'values': [],
-                    'ts_changed': '1386467072222'},
-                '3': {
-                    'status': 2,
-                    'time_stamps': [],
-                    'prev_status': 1,
-                    'roll_up_status': False,
-                    'valid_values': [],
-                    'values': [],
-                    'ts_changed': '1386467072241'},
-                '2': {
-                    'status': 2,
-                    'time_stamps': [],
-                    'prev_status': 1,
-                    'roll_up_status': False,
-                    'valid_values': [],
-                    'values': [],
-                    'ts_changed': '1386467072228'},
-                '4': {
-                    'status': 2,
-                    'time_stamps': [],
-                    'prev_status': 1,
-                    'roll_up_status': False,
-                    'valid_values': [],
-                    'values': [],
-                    'ts_changed': '1386467072257'}},
-            '_id': 'state_c51098af6f7d48648ab30aa35283688e',
-            'ts_created': '1386467073154',
-            'device_id': 'c51098af6f7d48648ab30aa35283688e'}]
-        """
-
-
-        """
-        ia_client, reason = self.agent_status_builder.get_device_agent(taskable_resource_id)
-
-        # early exit for no client
-        if ia_client is None:
-            retval.value = 'UNKNOWN'
-            retval.status = ComputedValueAvailability.NOTAVAILABLE
-            retval.reason = reason
-            return retval
-
-        try:
-            state = ia_client.get_agent_state()
-            if resource_agent_state_labels.has_key(state):
-                retval.value = resource_agent_state_labels[ state ]
-                retval.status = ComputedValueAvailability.PROVIDED
-            else:
-                log.warning('IMS:get_operational_state label map has no value for this state:  %s', state)
-                retval.value = 'UNKNOWN'
-                retval.status = ComputedValueAvailability.NOTAVAILABLE
-                retval.reason = "State not returned in agent response"
-
-        except Unauthorized:
-            retval.value = 'UNKNOWN'
-            retval.status = ComputedValueAvailability.NOTAVAILABLE
-            retval.reason = "The requester does not have the proper role to access the status of this agent"
-        """
 
         return retval
 

@@ -1037,10 +1037,7 @@ class OrgManagementService(BaseOrgManagementService):
             commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
             if commitments:
                 for com in commitments:
-                    if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
-                        continue
-
-                    #If the expiration is not 0 make sure it has not expired
+                    # If the expiration is not 0 make sure it has not expired
                     if ( actor_id is None or com.consumer == actor_id) and (( int(com.expiration) == 0 ) or (int(com.expiration) > 0 and cur_time < int(com.expiration))):
                         return True
 
@@ -1067,9 +1064,6 @@ class OrgManagementService(BaseOrgManagementService):
             commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
             if commitments:
                 for com in commitments:
-                    if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
-                        continue
-
                     #If the expiration is not 0 make sure it has not expired
                     if ( actor_id is None or actor_id == com.consumer )  and com.commitment.exclusive and\
                        int(com.expiration) > 0 and cur_time < int(com.expiration):

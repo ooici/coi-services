@@ -91,7 +91,7 @@ class DatastoreDiscovery(object):
                             "InstrumentAgentInstance", "InstrumentAgent", "PlatformDevice", "PlatformModel",
                             "PlatformAgentInstance", "PlatformAgent", "PlatformSite", "Observatory", "UserRole",
                             "Org", "Attachment", "ExternalDatasetAgent", "ExternalDatasetAgentInstance"]
-            where = qb.and_(where, qb.in_(DQ.ATT_TYPE, *filter_types), qb.neq(DQ.RA_LCSTATE, "RETIRED"))
+            where = qb.and_(where, qb.in_(DQ.ATT_TYPE, *filter_types), qb.neq(DQ.RA_LCSTATE, "DELETED"))
 
         qb.build_query(where=where)
         return qb.get_query(), ds_name

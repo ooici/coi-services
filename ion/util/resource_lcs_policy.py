@@ -5,11 +5,12 @@
 @author   Ian Katz
 """
 
+from ooi.logging import log
 
 from pyon.public import PRED, RT, LCS
 from pyon.ion.resource import LCE
 from ion.services.sa.instrument.flag import KeywordFlag
-from ooi.logging import log
+
 
 class ResourceLCSPolicy(object):
 
@@ -69,10 +70,9 @@ class ResourceLCSPolicy(object):
     def lce_precondition_disable(self, agent_id):
         return self._make_warn("ResourceLCSPolicy base class not overridden!")
 
-    #delete
+    # force delete
     def precondition_delete(self, agent_id):
         return self._make_warn("ResourceLCSPolicy base class not overridden!")
-
 
 
     def policy_fn_delete_precondition(self, id_field):
@@ -129,8 +129,7 @@ class ResourceLCSPolicy(object):
     def check_lcs_precondition_satisfied(self, resource_id, transition_event):
         # check that the resource exists
         resource = self.RR.read(resource_id)
-        resource_type = type(resource).__name__
-
+        resource_type = resource.type_
 
         # check that precondition function exists
         if not transition_event in self.lce_precondition:
@@ -172,10 +171,10 @@ class ResourceLCSPolicy(object):
         get the type of a resource by id
         @param resource_id a resource id
         """
-        assert(type("") == type(resource_id))
+        assert type(resource_id) is str
         try:
             resource = self.RR.read(resource_id)
-            return resource._get_type()
+            return resource.type_
         except Exception as e:
             e.message = "resource_lcs_policy:_get_resource_type_by_id: %s" % e.message
             raise e
@@ -188,7 +187,7 @@ class ResourceLCSPolicy(object):
         @param association_predicate one of the association types
         @param some_object_id the object "owned" by the association type
         """
-        assert(type("") == type(some_object_id))
+        assert type(some_object_id) is str
         ret, _ = self.RR.find_subjects(subject_type,
                                        association_predicate,
                                        some_object_id,
@@ -204,7 +203,7 @@ class ResourceLCSPolicy(object):
         @param association_predicate the association type
         @param some_object_type the type of associated object
         """
-        assert(type("") == type(primary_object_id))
+        assert type(primary_object_id) is str
         ret, _ = self.RR.find_objects(primary_object_id,
                                       association_predicate,
                                       some_object_type,
@@ -216,7 +215,7 @@ class ResourceLCSPolicy(object):
             log.warn("Ignoring (non)existence of keyword '%s' for resource '%s' policy check for beta testing",
                      desired_keyword, resource_id)
             return self._make_pass() # HACK for beta testing purposes
-        assert(type("") == type(resource_id))
+        assert type(resource_id) is str
         for a in self._find_stemming(resource_id, PRED.hasAttachment, RT.Attachment):
             for k in a.keywords:
                 if desired_keyword == k:
@@ -224,14 +223,13 @@ class ResourceLCSPolicy(object):
         return self._make_fail("No attachment found with keyword='%s'" % desired_keyword)
 
     def _resource_lcstate_in(self, resource_obj, permissible_states=None):
-        assert(type("") != type(resource_obj))
+        assert type(resource_obj) is str
         if permissible_states is None:
             permissible_states = []
                 
         return self._make_result(resource_obj.lcstate in permissible_states,
                                  "'%s' resource is in state '%s', wanted [%s]" %
-                                 (resource_obj._get_type(), resource_obj.lcstate, str(permissible_states)))
-
+                                 (resource_obj.type_, resource_obj.lcstate, str(permissible_states)))
 
 
 
@@ -243,7 +241,8 @@ class AgentPolicy(ResourceLCSPolicy):
 
     def lce_precondition_develop(self, agent_id):
         former = self.lce_precondition_plan(agent_id)
-        if not former[0]: return former
+        if not former[0]:
+            return former
 
         agent_type = self._get_resource_type_by_id(agent_id)
 
@@ -259,7 +258,8 @@ class AgentPolicy(ResourceLCSPolicy):
 
     def lce_precondition_integrate(self, agent_id):
         former = self.lce_precondition_develop(agent_id)
-        if not former[0]: return former
+        if not former[0]:
+            return former
 
 
         #if not checking platform agents yet, uncomment this
@@ -269,7 +269,8 @@ class AgentPolicy(ResourceLCSPolicy):
 
     def lce_precondition_deploy(self, agent_id):
         former = self.lce_precondition_integrate(agent_id)
-        if not former[0]: return former
+        if not former[0]:
+            return former
 
         #if no checking platform agents yet, uncomment this
         #if RT.PlatformAgent == self._get_resource_type_by_id(agent_id): return True
