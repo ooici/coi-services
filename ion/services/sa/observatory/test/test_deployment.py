@@ -307,11 +307,33 @@ class TestDeployment(IonIntegrationTestCase):
         self.omsclient.deploy_platform_site(res.platform_site_id, res.deployment_id)
         self.imsclient.deploy_platform_device(res.platform_device_id, res.deployment_id)
 
+        before_activate_instrument_device_obj = self.rrclient.read(res.instrument_device_id)
+
         log.debug("activating deployment, expecting success")
         self.omsclient.activate_deployment(res.deployment_id)
 
+        def assertGeospatialBoundsEquals(a, b):
+            self.assertEquals(a['geospatial_latitude_limit_north'],b['geospatial_latitude_limit_north'])
+            self.assertEquals(a['geospatial_latitude_limit_south'],b['geospatial_latitude_limit_south'])
+            self.assertEquals(a['geospatial_longitude_limit_west'],b['geospatial_longitude_limit_west'])
+            self.assertEquals(a['geospatial_longitude_limit_east'],b['geospatial_longitude_limit_east'])
+
+        def assertGeospatialBoundsNotEquals(a, b):
+            self.assertNotEquals(a['geospatial_latitude_limit_north'],b['geospatial_latitude_limit_north'])
+            self.assertNotEquals(a['geospatial_latitude_limit_south'],b['geospatial_latitude_limit_south'])
+            self.assertNotEquals(a['geospatial_longitude_limit_west'],b['geospatial_longitude_limit_west'])
+            self.assertNotEquals(a['geospatial_longitude_limit_east'],b['geospatial_longitude_limit_east'])
+
+        after_activate_instrument_device_obj = self.rrclient.read(res.instrument_device_id)
+        assertGeospatialBoundsNotEquals(before_activate_instrument_device_obj.geospatial_bounds,after_activate_instrument_device_obj.geospatial_bounds)
+
         log.debug("deactivatin deployment, expecting success")
         self.omsclient.deactivate_deployment(res.deployment_id)
+
+        after_deactivate_instrument_device_obj = self.rrclient.read(res.instrument_device_id)
+
+        assertGeospatialBoundsNotEquals(after_activate_instrument_device_obj.geospatial_bounds, after_deactivate_instrument_device_obj.geospatial_bounds)
+
 
     #@unittest.skip("targeting")
     def test_activate_deployment_nomodels(self):
