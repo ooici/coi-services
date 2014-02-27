@@ -30,7 +30,8 @@ from pyon.core.object import IonObjectSerializer
 from pyon.agent.agent import ResourceAgentClient
 from pyon.ion.exchange import ExchangeManager
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.agents.instrument.test.test_instrument_agent import InstrumentAgentTest
+from pyon.util.int_test import IonIntegrationTestCase
+from ion.agents.instrument.test.test_instrument_agent import InstrumentAgentTestMixin
 from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -85,7 +86,7 @@ SAMPLE_INTERVAL = 'SAMPLE_INTERVAL'
 
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
-class TestInstrumentAgentHighVolume(InstrumentAgentTest):
+class TestInstrumentAgentHighVolume(IonIntegrationTestCase, InstrumentAgentTestMixin):
     """
     Test cases for pumping high volume data through the agent and ingested.  Initially we are just testing raw data, but
     eventually we will update to publish data similar to the ORB

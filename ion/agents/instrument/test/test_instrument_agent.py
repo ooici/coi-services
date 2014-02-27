@@ -236,7 +236,7 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
     return ia_client
 
 #@unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
-class InstrumentAgentTest(IonIntegrationTestCase):
+class InstrumentAgentTestMixin(object):
     """
     Test cases for instrument agent class. Functions in this class provide
     instrument agent integration tests and provide a tutorial on use of
@@ -607,10 +607,17 @@ class InstrumentAgentTest(IonIntegrationTestCase):
             sizes.append(rdt[field].size)
         self.assertTrue(any([x>1 for x in sizes]))
 
+
+#@unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
+class InstrumentAgentTest(IonIntegrationTestCase, InstrumentAgentTestMixin):
+    """
+    Test cases for instrument agent class. Functions in this class provide
+    instrument agent integration tests and provide a tutorial on use of
+    the agent setup and interface.
+    """
     ###############################################################################
     # Tests.
     ###############################################################################
-
     def test_initialize(self):
         """
         test_initialize
@@ -647,7 +654,7 @@ class InstrumentAgentTest(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        
+
     def test_resource_states(self):
         """
         test_resource_states
