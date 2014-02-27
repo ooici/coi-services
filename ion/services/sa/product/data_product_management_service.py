@@ -130,24 +130,31 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         pf_ids = []
+        pc_name_map = {}
         # ParameterContext -> ParameterFunction
         for pd_id in pd_ids:
-            pfunc_ids, _ = self.clients.resource_registry.find_objects(pd_id, PRED.hasParameterFunction, id_only=True)
-            pf_ids.extend(pfunc_ids)
+            pfunc_objs, _ = self.clients.resource_registry.find_objects(pd_id, PRED.hasParameterFunction, id_only=False)
+            for pfunc_obj in pfunc_objs:
+                pf_ids.append(pfunc_obj._id)
+                pc_name_map[pfunc_obj._id] = pfunc_obj.name
 
 
         dpds = []
+        dpd_name_map = {}
         # DataProcessDefinition -> ParameterFunction
         for pf_id in pf_ids:
             dpdef_objs, _ = self.clients.resource_registry.find_subjects(object=pf_id, 
                                                                         predicate=PRED.hasParameterFunction, 
                                                                         subject_type=RT.DataProcessDefinition, 
                                                                         id_only=False)
-            dpds.extend(dpdef_objs)
+            for dpdef_obj in dpdef_objs:
+                dpd_name_map[dpdef_obj._id] = pc_name_map[pf_id]
+                dpds.append(dpdef_obj)
 
         for dpd in dpds:
             dp = DataProcess()
-            dp.name = 'Data Process %s for Data Product %s' % ( dpd.name, data_product.name )
+            #dp.name = 'Data Process %s for Data Product %s' % ( dpd.name, data_product.name )
+            dp.name = dpd_name_map[dpd._id]
             # TODO: This is a stub until DPD is ready
             dp_id, _ = self.clients.resource_registry.create(dp)
             self.clients.resource_registry.create_association(dpd._id, PRED.hasDataProcess, dp_id)

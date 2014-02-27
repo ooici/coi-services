@@ -345,7 +345,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasOutputProduct, object=data_product_id)
         if data_process_definition._id:
             self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess ,dproc_id)
-        self._link_transform_dataproducts(inputs=in_data_product_ids,outputs=out_data_product_ids)
 
         exchange_name = self._assign_worker(dproc_id)
         #exchange_name = self.transform_worker_subscription_map[transform_worker_pid]
@@ -416,7 +415,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.create_association(subject=data_process_id, predicate=PRED.hasOutputProduct, object=data_product_id)
         if data_process_definition._id:
             self.clients.resource_registry.create_association(data_process_definition._id, PRED.hasDataProcess ,data_process_id)
-        self._link_transform_dataproducts(inputs=in_data_product_ids,outputs=out_data_product_ids)
 
         # Launch the worker
         exchange_name = self._assign_worker(data_process_id)
@@ -481,15 +479,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.create_association(data_process_id, PRED.hasSubscription, object=subscription_id)
         return replay_ids
 
-
-    def _link_transform_dataproducts(self, inputs=None, outputs=None):
-
-        for out_dp in outputs:
-            for in_dp in inputs:
-                assocs = self.clients.resource_registry.find_associations(out_dp, PRED.hasDataProductParent, in_dp)
-                if not assocs:
-                    #if the hasDataProductParent link was not already created, then add
-                    self.RR2.assign_data_product_to_data_product_with_has_data_product_parent(in_dp, out_dp)
 
 
 
