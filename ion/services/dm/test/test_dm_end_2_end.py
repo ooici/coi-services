@@ -612,19 +612,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         
         self.assertTrue(dataset_id in DataRetrieverService._retrieve_cache)
 
-        DataRetrieverService._refresh_interval = 100
-        self.publish_hifi(stream_id,route,1)
-        self.wait_until_we_have_enough_granules(dataset_id, data_size=20)
-            
- 
-        event = gevent.event.Event()
-        with gevent.Timeout(20):
-            while not event.wait(0.1):
-                if dataset_id not in DataRetrieverService._retrieve_cache:
-                    event.set()
-
-
-        self.assertTrue(event.is_set())
 
         
     def publish_and_wait(self, dataset_id, granule):
