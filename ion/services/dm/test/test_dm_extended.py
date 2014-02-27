@@ -421,6 +421,7 @@ class TestDMExtended(DMTestCase):
         # Launch the realtime visualization process
         viz_token = self.visualization.initiate_realtime_visualization_data(data_product_id=data_product_id)
         dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        self.addCleanup(dataset_monitor.stop)
         rdt = self.ph.rdt_for_data_product(data_product_id)
         rdt['time'] = [1, 2]
         rdt['temp'] = [10, 20]
@@ -1447,6 +1448,7 @@ def rotate_v(u,v,theta):
         
         # We also need to synchronize on when the data has made it through ingestion
         dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        self.addCleanup(dataset_monitor.stop)
         rdt = self.ph.rdt_for_data_product(data_product_id)
         rdt['time'] = [0]
         rdt['temp'] = [1]
