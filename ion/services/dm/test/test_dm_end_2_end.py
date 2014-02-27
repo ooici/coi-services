@@ -13,6 +13,7 @@ from pyon.public import RT, log, OT, PRED, CFG
 from pyon.util.containers import DotDict
 from pyon.util.poller import poll
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.container.cc import Container
 
 from ion.processes.data.replay.replay_client import ReplayClient
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
@@ -808,7 +809,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
 class DatasetMonitor(object):
-    def __init__(self, dataset_id):
+    def __init__(self, dataset_id=None, data_product_id=None):
+        if data_product_id and not dataset_id:
+            dataset_id = Container.instance.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
         self.dataset_id = dataset_id
         self.event = Event()
 
