@@ -259,12 +259,22 @@ class RegistrationProcess(StandaloneProcess):
                     sname = re.sub('[\t\n ]+', ' ', sname)
                     self.xml_attr(doc, add_attributes_element, 'ooi_short_name', sname)
 
+                    m = re.match(r'[A-Z0-9]{7}', sname)
+                    if m:
+                        reference_url = 'https://confluence.oceanobservatories.org/display/instruments/' + m.group()
+                        self.xml_attr(doc, add_attributes_element, 'references', reference_url)
+
+
+
                     if 'L2' in var.ooi_short_name:
                         self.xml_attr(doc, add_attributes_element, 'data_product_level', 'L2')
+                        self.xml_attr(doc, add_attributes_element, 'source', 'level 2 calibrated sensor observation')
                     elif 'L1' in var.ooi_short_name:
                         self.xml_attr(doc, add_attributes_element, 'data_product_level', 'L1')
+                        self.xml_attr(doc, add_attributes_element, 'source', 'level 1 calibrated sensor observation')
                     elif 'L0' in var.ooi_short_name:
                         self.xml_attr(doc, add_attributes_element, 'data_product_level', 'L0')
+                        self.xml_attr(doc, add_attributes_element, 'source', 'sensor observation')
                     elif 'QC' in var.ooi_short_name:
                         self.xml_attr(doc, add_attributes_element, 'data_product_level', 'QC')
 
@@ -272,6 +282,7 @@ class RegistrationProcess(StandaloneProcess):
                     self.xml_attr(doc, add_attributes_element, 'ooi_short_name', var.name)
                     if units == 'counts':
                         self.xml_attr(doc, add_attributes_element, 'data_product_level', 'L0')
+                        self.xml_attr(doc, add_attributes_element, 'source', 'sensor observation')
                     elif 'seconds' in units and 'since' in units:
                         self.xml_attr(doc, add_attributes_element, 'data_product_level', 'axis')
                     else:
@@ -283,7 +294,7 @@ class RegistrationProcess(StandaloneProcess):
                         references = ','.join(var.reference_urls)
                     else:
                         references = var.reference_urls
-                    self.xml_attr(doc, add_attributes_element, 'reference_urls', references)
+                    self.xml_attr(doc, add_attributes_element, 'instrument_type', references)
 
 
                 if isinstance(var.param_type, ParameterFunctionType):
