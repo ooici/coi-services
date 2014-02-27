@@ -35,26 +35,7 @@ from ion.util.enhanced_resource_registry_client \
     import EnhancedResourceRegistryClient
 
 # Preload agumented and new resources.
-from activation_test_resources import AUGMENT_INSTRUMENT_SITES
-from activation_test_resources import AUGMENT_PLATFORM_DEVICES
-from activation_test_resources import AUGMENT_PLATFORM_AGENTS
-from activation_test_resources import AUGMENT_PLATFORM_AGENT_INSTANCES
-from activation_test_resources import AUGMENT_INSTRUMENT_DEVICES
-from activation_test_resources import AUGMENT_INSTRUMENT_AGENTS
-from activation_test_resources import AUGMENT_INSTRUMENT_AGENT_INSTANCES
-from activation_test_resources import AUGMENT_DATASET_AGENTS
-from activation_test_resources import AUGMENT_DATASET_AGENT_INSTANCES
-from activation_test_resources import AUGMENT_PLATFORM_DEPLOYMENTS
-from activation_test_resources import AUGMENT_INSTRUMENT_DEPLOYMENTS
-from activation_test_resources import RSN_PLATFORM_SITE
-from activation_test_resources import RSN_INSTRUMENT_SITE
-from activation_test_resources import RSN_INSTRUMENT_01
-from activation_test_resources import RSN_INSTRUMENT_02
-from activation_test_resources import RSN_AGENT_02
-from activation_test_resources import RSN_INST_DEPLOYMENT_2
-from activation_test_resources import EXAMPLE_DEVICE_ALT_ID
-from activation_test_resources import RSN_FACILITY_NAME
-from activation_test_resources import RSN_FACILITY_ALT_ID
+from activation_test_resources import *
 
 """
 --with-queueblame   report leftover queues
@@ -396,8 +377,656 @@ class TestDeviceActivation(IonIntegrationTestCase):
         self._cycle_rsn_instrument()
 
         # Perform CGSN Mooring activation test cycle.
+        self._cycle_cgsn_mooring()
 
         # Perfom glider activation test cycle.
+        # TODO
+        # Note this is less urgent as the previous two patterns capture
+        # much of the goal and the UI will have create its own orchistration
+        # pattern guided by user use case requirements.
+
+    def _cycle_cgsn_mooring(self):
+        """
+        Perform deactivation - activation cycle on a cgsn mooring.
+        @return:
+        """
+
+        ############################################################
+        # Get existing resources to be deactivated.
+        ############################################################
+        mooring_id = self._retrieve_ooi_asset(CGSN_MOORING_PLATFORM_ALT_ID)['_id']
+        mooring = self.container.resource_registry.read(mooring_id)
+
+        riser_id = self._retrieve_ooi_asset(CGSN_RISER_PLATFORM_ALT_ID)['_id']
+        riser = self.container.resource_registry.read(riser_id)
+
+        deployment_id = self._retrieve_ooi_asset(CGSN_MOORING_DEPLOYMENT_ALT_ID)['_id']
+        deployment = self.container.resource_registry.read(deployment_id)
+
+        inst_id = self._retrieve_ooi_asset(CGSN_RISER_INSTRUMENT_ALT_ID)['_id']
+        inst = self.container.resource_registry.read(inst_id)
+
+        ############################################################
+        # Activate deployment to simulate running state and verify.
+        ############################################################
+        self.oms.activate_deployment(deployment_id)
+        self._verify_cgsn_mooring_deployed(mooring_id, riser_id, 16)
+
+        ############################################################
+        # OPERATIONS SOFTWARE STEP: Deactivate deployemnt.
+        ############################################################
+        self.oms.deactivate_deployment(deployment_id)
+
+        ############################################################
+        # OPERATIONS SOFTWARE STEP: Disintegrate assembly and verify.
+        ############################################################
+
+        ############################################################
+        # Transition platforms to DEVELOPED.
+        ############################################################
+        self.container.resource_registry.set_lifecycle_state(mooring_id,
+                                                             AS.PRIVATE)
+        self.container.resource_registry.set_lifecycle_state(mooring_id,
+                                                            LCS.DEVELOPED)
+        self.container.resource_registry.set_lifecycle_state(riser_id,
+                                                             AS.PRIVATE)
+        self.container.resource_registry.set_lifecycle_state(riser_id,
+                                                            LCS.DEVELOPED)
+        ############################################################
+        # Verify no running agents on devices.
+        # Dissociate running agents from all devices.
+        ############################################################
+        # TODO
+        ############################################################
+
+        ############################################################
+        # Transition instruments to DEVELOPED and dissociate from platforms.
+        ############################################################
+        ret = self.container.resource_registry.find_objects(
+            object_type='InstrumentDevice',predicate=PRED.hasDevice,
+            subject=riser_id)
+        for x in ret[0]:
+            self.container.resource_registry.set_lifecycle_state(x['_id'],
+                                                                 AS.PRIVATE)
+            self.container.resource_registry.set_lifecycle_state(x['_id'],
+                                                                 LCS.DEVELOPED)
+            self.ims.unassign_instrument_device_from_platform_device(x['_id'],
+                                                                riser_id)
+
+        ############################################################
+        # Verify deactivation and dis-integration.
+        ############################################################
+        self._verify_cgsn_mooring_deactivated(mooring_id, riser_id)
+
+        ############################################################
+        # OPERATIONS SOFTWARE STEP: Develop new assembly.
+        ############################################################
+        org_id = self._retrieve_ooi_asset(CGSN_FACILITY_ALT_ID)['_id']
+
+        ############################################################
+        # Create and register mooring platform device, assign model.
+        ############################################################
+        mooring_2 = IonObject('PlatformDevice', CGSN_MOORING_PLATFORM_2)
+        mooring_2_id = self.ims.create_platform_device(mooring_2)
+        mooring_model_id = self._retrieve_ooi_asset(CGSN_MOORING_MODEL_ALT_ID)['_id']
+        self.ims.assign_platform_model_to_platform_device(mooring_model_id,mooring_2_id)
+        self.container.resource_registry.set_lifecycle_state(mooring_2_id,
+                                                             LCS.DEVELOPED)
+        self.oms.assign_resource_to_observatory_org(mooring_2_id,org_id)
+
+        ############################################################
+        # Create and register riser platform device, assign model,
+        # associate to mooring device.
+        ############################################################
+        riser_2 = IonObject('PlatformDevice', CGSN_RISER_PLATFORM_2)
+        riser_2_id = self.ims.create_platform_device(riser_2)
+        riser_model_id = self._retrieve_ooi_asset(CGSN_RISER_MODEL_ALT_ID)['_id']
+        self.ims.assign_platform_model_to_platform_device(riser_model_id,
+                                                          riser_2_id)
+        self.ims.assign_platform_device_to_platform_device(riser_2_id,
+                                                        mooring_2_id)
+        self.container.resource_registry.set_lifecycle_state(riser_2_id,
+                                                             LCS.DEVELOPED)
+        self.oms.assign_resource_to_observatory_org(riser_2_id,org_id)
+
+        ############################################################
+        # Create and register instruments, associate models,
+        # associate to riser device, transition to DEVELOPED.
+        ############################################################
+        inst_model_id = self._retrieve_ooi_asset(CGSN_INSTRUMENT_MODEL_ALT_ID)['_id']
+        inst_ids = []
+        for x in CGSN_INSTRUMENTS_2:
+            inst_2 = IonObject('InstrumentDevice', x)
+            inst_2_id = self.ims.create_instrument_device(inst_2)
+            self.ims.assign_instrument_model_to_instrument_device(inst_model_id, inst_2_id)
+            self.ims.assign_instrument_model_to_instrument_device(inst_model_id,
+                                                                  inst_2_id)
+            self.ims.assign_instrument_device_to_platform_device(inst_2_id,
+                                                                 riser_2_id)
+            self.container.resource_registry.set_lifecycle_state(inst_2_id,
+                                                             LCS.DEVELOPED)
+            self.oms.assign_resource_to_observatory_org(inst_2_id,org_id)
+            inst_ids.append(inst_2_id)
+
+        ############################################################
+        # Verify developed assembly.
+        ############################################################
+        self._verify_cgsn_mooring_developed(mooring_2_id, riser_2_id)
+
+        ############################################################
+        # OPERATIONS SOFTWARE STEP: Integrate new assembly.
+        ############################################################
+
+        ############################################################
+        # Create and register new deployment.
+        ############################################################
+        deployment_2 = IonObject('Deployment', CGSN_DEPLOYMENT_2)
+        deployment_2_id = self.oms.create_deployment(deployment_2)
+        self.oms.assign_resource_to_observatory_org(deployment_2_id,org_id)
+
+        ############################################################
+        # Assign mooring device and site to deployment.
+        ############################################################
+        mooring_site_id = self._retrieve_ooi_asset(CGSN_MOORING_SITE_ALT_ID)['_id']
+        self.oms.deploy_platform_site(mooring_site_id,deployment_2_id)
+        self.ims.deploy_platform_device(mooring_2_id, deployment_2_id)
+        #self.oms.assign_device_to_deployment(mooring_2_id, deployment_2_id)
+        #self.oms.assign_site_to_deployment(mooring_site_id,deployment_2_id)
+        #self.oms.assign_device_to_site(mooring_2_id, mooring_site_id)
+
+        ############################################################
+        # Transition all devices.
+        ############################################################
+        self.container.resource_registry.set_lifecycle_state(mooring_2_id,
+                                                        LCS.INTEGRATED)
+        self.container.resource_registry.set_lifecycle_state(riser_2_id,
+                                                        LCS.INTEGRATED)
+        for x in inst_ids:
+            self.container.resource_registry.set_lifecycle_state(x,
+                                                        LCS.INTEGRATED)
+
+        ############################################################
+        # Verify integrated assembly.
+        ############################################################
+        self._verify_cgsn_mooring_integrated(mooring_2_id, riser_2_id)
+
+        ############################################################
+        # OPERATIONS SOFTWARE STEP: Activate new assembly.
+        ############################################################
+
+        ############################################################
+        # Transition all devices.
+        ############################################################
+        self.container.resource_registry.set_lifecycle_state(mooring_2_id,
+                                                        LCS.DEPLOYED)
+        self.container.resource_registry.set_lifecycle_state(mooring_2_id,
+                                                        AS.AVAILABLE)
+        self.container.resource_registry.set_lifecycle_state(riser_2_id,
+                                                        LCS.DEPLOYED)
+        self.container.resource_registry.set_lifecycle_state(riser_2_id,
+                                                        AS.AVAILABLE)
+        for x in inst_ids:
+            self.container.resource_registry.set_lifecycle_state(x,
+                                                        LCS.DEPLOYED)
+            self.container.resource_registry.set_lifecycle_state(x,
+                                                        AS.AVAILABLE)
+        ############################################################
+        # Activate deployment.
+        ############################################################
+        self.oms.activate_deployment(deployment_2_id)
+
+        ############################################################
+        # Verify activated assembly.
+        ############################################################
+        self._verify_cgsn_mooring_deployed(mooring_2_id, riser_2_id, 3)
+
+
+    def _verify_cgsn_mooring_deployed(self, mooring_dev_id, riser_dev_id, no_insts):
+        """
+        Verify csgn assembly in deployed state.
+        @param mooring_id: Resource ID of the subsurface mooring.
+        @param riser_id: Resource ID of the mooring riser.
+        @return:
+        """
+        # Read objects.
+        mooring_obj = self.container.resource_registry.read(mooring_dev_id)
+        riser_obj = self.container.resource_registry.read(riser_dev_id)
+
+        ########################################################
+        # Verify mooring device state and associations.
+        ########################################################
+
+        # Verify device state and visibility.
+        self.assertEqual(mooring_obj['lcstate'], LCS.DEPLOYED)
+        self.assertEqual(mooring_obj['availability'], AS.AVAILABLE)
+
+        # This PlatformDevice has one DataProducer (hasDataProducer).
+        ret = self.container.resource_registry.find_objects(
+            object_type='DataProducer',predicate=PRED.hasDataProducer,
+            subject=mooring_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has one Deployment (hasDeployment).
+        ret = self.container.resource_registry.find_objects(
+            object_type='Deployment',predicate=PRED.hasDeployment,
+            subject=mooring_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has one PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformDevice',predicate=PRED.hasDevice,
+            subject=mooring_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has one PlatformModel (hasModel).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformModel',predicate=PRED.hasModel,
+            subject=mooring_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # One org has this PlatformDevice (hasResource).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='Org',predicate=PRED.hasResource,
+            object=mooring_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # One PlatformSite has this PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformSite',predicate=PRED.hasDevice,
+            object=mooring_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        ########################################################
+        # Verify riser device state and associations.
+        ########################################################
+
+        # Verify device state and visibility.
+        self.assertEqual(riser_obj['lcstate'], LCS.DEPLOYED)
+        self.assertEqual(riser_obj['availability'], AS.AVAILABLE)
+
+        # This PlatformDevice has one DataProducer (hasDataProducer).
+        ret = self.container.resource_registry.find_objects(
+            object_type='DataProducer',predicate=PRED.hasDataProducer,
+            subject=riser_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No deployment
+        ret = self.container.resource_registry.find_objects(
+            object_type='Deployment',predicate=PRED.hasDeployment,
+            subject=riser_dev_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # No platform device.
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformDevice',predicate=PRED.hasDevice,
+            subject=riser_dev_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # This PlatformDevice has one PlatformModel (hasModel).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformModel',predicate=PRED.hasModel,
+            subject=riser_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has 16 InstrumentDevicse (hasDevice).
+        ret = self.container.resource_registry.find_objects(
+            object_type='InstrumentDevice',predicate=PRED.hasDevice,
+            subject=riser_dev_id)
+        self.assertEqual(len(ret[0]),no_insts)
+
+        # One org has this PlatformDevice (hasResource).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='Org',predicate=PRED.hasResource,
+            object=riser_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # One PlatformSite has this PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformSite',predicate=PRED.hasDevice,
+            object=riser_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # One PlatformDevice has this PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformDevice',predicate=PRED.hasDevice,
+            object=riser_dev_id)
+        self.assertEqual(len(ret[0]),1)
+
+
+    def _verify_cgsn_mooring_deactivated(self, mooring_id, riser_id):
+        """
+        Verify csgn assembly in deactivated state.
+        @param mooring_id: Resource ID of the subsurface mooring.
+        @param riser_id: Resource ID of the mooring riser.
+        @return:
+        """
+        # Read objects.
+        mooring_obj = self.container.resource_registry.read(mooring_id)
+        riser_obj = self.container.resource_registry.read(riser_id)
+
+        ########################################################
+        # Verify mooring device state and associations.
+        ########################################################
+
+        # Verify device state and visibility.
+        self.assertEqual(mooring_obj['lcstate'], LCS.DEVELOPED)
+        self.assertEqual(mooring_obj['availability'], AS.PRIVATE)
+
+        # This PlatformDevice has one DataProducer (hasDataProducer).
+        ret = self.container.resource_registry.find_objects(
+            object_type='DataProducer',predicate=PRED.hasDataProducer,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has one Deployment (hasDeployment).
+        ret = self.container.resource_registry.find_objects(
+            object_type='Deployment',predicate=PRED.hasDeployment,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has one PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformDevice',predicate=PRED.hasDevice,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has one PlatformModel (hasModel).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformModel',predicate=PRED.hasModel,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # One org has this PlatformDevice (hasResource).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='Org',predicate=PRED.hasResource,
+            object=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # One PlatformSite has this PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformSite',predicate=PRED.hasDevice,
+            object=mooring_id)
+        self.assertEqual(len(ret[0]),0)
+
+        ########################################################
+        # Verify riser device state and associations.
+        ########################################################
+
+        # Verify device state and visibility.
+        self.assertEqual(riser_obj['lcstate'], LCS.DEVELOPED)
+        self.assertEqual(riser_obj['availability'], AS.PRIVATE)
+
+        # This PlatformDevice has one DataProducer (hasDataProducer).
+        ret = self.container.resource_registry.find_objects(
+            object_type='DataProducer',predicate=PRED.hasDataProducer,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No deployment
+        ret = self.container.resource_registry.find_objects(
+            object_type='Deployment',predicate=PRED.hasDeployment,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # No platform device.
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformDevice',predicate=PRED.hasDevice,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # This PlatformDevice has one PlatformModel (hasModel).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformModel',predicate=PRED.hasModel,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No more associated instruments.
+        ret = self.container.resource_registry.find_objects(
+            object_type='InstrumentDevice',predicate=PRED.hasDevice,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # One org has this PlatformDevice (hasResource).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='Org',predicate=PRED.hasResource,
+            object=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No platform site.
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformSite',predicate=PRED.hasDevice,
+            object=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # One PlatformDevice has this PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformDevice',predicate=PRED.hasDevice,
+            object=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+
+    def _verify_cgsn_mooring_developed(self, mooring_id, riser_id):
+        """
+        Verify csgn assembly in developed state.
+        @param mooring_id: Resource ID of the subsurface mooring.
+        @param riser_id: Resource ID of the mooring riser.
+        @return:
+        """
+        # Read objects.
+        mooring_obj = self.container.resource_registry.read(mooring_id)
+        riser_obj = self.container.resource_registry.read(riser_id)
+
+        ########################################################
+        # Verify mooring device state and associations.
+        ########################################################
+
+        # Verify device state and visibility.
+        self.assertEqual(mooring_obj['lcstate'], LCS.DEVELOPED)
+        self.assertEqual(mooring_obj['availability'], AS.PRIVATE)
+
+        # This PlatformDevice has one DataProducer (hasDataProducer).
+        ret = self.container.resource_registry.find_objects(
+            object_type='DataProducer',predicate=PRED.hasDataProducer,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has no Deployment (hasDeployment).
+        ret = self.container.resource_registry.find_objects(
+            object_type='Deployment',predicate=PRED.hasDeployment,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # This PlatformDevice has one PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformDevice',predicate=PRED.hasDevice,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has one PlatformModel (hasModel).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformModel',predicate=PRED.hasModel,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # One org has this PlatformDevice (hasResource).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='Org',predicate=PRED.hasResource,
+            object=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No site until activated.
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformSite',predicate=PRED.hasDevice,
+            object=mooring_id)
+        self.assertEqual(len(ret[0]),0)
+
+        ########################################################
+        # Verify riser device state and associations.
+        ########################################################
+
+        # Verify device state and visibility.
+        self.assertEqual(riser_obj['lcstate'], LCS.DEVELOPED)
+        self.assertEqual(riser_obj['availability'], AS.PRIVATE)
+
+        # This PlatformDevice has one DataProducer (hasDataProducer).
+        ret = self.container.resource_registry.find_objects(
+            object_type='DataProducer',predicate=PRED.hasDataProducer,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No deployment
+        ret = self.container.resource_registry.find_objects(
+            object_type='Deployment',predicate=PRED.hasDeployment,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # No platform device.
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformDevice',predicate=PRED.hasDevice,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # This PlatformDevice has one PlatformModel (hasModel).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformModel',predicate=PRED.hasModel,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # Three instruments.
+        ret = self.container.resource_registry.find_objects(
+            object_type='InstrumentDevice',predicate=PRED.hasDevice,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),3)
+
+        # One org has this PlatformDevice (hasResource).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='Org',predicate=PRED.hasResource,
+            object=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No platform site.
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformSite',predicate=PRED.hasDevice,
+            object=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # One PlatformDevice has this PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformDevice',predicate=PRED.hasDevice,
+            object=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+
+    def _verify_cgsn_mooring_integrated(self, mooring_id, riser_id):
+        """
+        Verify csgn assembly in integrated state.
+        @param mooring_id: Resource ID of the subsurface mooring.
+        @param riser_id: Resource ID of the mooring riser.
+        @return:
+        """
+        # Read objects.
+        mooring_obj = self.container.resource_registry.read(mooring_id)
+        riser_obj = self.container.resource_registry.read(riser_id)
+
+        ########################################################
+        # Verify mooring device state and associations.
+        ########################################################
+
+        # Verify device state and visibility.
+        self.assertEqual(mooring_obj['lcstate'], LCS.INTEGRATED)
+        self.assertEqual(mooring_obj['availability'], AS.PRIVATE)
+
+        # This PlatformDevice has one DataProducer (hasDataProducer).
+        ret = self.container.resource_registry.find_objects(
+            object_type='DataProducer',predicate=PRED.hasDataProducer,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has no Deployment (hasDeployment).
+        ret = self.container.resource_registry.find_objects(
+            object_type='Deployment',predicate=PRED.hasDeployment,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has one PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformDevice',predicate=PRED.hasDevice,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # This PlatformDevice has one PlatformModel (hasModel).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformModel',predicate=PRED.hasModel,
+            subject=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # One org has this PlatformDevice (hasResource).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='Org',predicate=PRED.hasResource,
+            object=mooring_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No site until activated.
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformSite',predicate=PRED.hasDevice,
+            object=mooring_id)
+        self.assertEqual(len(ret[0]),0)
+
+        ########################################################
+        # Verify riser device state and associations.
+        ########################################################
+
+        # Verify device state and visibility.
+        self.assertEqual(riser_obj['lcstate'], LCS.INTEGRATED)
+        self.assertEqual(riser_obj['availability'], AS.PRIVATE)
+
+        # This PlatformDevice has one DataProducer (hasDataProducer).
+        ret = self.container.resource_registry.find_objects(
+            object_type='DataProducer',predicate=PRED.hasDataProducer,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No deployment
+        ret = self.container.resource_registry.find_objects(
+            object_type='Deployment',predicate=PRED.hasDeployment,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # No platform device.
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformDevice',predicate=PRED.hasDevice,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # This PlatformDevice has one PlatformModel (hasModel).
+        ret = self.container.resource_registry.find_objects(
+            object_type='PlatformModel',predicate=PRED.hasModel,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # Three instruments.
+        ret = self.container.resource_registry.find_objects(
+            object_type='InstrumentDevice',predicate=PRED.hasDevice,
+            subject=riser_id)
+        self.assertEqual(len(ret[0]),3)
+
+        # One org has this PlatformDevice (hasResource).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='Org',predicate=PRED.hasResource,
+            object=riser_id)
+        self.assertEqual(len(ret[0]),1)
+
+        # No platform site.
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformSite',predicate=PRED.hasDevice,
+            object=riser_id)
+        self.assertEqual(len(ret[0]),0)
+
+        # One PlatformDevice has this PlatformDevice (hasDevice).
+        ret = self.container.resource_registry.find_subjects(
+            subject_type='PlatformDevice',predicate=PRED.hasDevice,
+            object=riser_id)
+        self.assertEqual(len(ret[0]),1)
 
 
     def _get_rsn_resources(self):
@@ -459,8 +1088,9 @@ class TestDeviceActivation(IonIntegrationTestCase):
         activating and deploying a replacement.
         @return:
         """
-
         dev_id, dep_id, old_ainst_id, plat_id, mod_id, agt_id, site_id = self._get_rsn_resources()
+
+        self.oms.activate_deployment(dep_id)
 
         # Verify initial deployed state.
         # Normal running state of the system, e.g. upon preload.
@@ -475,7 +1105,6 @@ class TestDeviceActivation(IonIntegrationTestCase):
         # 3. Site -> Device is removed.
         # *Note: retire functionality in the obejct store is not yet correct,
         # so the deployment is parked in integrated for now.
-
         self.oms.deactivate_deployment(dep_id)
         self._verify_rsn_inst_deactivated_initial(dev_id, dep_id)
 
@@ -504,7 +1133,6 @@ class TestDeviceActivation(IonIntegrationTestCase):
         self.container.resource_registry.set_lifecycle_state(dev_id, AS.PRIVATE)
         self.container.resource_registry.set_lifecycle_state(dev_id,
                                                     LCS.DEVELOPED)
-
         self.ims.unassign_instrument_agent_instance_from_instrument_device(
             old_ainst_id, dev_id)
         self.ims.unassign_instrument_device_from_platform_device(dev_id,
