@@ -1187,6 +1187,7 @@ class TestDMExtended(DMTestCase):
         
         # We also need to synchronize on when the data has made it through ingestion
         dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        self.addCleanup(dataset_monitor.stop)
         rdt = self.ph.rdt_for_data_product(data_product_id)
         rdt['time'] = [0]
         rdt['temp'] = [1]
