@@ -217,7 +217,7 @@ class DataSetAgent(InstrumentAgent):
                 else:
                     raise InstrumentStateException('agent.prior_state invalid: %s' % prior_state)
 
-        log.warn("Get driver object: %s, %s, %s, %s, %s", class_name, module_name, egg_name, egg_repo, memento)
+        log.debug("Get driver object: %s, %s, %s, %s, %s", class_name, module_name, egg_name, egg_repo, memento)
         if uri:
             egg_name = uri.split('/')[-1] if uri.startswith('http') else uri
             egg_repo = uri[0:len(uri)-len(egg_name)-1] if uri.startswith('http') else None
