@@ -133,13 +133,9 @@ class TestTransformWorker(IonIntegrationTestCase):
         dataprocessdef_id, dataprocess_id, dataproduct_id = self.create_data_process()
         self.dp_list.append(dataprocess_id)
 
-        #verify that in and out data products are linked
-        assocs = self.rrclient.find_associations(dataproduct_id, PRED.hasDataProductParent, self.input_dp_id)
-        self.assertTrue(len(assocs) == 1)
-
         output_data_product1_provenance = self.dataproductclient.get_data_product_provenance(dataproduct_id)
         # Do a basic check to see if there were 2 entries in the provenance graph. Parent and Child.
-        self.assertTrue(len(output_data_product1_provenance) == 2)
+        self.assertTrue(len(output_data_product1_provenance) == 1)
 
         #retrieve subscription from data process
         subscription_objs, _ = self.rrclient.find_objects(subject=dataprocess_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
