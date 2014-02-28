@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
+"""Provides the interface to define and manage policy and a repository to store and retrieve policy
+and templates for policy definitions, aka attribute authority.
 
+@see https://confluence.oceanobservatories.org/display/syseng/CIAD+COI+OV+Policy+Management+Service
+"""
 
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
@@ -21,18 +25,15 @@ class PolicyManagementService(BasePolicyManagementService):
 
         self.event_pub = None  # For unit tests
 
-
     def on_start(self):
         self.event_pub = EventPublisher(process=self)
 
-        self.policy_event_subscriber = ProcessEventSubscriber(event_type="ResourceModifiedEvent", origin_type="Policy", callback=self._policy_event_callback, process=self)
+        self.policy_event_subscriber = ProcessEventSubscriber(event_type="ResourceModifiedEvent",
+                                                              origin_type="Policy",
+                                                              queue_name="policy_management_policy_update_events",
+                                                              callback=self._policy_event_callback,
+                                                              process=self)
         self._process.add_endpoint(self.policy_event_subscriber)
-
-    """Provides the interface to define and manage policy and a repository to store and retrieve policy
-    and templates for policy definitions, aka attribute authority.
-
-    @see https://confluence.oceanobservatories.org/display/syseng/CIAD+COI+OV+Policy+Management+Service
-    """
 
     def create_resource_access_policy(self, resource_id='', policy_name='', description='', policy_rule=''):
         """Helper operation for creating an access policy for a specific resource. The id string returned
@@ -398,15 +399,6 @@ class PolicyManagementService(BasePolicyManagementService):
 
 
     def _publish_resource_policy_event(self, policy, resource, delete_policy=False):
-        """
-        Publish ResourcePolicyEvent event
-        @param policy:
-        @param resource:
-        @param delete_policy:
-        @return:
-        """
-
-
         if self.event_pub:
             event_data = dict()
             event_data['origin_type'] = 'Resource_Policy'
@@ -420,15 +412,6 @@ class PolicyManagementService(BasePolicyManagementService):
 
 
     def _publish_related_resource_policy_event(self, policy, resource_id, delete_policy=False):
-        """
-        Publish ResourcePolicyEvent event
-        @param policy:
-        @param resource:
-        @param delete_policy:
-        @return:
-        """
-
-
         if self.event_pub:
             event_data = dict()
             event_data['origin_type'] = 'Resource_Policy'
@@ -439,13 +422,6 @@ class PolicyManagementService(BasePolicyManagementService):
             self.event_pub.publish_event(event_type='RelatedResourcePolicyEvent', origin=policy._id, **event_data)
 
     def _publish_service_policy_event(self, policy, delete_policy=False):
-        """
-        Publish ServicePolicyEvent event
-        @param policy:
-        @param delete_policy:
-        @return:
-        """
-
         if self.event_pub:
             event_data = dict()
             event_data['origin_type'] = 'Service_Policy'
