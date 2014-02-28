@@ -463,7 +463,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         self.RR2.unassign_device_from_site_with_has_device(device_id, site_id)
 
-    def update_device_add_geo_add_temporal(self, device_id='', site_id='', deployment_obj=''):
+    def _update_device_add_geo_add_temporal(self, device_id='', site_id='', deployment_obj=''):
         """Assigns to device:
                temporal extent from deployment
                geo location from site
@@ -483,7 +483,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 device_obj.temporal_bounds = constraint
         self.RR.update(device_obj)
 
-    def update_device_remove_geo_update_temporal(self, device_id='', deployment_obj=''):
+    def _update_device_remove_geo_update_temporal(self, device_id='', deployment_obj=''):
         """Remove the geo location and update temporal extent (end) from the device
 
         @param device_id    str
@@ -667,14 +667,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             log.info("Unassigning hasDevice; device '%s' from site '%s'", device_id, site_id)
             self.unassign_device_from_site(device_id, site_id)
             log.info("Removing geo and updating temporal attrs for device '%s'", device_id)
-            self.update_device_remove_geo_update_temporal(device_id, depl_obj)
+            self._update_device_remove_geo_update_temporal(device_id, depl_obj)
 
         # process the additions
         for site_id, device_id in deployment_activator.hasdevice_associations_to_create():
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
             log.info("Adding geo and updating temporal attrs for device '%s'", device_id)
-            self.update_device_add_geo_add_temporal(device_id, site_id, depl_obj)
+            self._update_device_add_geo_add_temporal(device_id, site_id, depl_obj)
 
 
         #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
@@ -725,7 +725,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     a = self.RR.get_association(s, PRED.hasDevice, d)
                     self.RR.delete_association(a)
                     log.info("Removing geo and updating temporal attrs for device '%s'", d)
-                    self.update_device_remove_geo_update_temporal(d, deployment_obj)
+                    self._update_device_remove_geo_update_temporal(d, deployment_obj)
                     self.RR.execute_lifecycle_transition(d, LCE.INTEGRATE)
 
         # This should set the deployment resource to retired.
