@@ -2503,17 +2503,20 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         with self.assertRaises(BadRequest) as cm:
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=obs_operator_actor_header)
-        self.assertIn( 'PLANNED_AVAILABLE has no transition for event',cm.exception.message)
+        self.assertIn('has no transition for event announce', cm.exception.message)
 
         with self.assertRaises(BadRequest) as cm:
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=obs_operator_actor_header)
-        self.assertIn( 'PLANNED_AVAILABLE has no transition for event',cm.exception.message)
+        self.assertIn('has no transition for event enable', cm.exception.message)
 
         #Should be able to retire a device anytime
         self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.RETIRE, headers=obs_operator_actor_header)
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
-        self.assertEquals(inst_dev_obj.lcstate, LCS.DELETED)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.RETIRED)
 
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DELETE, headers=obs_operator_actor_header)
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.DELETED)
 
         self.ims_client.force_delete_instrument_device(inst_dev_id, headers=self.system_actor_header)
 
