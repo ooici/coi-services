@@ -13,7 +13,6 @@ __license__ = 'Apache 2.0'
 
 # Pyon object and resource imports.
 from pyon.public import IonObject, log, RT, PRED, LCS, OT, CFG
-
 from interface.objects import PlatformSite
 from interface.objects import InstrumentSite
 from interface.objects import Deployment
@@ -42,10 +41,26 @@ RSN_PLATFORM_SITE = 'Medium Power JBox 01A - Regional Continental Margin Base'
 RSN_INSTRUMENT_SITE = 'Tidal Seafloor Pressure on Medium Power JBox 01A - Regional Continental Margin Base'
 RSN_INSTRUMENT_01 = 'Instrument RS01SLBS-MJ01A-02-PRESTA999 device #01'
 RSN_INSTRUMENT_02 = 'Instrument RS01SLBS-MJ01A-02-PRESTA999 device #02'
+RSN_PLATFORM_ALT_ID = 'RS01SLBS-MJ01A_PD'
+RSN_PLATFORM_DEPLOYMENT_ALT_ID = 'RS01SLBS-MJ01A_DEP'
+RSN_PLATFORM_SITE_ALT_ID = 'RS01SLBS-MJ01A'
 
 # 3-Wavelength Fluorometer on Mooring Riser 003 - Coastal Pioneer Central
 # Instrument CP01CNSM-RI003-05-FLORTD999 device #01
 EXAMPLE_DEVICE_ALT_ID = 'CP01CNSM-RI003-05-FLORTD999_ID'
+
+CGSN_MOORING_PLATFORM_ALT_ID = 'GP03FLMA-FM001_PD'
+CGSN_MOORING_DEPLOYMENT_ALT_ID = 'GP03FLMA-FM001_DEP'
+CGSN_RISER_PLATFORM_ALT_ID = 'GP03FLMA-RI001_PD'
+CGSN_RISER_INSTRUMENT_ALT_ID = 'GP03FLMA-RI001-16-CTDMOH999_ID'
+#CGSN_MOORING_MODEL_ALT_ID = 'LM_PM'
+CGSN_MOORING_MODEL_ALT_ID = 'FM_PM'
+CGSN_RISER_MODEL_ALT_ID = 'RI_PM'
+CGSN_MOORING_SITE_ALT_ID = 'GP03FLMA-FM001'
+CGSN_RISER_SITE_ALT_ID = 'GP03FLMA-RI001'
+#CGSN_INSTRUMENT_MODEL_ALT_ID = 'CTDMOG'
+CGSN_INSTRUMENT_MODEL_ALT_ID = 'CTDMOG'
+CGSN_FACILITY_ALT_ID = 'MF_CGSN'
 
 
 RSN_INSTRUMENT_01 = dict(
@@ -56,7 +71,7 @@ RSN_INSTRUMENT_01 = dict(
         name='Tidal Seafloor Pressure on Medium Power JBox 01A - Regional Continental Margin Base',
         description='Instrument RS01SLBS-MJ01A-02-PRESTA999 device #01',
         alt_ids=["PRE:RS01SLBS-MJ01A-02-PRESTA999_ID"],
-        serial_number='',
+        serial_number='123123',
         monitorable=True,
         controllable=True,
         message_controllable=True,
@@ -79,7 +94,7 @@ RSN_INSTRUMENT_02 = dict (
     name='Tidal Seafloor Pressure on Medium Power JBox 01A - Regional Continental Margin Base',
     description='Instrument RS01SLBS-MJ01A-02-PRESTA999 device #02',
     alt_ids=[],
-    serial_number='',
+    serial_number='456456',
     monitorable=True,
     controllable=True,
     message_controllable=True,
@@ -180,7 +195,7 @@ AUGMENT_PLATFORM_DEVICES =[
         name='Medium Power JBox 01A - Regional Continental Margin Base device #01',
         description='Platform RS01SLBS-MJ01A device #01',
         alt_ids=["PRE:RS01SLBS-MJ01A_PD"],
-        serial_number='',
+        serial_number='464646',
         monitorable=True,
         controllable=True,
         message_controllable=True,
@@ -364,11 +379,294 @@ AUGMENT_INSTRUMENT_DEPLOYMENTS = [
     RSN_INST_DEPLOYMENT_1
     ]
 
+CGSN_DEPLOYMENT_2 = dict(
+    name='Deployment of platform GP03FLMA-FM001',
+    description='Deployment: GP03FLMA-FM001_DEP',
+    coordinate_reference_system=GeospatialCoordinateReferenceSystem(),
+    constraint_list=[TemporalBounds()],
+    context=RemotePlatformDeploymentContext({'device_mounting_positions': []}),
+    geospatial_point_center=GeospatialIndex({'lat': 0.0, 'lon': 0.0}),
+    addl={},
+    port_assignments={},
+)
 
+
+CGSN_MOORING_PLATFORM_2 = dict(
+    name='Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A',
+    description='Platform GP03FLMA-FM001 device #02',
+    serial_number='111333',
+    monitorable=True,
+    controllable=True,
+    message_controllable=True,
+    platform_monitor_attributes=[],
+    custom_attributes={},
+    ports=[],
+    contacts=[ContactInformation()],
+    index_location=GeospatialIndex(),
+    reference_urls=[],
+    commissioned=CommissionedStatusType.COMMISSIONED,
+)
+
+
+CGSN_RISER_PLATFORM_2 = dict(
+    name='Mooring Riser 001 - Global Station Papa Mesoscale Flanking A',
+    description='Platform GP03FLMA-RI001 device #02',
+    serial_number='222333',
+    monitorable=True,
+    controllable=True,
+    message_controllable=True,
+    platform_monitor_attributes=[],
+    custom_attributes={},
+    ports=[],
+    contacts=[ContactInformation()],
+    index_location=GeospatialIndex(),
+    reference_urls=[],
+    commissioned=CommissionedStatusType.COMMISSIONED,
+)
+
+CGSN_INSTRUMENTS_2 = [
+    dict(
+        name='CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A',
+        description='Instrument GP03FLMA-RI001-09-CTDMOG999 device #02',
+        alt_ids=[],
+        serial_number='2223',
+        monitorable=True,
+        controllable=True,
+        message_controllable=True,
+        custom_attributes={},
+        contacts=[ContactInformation()],
+        reference_urls=[],
+        commissioned=CommissionedStatusType.COMMISSIONED,
+        last_calibration_datetime='',
+        hardware_version='',
+        firmware_version='',
+    ),
+    dict(
+        name='CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A',
+        description='Instrument GP03FLMA-RI001-17-CTDMOG999 device #02',
+        alt_ids=[],
+        serial_number='2224',
+        monitorable=True,
+        controllable=True,
+        message_controllable=True,
+        custom_attributes={},
+        contacts=[ContactInformation()],
+        reference_urls=[],
+        commissioned=CommissionedStatusType.COMMISSIONED,
+        last_calibration_datetime='',
+        hardware_version='',
+        firmware_version='',
+    ),
+    dict(
+        name='CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A',
+        description='Instrument GP03FLMA-RI001-13-CTDMOG999 device #02',
+        alt_ids=[],
+        serial_number='2225',
+        monitorable=True,
+        controllable=True,
+        message_controllable=True,
+        custom_attributes={},
+        contacts=[ContactInformation()],
+        reference_urls=[],
+        commissioned=CommissionedStatusType.COMMISSIONED,
+        last_calibration_datetime='',
+        hardware_version='',
+        firmware_version='',
+    )
+]
+
+
+CGSN_MOORING_AGENT = dict(
+        name='Low Power Sub-surface Mooring Agent 0.1',
+        description='Instrument Agent for GP03FLMA-FM001 Device',
+        alt_ids=[],
+        agent_module='path.to.agent.mod',
+        agent_class='agent_class',
+        agent_uri='agent_uri',
+        agent_version='0.1',
+        agent_default_config={},
+        stream_configurations=[],
+        driver_module='path.to.driver.mod',
+        driver_class='driver_class',
+        driver_uri='driver_uri',
+        driver_version='0.1',
+        driver_type=DriverTypeEnum.EXT_PROCESS,
+        commissioned=CommissionedStatusType.COMMISSIONED,
+        lcstate='DEPLOYED',
+        availability='AVAILABLE',
+        #type_=InstrumentAgent,
+        #ts_created='',
+        #ts_updated='',
+        #addl={},
+)
+
+
+CGSN_RISER_AGENT = dict(
+    name='Mooring Riser Agent 0.1',
+    description='Instrument Agent for Mooring Riser Device',
+    alt_ids=[],
+    agent_module='path.to.agent.mod',
+    agent_class='agent_class',
+    agent_uri='agent_uri',
+    agent_version='0.1',
+    agent_default_config={},
+    stream_configurations=[],
+    driver_module='path.to.driver.mod',
+    driver_class='driver_class',
+    driver_uri='driver_uri',
+    driver_version='0.1',
+    driver_type=DriverTypeEnum.EXT_PROCESS,
+    commissioned=CommissionedStatusType.COMMISSIONED,
+    lcstate='DEPLOYED',
+    availability='AVAILABLE',
+    #type_=InstrumentAgent,
+    #ts_created='',
+    #ts_updated='',
+    #addl={},
+)
+
+CGSN_MOORING_AGENT_INSTANCE = dict(
+    name='Low Power Sub-surface Mooring Agent Instance',
+    description='Instrument Agent Instance for Low Power Sub-surface Mooring Device',
+    alt_ids=[],
+    agent_config={},
+    agent_spawn_config={},
+    saved_agent_state={},
+    driver_config={},
+    alerts=[],
+    agent_process_id='',
+    deployment_type=DeploymentTypeEnum.PROCESS,
+    #lcstate='DEPLOYED',
+    #availability='AVAILABLE',
+    #type_='InstrumentAgentInstance',
+    #ts_created='',
+    #ts_updated='',
+    #addl={},
+)
+
+CGSN_RISER_AGENT_INSTANCE = dict(
+    name='Mooring Riser Agent Instance',
+    description='Instrument Agent Instance for Mooring Riser Device',
+    alt_ids=[],
+    agent_config={},
+    agent_spawn_config={},
+    saved_agent_state={},
+    driver_config={},
+    alerts=[],
+    agent_process_id='',
+    deployment_type=DeploymentTypeEnum.PROCESS,
+    #lcstate='DEPLOYED',
+    #availability='AVAILABLE',
+    #type_='InstrumentAgentInstance',
+    #ts_created='',
+    #ts_updated='',
+    #addl={},
+)
+
+CGSN_INSTRUMENT_AGENT = dict(
+    name='CTDMO Agent 0.1',
+    description='Instrument Agent for CTDMO Device',
+    alt_ids=[],
+    agent_module='path.to.agent.mod',
+    agent_class='agent_class',
+    agent_uri='agent_uri',
+    agent_version='0.1',
+    agent_default_config={},
+    stream_configurations=[],
+    driver_module='path.to.driver.mod',
+    driver_class='driver_class',
+    driver_uri='driver_uri',
+    driver_version='0.1',
+    driver_type=DriverTypeEnum.EXT_PROCESS,
+    commissioned=CommissionedStatusType.COMMISSIONED,
+    lcstate='DEPLOYED',
+    availability='AVAILABLE',
+    #type_=InstrumentAgent,
+    #ts_created='',
+    #ts_updated='',
+    #addl={},
+)
+
+
+CGSN_INSTURMENT_AGENT_INSTANCES = [
+    dict(
+        name='CTDMO Agent Instance',
+        description='Instrument Agent Instance for CTDMO Device',
+        alt_ids=[],
+        agent_config={},
+        startup_config={},
+        agent_spawn_config={},
+        saved_agent_state={},
+        driver_config={},
+        port_agent_config={},
+        alerts=[],
+        agent_process_id='',
+        deployment_type=DeploymentTypeEnum.PROCESS,
+        #lcstate='DEPLOYED',
+        #availability='AVAILABLE',
+        #type_='InstrumentAgentInstance',
+        #ts_created='',
+        #ts_updated='',
+        #addl={},
+        ),
+    dict(
+        name='CTDMO Agent Instance',
+        description='Instrument Agent Instance for CTDMO Device',
+        alt_ids=[],
+        agent_config={},
+        startup_config={},
+        agent_spawn_config={},
+        saved_agent_state={},
+        driver_config={},
+        port_agent_config={},
+        alerts=[],
+        agent_process_id='',
+        deployment_type=DeploymentTypeEnum.PROCESS,
+        #lcstate='DEPLOYED',
+        #availability='AVAILABLE',
+        #type_='InstrumentAgentInstance',
+        #ts_created='',
+        #ts_updated='',
+        #addl={},
+        ),
+    dict(
+        name='CTDMO Agent Instance',
+        description='Instrument Agent Instance for CTDMO Device',
+        alt_ids=[],
+        agent_config={},
+        startup_config={},
+        agent_spawn_config={},
+        saved_agent_state={},
+        driver_config={},
+        port_agent_config={},
+        alerts=[],
+        agent_process_id='',
+        deployment_type=DeploymentTypeEnum.PROCESS,
+        #lcstate='DEPLOYED',
+        #availability='AVAILABLE',
+        #type_='InstrumentAgentInstance',
+        #ts_created='',
+        #ts_updated='',
+        #addl={},
+        ),
+]
 
 
 
 """
+The following comments show the object and association configurations as
+elements are cycled through the activation cycle and verified.
+RSN case: follows a single instrument and instrument deployment objects
+(only instrument shown below).
+CGSN case: follows the mooring platfom and deployment objects.
+(shows both platform and deployment objects).
+In both cases both objects are verified in tests.
+"""
+
+
+"""
+**RSN CASE
+
 INITIAL DEPLOYED:
 ========================================================================================================================================================================================================
 lcstate                                            DEPLOYED
@@ -585,3 +883,305 @@ this InstrumentDevice               hasModel                       InstrumentMod
 
 
 """
+
+
+"""
+** CGSN CASE
+
+INITIAL DEPLOYED
+
+========================================================================================================================================================================================================
+lcstate                                            DEPLOYED
+_rev                                               3
+availability                                       AVAILABLE
+controllable                                       True
+uuid
+contacts                                           [ContactInformation({'individual_names_given': 'John', 'city': 'Falmouth', 'roles': ['primary'], 'administrative_area': '', 'url': '', 'country': 'USA', 'variables': [{'name': '', 'value': ''}], 'organization_name': 'Woods Hole Oceanographic (Raytheon)', 'postal_code': '', 'individual_name_family': 'Cosgrove', 'phones': [Phone({'phone_number': '508-289-4904', 'phone_type': 'office'})], 'position_name': 'OOI OMC admin', 'email': 'jcosgrove@whoi.edu', 'street_address': ''}), ContactInformation({'individual_names_given': 'Kurt', 'city': '', 'roles': ['alternate'], 'administrative_area': 'MA', 'url': '', 'country': 'USA', 'variables': [{'name': '', 'value': ''}], 'organization_name': 'WHOI-OOI', 'postal_code': '', 'individual_name_family': 'Stiffel', 'phones': [Phone({'phone_number': '508-289-3920', 'phone_type': 'office'})], 'position_name': 'Instrument Lead', 'email': 'Kurt_Stiffel@raytheon.com', 'street_address': ''})]
+index_location                                     GeospatialIndex({'lat': 0.0, 'lon': 0.0})
+custom_attributes                                  {}
+platform_monitor_attributes                        []
+serial_number
+addl                                               {}
+monitorable                                        True
+message_controllable                               True
+description                                        Platform GP03FLMA-FM001 device #01
+reference_urls                                     []
+ts_updated                                         1393369548413
+commissioned                                       1
+ts_created                                         1393369548265
+name                                               Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A
+alt_ids                                            ['PRE:GP03FLMA-FM001_PD']
+type_                                              PlatformDevice
+_id                                                f89ebf56a36c4bc9bb62f564ebc79dee
+ports                                              []
+========================================================================================================================================================================================================
+PlatformSite                   Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A                                               hasDevice                      this PlatformDevice
+Org                            CGSN Facility                                                                                                            hasResource                    this PlatformDevice
+========================================================================================================================================================================================================
+this PlatformDevice                 hasDataProducer                DataProducer                   Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDeployment                  Deployment                     Deployment of platform GP03FLMA-FM001
+this PlatformDevice                 hasDevice                      PlatformDevice                 Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasModel                       PlatformModel                  Low Power Sub-surface Mooring
+this PlatformDevice                 hasOwner                       ActorIdentity                  ionsystem
+========================================================================================================================================================================================================
+========================================================================================================================================================================================================
+lcstate                                            DEPLOYED
+_rev                                               3
+availability                                       AVAILABLE
+controllable                                       True
+uuid
+contacts                                           [ContactInformation({'individual_names_given': 'John', 'city': 'Falmouth', 'roles': ['primary'], 'administrative_area': '', 'url': '', 'country': 'USA', 'variables': [{'name': '', 'value': ''}], 'organization_name': 'Woods Hole Oceanographic (Raytheon)', 'postal_code': '', 'individual_name_family': 'Cosgrove', 'phones': [Phone({'phone_number': '508-289-4904', 'phone_type': 'office'})], 'position_name': 'OOI OMC admin', 'email': 'jcosgrove@whoi.edu', 'street_address': ''}), ContactInformation({'individual_names_given': 'Kurt', 'city': '', 'roles': ['alternate'], 'administrative_area': 'MA', 'url': '', 'country': 'USA', 'variables': [{'name': '', 'value': ''}], 'organization_name': 'WHOI-OOI', 'postal_code': '', 'individual_name_family': 'Stiffel', 'phones': [Phone({'phone_number': '508-289-3920', 'phone_type': 'office'})], 'position_name': 'Instrument Lead', 'email': 'Kurt_Stiffel@raytheon.com', 'street_address': ''})]
+index_location                                     GeospatialIndex({'lat': 0.0, 'lon': 0.0})
+custom_attributes                                  {}
+platform_monitor_attributes                        []
+serial_number
+addl                                               {}
+monitorable                                        True
+message_controllable                               True
+description                                        Platform GP03FLMA-RI001 device #01
+reference_urls                                     []
+ts_updated                                         1393369542827
+commissioned                                       1
+ts_created                                         1393369542677
+name                                               Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+alt_ids                                            ['PRE:GP03FLMA-RI001_PD']
+type_                                              PlatformDevice
+_id                                                6af9f084229d4cca9ecf90551bd7bf3f
+ports                                              []
+========================================================================================================================================================================================================
+PlatformSite                   Mooring Riser 001 - Global Station Papa Mesoscale Flanking A                                                             hasDevice                      this PlatformDevice
+PlatformDevice                 Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A                                               hasDevice                      this PlatformDevice
+Org                            CGSN Facility                                                                                                            hasResource                    this PlatformDevice
+========================================================================================================================================================================================================
+this PlatformDevice                 hasDataProducer                DataProducer                   Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasOwner                       ActorIdentity                  ionsystem
+this PlatformDevice                 hasModel                       PlatformModel                  Mooring Riser
+this PlatformDevice                 hasDevice                      InstrumentDevice               Velocity Profiler (long range) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               Dissolved Oxygen Stable Response on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               Seawater pH on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               3-Wavelength Fluorometer on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+========================================================================================================================================================================================================
+
+DEACTIVATED
+
+========================================================================================================================================================================================================
+lcstate                                            DEVELOPED
+_rev                                               6
+availability                                       PRIVATE
+controllable                                       True
+uuid
+contacts                                           [ContactInformation({'individual_names_given': 'John', 'city': 'Falmouth', 'roles': ['primary'], 'administrative_area': '', 'url': '', 'country': 'USA', 'variables': [{'name': '', 'value': ''}], 'organization_name': 'Woods Hole Oceanographic (Raytheon)', 'postal_code': '', 'individual_name_family': 'Cosgrove', 'phones': [Phone({'phone_number': '508-289-4904', 'phone_type': 'office'})], 'position_name': 'OOI OMC admin', 'email': 'jcosgrove@whoi.edu', 'street_address': ''}), ContactInformation({'individual_names_given': 'Kurt', 'city': '', 'roles': ['alternate'], 'administrative_area': 'MA', 'url': '', 'country': 'USA', 'variables': [{'name': '', 'value': ''}], 'organization_name': 'WHOI-OOI', 'postal_code': '', 'individual_name_family': 'Stiffel', 'phones': [Phone({'phone_number': '508-289-3920', 'phone_type': 'office'})], 'position_name': 'Instrument Lead', 'email': 'Kurt_Stiffel@raytheon.com', 'street_address': ''})]
+index_location                                     GeospatialIndex({'lat': 0.0, 'lon': 0.0})
+custom_attributes                                  {}
+platform_monitor_attributes                        []
+serial_number
+addl                                               {}
+monitorable                                        True
+message_controllable                               True
+description                                        Platform GP03FLMA-FM001 device #01
+reference_urls                                     []
+ts_updated                                         1393374834914
+commissioned                                       1
+ts_created                                         1393374783492
+name                                               Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A
+alt_ids                                            ['PRE:GP03FLMA-FM001_PD']
+type_                                              PlatformDevice
+_id                                                cdf3238286224bc88e73e8158044ddcc
+ports                                              []
+========================================================================================================================================================================================================
+Org                            CGSN Facility                                                                                                            hasResource                    this PlatformDevice
+========================================================================================================================================================================================================
+this PlatformDevice                 hasDataProducer                DataProducer                   Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDeployment                  Deployment                     Deployment of platform GP03FLMA-FM001
+this PlatformDevice                 hasDevice                      PlatformDevice                 Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasModel                       PlatformModel                  Low Power Sub-surface Mooring
+this PlatformDevice                 hasOwner                       ActorIdentity                  ionsystem
+========================================================================================================================================================================================================
+========================================================================================================================================================================================================
+lcstate                                            DEVELOPED
+_rev                                               6
+availability                                       PRIVATE
+controllable                                       True
+uuid
+contacts                                           [ContactInformation({'individual_names_given': 'John', 'city': 'Falmouth', 'roles': ['primary'], 'administrative_area': '', 'url': '', 'country': 'USA', 'variables': [{'name': '', 'value': ''}], 'organization_name': 'Woods Hole Oceanographic (Raytheon)', 'postal_code': '', 'individual_name_family': 'Cosgrove', 'phones': [Phone({'phone_number': '508-289-4904', 'phone_type': 'office'})], 'position_name': 'OOI OMC admin', 'email': 'jcosgrove@whoi.edu', 'street_address': ''}), ContactInformation({'individual_names_given': 'Kurt', 'city': '', 'roles': ['alternate'], 'administrative_area': 'MA', 'url': '', 'country': 'USA', 'variables': [{'name': '', 'value': ''}], 'organization_name': 'WHOI-OOI', 'postal_code': '', 'individual_name_family': 'Stiffel', 'phones': [Phone({'phone_number': '508-289-3920', 'phone_type': 'office'})], 'position_name': 'Instrument Lead', 'email': 'Kurt_Stiffel@raytheon.com', 'street_address': ''})]
+index_location                                     GeospatialIndex({'lat': 0.0, 'lon': 0.0})
+custom_attributes                                  {}
+platform_monitor_attributes                        []
+serial_number
+addl                                               {}
+monitorable                                        True
+message_controllable                               True
+description                                        Platform GP03FLMA-RI001 device #01
+reference_urls                                     []
+ts_updated                                         1393374834939
+commissioned                                       1
+ts_created                                         1393374777646
+name                                               Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+alt_ids                                            ['PRE:GP03FLMA-RI001_PD']
+type_                                              PlatformDevice
+_id                                                25259df974bb4807bb97899bb8edafce
+ports                                              []
+========================================================================================================================================================================================================
+PlatformDevice                 Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A                                               hasDevice                      this PlatformDevice
+Org                            CGSN Facility                                                                                                            hasResource                    this PlatformDevice
+========================================================================================================================================================================================================
+this PlatformDevice                 hasOwner                       ActorIdentity                  ionsystem
+this PlatformDevice                 hasDataProducer                DataProducer                   Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasModel                       PlatformModel                  Mooring Riser
+========================================================================================================================================================================================================
+
+
+DEVELOPED
+
+========================================================================================================================================================================================================
+lcstate                                            DEVELOPED
+_rev                                               2
+availability                                       PRIVATE
+controllable                                       True
+uuid
+contacts                                           [ContactInformation({'individual_names_given': '', 'city': '', 'roles': [], 'administrative_area': '', 'url': '', 'country': '', 'variables': [{'name': '', 'value': ''}], 'organization_name': '', 'postal_code': '', 'individual_name_family': '', 'phones': [], 'position_name': '', 'email': '', 'street_address': ''})]
+index_location                                     GeospatialIndex({'lat': 0.0, 'lon': 0.0})
+custom_attributes                                  {}
+platform_monitor_attributes                        []
+serial_number
+addl                                               {}
+monitorable                                        True
+message_controllable                               True
+description                                        Platform GP03FLMA-FM001 device #02
+reference_urls                                     []
+ts_updated                                         1393463134032
+commissioned                                       2
+ts_created                                         1393463133959
+name                                               Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A
+alt_ids                                            []
+type_                                              PlatformDevice
+_id                                                0209958f033b4cecada3184243a5f289
+ports                                              []
+========================================================================================================================================================================================================
+Org                            CGSN Facility                                                                                                            hasResource                    this PlatformDevice
+========================================================================================================================================================================================================
+this PlatformDevice                 hasDataProducer                DataProducer                   Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDeployment                  Deployment                     Deployment of platform GP03FLMA-FM001
+this PlatformDevice                 hasDevice                      PlatformDevice                 Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasModel                       PlatformModel                  Low Power Surface Mooring
+========================================================================================================================================================================================================
+========================================================================================================================================================================================================
+lcstate                                            DEVELOPED
+_rev                                               2
+availability                                       PRIVATE
+controllable                                       True
+uuid
+contacts                                           [ContactInformation({'individual_names_given': '', 'city': '', 'roles': [], 'administrative_area': '', 'url': '', 'country': '', 'variables': [{'name': '', 'value': ''}], 'organization_name': '', 'postal_code': '', 'individual_name_family': '', 'phones': [], 'position_name': '', 'email': '', 'street_address': ''})]
+index_location                                     GeospatialIndex({'lat': 0.0, 'lon': 0.0})
+custom_attributes                                  {}
+platform_monitor_attributes                        []
+serial_number
+addl                                               {}
+monitorable                                        True
+message_controllable                               True
+description                                        Platform GP03FLMA-RI001 device #02
+reference_urls                                     []
+ts_updated                                         1393463134256
+commissioned                                       2
+ts_created                                         1393463134160
+name                                               Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+alt_ids                                            []
+type_                                              PlatformDevice
+_id                                                090ca97279d542ba8f0db28e9902f282
+ports                                              []
+========================================================================================================================================================================================================
+PlatformDevice                 Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A                                               hasDevice                      this PlatformDevice
+Org                            CGSN Facility                                                                                                            hasResource                    this PlatformDevice
+========================================================================================================================================================================================================
+this PlatformDevice                 hasDataProducer                DataProducer                   Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasModel                       PlatformModel                  Mooring Riser
+========================================================================================================================================================================================================
+
+DEPLOYED NEW:
+
+========================================================================================================================================================================================================
+lcstate                                            INTEGRATED
+_rev                                               3
+availability                                       PRIVATE
+controllable                                       True
+uuid
+contacts                                           [ContactInformation({'individual_names_given': '', 'city': '', 'roles': [], 'administrative_area': '', 'url': '', 'country': '', 'variables': [{'name': '', 'value': ''}], 'organization_name': '', 'postal_code': '', 'individual_name_family': '', 'phones': [], 'position_name': '', 'email': '', 'street_address': ''})]
+index_location                                     GeospatialIndex({'lat': 0.0, 'lon': 0.0})
+custom_attributes                                  {}
+platform_monitor_attributes                        []
+serial_number
+addl                                               {}
+monitorable                                        True
+message_controllable                               True
+description                                        Platform GP03FLMA-FM001 device #02
+reference_urls                                     []
+ts_updated                                         1393475036647
+commissioned                                       2
+ts_created                                         1393475035645
+name                                               Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A
+alt_ids                                            []
+type_                                              PlatformDevice
+_id                                                8e7f5104d6204186955e28afe0914a4b
+ports                                              []
+========================================================================================================================================================================================================
+PlatformSite                   Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A                                               hasDevice                      this PlatformDevice
+Org                            CGSN Facility                                                                                                            hasResource                    this PlatformDevice
+========================================================================================================================================================================================================
+this PlatformDevice                 hasDataProducer                DataProducer                   Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDeployment                  Deployment                     Deployment of platform GP03FLMA-FM001
+this PlatformDevice                 hasDevice                      PlatformDevice                 Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasModel                       PlatformModel                  Low Power Sub-surface Mooring
+========================================================================================================================================================================================================
+========================================================================================================================================================================================================
+lcstate                                            INTEGRATED
+_rev                                               3
+availability                                       PRIVATE
+controllable                                       True
+uuid
+contacts                                           [ContactInformation({'individual_names_given': '', 'city': '', 'roles': [], 'administrative_area': '', 'url': '', 'country': '', 'variables': [{'name': '', 'value': ''}], 'organization_name': '', 'postal_code': '', 'individual_name_family': '', 'phones': [], 'position_name': '', 'email': '', 'street_address': ''})]
+index_location                                     GeospatialIndex({'lat': 0.0, 'lon': 0.0})
+custom_attributes                                  {}
+platform_monitor_attributes                        []
+serial_number
+addl                                               {}
+monitorable                                        True
+message_controllable                               True
+description                                        Platform GP03FLMA-RI001 device #02
+reference_urls                                     []
+ts_updated                                         1393475036659
+commissioned                                       2
+ts_created                                         1393475035785
+name                                               Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+alt_ids                                            []
+type_                                              PlatformDevice
+_id                                                78f6769696c44e79863f491a0829a92a
+ports                                              []
+========================================================================================================================================================================================================
+PlatformDevice                 Low Power Sub-surface Mooring A - Global Station Papa Mesoscale Flanking A                                               hasDevice                      this PlatformDevice
+PlatformSite                   Mooring Riser 001 - Global Station Papa Mesoscale Flanking A                                                             hasDevice                      this PlatformDevice
+Org                            CGSN Facility                                                                                                            hasResource                    this PlatformDevice
+========================================================================================================================================================================================================
+this PlatformDevice                 hasDataProducer                DataProducer                   Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasDevice                      InstrumentDevice               CTD Mooring (Inductive) on Mooring Riser 001 - Global Station Papa Mesoscale Flanking A
+this PlatformDevice                 hasModel                       PlatformModel                  Mooring Riser
+========================================================================================================================================================================================================
+
+"""
+
