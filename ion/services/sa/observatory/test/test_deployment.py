@@ -15,7 +15,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.objects import PortTypeEnum
+from interface.objects import PortTypeEnum, GeospatialBounds
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import NotFound, BadRequest
@@ -192,9 +192,17 @@ class TestDeployment(IonIntegrationTestCase):
         # Create platform site, platform device, platform model
         #-------------------------------------------------------------------------------------
 
+        bounds = GeospatialBounds(geospatial_latitude_limit_north=float(5),
+                                  geospatial_latitude_limit_south=float(5),
+                                  geospatial_longitude_limit_west=float(15),
+                                  geospatial_longitude_limit_east=float(15),
+                                  geospatial_vertical_min=float(0),
+                                  geospatial_vertical_max=float(1000))
+
         platform_site__obj = IonObject(RT.PlatformSite,
                                         name='PlatformSite1',
-                                        description='test platform site')
+                                        description='test platform site',
+                                        constraint_list=[bounds])
         platform_site_id = self.omsclient.create_platform_site(platform_site__obj)
 
         platform_device_obj = IonObject(RT.PlatformDevice,
@@ -213,9 +221,17 @@ class TestDeployment(IonIntegrationTestCase):
         # Create instrument site
         #-------------------------------------------------------------------------------------
 
+        bounds = GeospatialBounds(geospatial_latitude_limit_north=float(45),
+                                  geospatial_latitude_limit_south=float(40),
+                                  geospatial_longitude_limit_west=float(-75),
+                                  geospatial_longitude_limit_east=float(-70),
+                                  geospatial_vertical_min=float(0),
+                                  geospatial_vertical_max=float(500))
+
         instrument_site_obj = IonObject(RT.InstrumentSite,
                                         name='InstrumentSite1',
-                                        description='test instrument site')
+                                        description='test instrument site',
+                                        constraint_list=[bounds])
         instrument_site_id = self.omsclient.create_instrument_site(instrument_site_obj, platform_site_id)
 
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
@@ -248,9 +264,9 @@ class TestDeployment(IonIntegrationTestCase):
         # Create a deployment object
         #----------------------------------------------------------------------------------------------------
 
-        start = IonTime(datetime.datetime(2013,1,1))
-        end = IonTime(datetime.datetime(2014,1,1))
-        temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=start.to_string(), end_datetime=end.to_string())
+        start = (datetime.datetime(2013,1,1) - datetime.datetime.utcfromtimestamp(0)).total_seconds()
+        end = (datetime.datetime(2014,1,1) - datetime.datetime.utcfromtimestamp(0)).total_seconds()
+        temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=str(start), end_datetime=str(end))
         deployment_obj = IonObject(RT.Deployment,
                                    name='TestDeployment',
                                    description='some new deployment',
@@ -291,11 +307,33 @@ class TestDeployment(IonIntegrationTestCase):
         self.omsclient.deploy_platform_site(res.platform_site_id, res.deployment_id)
         self.imsclient.deploy_platform_device(res.platform_device_id, res.deployment_id)
 
+        before_activate_instrument_device_obj = self.rrclient.read(res.instrument_device_id)
+
         log.debug("activating deployment, expecting success")
         self.omsclient.activate_deployment(res.deployment_id)
 
+        def assertGeospatialBoundsEquals(a, b):
+            self.assertEquals(a['geospatial_latitude_limit_north'],b['geospatial_latitude_limit_north'])
+            self.assertEquals(a['geospatial_latitude_limit_south'],b['geospatial_latitude_limit_south'])
+            self.assertEquals(a['geospatial_longitude_limit_west'],b['geospatial_longitude_limit_west'])
+            self.assertEquals(a['geospatial_longitude_limit_east'],b['geospatial_longitude_limit_east'])
+
+        def assertGeospatialBoundsNotEquals(a, b):
+            self.assertNotEquals(a['geospatial_latitude_limit_north'],b['geospatial_latitude_limit_north'])
+            self.assertNotEquals(a['geospatial_latitude_limit_south'],b['geospatial_latitude_limit_south'])
+            self.assertNotEquals(a['geospatial_longitude_limit_west'],b['geospatial_longitude_limit_west'])
+            self.assertNotEquals(a['geospatial_longitude_limit_east'],b['geospatial_longitude_limit_east'])
+
+        after_activate_instrument_device_obj = self.rrclient.read(res.instrument_device_id)
+        assertGeospatialBoundsNotEquals(before_activate_instrument_device_obj.geospatial_bounds,after_activate_instrument_device_obj.geospatial_bounds)
+
         log.debug("deactivatin deployment, expecting success")
         self.omsclient.deactivate_deployment(res.deployment_id)
+
+        after_deactivate_instrument_device_obj = self.rrclient.read(res.instrument_device_id)
+
+        assertGeospatialBoundsNotEquals(after_activate_instrument_device_obj.geospatial_bounds, after_deactivate_instrument_device_obj.geospatial_bounds)
+
 
     #@unittest.skip("targeting")
     def test_activate_deployment_nomodels(self):
