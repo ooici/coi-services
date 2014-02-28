@@ -33,6 +33,8 @@ from interface.services.sa.iinstrument_management_service \
     import InstrumentManagementServiceClient
 from ion.util.enhanced_resource_registry_client \
     import EnhancedResourceRegistryClient
+from interface.services.coi.iresource_management_service \
+    import ResourceManagementServiceClient
 
 # Preload agumented and new resources.
 from activation_test_resources import *
@@ -97,6 +99,7 @@ class TestDeviceActivation(IonIntegrationTestCase):
         self.oms = ObservatoryManagementServiceClient(node=self.container.node)
         self.ims = InstrumentManagementServiceClient(node=self.container.node)
         self.RR2 = EnhancedResourceRegistryClient(self.container.resource_registry)
+        self.rms = ResourceManagementServiceClient(node=self.container.node)
 
         # Load the system resources.
         self._preload()
@@ -396,9 +399,13 @@ class TestDeviceActivation(IonIntegrationTestCase):
         ############################################################
         mooring_id = self._retrieve_ooi_asset(CGSN_MOORING_PLATFORM_ALT_ID)['_id']
         mooring = self.container.resource_registry.read(mooring_id)
+        mooring['serial_number'] = '45464546'
+        self.container.resource_registry.update(mooring)
 
         riser_id = self._retrieve_ooi_asset(CGSN_RISER_PLATFORM_ALT_ID)['_id']
         riser = self.container.resource_registry.read(riser_id)
+        riser['serial_number'] = '67676767'
+        self.container.resource_registry.update(riser)
 
         deployment_id = self._retrieve_ooi_asset(CGSN_MOORING_DEPLOYMENT_ALT_ID)['_id']
         deployment = self.container.resource_registry.read(deployment_id)
@@ -424,14 +431,11 @@ class TestDeviceActivation(IonIntegrationTestCase):
         ############################################################
         # Transition platforms to DEVELOPED.
         ############################################################
-        self.container.resource_registry.set_lifecycle_state(mooring_id,
-                                                             AS.PRIVATE)
-        self.container.resource_registry.set_lifecycle_state(mooring_id,
-                                                            LCS.DEVELOPED)
-        self.container.resource_registry.set_lifecycle_state(riser_id,
-                                                             AS.PRIVATE)
-        self.container.resource_registry.set_lifecycle_state(riser_id,
-                                                            LCS.DEVELOPED)
+        self.rms.execute_lifecycle_transition(mooring_id, LCE.DEVELOP)
+        self.rms.execute_lifecycle_transition(mooring_id, LCE.UNANNOUNCE)
+        self.rms.execute_lifecycle_transition(riser_id, LCE.DEVELOP)
+        self.rms.execute_lifecycle_transition(riser_id, LCE.UNANNOUNCE)
+
         ############################################################
         # Verify no running agents on devices.
         # Dissociate running agents from all devices.
@@ -445,11 +449,13 @@ class TestDeviceActivation(IonIntegrationTestCase):
         ret = self.container.resource_registry.find_objects(
             object_type='InstrumentDevice',predicate=PRED.hasDevice,
             subject=riser_id)
+        count = 0
         for x in ret[0]:
-            self.container.resource_registry.set_lifecycle_state(x['_id'],
-                                                                 AS.PRIVATE)
-            self.container.resource_registry.set_lifecycle_state(x['_id'],
-                                                                 LCS.DEVELOPED)
+            sn = 989898+count
+            x['serial_number'] = str(sn)
+            self.container.resource_registry.update(x)
+            self.rms.execute_lifecycle_transition(x['_id'], LCE.DEVELOP)
+            self.rms.execute_lifecycle_transition(x['_id'], LCE.UNANNOUNCE)
             self.ims.unassign_instrument_device_from_platform_device(x['_id'],
                                                                 riser_id)
 
@@ -468,11 +474,10 @@ class TestDeviceActivation(IonIntegrationTestCase):
         ############################################################
         mooring_2 = IonObject('PlatformDevice', CGSN_MOORING_PLATFORM_2)
         mooring_2_id = self.ims.create_platform_device(mooring_2)
+        self.oms.assign_resource_to_observatory_org(mooring_2_id,org_id)
         mooring_model_id = self._retrieve_ooi_asset(CGSN_MOORING_MODEL_ALT_ID)['_id']
         self.ims.assign_platform_model_to_platform_device(mooring_model_id,mooring_2_id)
-        self.container.resource_registry.set_lifecycle_state(mooring_2_id,
-                                                             LCS.DEVELOPED)
-        self.oms.assign_resource_to_observatory_org(mooring_2_id,org_id)
+        self.rms.execute_lifecycle_transition(mooring_2_id, LCE.DEVELOP)
 
         ############################################################
         # Create and register riser platform device, assign model,
@@ -480,14 +485,13 @@ class TestDeviceActivation(IonIntegrationTestCase):
         ############################################################
         riser_2 = IonObject('PlatformDevice', CGSN_RISER_PLATFORM_2)
         riser_2_id = self.ims.create_platform_device(riser_2)
+        self.oms.assign_resource_to_observatory_org(riser_2_id,org_id)
         riser_model_id = self._retrieve_ooi_asset(CGSN_RISER_MODEL_ALT_ID)['_id']
         self.ims.assign_platform_model_to_platform_device(riser_model_id,
                                                           riser_2_id)
         self.ims.assign_platform_device_to_platform_device(riser_2_id,
                                                         mooring_2_id)
-        self.container.resource_registry.set_lifecycle_state(riser_2_id,
-                                                             LCS.DEVELOPED)
-        self.oms.assign_resource_to_observatory_org(riser_2_id,org_id)
+        self.rms.execute_lifecycle_transition(riser_2_id, LCE.DEVELOP)
 
         ############################################################
         # Create and register instruments, associate models,
@@ -498,14 +502,13 @@ class TestDeviceActivation(IonIntegrationTestCase):
         for x in CGSN_INSTRUMENTS_2:
             inst_2 = IonObject('InstrumentDevice', x)
             inst_2_id = self.ims.create_instrument_device(inst_2)
+            self.oms.assign_resource_to_observatory_org(inst_2_id,org_id)
             self.ims.assign_instrument_model_to_instrument_device(inst_model_id, inst_2_id)
             self.ims.assign_instrument_model_to_instrument_device(inst_model_id,
                                                                   inst_2_id)
             self.ims.assign_instrument_device_to_platform_device(inst_2_id,
                                                                  riser_2_id)
-            self.container.resource_registry.set_lifecycle_state(inst_2_id,
-                                                             LCS.DEVELOPED)
-            self.oms.assign_resource_to_observatory_org(inst_2_id,org_id)
+            self.rms.execute_lifecycle_transition(inst_2_id, LCE.DEVELOP)
             inst_ids.append(inst_2_id)
 
         ############################################################
@@ -530,20 +533,44 @@ class TestDeviceActivation(IonIntegrationTestCase):
         mooring_site_id = self._retrieve_ooi_asset(CGSN_MOORING_SITE_ALT_ID)['_id']
         self.oms.deploy_platform_site(mooring_site_id,deployment_2_id)
         self.ims.deploy_platform_device(mooring_2_id, deployment_2_id)
-        #self.oms.assign_device_to_deployment(mooring_2_id, deployment_2_id)
-        #self.oms.assign_site_to_deployment(mooring_site_id,deployment_2_id)
-        #self.oms.assign_device_to_site(mooring_2_id, mooring_site_id)
+
+        ############################################################
+        # Assign agent and agent instances.
+        ############################################################
+        mooring_agent = IonObject('PlatformAgent', CGSN_MOORING_AGENT)
+        mooring_agent_id = self.ims.create_platform_agent(mooring_agent)
+        self.ims.assign_platform_model_to_platform_agent(mooring_model_id, mooring_agent_id)
+
+        riser_agent = IonObject('PlatformAgent', CGSN_RISER_AGENT)
+        riser_agent_id = self.ims.create_platform_agent(riser_agent)
+        self.ims.assign_platform_model_to_platform_agent(riser_model_id, riser_agent_id)
+
+        mooring_agent_instance = IonObject('PlatformAgentInstance', CGSN_MOORING_AGENT_INSTANCE)
+        mooring_agent_instance_id = self.ims.create_platform_agent_instance(mooring_agent_instance,mooring_agent_id,mooring_2_id)
+        self.ims.assign_platform_agent_to_platform_agent_instance(mooring_agent_id, mooring_agent_instance_id)
+        self.ims.assign_platform_agent_instance_to_platform_device(mooring_agent_instance_id, mooring_2_id)
+
+        riser_agent_instance = IonObject('PlatformAgentInstance', CGSN_RISER_AGENT_INSTANCE)
+        riser_agent_instance_id = self.ims.create_platform_agent_instance(riser_agent_instance)
+        self.ims.assign_platform_agent_to_platform_agent_instance(riser_agent_id, riser_agent_instance_id)
+        self.ims.assign_platform_agent_instance_to_platform_device(riser_agent_instance_id, riser_2_id)
+
+        inst_agent = IonObject('InstrumentAgent', CGSN_INSTRUMENT_AGENT)
+        inst_agent_id = self.ims.create_instrument_agent(inst_agent)
+        self.ims.assign_instrument_model_to_instrument_agent(inst_model_id,inst_agent_id)
+        for i,x in enumerate(CGSN_INSTURMENT_AGENT_INSTANCES):
+            inst_agt_inst = IonObject('InstrumentAgentInstance', x)
+            inst_agt_inst_id = self.ims.create_instrument_agent_instance(inst_agt_inst)
+            self.ims.assign_instrument_agent_instance_to_instrument_device(inst_agt_inst_id,inst_ids[i])
+            self.ims.assign_instrument_agent_to_instrument_agent_instance(inst_agent_id, inst_agt_inst_id)
 
         ############################################################
         # Transition all devices.
         ############################################################
-        self.container.resource_registry.set_lifecycle_state(mooring_2_id,
-                                                        LCS.INTEGRATED)
-        self.container.resource_registry.set_lifecycle_state(riser_2_id,
-                                                        LCS.INTEGRATED)
+        self.rms.execute_lifecycle_transition(mooring_2_id, LCE.INTEGRATE)
+        self.rms.execute_lifecycle_transition(riser_2_id, LCE.INTEGRATE)
         for x in inst_ids:
-            self.container.resource_registry.set_lifecycle_state(x,
-                                                        LCS.INTEGRATED)
+            self.rms.execute_lifecycle_transition(x, LCE.INTEGRATE)
 
         ############################################################
         # Verify integrated assembly.
@@ -555,25 +582,20 @@ class TestDeviceActivation(IonIntegrationTestCase):
         ############################################################
 
         ############################################################
-        # Transition all devices.
-        ############################################################
-        self.container.resource_registry.set_lifecycle_state(mooring_2_id,
-                                                        LCS.DEPLOYED)
-        self.container.resource_registry.set_lifecycle_state(mooring_2_id,
-                                                        AS.AVAILABLE)
-        self.container.resource_registry.set_lifecycle_state(riser_2_id,
-                                                        LCS.DEPLOYED)
-        self.container.resource_registry.set_lifecycle_state(riser_2_id,
-                                                        AS.AVAILABLE)
-        for x in inst_ids:
-            self.container.resource_registry.set_lifecycle_state(x,
-                                                        LCS.DEPLOYED)
-            self.container.resource_registry.set_lifecycle_state(x,
-                                                        AS.AVAILABLE)
-        ############################################################
         # Activate deployment.
         ############################################################
         self.oms.activate_deployment(deployment_2_id)
+
+        ############################################################
+        # Transition all devices.
+        ############################################################
+        self.rms.execute_lifecycle_transition(mooring_2_id, LCE.DEPLOY)
+        self.rms.execute_lifecycle_transition(mooring_2_id, LCE.ENABLE)
+        self.rms.execute_lifecycle_transition(riser_2_id, LCE.DEPLOY)
+        self.rms.execute_lifecycle_transition(riser_2_id, LCE.ENABLE)
+        for x in inst_ids:
+            self.rms.execute_lifecycle_transition(x, LCE.DEPLOY)
+            self.rms.execute_lifecycle_transition(x, LCE.ENABLE)
 
         ############################################################
         # Verify activated assembly.
@@ -1088,12 +1110,12 @@ class TestDeviceActivation(IonIntegrationTestCase):
         activating and deploying a replacement.
         @return:
         """
-        dev_id, dep_id, old_ainst_id, plat_id, mod_id, agt_id, site_id = self._get_rsn_resources()
 
-        self.oms.activate_deployment(dep_id)
+        dev_id, dep_id, old_ainst_id, plat_id, mod_id, agt_id, site_id = self._get_rsn_resources()
 
         # Verify initial deployed state.
         # Normal running state of the system, e.g. upon preload.
+        self.oms.activate_deployment(dep_id)
         self._verify_rsn_inst_deployed(dev_id, dep_id)
 
         # OPERATIONS SOFTWARE STEP: Deactivate deployemnt.
@@ -1130,9 +1152,10 @@ class TestDeviceActivation(IonIntegrationTestCase):
         # 1. Device LCS/SA goes to DEVELOPED - PRIVATE
         # 2. Agent Instance -> Device link removed.
         # 3. Platform Device -> Device link removed.
-        self.container.resource_registry.set_lifecycle_state(dev_id, AS.PRIVATE)
-        self.container.resource_registry.set_lifecycle_state(dev_id,
-                                                    LCS.DEVELOPED)
+        self.rms.execute_lifecycle_transition(dev_id, LCE.DEVELOP)
+        self.rms.execute_lifecycle_transition(dev_id, LCE.UNANNOUNCE)
+
+
         self.ims.unassign_instrument_agent_instance_from_instrument_device(
             old_ainst_id, dev_id)
         self.ims.unassign_instrument_device_from_platform_device(dev_id,
@@ -1163,8 +1186,8 @@ class TestDeviceActivation(IonIntegrationTestCase):
         self.oms.assign_resource_to_observatory_org(new_dev_id,
                                                     self._orgs['rsn']['_id'])
         self.ims.assign_instrument_model_to_instrument_device(mod_id, new_dev_id)
-        self.container.resource_registry.set_lifecycle_state(new_dev_id,
-                                                             LCS.DEVELOPED)
+        self.rms.execute_lifecycle_transition(new_dev_id, LCE.DEVELOP)
+
         agt_instance = IonObject('InstrumentAgentInstance', RSN_AGENT_02)
         new_agt_inst_id = self.ims.create_instrument_agent_instance(
                                             agt_instance, agt_id, new_dev_id)
@@ -1185,8 +1208,7 @@ class TestDeviceActivation(IonIntegrationTestCase):
         # 2. LCS transitioned to INTEGRATED
         self.ims.assign_instrument_device_to_platform_device(new_dev_id,
                                                              plat_id)
-        self.container.resource_registry.set_lifecycle_state(new_dev_id,
-                                                             LCS.INTEGRATED)
+        self.rms.execute_lifecycle_transition(new_dev_id, LCE.INTEGRATE)
         self._verify_rsn_inst_integrated(new_dev_id)
 
         # OPERATIONS SOFTWARE STEP: Test integrated device and attach results.
@@ -1207,13 +1229,11 @@ class TestDeviceActivation(IonIntegrationTestCase):
 
         self.oms.deploy_instrument_site(site_id, new_dep_id)
         self.ims.deploy_instrument_device(new_dev_id, new_dep_id)
-        self.container.resource_registry.set_lifecycle_state(new_dev_id,
-                                                             LCS.DEPLOYED)
-        self.container.resource_registry.set_lifecycle_state(new_dev_id,
-                                                             AS.AVAILABLE)
-        self.container.resource_registry.set_lifecycle_state(new_dep_id,
-                                                             LCS.DEPLOYED)
         self.oms.activate_deployment(new_dep_id)
+        self.rms.execute_lifecycle_transition(new_dep_id, LCE.DEPLOY)
+        self.rms.execute_lifecycle_transition(new_dev_id, LCE.DEPLOY)
+        self.rms.execute_lifecycle_transition(new_dev_id, LCE.ENABLE)
+
         self._verify_rsn_inst_deployed(new_dev_id, new_dep_id)
 
 
