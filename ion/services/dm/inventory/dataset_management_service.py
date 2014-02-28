@@ -23,12 +23,16 @@ from interface.services.dm.idataset_management_service import BaseDatasetManagem
 from coverage_model.basic_types import AxisTypeEnum
 from coverage_model import AbstractCoverage, ViewCoverage, ComplexCoverage, ComplexCoverageType
 from coverage_model.parameter_functions import AbstractFunction
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceProcessClient
+from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
+from interface.objects import DataProcessDefinition, DataProcessTypeEnum
 
 from uuid import uuid4
 
 import os
 import numpy as np
 import re
+import ast
 
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
@@ -264,6 +268,48 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.read_parameter_function(parameter_function_id)
         self.clients.resource_registry.delete(parameter_function_id)
         return True
+
+#--------
+
+    def load_parameter_function(self, row):
+        name      = row['Name']
+        ftype     = row['Function Type']
+        func_expr = row['Function']
+        owner     = row['Owner']
+        args      = ast.literal_eval(row['Args'])
+        #kwargs    = row['Kwargs']
+        descr     = row['Description']
+
+        data_process_management = DataProcessManagementServiceProcessClient(self)
+        func = None
+        if ftype == 'NumexprFunction':
+            func = NumexprFunction(row['Name'], func_expr, args)
+        elif ftype == 'PythonFunction':
+            func = PythonFunction(name, owner, func_expr, args, None)
+        else:
+            raise Conflict('Unsupported Function Type: %s' % ftype)
+            return
+
+        
+        #--- create_function ---
+        parameter_function = func.dump()
+        validate_true(name, 'Name field may not be empty')
+        validate_is_instance(parameter_function, dict, 'parameter_function field is not dictable.')
+        parameter_function = self.numpy_walk(parameter_function)
+        pf_res = ParameterFunctionResource(name=name, parameter_function=parameter_function, description=descr)
+        pf_res.alt_ids = ['PRE:' + row['ID']]
+        pf_id, ver = self.clients.resource_registry.create(pf_res)
+        #-----------------------
+
+        dpd = DataProcessDefinition()
+        dpd.name = name
+        dpd.description = 'Parameter Function Definition for %s' % name
+        dpd.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
+        dpd.parameters = args
+
+        data_process_management.create_data_process_definition(dpd, pf_id)
+
+        return pf_id
 
 #--------
 

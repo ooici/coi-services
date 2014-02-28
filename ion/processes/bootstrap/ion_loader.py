@@ -73,7 +73,7 @@ import os
 from udunitspy.udunits2 import UdunitsError
 
 from pyon.core.bootstrap import get_service_registry
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, Conflict
 from pyon.datastore.datastore import DatastoreManager, DataStore
 from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
 from pyon.ion.resource import get_restype_lcsm
@@ -1847,39 +1847,14 @@ Reason: %s
             return
 
         self.row_count += 1
-        name      = row['Name']
-        ftype     = row['Function Type']
-        func_expr = row['Function']
-        owner     = row['Owner']
-        args      = ast.literal_eval(row['Args'])
-        #kwargs    = row['Kwargs']
-        descr     = row['Description']
 
         dataset_management = self._get_service_client('dataset_management')
-        data_process_management = self._get_service_client('data_process_management')
-        func = None
-        if ftype == 'NumexprFunction':
-            func = NumexprFunction(row['Name'], func_expr, args)
-        elif ftype == 'PythonFunction':
-            func = PythonFunction(name, owner, func_expr, args, None)
-        else:
-            self._conflict_report(row['ID'], row['Name'], 'Unsupported Function Type: %s' % ftype)
-            return
+        try:
+            func_id = dataset_management.load_parameter_function(row)
+            func_obj = self.container.resource_registry.read(func_id)
+        except Conflict as con:
+            self._conflict_report(row['ID'], row['Name'], con.message)
 
-        func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(),
-                                                               description=descr, headers=self._get_system_actor_headers())
-
-        dpd = DataProcessDefinition()
-        dpd.name = name
-        dpd.description = 'Parameter Function Definition for %s' % name
-        dpd.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
-        dpd.parameters = args
-
-        data_process_management.create_data_process_definition(dpd, func_id, headers=self._get_system_actor_headers())
-        # Set alt_ids so that resource can be found in incremental preload runs
-        func_obj = self.container.resource_registry.read(func_id)
-        func_obj.alt_ids=['PRE:'+row[COL_ID]]
-        self.container.resource_registry.update(func_obj)
         self._register_id(row[COL_ID], func_id, func_obj)
 
     def _load_ParameterDefs(self, row):
