@@ -19,10 +19,10 @@ from interface.objects import View, Catalog
 
 
 class DiscoveryService(BaseDiscoveryService):
-    MAX_SEARCH_RESULTS=CFG.get_safe('service.discovery.max_search_results', 250)
+    MAX_SEARCH_RESULTS = CFG.get_safe('service.discovery.max_search_results', 250)
 
-    def on_start(self): # pragma no cover
-        super(DiscoveryService,self).on_start()
+    def on_start(self):
+        super(DiscoveryService, self).on_start()
 
         cfg_datastore = CFG.get_safe('container.datastore.default_server')
         if cfg_datastore != "postgresql":
@@ -35,7 +35,7 @@ class DiscoveryService(BaseDiscoveryService):
     # Query Methods
     #===================================================================
 
-    def query(self, query=None, id_only=True, search_args={}):
+    def query(self, query=None, id_only=True, search_args=None):
         """Issue a query against the indexes as specified in the query, applying filters and operators
         accordingly. The query format is a structured dict.
         See the query format definition: https://confluence.oceanobservatories.org/display/CIDev/Discovery+Service+Query+Format
@@ -49,7 +49,7 @@ class DiscoveryService(BaseDiscoveryService):
 
         return self.request(query, id_only, search_args=search_args)
 
-    def parse(self, search_request='', id_only=True, search_args={}):
+    def parse(self, search_request='', id_only=True, search_args=None):
         """Parses a given string request and assembles the query, processes the query and returns the results of the query.
         This is the primary means of interfacing with the search features in discovery.
         See the query language definition: https://confluence.oceanobservatories.org/display/CIDev/Discovery+Service+Query+Format
@@ -70,21 +70,27 @@ class DiscoveryService(BaseDiscoveryService):
         return query_request
 
     def request(self, query=None, id_only=True, search_args=None):
-        search_args = search_args or {} # Service clients don't pass empty dicts they pass None or NULL
+        search_args = search_args or {}  # Service clients don't pass empty dicts they pass None or NULL
         if not query:
             raise BadRequest('No request query provided')
 
         if "QUERYEXP" in query and self.ds_discovery:
-            # Support for datastore queries
+            # Query in datastore query format (dict)
             pass
 
+        elif "QUERYDSL" in query:
+            # Query in DSL format
+            if "query_str" not in query:
+                raise BadRequest('No query_str provided')
+            query = self._parse_query_string(query["query_str"])
+
         elif 'query' not in query:
-            raise BadRequest('Unsuported request. %s' % query)
+            raise BadRequest('Unsupported request. %s' % query)
 
         # if count requested, run id_only query without limit/skip
         count = search_args.get("count", False)
         if count:
-            """Only return the count of ID only search"""
+            # Only return the count of ID only search
             query.pop("limit", None)
             query.pop("skip", None)
             res = self.ds_discovery.execute_query(query, id_only=True)
@@ -295,7 +301,7 @@ class DiscoveryService(BaseDiscoveryService):
                 heapq.heappush(pq, (index_num,catalog))
         if pq:
             weight, catalog = heapq.heappop(pq)
-            if weight < self.heuristic_cutoff:
+            if weight < 4:
                 catalog_id = catalog._id
 
 

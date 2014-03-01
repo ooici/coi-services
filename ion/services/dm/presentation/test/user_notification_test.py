@@ -2167,7 +2167,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         active_notification_ids.add(notification_id_active_32)
 
         #--------------------------------------------------------------------------------------
-        # Create notifications that will be RETIRED for the following users
+        # Create notifications that will be DELETED for the following users
         #--------------------------------------------------------------------------------------
 
         # user 1

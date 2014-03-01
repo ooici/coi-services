@@ -49,7 +49,6 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.assertEqual(sample_resource_id, '111')
 
 
-
     def test_create_bad_wrongtype(self):
         """
         test resource creation failure for wrong type
@@ -80,23 +79,6 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.find_resources.return_value = ([], [])
 
         self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource, RT.InstrumentDevice)
-
-
-#    def test_create_bad_dupname(self):
-#        """
-#        test resource creation failure for duplicate name
-#        """
-#        # get objects
-#
-#        bad_sample_resource = self.sample_resource()
-#        #really, the resource doesn't matter; it's the retval from find that matters
-#
-#        #configure Mock
-#        self.rr.create.return_value = ('111', 'bla')
-#        self.rr.find_resources.return_value = ([0], [0])
-#
-#        self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource, RT.InstrumentDevice)
-#
 
 
     def test_read(self):
@@ -159,19 +141,6 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource, RT.PlatformDevice)
 
 #
-#    def test_update_bad_dupname(self):
-#        """
-#        test update failure due to duplicate name
-#        """
-#        # get objects
-#
-#        bad_sample_resource = self.sample_resource()
-#        setattr(bad_sample_resource, "_id", "111")
-#
-#        self.rr.find_resources.return_value = ([0], [0])
-#        self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource, RT.InstrumentDevice)
-
-
     def test_update_bad_noid(self):
         """
         test update failure due to duplicate name
@@ -185,7 +154,7 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource, RT.InstrumentDevice)
 
 
-    def test_retire(self):
+    def test_lcs_delete(self):
         """
         test retire
         """
@@ -196,10 +165,10 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         #configure Mock
         self.rr.read.return_value = myret
         self.rr.delete.return_value = None
-        self.rr.retire.return_value = None
+        self.rr.lcs_delete.return_value = None
 
         try:
-            self.RR2.retire("111", RT.InstrumentDevice)
+            self.RR2.lcs_delete("111", RT.InstrumentDevice)
         except TypeError as te:
             # for logic tests that run into mock trouble
             if "'Mock' object is not iterable" != te.message:
@@ -210,24 +179,10 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
             raise e
 
         #self.rr.read.assert_called_with("111", "")
-        self.rr.retire.assert_called_once_with("111")
+        self.rr.lcs_delete.assert_called_once_with("111")
 
 
-    def test_retire_bad_wrongtype(self):
-        """
-        test resource read (passthru)
-        """
-        # get objects
-        myret = self.sample_resource()
-
-        #configure Mock
-        self.rr.read.return_value = myret
-
-        self.assertRaises(BadRequest, self.RR2.retire, "111", RT.PlatformDevice)
-        self.rr.read.assert_called_once_with("111")
-
-
-    def test_pluck_delete(self):
+    def test_force_delete(self):
         """
         test delete
         """
@@ -242,7 +197,7 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.find_objects.return_value = (["2"], ["2"])
         self.rr.find_subjects.return_value = (["3"], ["3"])
 
-        self.RR2.pluck_delete("111", RT.InstrumentDevice)
+        self.RR2.force_delete("111", RT.InstrumentDevice)
 
         self.rr.delete.assert_called_once_with("111")
 
@@ -255,7 +210,10 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.execute_lifecycle_transition.assert_called_once_with(resource_id="111", transition_event=LCE.PLAN)
 
         self.RR2.advance_lcs("222", LCE.RETIRE)
-        self.rr.retire.assert_called_once_with("222")
+        self.rr.execute_lifecycle_transition.assert_last_called_with(resource_id="222", transition_event=LCE.RETIRE)
+
+        self.RR2.advance_lcs("333", LCE.DELETE)
+        self.rr.execute_lifecycle_transition.assert_last_called_with(resource_id="333", transition_event=LCE.DELETE)
 
 
     def test_delete_association(self):
@@ -375,24 +333,6 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.assertRaises(Inconsistent, self.RR2.find_instrument_model_id_of_instrument_device_using_has_model, x)
         self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
 
-#        # find using
-#        rst2()
-#        self.RR2.find_instrument_models_of_instrument_device_using_has_model(x)
-#        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
-#
-#        rst2()
-#        self.assertRaises(Inconsistent, self.RR2.find_instrument_model_of_instrument_device_using_has_model, x)
-#        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
-#
-#        rst2()
-#        self.RR2.find_instrument_model_ids_of_instrument_device_using_has_model(x)
-#        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
-#
-#        rst2()
-#        self.assertRaises(Inconsistent, self.RR2.find_instrument_model_id_of_instrument_device_using_has_model, x)
-#        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
-
-
     def test_find_subjects_using_id(self):
         self.tbase_find_subjects("x_id")
 
@@ -483,24 +423,6 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         rst2()
         self.assertRaises(Inconsistent, self.RR2.find_instrument_device_id_by_instrument_model_using_has_model, x)
         self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
-
-#
-#        # find using
-#        rst2()
-#        self.RR2.find_instrument_devices_by_instrument_model_using_has_model(x)
-#        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
-#
-#        rst2()
-#        self.assertRaises(Inconsistent, self.RR2.find_instrument_device_by_instrument_model_using_has_model, x)
-#        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
-#
-#        rst2()
-#        self.RR2.find_instrument_device_ids_by_instrument_model_using_has_model(x)
-#        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
-#
-#        rst2()
-#        self.assertRaises(Inconsistent, self.RR2.find_instrument_device_id_by_instrument_model_using_has_model, x)
-#        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
 
 
     def test_assign_unassign(self):

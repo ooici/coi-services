@@ -3664,7 +3664,7 @@ Reason: %s
             newrow[COL_ID] = node_id + "_DEP"
             newrow['site_id'] = node_id
             newrow['device_id'] = node_id + "_PD"
-            if self._is_deployed(node_obj) and self.ooiactivate and ooi_rd.node_type not in ("FM", ):
+            if self._is_deployed(node_obj) and self.ooiactivate:
                 newrow['activate'] = "TRUE"
             else:
                 newrow['activate'] = "FALSE"

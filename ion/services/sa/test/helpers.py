@@ -522,10 +522,10 @@ class UnitTestGenerator(object):
             #configure Mock
             if all_in_one: svc.clients.resource_registry.read.reset_mock()
             if all_in_one: svc.clients.resource_registry.delete.reset_mock()
-            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
+            if all_in_one: svc.clients.resource_registry.lcs_delete.reset_mock()
             svc.clients.resource_registry.read.return_value = myret
             svc.clients.resource_registry.delete.return_value = None
-            svc.clients.resource_registry.retire.return_value = None
+            svc.clients.resource_registry.lcs_delete.return_value = None
 
             try:
                 testfun("111")
@@ -540,7 +540,7 @@ class UnitTestGenerator(object):
                     raise SkipTest("Must test this with INT test")
 
 
-            svc.clients.resource_registry.retire.assert_called_once_with("111")
+            svc.clients.resource_registry.lcs_delete.assert_called_once_with("111")
             self.assertEqual(0, svc.clients.resource_registry.delete.call_count)
 
 
@@ -558,7 +558,7 @@ class UnitTestGenerator(object):
 
             #configure Mock
             if all_in_one: svc.clients.resource_registry.delete.reset_mock()
-            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
+            if all_in_one: svc.clients.resource_registry.lcs_delete.reset_mock()
             if all_in_one: svc.clients.resource_registry.read.reset_mock()
             svc.clients.resource_registry.read.return_value = myret
 
@@ -572,7 +572,7 @@ class UnitTestGenerator(object):
                     return
                 else:
                     raise SkipTest("Must test this with INT test")
-            self.assertEqual(0, svc.clients.resource_registry.retire.call_count)
+            self.assertEqual(0, svc.clients.resource_registry.lcs_delete.call_count)
             self.assertEqual(0, svc.clients.resource_registry.delete.call_count)
 
 
@@ -588,7 +588,7 @@ class UnitTestGenerator(object):
 
             #configure Mock
             if all_in_one: svc.clients.resource_registry.delete.reset_mock()
-            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
+            if all_in_one: svc.clients.resource_registry.lcs_delete.reset_mock()
             svc.clients.resource_registry.read.return_value = myret
             svc.clients.resource_registry.delete.return_value = None
             svc.clients.resource_registry.find_resources.return_value = None
@@ -624,7 +624,7 @@ class UnitTestGenerator(object):
 
             #configure Mock
             if all_in_one: svc.clients.resource_registry.delete.reset_mock()
-            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
+            if all_in_one: svc.clients.resource_registry.lcs_delete.reset_mock()
             if all_in_one: svc.clients.resource_registry.read.reset_mock()
             svc.clients.resource_registry.find_objects.return_value = ([], [])
             svc.clients.resource_registry.find_subjects.return_value = ([], [])
@@ -642,7 +642,7 @@ class UnitTestGenerator(object):
                     raise SkipTest("Must test this with INT test")
 
 
-            self.assertEqual(0, svc.clients.resource_registry.retire.call_count)
+            self.assertEqual(0, svc.clients.resource_registry.lcs_delete.call_count)
             self.assertEqual(0, svc.clients.resource_registry.delete.call_count)
 
 

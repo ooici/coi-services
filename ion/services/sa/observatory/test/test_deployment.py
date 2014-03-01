@@ -100,7 +100,6 @@ class TestDeployment(IonIntegrationTestCase):
         self.assertEqual(len(device_ids), 1)
 
         #delete the deployment
-        self.RR2.pluck(deployment_id)
         self.omsclient.force_delete_deployment(deployment_id)
         # now try to get the deleted dp object
         try:
@@ -174,7 +173,6 @@ class TestDeployment(IonIntegrationTestCase):
         self.assertEquals(len(deploy_sup.associations['DeploymentHasPlatformSite'].associated_resources), 1)
 
         #delete the deployment
-        self.RR2.pluck(deployment_id)
         self.omsclient.force_delete_deployment(deployment_id)
         # now try to get the deleted dp object
         try:

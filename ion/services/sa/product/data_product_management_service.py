@@ -249,7 +249,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # retire the data product
         #--------------------------------------------------------------------------------
-        self.RR2.retire(data_product_id, RT.DataProduct)
+        self.RR2.lcs_delete(data_product_id, RT.DataProduct)
 
 
     def force_delete_data_product(self, data_product_id=''):
@@ -258,11 +258,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         #get the assoc producers before deleteing the links
         producer_ids = self.RR2.find_data_producer_ids_of_data_product_using_has_data_producer(data_product_id)
 
-        self.RR2.pluck(data_product_id)
         for producer_id in producer_ids:
             self.RR2.delete(producer_id)
 
-        self.RR2.pluck_delete(data_product_id, RT.DataProduct)
+        self.RR2.force_delete(data_product_id, RT.DataProduct)
 
 
     def find_data_products(self, filters=None):
@@ -458,7 +457,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                 self._publish_persist_event(data_product_id=data_product_id, persist_on=False)
 
             except NotFound:
-                if data_product_obj.lcstate == LCS.RETIRED:
+                if data_product_obj.lcstate == LCS.DELETED:
                     log.debug("stream not found, but assuming it was from a deletion")
                     log.error("Attempted to suspend_data_product_persistence on a retired data product")
                 else:
@@ -697,22 +696,16 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        #check that all assoc data products are deleted
-        dataproduct_objs, _ = self.clients.resource_registry.find_objects(subject=data_product_collection_id, predicate=PRED.hasVersion, object_type=RT.DataProduct, id_only=False)
-        for dataproduct_obj in dataproduct_objs:
-            if dataproduct_obj.lcstate != LCS.RETIRED:
-                raise BadRequest("All Data Products in a collection must be deleted before the collection is deleted.")
-
-        self.RR2.retire(data_product_collection_id, RT.DataProductCollection)
+        self.RR2.lcs_delete(data_product_collection_id, RT.DataProductCollection)
 
     def force_delete_data_product_collection(self, data_product_collection_id=''):
 
         # if not yet deleted, the first execute delete logic
         dp_obj = self.read_data_product_collection(data_product_collection_id)
-        if dp_obj.lcstate != LCS.RETIRED:
+        if dp_obj.lcstate != LCS.DELETED:
             self.delete_data_product_collection(data_product_collection_id)
 
-        self.RR2.pluck_delete(data_product_collection_id, RT.DataProductCollection)
+        self.RR2.force_delete(data_product_collection_id, RT.DataProductCollection)
 
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
         dp_collection_obj =self.clients.resource_registry.read(data_product_collection_id)
@@ -771,7 +764,6 @@ class DataProductManagementService(BaseDataProductManagementService):
     def get_data_product_group_list(self, org_id=''):
         group_names = set()
 
-        # TODO: the return volume of this can be reduced by making a reduce query.
         res_ids, keys = self.clients.resource_registry.find_resources_ext(RT.DataProduct, attr_name="ooi_product_name", id_only=True)
         for key in keys:
             group_name = key.get('attr_value', None)
@@ -848,7 +840,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         active = []
         nonactive = []
         for notification_obj in extended_product.computed.active_user_subscriptions.value:
-            if notification_obj.lcstate == LCS.RETIRED:
+            if notification_obj.lcstate == LCS.DELETED:
                 nonactive.append(notification_obj)
             else:
                 active.append(notification_obj)

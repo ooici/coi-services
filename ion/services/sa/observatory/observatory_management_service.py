@@ -38,9 +38,6 @@ STATUS_UNKNOWN = {1:1, 2:1, 3:1, 4:1}
 class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def on_init(self):
-        IonObject("Resource")  # suppress pyflakes error
-        CFG, log, RT, PRED, LCS, LCE, NotFound, BadRequest, log  #suppress pyflakes errors about "unused import"
-
         self.override_clients(self.clients)
         self.agent_status_builder = AgentStatusBuilder(process=self)
 
@@ -204,10 +201,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory_id    str
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.retire(observatory_id, RT.Observatory)
+        return self.RR2.lcs_delete(observatory_id, RT.Observatory)
 
     def force_delete_observatory(self, observatory_id=''):
-        return self.RR2.pluck_delete(observatory_id, RT.Observatory)
+        return self.RR2.force_delete(observatory_id, RT.Observatory)
 
 
 
@@ -257,10 +254,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.RR2.retire(subsite_id, RT.Subsite)
+        self.RR2.lcs_delete(subsite_id, RT.Subsite)
 
     def force_delete_subsite(self, subsite_id=''):
-        self.RR2.pluck_delete(subsite_id, RT.Subsite)
+        self.RR2.force_delete(subsite_id, RT.Subsite)
 
 
 
@@ -311,10 +308,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.RR2.retire(platform_site_id, RT.PlatformSite)
+        self.RR2.lcs_delete(platform_site_id, RT.PlatformSite)
 
     def force_delete_platform_site(self, platform_site_id=''):
-        self.RR2.pluck_delete(platform_site_id, RT.PlatformSite)
+        self.RR2.force_delete(platform_site_id, RT.PlatformSite)
 
 
     def create_instrument_site(self, instrument_site=None, parent_id=''):
@@ -363,11 +360,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param instrument_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
-        self.RR2.retire(instrument_site_id, RT.InstrumentSite)
+        self.RR2.lcs_delete(instrument_site_id, RT.InstrumentSite)
 
     def force_delete_instrument_site(self, instrument_site_id=''):
-        self.RR2.pluck_delete(instrument_site_id, RT.InstrumentSite)
+        self.RR2.force_delete(instrument_site_id, RT.InstrumentSite)
 
 
 
@@ -407,11 +403,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
         Delete a Deployment resource
         """
-
-        self.RR2.retire(deployment_id, RT.Deployment)
+        self.RR2.lcs_delete(deployment_id, RT.Deployment)
 
     def force_delete_deployment(self, deployment_id=''):
-        self.RR2.pluck_delete(deployment_id, RT.Deployment)
+        self.RR2.force_delete(deployment_id, RT.Deployment)
 
 
     ############################
@@ -530,7 +525,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.RR2.assign_instrument_model_to_instrument_site_with_has_model(instrument_model_id, instrument_site_id)
 
     def unassign_instrument_model_from_instrument_site(self, instrument_model_id='', instrument_site_id=''):
-        self.RR2.unassign_instrument_model_from_instrument_site_with_has_model(self, instrument_model_id, instrument_site_id)
+        self.RR2.unassign_instrument_model_from_instrument_site_with_has_model(instrument_model_id, instrument_site_id)
 
     def assign_platform_model_to_platform_site(self, platform_model_id='', platform_site_id=''):
         self.RR2.assign_platform_model_to_platform_site_with_has_model(platform_model_id, platform_site_id)

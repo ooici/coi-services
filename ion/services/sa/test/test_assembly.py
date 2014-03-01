@@ -580,15 +580,15 @@ class TestAssembly(GenericIntHelperTestCase):
 
         c.IMS.delete_instrument_agent(instrument_agent_id)
         instr_agent_obj_read = self.client.RR.read(instrument_agent_id)
-        self.assertEquals(instr_agent_obj_read.lcstate,LCS.RETIRED)
+        self.assertEquals(instr_agent_obj_read.lcstate, LCS.DELETED)
         log.info("L4-CI-SA-RQ-382: Instrument activation shall manage the life cycle of Instrument Agents")
 
         c.IMS.delete_instrument_device(instrument_device_id)
         # Check whether the instrument device has been retired
         instrument_obj_read = self.client.RR.read(instrument_device_id)
         log.debug("The instruments lcs state has been set to %s after the delete operation" % instrument_obj_read.lcstate)
-        self.assertEquals(instrument_obj_read.lcstate, LCS.RETIRED)
-        log.debug("L4-CI-SA-RQ-334 RETIRE")
+        self.assertEquals(instrument_obj_read.lcstate, LCS.DELETED)
+        log.debug("L4-CI-SA-RQ-334 DELETED")
         log.debug("L4-CI-SA-RQ-335: Instrument activation shall support transition to the retired state of instruments")
 
         #----------------------------------------------

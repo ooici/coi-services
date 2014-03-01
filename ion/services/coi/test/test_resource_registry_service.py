@@ -161,7 +161,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
 
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.execute_lifecycle_transition(rid, LCE.UNANNOUNCE)
-        self.assertTrue("type=InstrumentDevice, lcstate=PLANNED_PRIVATE has no transition for event unannounce" in cm.exception.message)
+        self.assertIn("has no transition for event unannounce", cm.exception.message)
 
         new_state = self.resource_registry_service.execute_lifecycle_transition(rid, LCE.DEVELOP)
         self.assertEquals(new_state, lcstate(LCS.DEVELOPED, AS.PRIVATE))

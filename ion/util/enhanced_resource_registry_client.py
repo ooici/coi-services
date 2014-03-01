@@ -268,8 +268,12 @@ class EnhancedResourceRegistryClient(object):
 
 
     def retire(self, resource_id='', specific_type=None):
+        return self.lcs_delete(resource_id, specific_type)
+
+
+    def lcs_delete(self, resource_id='', specific_type=None):
         """
-        alias for LCS retire -- the default "delete operation" in ION
+        alias for LCS delete -- the default "delete operation" in ION
 
         @param resource_id the id to be deleted
         @param specific_type the name of an Ion type (e.g. RT.Resource)
@@ -279,17 +283,16 @@ class EnhancedResourceRegistryClient(object):
             resource_obj = self.RR.read(resource_id)
             self._check_type(resource_obj, specific_type, "to be retired")
 
-        self.RR.retire(resource_id)
+        self.RR.lcs_delete(resource_id)
 
         return
-
 
     def delete(self, resource_id):
 
         raise NotImplementedError("TODO: remove me")
 
 
-    def pluck_delete(self, resource_id='', specific_type=None):
+    def force_delete(self, resource_id='', specific_type=None):
         """
         delete a single object of the predefined type
         AND its history
@@ -305,8 +308,7 @@ class EnhancedResourceRegistryClient(object):
             resource_obj = self.RR.read(resource_id)
             self._check_type(resource_obj, specific_type, "to be deleted")
 
-        self.pluck(resource_id)
-
+        # Note: delete automatically retires associations
         self.RR.delete(resource_id)
 
 
@@ -536,21 +538,15 @@ class EnhancedResourceRegistryClient(object):
         @new_state the new lifecycle state
         """
 
-        assert(type("") == type(resource_id))
-        assert(type(LCE.PLAN) == type(transition_event))
+        assert type(resource_id) is str
+        assert type(transition_event) is str
 
+        log.debug("Moving resource life cycle with transition event=%s", transition_event)
 
-        if LCE.RETIRE == transition_event:
-            log.debug("Using RR.retire")
-            ret = self.RR.retire(resource_id)
-            return ret
-        else:
-            log.debug("Moving resource life cycle with transition event=%s", transition_event)
+        ret = self.RR.execute_lifecycle_transition(resource_id=resource_id,
+                                                   transition_event=transition_event)
 
-            ret = self.RR.execute_lifecycle_transition(resource_id=resource_id,
-                                                       transition_event=transition_event)
-
-            log.info("lifecycle transition=%s resulted in lifecycle state=%s", transition_event, str(ret))
+        log.info("lifecycle transition=%s resulted in lifecycle state=%s", transition_event, str(ret))
 
         return ret
 
@@ -1194,15 +1190,3 @@ class EnhancedResourceRegistryClient(object):
         for assn in sbj_assns:
             log.debug("pluck deleting subject association %s", assn)
             self.RR.delete_association(assn)
-
-        debug = False
-
-        if debug:
-            # find all associations where this is the subject
-            _, obj_assns = self.RR.find_objects(subject=resource_id, id_only=True)
-
-            # find all associations where this is the object
-            _, sbj_assns = self.RR.find_subjects(object=resource_id, id_only=True)
-
-            log.debug("post-deletions, pluck found %s subject associations and %s object associations",
-                      len(sbj_assns), len(obj_assns))

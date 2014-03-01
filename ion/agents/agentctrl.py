@@ -50,7 +50,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 
 class AgentControl(ImmediateProcess):
     def on_start(self):
-        log.info("======================== ION AgentControl ========================")
+        log.info("======================== OOINet AgentControl ========================")
         self.rr = self.container.resource_registry
 
         self.op = self.CFG.get("op", "start")
@@ -110,7 +110,7 @@ class AgentControl(ImmediateProcess):
 
         self._execute_op(eda_instance_id, resource_id)
 
-        log.info("======================== ION AgentControl completed ========================")
+        log.info("======================== OOINet AgentControl completed ========================")
 
     def _execute_op(self, agent_instance_id, resource_id):
         try:

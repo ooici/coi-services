@@ -147,10 +147,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.RR2.update(transform_function, RT.TransformFunction)
 
     def delete_transform_function(self, transform_function_id=''):
-        self.RR2.retire(transform_function_id, RT.TransformFunction)
+        self.RR2.lcs_delete(transform_function_id, RT.TransformFunction)
 
     def force_delete_transform_function(self, transform_function_id=''):
-        self.RR2.pluck_delete(transform_function_id, RT.TransformFunction)
+        self.RR2.force_delete(transform_function_id, RT.TransformFunction)
 
 
     def create_data_process_definition(self, data_process_definition=None, function_id=''):
@@ -186,13 +186,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_def_obj
 
     def delete_data_process_definition(self, data_process_definition_id=''):
-        self.RR2.retire(data_process_definition_id, RT.DataProcessDefinition)
+        self.RR2.lcs_delete(data_process_definition_id, RT.DataProcessDefinition)
 
     def force_delete_data_process_definition(self, data_process_definition_id=''):
 
         processdef_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=True)
 
-        self.RR2.pluck_delete(data_process_definition_id, RT.DataProcessDefinition)
+        self.RR2.force_delete(data_process_definition_id, RT.DataProcessDefinition)
 
         for processdef_id in processdef_ids:
             self.clients.process_dispatcher.delete_process_definition(processdef_id)
@@ -893,16 +893,16 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.data_acquisition_management.unregister_process(data_process_id=data_process_id)
 
         #Delete the data process from the resource registry
-        self.RR2.retire(data_process_id, RT.DataProcess)
+        self.RR2.lcs_delete(data_process_id, RT.DataProcess)
 
     def force_delete_data_process(self, data_process_id=""):
 
         # if not yet deleted, the first execute delete logic
         dp_obj = self.read_data_process(data_process_id)
-        if dp_obj.lcstate != LCS.RETIRED:
+        if dp_obj.lcstate != LCS.DELETED:
             self.delete_data_process(data_process_id)
 
-        self.RR2.pluck_delete(data_process_id, RT.DataProcess)
+        self.RR2.force_delete(data_process_id, RT.DataProcess)
 
     def _stop_process(self, data_process):
         log.debug("stopping data process '%s'" % data_process.process_id)
