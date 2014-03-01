@@ -36,7 +36,7 @@ class TestResourceLCSPolicy(PyonTestCase):
 
 
     def test_events(self):
-        self.rr.read.return_value = "this is a resource"
+        self.rr.read.return_value = Mock()
 
         #if True: self.fail("%s" % LCE.keys())
         for event in LCE.values():
