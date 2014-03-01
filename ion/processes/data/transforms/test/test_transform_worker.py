@@ -133,9 +133,30 @@ class TestTransformWorker(IonIntegrationTestCase):
         dataprocessdef_id, dataprocess_id, dataproduct_id = self.create_data_process()
         self.dp_list.append(dataprocess_id)
 
-        output_data_product1_provenance = self.dataproductclient.get_data_product_provenance(dataproduct_id)
-        # Do a basic check to see if there were 2 entries in the provenance graph. Parent and Child.
-        self.assertTrue(len(output_data_product1_provenance) == 1)
+        # Test for provenance. Get Data product produced by the data processes
+        output_data_product_id,_ = self.rrclient.find_objects(subject=dataprocess_id,
+            object_type=RT.DataProduct,
+            predicate=PRED.hasOutputProduct,
+            id_only=True)
+
+        output_data_product_provenance = self.dataproductclient.get_data_product_provenance(output_data_product_id[0])
+        #print ">>>>>>>>>>>>>>> output_data_product_id[0] : ", output_data_product_id[0]
+        #print ">>>>>>>>>>>>>>> output_data_product_provenance : ", output_data_product_provenance
+
+        # Do a basic check to see if there were 3 entries in the provenance graph. Parent and Child and the
+        # DataProcessDefinition creating the child from the parent.
+        self.assertTrue(len(output_data_product_provenance) == 2)
+        self.assertTrue(output_data_product_provenance[output_data_product_id[0]]['parents'][0] == self.input_dp_id)
+        self.assertTrue(output_data_product_provenance[output_data_product_id[0]]['dpd_id'] == dataprocessdef_id)
+
+        # NEW SA - 4 | Data processing shall include the appropriate data product algorithm name and version number in
+        # the metadata of each output data product created by the data product algorithm.
+        output_data_product_obj,_ = self.rrclient.find_objects(subject=dataprocess_id,
+            object_type=RT.DataProduct,
+            predicate=PRED.hasOutputProduct,
+            id_only=False)
+        self.assertTrue(output_data_product_obj[0].name != None)
+        self.assertTrue(output_data_product_obj[0]._rev != None)
 
         #retrieve subscription from data process
         subscription_objs, _ = self.rrclient.find_objects(subject=dataprocess_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)

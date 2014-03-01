@@ -201,6 +201,19 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         stream_ids, assoc_ids = self.rrclient.find_objects(dp1_func_output_dp_id, PRED.hasStream, RT.Stream, True)
         self.stream_two_id = stream_ids[0]
 
+        # Run provenance on the output dataproduct of the second data process to see all the links
+        # are as expected
+        output_data_product_provenance = self.dataproductclient.get_data_product_provenance(dp2_func_output_dp_id)
+        print ">>>>>>>>>>>>>>>>>>>> dp2_func_output_dp_id : ", dp2_func_output_dp_id
+        print ">>>>>>>>>>>>>>>>>>>> output_data_product_provenance.keys() : ", output_data_product_provenance.keys()
+        print ">>>>>>>>>>>>>>>>>>>> output_data_product_provenance : ", output_data_product_provenance
+
+        # Do a basic check to see if there were 2 entries in the provenance graph. Parent and Child.
+        self.assertTrue(len(output_data_product_provenance) == 3)
+        # confirm that the linking from the output dataproduct to input dataproduct is correct
+        self.assertTrue(output_data_product_provenance[dp2_func_output_dp_id]['parents'][0] == dp1_func_output_dp_id)
+        self.assertTrue(output_data_product_provenance[dp1_func_output_dp_id]['parents'][0] == self.input_dp_one_id)
+
         #create subscription to stream ONE, create data process and publish granule on stream ONE
 
         #create a queue to catch the published granules of stream ONE
