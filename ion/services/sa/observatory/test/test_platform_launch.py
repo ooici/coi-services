@@ -1,15 +1,6 @@
 #!/usr/bin/env python
 
-"""
-@package ion.services.sa.observatory.test.test_platform_launch
-@file    ion/services/sa/observatory/test/test_platform_launch.py
-@author  Carlos Rueda, Maurice Manning, Ian Katz
-@brief   Test cases for launching and shutting down a platform agent network
-"""
-from interface.objects import ComputedIntValue, ComputedValueAvailability, ComputedListValue, ComputedDictValue
-from ion.services.sa.test.helpers import any_old
-from pyon.ion.resource import RT
-from interface.objects import AggregateStatusType, DeviceStatusType
+"""Test cases for launching and shutting down a platform agent network"""
 
 __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 __license__ = 'Apache 2.0'
@@ -37,19 +28,21 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_8_instruments
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_platform_device_extended_attributes
 
-
-
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import instruments_dict
+from unittest import skip
+from mock import patch
+import gevent
+import unittest
+import os
 
 from pyon.agent.agent import ResourceAgentState
 from pyon.util.context import LocalContextMixin
+from pyon.public import log, CFG, RT
+from ion.services.sa.test.helpers import any_old
+from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform, instruments_dict
 
-from unittest import skip
-from mock import patch
-from pyon.public import log, CFG
-import unittest
-import os
+from interface.objects import ComputedIntValue, ComputedValueAvailability, ComputedListValue, ComputedDictValue
+from interface.objects import AggregateStatusType, DeviceStatusType
+
 
 class FakeProcess(LocalContextMixin):
     """
@@ -196,6 +189,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         device_id = i_obj1['instrument_device_id']
         self.assertIsInstance(device_id, str)
         self.assertTrue(len(device_id)>0)
+
+        # Need to wait for device state (event) persister - every second
+        gevent.sleep(1.1)
 
         # Get the device extension and construct a rollup dictionary.
         dev_ext = self.IMS.get_instrument_device_extension(instrument_device_id=device_id)
