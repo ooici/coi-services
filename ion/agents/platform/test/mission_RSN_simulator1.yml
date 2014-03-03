@@ -14,33 +14,37 @@ platform:
 
 mission:
     - instrument: 
-      instrumentID: SBE37_SIM_01
-
-      schedule:
-        startTime: 02/17/2014 20:00:00
-        loop:
-          quantity: 1  # No. of loops (-1 for infinite)
-          value: 30     # Repeat missionParams every 'xx' 'units'
-          units: mins   # mins, hrs, days
-
-      missionParams:
-        - command: Wait
-          params: [15, 'secs']      #[duration, duration units]
-        - command: Sample
-          params: [10, 'secs', 1]  #[duration, duration units, frequency(Hz)]
-
-    - instrument: 
       instrumentID: SBE37_SIM_02
 
       schedule:
-        startTime: 02/17/2014 20:15:00
+        startTime: 03/04/2014 15:00:00
         loop:
-          quantity: 1  # No. of loops (-1 for infinite)
-          value: 30     # Repeat missionParams every 'xx' 'units'
+          quantity: 2  # No. of loops (-1 for infinite)
+          value: 3     # Repeat missionParams every 'xx' 'units'
           units: mins   # mins, hrs, days
 
       missionParams:
         - command: Wait
-          params: [1, 'secs']     #[duration, duration units]
+          params: [5, 'secs']      #[duration, duration units]
+        # - command: Calibrate
+        #   params: []
         - command: Sample
-          params: [15, 'secs', 1]  #[duration, duration units, frequency(Hz)]
+          params: [55, 'secs', 5]  #[duration, duration units, time between samples]
+
+    - instrument: 
+      instrumentID: SBE37_SIM_03
+
+      schedule:
+        startTime: 03/04/2014 15:01:00
+        loop:
+          quantity: 2  # No. of loops (-1 for infinite)
+          value: 3     # Repeat missionParams every 'xx' 'units'
+          units: mins   # mins, hrs, days
+
+      missionParams:
+        - command: Wait
+          params: [5, 'secs']      #[duration, duration units]
+        # - command: Calibrate
+        #   params: []
+        - command: Sample
+          params: [55, 'secs', 5]  #[duration, duration units, time between samples]
