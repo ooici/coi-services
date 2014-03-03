@@ -5,6 +5,7 @@
 @brief Helpers for Parameters
 '''
 from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ArrayType, CategoryType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction, SparseConstantType
+from interface.objects import ParameterFunction, ParameterFunctionType as PFT
 from ion.services.dm.utility.types import TypesManager
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from pyon.container.cc import Container
@@ -202,12 +203,13 @@ class ParameterHelper(object):
 
         # TEMPWAT_L1 = (TEMPWAT_L0 / 10000) - 10
         tl1_func = '(temperature / 10000.0) - 10'
-        expr = NumexprFunction('temp_L1', tl1_func, ['temperature'])
-        expr_id = self.dataset_management.create_parameter_function(name='temp_L1', parameter_function=expr.dump())
+        pf = ParameterFunction(name='temp_L1', function_type=PFT.NUMEXPR, function=tl1_func, args=['temperature'])
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['temp_L1'] = expr, expr_id
+        funcs['temp_L1'] = pf, expr_id
 
         tl1_pmap = {'temperature':'temp'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = tl1_pmap
         tempL1_ctxt = ParameterContext('temp_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         tempL1_ctxt.uom = 'deg_C'
@@ -217,12 +219,13 @@ class ParameterHelper(object):
 
         # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
         cl1_func = '(conductivity / 100000.0) - 0.5'
-        expr = NumexprFunction('conductivity_L1', cl1_func, ['conductivity'])
-        expr_id = self.dataset_management.create_parameter_function(name='conductivity_L1', parameter_function=expr.dump())
+        pf = ParameterFunction(name='conductivity_L1', function_type=PFT.NUMEXPR, function=cl1_func, args=['conductivity'])
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['conductivity_L1'] = expr, expr_id
+        funcs['conductivity_L1'] = pf, expr_id
 
         cl1_pmap = {'conductivity':'conductivity'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = cl1_pmap
         condL1_ctxt = ParameterContext('conductivity_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         condL1_ctxt.uom = 'S m-1'
@@ -233,12 +236,13 @@ class ParameterHelper(object):
         # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
         #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
         pl1_func = '(pressure / 100.0) + 0.5'
-        expr = NumexprFunction('pressure_L1', pl1_func, ['pressure'])
-        expr_id = self.dataset_management.create_parameter_function(name='pressure_L1', parameter_function=expr.dump())
+        pf = ParameterFunction(name='pressure_L1', function_type=PFT.NUMEXPR, function=pl1_func, args=['pressure'])
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['pressure_L1'] = expr, expr_id
+        funcs['pressure_L1'] = pf, expr_id
         
         pl1_pmap = {'pressure':'pressure'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = pl1_pmap
         presL1_ctxt = ParameterContext('pressure_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         presL1_ctxt.uom = 'S m-1'
@@ -253,13 +257,14 @@ class ParameterHelper(object):
         owner = 'ion_functions.workflow_tests.fake_data'
         sal_func = 'data_l2_salinity'
         sal_arglist = ['conductivity', 'temp', 'pressure']
-        expr = PythonFunction('salinity_L2', owner, sal_func, sal_arglist)
-        expr_id = self.dataset_management.create_parameter_function(name='salinity_L2', parameter_function=expr.dump())
+        pf = ParameterFunction(name='salinity_L2', function_type=PFT.PYTHON, owner=owner, function=sal_func, args=sal_arglist)
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['salinity_L2'] = expr, expr_id
+        funcs['salinity_L2'] = pf, expr_id
         
         # A magic function that may or may not exist actually forms the line below at runtime.
         sal_pmap = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = sal_pmap
         sal_ctxt = ParameterContext('salinity', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         sal_ctxt.uom = 'g kg-1'
@@ -273,13 +278,14 @@ class ParameterHelper(object):
         owner = 'ion_functions.workflow_tests.fake_data'
         dens_func = 'data_l2_density'
         dens_arglist =['conductivity', 'temp', 'pressure', 'lat', 'lon'] 
-        expr = PythonFunction('density_L2', owner, dens_func, dens_arglist)
-        expr_id = self.dataset_management.create_parameter_function(name='density_L2', parameter_function=expr.dump())
+        pf = ParameterFunction(name='density_L2', function_type=PFT.PYTHON, owner=owner, function=dens_func, args=dens_arglist)
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['density_L2'] = expr, expr_id
+        funcs['density_L2'] = pf, expr_id
 
 
         dens_pmap = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1', 'lat':'lat', 'lon':'lon'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = dens_pmap
         dens_ctxt = ParameterContext('density', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         dens_ctxt.uom = 'kg m-3'
@@ -370,12 +376,13 @@ class ParameterHelper(object):
 
         # TEMPWAT_L1 = (TEMPWAT_L0 / 10000) - 10
         tl1_func = '(temperature / 10000.0) - 10'
-        expr = NumexprFunction('temp_L1', tl1_func, ['temperature'])
-        expr_id = self.dataset_management.create_parameter_function(name='temp_L1', parameter_function=expr.dump())
+        pf = ParameterFunction(name='temp_L1', function_type=PFT.NUMEXPR, function=tl1_func, args=['temperature'])
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['temp_L1'] = expr, expr_id
+        funcs['temp_L1'] = pf, expr_id
 
         tl1_pmap = {'temperature':'temp'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = tl1_pmap
         tempL1_ctxt = ParameterContext('temp_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         tempL1_ctxt.uom = 'deg_C'
@@ -385,12 +392,13 @@ class ParameterHelper(object):
 
         # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
         cl1_func = '(conductivity / 100000.0) - 0.5'
-        expr = NumexprFunction('conductivity_L1', cl1_func, ['conductivity'])
-        expr_id = self.dataset_management.create_parameter_function(name='conductivity_L1', parameter_function=expr.dump())
+        pf = ParameterFunction(name='conductivity_L1', function_type=PFT.NUMEXPR, function=cl1_func, args=['conductivity'])
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['conductivity_L1'] = expr, expr_id
+        funcs['conductivity_L1'] = pf, expr_id
 
         cl1_pmap = {'conductivity':'conductivity'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = cl1_pmap
         condL1_ctxt = ParameterContext('conductivity_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         condL1_ctxt.uom = 'S m-1'
@@ -401,12 +409,13 @@ class ParameterHelper(object):
         # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
         #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
         pl1_func = '(pressure / 100.0) + 0.5'
-        expr = NumexprFunction('pressure_L1', pl1_func, ['pressure'])
-        expr_id = self.dataset_management.create_parameter_function(name='pressure_L1', parameter_function=expr.dump())
+        pf = ParameterFunction(name='pressure_L1', function_type=PFT.NUMEXPR, function=pl1_func, args=['pressure'])
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['pressure_L1'] = expr, expr_id
+        funcs['pressure_L1'] = pf, expr_id
         
         pl1_pmap = {'pressure':'pressure'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = pl1_pmap
         presL1_ctxt = ParameterContext('pressure_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         presL1_ctxt.uom = 'S m-1'
@@ -421,13 +430,14 @@ class ParameterHelper(object):
         owner = 'ion_functions.workflow_tests.fake_data'
         sal_func = 'data_l2_salinity'
         sal_arglist = ['conductivity', 'temp', 'pressure']
-        expr = PythonFunction('salinity_L2', owner, sal_func, sal_arglist)
-        expr_id = self.dataset_management.create_parameter_function(name='salinity_L2', parameter_function=expr.dump())
+        pf = ParameterFunction(name='salinity_L2', function_type=PFT.PYTHON, owner=owner, function=sal_func, args=sal_arglist)
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['salinity_L2'] = expr, expr_id
+        funcs['salinity_L2'] = pf, expr_id
         
         # A magic function that may or may not exist actually forms the line below at runtime.
         sal_pmap = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = sal_pmap
         sal_ctxt = ParameterContext('salinity', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         sal_ctxt.uom = 'g kg-1'
@@ -441,13 +451,14 @@ class ParameterHelper(object):
         owner = 'ion_functions.workflow_tests.fake_data'
         dens_func = 'data_l2_density'
         dens_arglist =['conductivity', 'temp', 'pressure', 'lat', 'lon'] 
-        expr = PythonFunction('density_L2', owner, dens_func, dens_arglist)
-        expr_id = self.dataset_management.create_parameter_function(name='density_L2', parameter_function=expr.dump())
+        pf = ParameterFunction(name='density_L2', function_type=PFT.PYTHON, owner=owner, function=dens_func, args=dens_arglist)
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['density_L2'] = expr, expr_id
+        funcs['density_L2'] = pf, expr_id
 
 
         dens_pmap = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1', 'lat':'lat', 'lon':'lon'}
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = dens_pmap
         dens_ctxt = ParameterContext('density', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         dens_ctxt.uom = 'kg m-3'
@@ -505,11 +516,12 @@ class ParameterHelper(object):
         contexts['qc_whatever'] = qc_whatever_ctxt, qc_whatever_ctxt_id
 
 
-        nexpr = NumexprFunction('range_qc', 'min < var > max', ['min','max','var'])
-        expr_id = self.dataset_management.create_parameter_function(name='range_qc', parameter_function=nexpr.dump())
+        pf = ParameterFunction(name='range_qc', function_type=PFT.NUMEXPR, function='min < var > max', args=['min','max','var'])
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
 
         pmap = {'min':0, 'max':20, 'var':'temp'}
+        nexpr = DatasetManagementService.get_coverage_function(pf)
         nexpr.param_map = pmap
         temp_qc_ctxt = ParameterContext('temp_qc', param_type=ParameterFunctionType(function=nexpr), variability=VariabilityEnum.TEMPORAL)
         temp_qc_ctxt.uom = '1'
@@ -565,28 +577,44 @@ class ParameterHelper(object):
         return lookup_pdict_id
 
     def create_global_range_function(self):
-        func = PythonFunction('global_range_test','ion_functions.qc.qc_functions','dataqc_globalrangetest_minmax',['dat','dat_min','dat_max'])
-        func_id = self.dataset_management.create_parameter_function(name='global_range_test', parameter_function=func.dump())
+        pf = ParameterFunction(name='global_range_test', 
+                               function_type=PFT.PYTHON, 
+                               owner='ion_functions.qc.qc_functions',
+                               function='dataqc_globalrangetest_minmax',
+                               args=['dat','dat_min','dat_max'])
+        func_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
-        return func
+        return DatasetManagementService.get_coverage_function(pf)
 
     def create_spike_test_function(self):
-        func = PythonFunction('dataqc_spiketest','ion_functions.qc.qc_functions','dataqc_spiketest',['dat','acc','N','L'])
-        func_id = self.dataset_management.create_parameter_function(name='dataqc_spiketest', parameter_function=func.dump())
+        pf = ParameterFunction(name='dataqc_spiketest',
+                               function_type=PFT.PYTHON,
+                               owner='ion_functions.qc.qc_functions',
+                               function='dataqc_spiketest',
+                               args=['dat','acc','N','L'])
+        func_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
-        return func
+        return DatasetManagementService.get_coverage_function(pf)
 
     def create_stuck_value_test_function(self):
-        func = PythonFunction('dataqc_stuckvaluetest','ion_functions.qc.qc_functions','dataqc_stuckvaluetest',["x","reso","num"])
-        func_id = self.dataset_management.create_parameter_function(name='dataqc_stuckvaluetest', parameter_function=func.dump())
+        pf = ParameterFunction(name='dataqc_stuckvaluetest',
+                               function_type=PFT.PYTHON,
+                               owner='ion_functions.qc.qc_functions',
+                               function='dataqc_stuckvaluetest',
+                               args=["x","reso","num"])
+        func_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
-        return func
+        return DatasetManagementService.get_coverage_function(pf)
 
     def create_matrix_offset_function(self):
-        func = PythonFunction('matrix_offset', 'ion.services.dm.utility.test.parameter_helper','matrix_offset', ['x','y'])
-        func_id = self.dataset_management.create_parameter_function(name='matrix_offset', parameter_function=func.dump())
+        pf = ParameterFunction(name='matrix_offset',
+                               function_type=PFT.PYTHON,
+                               owner='ion.services.dm.utility.test.parameter_helper',
+                               function='matrix_offset',
+                               args=['x','y'])
+        func_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
-        return func
+        return DatasetManagementService.get_coverage_function(pf)
 
     def create_simple_cc(self):
         contexts = {}
@@ -604,11 +632,14 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
-        func = NumexprFunction('offset', 'temp + offset', ['temp','offset'])
-        types_manager.get_pfunc = lambda pfid : func
+        pf = ParameterFunction(name='offset', 
+                function_type=PFT.NUMEXPR,
+                function='temp + offset', 
+                args=['temp','offset'])
+        types_manager.get_pfunc = lambda pfid : DatasetManagementService.get_coverage_function(pf)
         func = types_manager.evaluate_pmap('pfid', {'temp':'temp', 'offset':'CC_coefficient'})
 
-        func_id = self.dataset_management.create_parameter_function('offset', func.dump())
+        func_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
 
         offset_ctxt = ParameterContext('offset', param_type=ParameterFunctionType(func), fill_value=fill_value)
