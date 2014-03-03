@@ -194,6 +194,11 @@ class DatasetManagementService(BaseDatasetManagementService):
             return tuple(map(cls.numpy_walk, obj))
         return obj
 
+    def create_parameter(self, parameter_context=None):
+        '''
+        Creates a parameter context using the IonObject
+        '''
+        pass
 
     def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report='', units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map='', standard_name='', ooi_short_name='', precision='', visible=True):
         
@@ -325,165 +330,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         data_process_management.create_data_process_definition(dpd, parameter_function_id)
 
         return parameter_function_id
-
-    def _parse_lookup_value(self, context, lookup_value, name):
-        if lookup_value:
-            if lookup_value.lower() == 'true':
-                context.lookup_value = name
-                context.document_key = ''
-            else:
-                if '||' in lookup_value:
-                    context.lookup_value,context.document_key = lookup_value.split('||')
-                else:
-                    context.lookup_value = name
-                    context.document_key = lookup_value
-
-    def load_parameter_context(self, row):
-        from ion.services.dm.utility.types import TypesManager
-
-        def sanitize_uni(s):
-            b = []
-            for a in s:
-                if ord(a) <= 128:
-                    b.append(a)
-            return ''.join(b)
-
-
-        self.row_count += 1
-        name         = sanitize_uni(row['Name'])
-        ptype        = sanitize_uni(row['Parameter Type'])
-        encoding     = sanitize_uni(row['Value Encoding'])
-        uom          = sanitize_uni(row['Unit of Measure'] or 'undefined')
-        code_set     = sanitize_uni(row['Code Set'])
-        fill_value   = sanitize_uni(row['Fill Value'])
-        display_name = sanitize_uni(row['Display Name'])
-        std_name     = sanitize_uni(row['Standard Name'])
-        long_name    = sanitize_uni(row['Long Name'])
-        references   = sanitize_uni(row['confluence'])
-        description  = sanitize_uni(row['Description'])
-        pfid         = sanitize_uni(row['Parameter Function ID'])
-        pmap         = sanitize_uni(row['Parameter Function Map'])
-        sname        = sanitize_uni(row['Data Product Identifier'])
-        precision    = sanitize_uni(row['Precision'])
-        param_id     = sanitize_uni(row['ID'])
-        lookup_value = sanitize_uni(row['Lookup Value'])
-        qc           = sanitize_uni(row['QC Functions'])
-        visible      = get_typed_value(row['visible'], targettype="bool") if row['visible'] else True
-
-        dataset_management = self
-
-        #validate unit of measure
-        # allow google doc to include more maintainable "key: value, key: value" instead of python "{ 'key': 'value', 'key': 'value' }"
-        pmap = pmap if pmap.startswith('{') else repr(parse_dict(pmap))
-
-        if pfid and ptype!='function':
-            log.warn('Parameter %s (%s) has type %s, did not expect function %s', row['ID'], name, ptype, pfid)
-            #validate parameter type
-        try:
-            tm = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
-            param_type = tm.get_parameter_type(ptype, encoding,code_set,pfid, pmap)
-            context = ParameterContext(name=name, param_type=param_type)
-            context.uom = uom
-            try:
-                tm.get_unit(uom)
-            except UdunitsError as e:
-                log.warning('Parameter %s (%s) has invalid units: %s', name,param_id, uom)
-            context.fill_value = tm.get_fill_value(fill_value, encoding, param_type)
-            context.reference_urls = references
-            context.internal_name = name
-            context.display_name = display_name
-            context.standard_name = std_name
-            context.ooi_short_name = sname
-            context.description = description
-            context.precision = precision
-            context.visible = visible
-            self._parse_lookup_value(context, lookup_value, name)
-            
-            qc_map = {
-                    'Global Range Test (GLBLRNG) QC'                         : 'glblrng_qc',
-                    'Stuck Value Test (STUCKVL) QC'                          : 'stuckvl_qc',
-                    'Spike Test (SPKETST) QC'                                : 'spketst_qc',
-                    'Trend Test (TRNDTST) QC'                                : 'trndtst_qc',
-                    'Gradient Test (GRADTST) QC'                             : 'gradtst_qc',
-                    'Local Range Test (LOCLRNG) QC'                          : 'loclrng_qc',
-                    'Modulus (MODULUS) QC'                                   : 'modulus_qc',
-                    'Evaluate Polynomial (POLYVAL) QC'                       : 'polyval_qc',
-                    'Solar Elevation (SOLAREL) QC'                           : 'solarel_qc',
-                    'Conductivity Compressibility Compensation (CONDCMP) QC' : 'condcmp_qc',
-                    '1-D Interpolation (INTERP1) QC'                         : 'interp1_qc',
-                    'Combine QC Flags (CMBNFLG) QC'                          : 'cmbnflg_qc',
-                    }
-            
-            qc_fields = None
-            if self.ooi_loader._extracted:
-                # Yes, OOI Assets were parsed
-                dps = self.ooi_loader.get_type_assets('data_product')
-                if context.ooi_short_name in dps:
-                    dp = dps[context.ooi_short_name]
-                    qc_fields = [v for k,v in qc_map.iteritems() if dp[k] == 'applicable']
-                    if qc_fields and not qc: # If the column wasn't filled out but SAF says it should be there, just use the OOI Short Name
-                        log.warning("Enabling QC for %s (%s) based on SAF requirement but QC-identifier wasn't specified.", name, row[COL_ID])
-                        qc = sname
-                    
-
-
-            if qc:
-                try:
-                    if isinstance(context.param_type, (QuantityType, ParameterFunctionType)):
-                        context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id, qc_fields)
-                except KeyError:
-                    pass
-
-        except TypeError as e:
-            log.exception(e.message)
-            self._conflict_report(row['ID'], row['Name'], e.message)
-            return
-        except Exception:
-            log.exception('Could not load the following parameter definition: %s', row)
-            return
-
-        context_dump = context.dump()
-
-        try:
-            json.dumps(context_dump)
-        except Exception as e:
-            self._conflict_report(row['ID'], row['Name'], e.message)
-            return
-        try:
-            creation_args = dict(
-                name=name, parameter_context=context_dump,
-                description=description,
-                reference_urls=[references],
-                parameter_type=ptype,
-                internal_name=name,
-                value_encoding=encoding,
-                code_report=code_set,
-                units=uom,
-                fill_value=fill_value,
-                display_name=display_name,
-                parameter_function_map=pmap,
-                standard_name=std_name,
-                ooi_short_name=sname,
-                precision=precision,
-                visible=visible,
-                headers=self._get_system_actor_headers())
-            if pfid:
-                try:
-                    creation_args['parameter_function_id'] = self.resource_ids[pfid]
-                except KeyError:
-                    pass
-            context_id = dataset_management.create_parameter_context(**creation_args)
-            context_obj = self.container.resource_registry.read(context_id)
-            context_obj.alt_ids = ['PRE:'+row[COL_ID]]
-            self.container.resource_registry.update(context_obj)
-        except AttributeError as e:
-            if e.message == "'dict' object has no attribute 'read'":
-                self._conflict_report(row['ID'], row['Name'], 'Something is not JSON compatible.')
-                return
-            else:
-                self._conflict_report(row['ID'], row['Name'], e.message)
-                return
-        self._register_id(row[COL_ID], context_id, context_obj)
 
 #--------
 

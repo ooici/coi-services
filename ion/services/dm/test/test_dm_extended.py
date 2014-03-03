@@ -20,7 +20,7 @@ from ion.services.dm.utility.provenance import graph
 from ion.processes.data.registration.registration_process import RegistrationProcess
 from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext
 from ion.processes.data.transforms.transform_worker import TransformWorker
-from interface.objects import DataProcessDefinition, InstrumentDevice
+from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT 
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.event.event import EventSubscriber
@@ -1419,9 +1419,10 @@ def rotate_v(u,v,theta):
         owner = 'ion.util.functions'
         func = 'fail'
         arg_list = ['x']
-        expr = PythonFunction('fail', owner, func, arg_list)
-        expr_id = self.dataset_management.create_parameter_function(name='fail', parameter_function=expr.dump())
+        pf = ParameterFunction(name='fail', function_type=PFT.PYTHON, owner=owner, function=func, args=arg_list)
+        expr_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
+        expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = {'x':'temp'}
         failure_ctx = ParameterContext('failure', param_type=ParameterFunctionType(expr))
         failure_ctx.uom = '1'
