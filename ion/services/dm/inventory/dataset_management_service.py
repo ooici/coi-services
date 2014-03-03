@@ -266,7 +266,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         return True
 
     @classmethod
-    def get_coverage_function(self, parameter_function=None):
+    def get_coverage_function(self, parameter_function):
         func = None
         if parameter_function.function_type == PFT.PYTHON:
             func = PythonFunction(name=parameter_function.name,

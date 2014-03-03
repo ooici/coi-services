@@ -139,12 +139,19 @@ class TypesManager(object):
         return param_name
 
     def get_pfunc(self,pfid):
-        if pfid not in self.resource_objs: 
-            raise KeyError('Function %s was not loaded' % pfid)
+        # Preload Case
+        if pfid.startswith('PFID'):
+            if pfid not in self.resource_objs: 
+                raise KeyError('Function %s was not loaded' % pfid)
 
-        func_dump = self.resource_objs[pfid].parameter_function
-        pfunc = AbstractFunction.load(func_dump)
-        return pfunc
+            pf = self.resource_objs[pfid]
+            func = DatasetManagementService.get_coverage_function(pf)
+            return func
+        # System Case
+        else:
+            pf = Container.instance.resource_registry.read(pfid)
+            func = DatasetManagementService.get_coverage_function(pf)
+            return func
 
     def _placeholder(self, value, pc_callback):
         placeholder = value.replace('LV_','')
@@ -219,7 +226,7 @@ class TypesManager(object):
                 pmap[k] = placeholder
                 coefficients.append(ctxt_id)
 
-        func = deepcopy(self.get_pfunc(pfid))
+        func = self.get_pfunc(pfid)
         func.param_map = pmap
         if lookup_values:
             func.lookup_values = lookup_values
@@ -447,10 +454,11 @@ class TypesManager(object):
     def get_function_type(self, parameter_type, encoding, pfid, pmap):
         if pfid is None or pmap is None:
             raise TypeError('Function Types require proper function IDs and maps')
-        try:
-            pmap = ast.literal_eval(pmap)
-        except:
-            raise TypeError('Invalid Parameter Map Syntax')
+        if isinstance(pmap, basestring):
+            try:
+                pmap = ast.literal_eval(pmap)
+            except:
+                raise TypeError('Invalid Parameter Map Syntax')
         func = self.evaluate_pmap(pfid, pmap) # Parse out nested PFIDs and such
         param_type = ParameterFunctionType(func)
         return param_type

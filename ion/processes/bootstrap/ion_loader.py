@@ -1901,7 +1901,7 @@ Reason: %s
 
         if pfid and ptype!='function':
             log.warn('Parameter %s (%s) has type %s, did not expect function %s', row['ID'], name, ptype, pfid)
-            #validate parameter type
+        #validate parameter type
         try:
             tm = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
             param_type = tm.get_parameter_type(ptype, encoding,code_set,pfid, pmap)
