@@ -27,6 +27,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from coverage_model.parameter_functions import AbstractFunction, PythonFunction, NumexprFunction
 from coverage_model import ParameterContext, ParameterFunctionType, ParameterDictionary
 from ion.processes.data.replay.replay_client import ReplayClient
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
 from pyon.util.arg_check import validate_is_instance
 from ion.util.module_uploader import RegisterModulePreparerPy
@@ -652,8 +653,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         pfuncs, _ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasParameterFunction, id_only=False)
         if not pfuncs:
             raise BadRequest('Data Process Definition %s has no parameter functions' % data_process_definition_id)
-        pfunc_res = pfuncs[0]
-        func = AbstractFunction.load(pfunc_res.parameter_function)
+        func = DatasetManagementService.get_coverage_function(pfuncs[0])
         if isinstance(func, PythonFunction):
             func._import_func()
             # Gets a list of lines of the source code
@@ -741,10 +741,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         parameter_functions, _ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasParameterFunction, id_only=False)
         if not parameter_functions:
             raise BadRequest("No associated parameter functions with data process definition %s" % data_process_definition_id)
-        parameter_function = parameter_functions[0]
-
         # Make a context specific to this data process
-        pf = AbstractFunction.load(parameter_function.parameter_function)
+        pf = DatasetManagementService.get_coverage_function(parameter_functions[0])
+
         # Assign the parameter map
         if not param_map:
             raise BadRequest('A parameter map must be specified for ParameterFunctions')
@@ -1142,7 +1141,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             tfunc_objs, _ = self.clients.resource_registry.find_objects(subject=data_process_def_obj, predicate=PRED.hasTransformFunction, id_only=False)
 
             if len(tfunc_objs) != 1:
-                log.exception('The data process definition for a data process is not correctly associated with a ParameterFunction resource.')
+                log.exception('The data process definition for a data process is not correctly associated with a TransformFunction resource.')
             else:
                 transform_function_obj = tfunc_objs[0]
 

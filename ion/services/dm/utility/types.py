@@ -234,8 +234,9 @@ class TypesManager(object):
     @memoize_lru(maxsize=100)
     def find_function(self,name):
         res_obj, _ = Container.instance.resource_registry.find_resources(name=name, restype=RT.ParameterFunction, id_only=False)
+
         if res_obj:
-            return res_obj[0]._id, AbstractFunction.load(res_obj[0].parameter_function)
+            return res_obj[0]._id, DatasetManagementService.get_coverage_function(res_obj[0])
         else:
             raise KeyError('%s was never loaded' % name)
 
