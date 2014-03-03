@@ -5,8 +5,7 @@ from ion.processes.data.replay.replay_process import RetrieveProcess
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
-from ion.services.dm.utility.provenance import graph
-from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext
+from coverage_model import ParameterFunctionType 
 from ion.processes.data.transforms.transform_worker import TransformWorker
 from interface.objects import DataProcessDefinition
 from nose.plugins.attrib import attr
@@ -15,7 +14,8 @@ from datetime import datetime, timedelta
 from pyon.util.containers import DotDict
 from pyon.util.log import log
 from pyon.public import RT, PRED, IonObject
-from interface.objects import TransformFunctionType, DataProcessTypeEnum, ParameterFunction, ParameterFunctionType as PFT
+from interface.objects import TransformFunctionType, DataProcessTypeEnum
+from interface.objects import ParameterFunction, ParameterFunctionType as PFT, ParameterContext
 import os
 import unittest
 import numpy as np
@@ -85,11 +85,20 @@ class TestDataProcessFunctions(DMTestCase):
         self.addCleanup(self.dataset_management.delete_parameter_function, pfunc_id)
 
         # Make a context (instance of the function)
-        pfunc = DatasetManagementService.get_coverage_function(pf)
-        pfunc.param_map = {'a':'temp', 'b':'pressure'}
-        ctxt = ParameterContext('array_sum', param_type=ParameterFunctionType(pfunc))
-        ctxt_dump = ctxt.dump()
-        ctxt_id = self.dataset_management.create_parameter_context('array_sum', ctxt_dump)
+        context = ParameterContext(name='array_sum',
+                                   units="1",
+                                   fill_value="-9999",
+                                   parameter_function_id=pfunc_id,
+                                   parameter_type="function",
+                                   value_encoding="float32",
+                                   display_name="Array Summation",
+                                   parameter_function_map={'a':'temp','b':'pressure'})
+        #pfunc = DatasetManagementService.get_coverage_function(pf)
+        #pfunc.param_map = {'a':'temp', 'b':'pressure'}
+        #ctxt = ParameterContext('array_sum', param_type=ParameterFunctionType(pfunc))
+        #ctxt_dump = ctxt.dump()
+        #ctxt_id = self.dataset_management.create_parameter_context('array_sum', ctxt_dump)
+        ctxt_id = self.dataset_management.create_parameter(context)
         self.dataset_management.add_parameter_to_dataset(ctxt_id, dataset_id)
 
         granule = self.data_retriever.retrieve(dataset_id)
