@@ -2,6 +2,7 @@
 __author__ = 'Luke'
 from ion.services.dm.test.dm_test_case import DMTestCase
 from ion.processes.data.replay.replay_process import RetrieveProcess
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.services.dm.utility.provenance import graph
@@ -14,7 +15,7 @@ from datetime import datetime, timedelta
 from pyon.util.containers import DotDict
 from pyon.util.log import log
 from pyon.public import RT, PRED, IonObject
-from interface.objects import TransformFunctionType, DataProcessTypeEnum
+from interface.objects import TransformFunctionType, DataProcessTypeEnum, ParameterFunction, ParameterFunctionType as PFT
 import os
 import unittest
 import numpy as np
@@ -79,13 +80,12 @@ class TestDataProcessFunctions(DMTestCase):
         owner = 'ion_example.add_arrays'
         func = 'add_arrays'
         arglist = ['a', 'b']
-        pfunc = PythonFunction('add_arrays', owner, func, arglist, None, None)
-
-        pfunc_dump = pfunc.dump()
-        pfunc_id = self.dataset_management.create_parameter_function('add_arrays', pfunc_dump, 'Adds two arrays')
+        pf = ParameterFunction(name='add_arrays', function_type=PFT.PYTHON, owner=owner, function=func, args=arglist)
+        pfunc_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, pfunc_id)
 
         # Make a context (instance of the function)
+        pfunc = DatasetManagementService.get_coverage_function(pf)
         pfunc.param_map = {'a':'temp', 'b':'pressure'}
         ctxt = ParameterContext('array_sum', param_type=ParameterFunctionType(pfunc))
         ctxt_dump = ctxt.dump()
@@ -125,10 +125,8 @@ class TestDataProcessFunctions(DMTestCase):
         owner = 'ion_example.add_arrays'
         func = 'add_arrays'
         arglist = ['a', 'b']
-        pfunc = PythonFunction('add_arrays', owner, func, arglist, None, None, egg_url)
-
-        pfunc_dump = pfunc.dump()
-        pfunc_id = self.dataset_management.create_parameter_function('add_arrays', pfunc_dump, 'Adds two arrays')
+        pf = ParameterFunction(name='add_arrays', function_type=PFT.PYTHON, owner=owner, function=func, args=arglist, egg_uri=egg_url)
+        pfunc_id = self.dataset_management.create_parameter_function(pf)
         #--------------------------------------------------------------------------------
         self.addCleanup(self.dataset_management.delete_parameter_function, pfunc_id)
 

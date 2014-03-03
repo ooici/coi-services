@@ -278,7 +278,9 @@ class DatasetManagementService(BaseDatasetManagementService):
                                   owner=parameter_function.owner,
                                   func_name=parameter_function.function,
                                   arg_list=parameter_function.args,
-                                  kwarg_map=None)
+                                  kwarg_map=None,
+                                  param_map=None,
+                                  egg_uri=parameter_function.egg_uri)
         elif parameter_function.function_type == PFT.NUMEXPR:
             func = NumexprFunction(name=parameter_function.name, 
                                    expression=parameter_function.function, 
