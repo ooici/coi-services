@@ -571,7 +571,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
                 pubsub_client.delete_subscription(subscriber.subscription_id)
             subscriber.stop()
 
-    def get_samples(self, stream_name, sample_count=1, timeout=10):
+    def get_samples(self, stream_name, sample_count=1, timeout=30):
         """
         listen on a stream until 'sample_count' samples are read and return
         a list of all samples read.  If the required number of samples aren't
