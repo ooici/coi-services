@@ -213,7 +213,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         return parameter_context_id
 
     @classmethod
-    @debug_wrapper
     def get_coverage_parameter(cls, parameter_context):
         '''
         Creates a Coverage Model based Parameter Context given the 
