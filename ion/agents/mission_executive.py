@@ -28,6 +28,7 @@ from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import FakeProcess
 
+
 class MissionEvents(BaseEnum):
     """
     Acceptable mission events.
@@ -135,7 +136,7 @@ class MissionLoader(object):
                             return False
         return True
 
-    def validate_schedule(self, mission = {}):
+    def _validate_schedule(self, mission = {}):
         """
         Check the mission parameters for scheduling conflicts
         """
@@ -203,8 +204,9 @@ class MissionLoader(object):
                     duration *= 60
 
                 # For convenience convert time commands to seconds
-                mission_params[index]['params'][0] = duration
-                mission_params[index]['params'][1] = 'secs'
+                if units:
+                    mission_params[index]['params'][0] = duration
+                    mission_params[index]['params'][1] = 'secs'
 
                 mission_duration += duration
 
@@ -272,15 +274,8 @@ class MissionLoader(object):
         # Get start time
         self.raw_mission = mission_dict['mission']
 
-        self.validate_schedule(self.raw_mission)
+        self._validate_schedule(self.raw_mission)
 
-        # TODO: Save missions as ION object to pass between services? 
-        # The code below is an example from ion/services/cei/scheduer_service.py
-
-        # time_of_day_timer = IonObject("TimeOfDayTimer", {"times_of_day": times_of_day, "expires": expires,
-        #                                                  "event_origin": event_origin, "event_subtype": event_subtype})
-
-        # se = IonObject(RT.SchedulerEntry, {"entry": time_of_day_timer})
         return True
 
 
@@ -307,12 +302,12 @@ class MissionScheduler(object):
                 self._instruments.update({instrument_id: ia_client})
 
         # Start up the platform
-        self.startup_platform()
+        self._startup_platform()
 
         if mission:
             self._schedule(mission)
         else:
-            print 'Mission scheduler error: No mission'
+            raise Exception('Mission Scheduler Error: No mission')
 
     def _schedule(self, mission):
         """
@@ -325,71 +320,119 @@ class MissionScheduler(object):
             if start_time:  
                 start_in = start_time - time.time() if (time.time() < start_time) else 0
                 print 'Start in ' + str(start_in) + ' seconds'
-                self.threads.append(Greenlet.spawn_later(start_in, self.run_mission, mission[missionIndex]))
+                self.threads.append(Greenlet.spawn_later(start_in, self._run_mission, mission[missionIndex]))
 
         gevent.joinall(self.threads)
 
-    def run_mission(self, mission_params):
+    def _run_mission(self, mission_params):
         """
         This function needs to live within the platform agent
         TODO: Make a MissionExecutive class?
         """
         instrument_id = mission_params['instrument_id']
-        self.check_preconditions()
+        self._check_preconditions()
         
         loop_running = True
         loop_count = 0
 
-
+        start_time = mission_params['start_time']
+        
         # Master loop
         while loop_running:
+            # Wake up instrument if necessary (may have timed out)
+            # self.wake_up_instrument()
+
             current_time = time.time()
+
             for cmd in mission_params['mission_cmds']:
                 # Parse command and parameters
-                self.parse_cmd(instrument_id, cmd)
+                self._parse_command(instrument_id, cmd)
 
             if mission_params['num_loops'] > 0:
                 loop_count += 1
                 if loop_count >= mission_params['num_loops']:
                     loop_running = False
+                else:
+                    #Calculate next start time
+                    if start_time:
+                        start_time += mission_params['loop_duration']
+                        print "Next Sequence starts at " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
+                        while (time.time() < start_time):
+                            gevent.sleep(1)
 
-            gevent.sleep(1)
 
-    def parse_cmd(self, instrument_id, cmd):
+
+
+    # def wait_for_next_sequence(self, start_time, loop_duration)
+
+    def _parse_command(self, instrument_id, cmd):
 
         command = cmd['command'].lower() 
+        params = cmd['params']
         if command == 'wait':
-            print ('Waiting ' + str(cmd['params'][0]) + ' Seconds ' +
+            print ('Waiting ' + str(params[0]) + ' Seconds ' +
                     time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))    
-            gevent.sleep(cmd['params'][0]) 
+            gevent.sleep(params[0]) 
             print 'Wait Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
 
         elif command == 'sample':
             
-            self.send_command(instrument_id, command)
+            self._send_command(instrument_id, command, params[2:])
 
-            print ('Sampling ' + str(cmd['params'][0]) + ' Seconds ' +
+            print ('Sampling ' + str(params[0]) + ' Seconds ' +
                     time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
-            gevent.sleep(cmd['params'][0])
+            gevent.sleep(params[0])
             print 'Sample Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
 
-            self.send_command(instrument_id, 'stop')
+            self._send_command(instrument_id, 'stop')
 
-    def send_command(self, instrument_id, command):
+        elif command == 'calibrate':
+
+            print ('Calibating ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
+            self._send_command(instrument_id, command)
+
+            
+            # gevent.sleep(params[0])
+            print 'Calibrating Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
+
+            self._send_command(instrument_id, 'stop')
+
+
+    def _send_command(self, instrument_id, command, params = []):
 
         from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
         num_tries = 0
         state = None
 
         ia_client = self._instruments[instrument_id] 
+        state = ia_client.get_agent_state()
+        print state
+
         if command == 'sample':
+            # A sample command has a sample duration and frequency
+            SBEparams = [SBE37Parameter.INTERVAL]
+            reply = ia_client.get_resource(SBEparams)
+            print 'Sample Interval= ' + str(reply[SBE37Parameter.INTERVAL])
+            
+            if params and params[0] != reply[SBE37Parameter.INTERVAL]:
+                ia_client.set_resource({SBE37Parameter.INTERVAL:params[0]})     
+                reply = ia_client.get_resource(SBEparams)
+
+            # # Acquire Status from SBE37
+            # cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_STATUS)
+            # retval = ia_client.execute_resource(cmd)
+            # state = ia_client.get_agent_state()
+            # print state
+
             while (num_tries < 3) and (state != ResourceAgentState.STREAMING):
                 num_tries += 1
                 cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
                 retval = ia_client.execute_resource(cmd)
                 state = ia_client.get_agent_state()
                 print state
+
         elif command == 'stop':
             while (num_tries < 3) and (state != ResourceAgentState.COMMAND):
                 num_tries += 1
@@ -398,7 +441,15 @@ class MissionScheduler(object):
                 state = ia_client.get_agent_state()
                 print state
 
-    def startup_platform(self):
+        elif command == 'calibrate':
+            while (num_tries < 3) and (state != ResourceAgentState.CALIBRATE):
+                num_tries += 1
+                cmd = AgentCommand(command=SBE37ProtocolEvent.CALIBRATE)
+                retval = ia_client.execute_resource(cmd)
+                state = ia_client.get_agent_state()
+                print state
+
+    def _startup_platform(self):
         # TODO: Check if platform is already running
         from pyon.public import CFG
         self._receive_timeout = CFG.endpoint.receive.timeout
@@ -426,7 +477,13 @@ class MissionScheduler(object):
         retval = self._pa_client.execute_agent(cmd)
 
 
-    def check_preconditions(self):
+    def _wake_up_instrument(self, _ia_client):
+        """
+        Wake up instrument before sending commands
+        """
+        pass
+
+    def _check_preconditions(self):
         # TODO: Implement precondition checks
         pass
 
