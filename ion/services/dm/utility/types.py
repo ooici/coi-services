@@ -48,12 +48,13 @@ class TypesManager(object):
         groups = re.match(r'(category)(<)(.*)(:)(.*)(>)', parameter_type).groups()
         dtype = np.dtype(groups[2])
         try:
-            codestr = code_set.replace('\\', '')
-            code_set = ast.literal_eval(codestr)
-            for k in code_set.keys():
-                v = code_set[k]
-                del code_set[k]
-                code_set[dtype.type(k)] = v
+            if isinstance(code_set, basestring):
+                codestr = code_set.replace('\\', '')
+                code_set = ast.literal_eval(codestr)
+                for k in code_set.keys():
+                    v = code_set[k]
+                    del code_set[k]
+                    code_set[dtype.type(k)] = v
         except:
             raise TypeError('Invalid Code Set: %s' % code_set)
         return CategoryType(categories=code_set)
@@ -87,22 +88,24 @@ class TypesManager(object):
 
         if val == '':
             return None
-        if val.lower() == 'none':
+        if isinstance(val, basestring) and val.lower() == 'none':
             return None
-        if val.lower() == 'empty':
+        if isinstance(val, basestring) and val.lower() == 'empty':
             return ''
-        if val.lower() == 'false':
+        if isinstance(val, basestring) and val.lower() == 'false':
             return 0
-        if val.lower() == 'true':
+        if isinstance(val, basestring) and val.lower() == 'true':
             return 1
         if 'float' in encoding:
             return float(val)
         if 'int' in encoding:
             return int(val)
-        if encoding.lower()[0] == 's':
+        if isinstance(val, basestring) and encoding.lower()[0] == 's':
             return val
-        if encoding.lower() == 'opaque':
+        if isinstance(val, basestring) and encoding.lower() == 'opaque':
             raise TypeError('Fill value for opaque must be None, not: %s' % val)
+        if 'category' in encoding.lower() and isinstance(val, (int, float)):
+            return val
         else:
             raise TypeError('Invalid Fill Value: %s' % val) # May never be called
 
@@ -140,6 +143,8 @@ class TypesManager(object):
 
     def get_pfunc(self,pfid):
         # Preload Case
+        if not pfid:
+            raise TypeError('No parameter function id specified')
         if pfid.startswith('PFID'):
             if pfid not in self.resource_objs: 
                 raise KeyError('Function %s was not loaded' % pfid)

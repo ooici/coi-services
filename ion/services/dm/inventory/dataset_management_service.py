@@ -199,35 +199,8 @@ class DatasetManagementService(BaseDatasetManagementService):
         '''
         Creates a parameter context using the IonObject
         '''
-        parameter_context.name = re.sub(r'[^a-zA-Z0-9_]', '_', parameter_context.name)
-        from ion.services.dm.utility.types import TypesManager
-        tm = TypesManager(self, {}, {})
-        param_type = tm.get_parameter_type(
-                    parameter_context.parameter_type,
-                    parameter_context.value_encoding,
-                    parameter_context.code_report,
-                    parameter_context.parameter_function_id,
-                    parameter_context.parameter_function_map)
-        # Ugh, I hate it but I did copy this section from
-        # ion/processes/bootstrap/ion_loader.py
-        context = ParameterContext(name=parameter_context.name, param_type=param_type)
-        context.uom = parameter_context.units
-        try:
-            tm.get_unit(context.uom)
-        except UdunitsError:
-            log.warning('Parameter %s has invalid units: %s', parameter_context.name, context.uom)
-        context.fill_value = tm.get_fill_value(parameter_context.fill_value, 
-                                               parameter_context.value_encoding, 
-                                               param_type)
-        context.reference_urls = parameter_context.reference_urls
-        context.internal_name = parameter_context.name
-        context.display_name = parameter_context.display_name
-        context.standard_name = parameter_context.standard_name
-        context.ooi_short_name = parameter_context.ooi_short_name
-        context.description = parameter_context.description
-        context.precision = parameter_context.precision
-        context.visible = parameter_context.visible
 
+        context = self.get_coverage_parameter(parameter_context)
         parameter_context.parameter_context = context.dump()
         parameter_context = self.numpy_walk(parameter_context)
         parameter_context_id, _ = self.clients.resource_registry.create(parameter_context)
@@ -238,6 +211,52 @@ class DatasetManagementService(BaseDatasetManagementService):
                     predicate=PRED.hasParameterFunction, 
                     object=parameter_context.parameter_function_id)
         return parameter_context_id
+
+    @classmethod
+    @debug_wrapper
+    def get_coverage_parameter(cls, parameter_context):
+        '''
+        Creates a Coverage Model based Parameter Context given the 
+        ParameterContext IonObject.
+
+        Note: If the parameter is a parameter function and depends on dynamically
+        created calibrations, this will fail.
+        '''
+        # Only CF and netCDF compliant variable names
+        parameter_context.name = re.sub(r'[^a-zA-Z0-9_]', '_', parameter_context.name)
+        from ion.services.dm.utility.types import TypesManager
+        # The TypesManager does all the parsing and converting to the coverage model instances
+        tm = TypesManager(None, {}, {})
+        # First thing to do is create the parameter type
+        param_type = tm.get_parameter_type(
+                    parameter_context.parameter_type,
+                    parameter_context.value_encoding,
+                    parameter_context.code_report,
+                    parameter_context.parameter_function_id,
+                    parameter_context.parameter_function_map)
+        # Ugh, I hate it but I did copy this section from
+        # ion/processes/bootstrap/ion_loader.py
+        context = ParameterContext(name=parameter_context.name, param_type=param_type)
+        # Now copy over all the attrs
+        context.uom = parameter_context.units
+        try:
+            if isinstance(context.uom, basestring):
+                tm.get_unit(context.uom)
+        except UdunitsError:
+            log.warning('Parameter %s has invalid units: %s', parameter_context.name, context.uom)
+        # Fill values can be a bit tricky...
+        context.fill_value = tm.get_fill_value(parameter_context.fill_value, 
+                                               parameter_context.value_encoding, 
+                                               param_type)
+        context.reference_urls = parameter_context.reference_urls
+        context.internal_name  = parameter_context.name
+        context.display_name   = parameter_context.display_name
+        context.standard_name  = parameter_context.standard_name
+        context.ooi_short_name = parameter_context.ooi_short_name
+        context.description    = parameter_context.description
+        context.precision      = parameter_context.precision
+        context.visible        = parameter_context.visible
+        return context
 
     def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report='', units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map='', standard_name='', ooi_short_name='', precision='', visible=True):
         

@@ -4,13 +4,14 @@
 @file ion/services/dm/utility/test/parameter_helper.py
 @brief Helpers for Parameters
 '''
-from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ArrayType, CategoryType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction, SparseConstantType
+from coverage_model import ParameterContext as CovParameterContext, QuantityType, AxisTypeEnum, ArrayType, CategoryType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction, SparseConstantType
 from interface.objects import ParameterFunction, ParameterFunctionType as PFT
 from ion.services.dm.utility.types import TypesManager
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from pyon.container.cc import Container
 from pyon.ion.stream import StandaloneStreamPublisher
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.objects import ParameterContext
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 import time
 import numpy as np
@@ -137,67 +138,112 @@ class ParameterHelper(object):
     def create_sparse_params(self):
         contexts = {}
         funcs = {}
-        
+        t_ctxt = ParameterContext(name='time',
+                                  parameter_type='quantity',
+                                  value_encoding='float64',
+                                  units='seconds since 1900-01-01')
 
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
-        t_ctxt.uom = 'seconds since 1900-01-01'
-        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
-        contexts['time'] = (t_ctxt, t_ctxt_id)
+        t_ctxt_id = self.dataset_management.create_parameter(t_ctxt)
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        # Get the coverage instance of the context
+        t = DatasetManagementService.get_coverage_parameter(t_ctxt)
+        contexts['time'] = t, t_ctxt_id
 
-        lat_ctxt = ParameterContext('lat', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value), fill_value=fill_value)
-        lat_ctxt.uom = 'degree_north'
-        lat_ctxt_id = self.dataset_management.create_parameter_context(name='lat', parameter_context=lat_ctxt.dump())
-        contexts['lat'] = lat_ctxt, lat_ctxt_id
+        lat_ctxt = ParameterContext(name='lat',
+                                    parameter_type='sparse',
+                                    value_encoding='float64',
+                                    fill_value=fill_value,
+                                    units='degrees_north')
+        lat_ctxt_id = self.dataset_management.create_parameter(lat_ctxt)
+        self.addCleanup(self.dataset_management.delete_parameter_context, lat_ctxt_id)
+        lat = DatasetManagementService.get_coverage_parameter(lat_ctxt)
+        contexts['lat'] = lat, lat_ctxt_id
 
-        lon_ctxt = ParameterContext('lon', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value), fill_value=fill_value)
-        lon_ctxt.uom = 'degree_east'
-        lon_ctxt_id = self.dataset_management.create_parameter_context(name='lon', parameter_context=lon_ctxt.dump())
-        contexts['lon'] = lon_ctxt, lon_ctxt_id
+        lon_ctxt = ParameterContext(name='lon',
+                                    parameter_type='sparse',
+                                    value_encoding='float64',
+                                    fill_value=fill_value,
+                                    units='degrees_north')
+        lon_ctxt_id = self.dataset_management.create_parameter(lon_ctxt)
+        lon = DatasetManagementService.get_coverage_parameter(lon_ctxt)
+        contexts['lon'] = lon, lon_ctxt_id
 
         # Independent Parameters
 
         # Temperature - values expected to be the decimal results of conversion from hex
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
-        temp_ctxt.uom = 'deg_C'
-        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
-        contexts['temp'] = temp_ctxt, temp_ctxt_id
+        temp_ctxt = ParameterContext(name='temp', 
+                                     parameter_type='quantity',
+                                     value_encoding='float32', 
+                                     units='deg_C',
+                                     fill_value=fill_value)
+        temp_ctxt_id = self.dataset_management.create_parameter(temp_ctxt)
+        temp = DatasetManagementService.get_coverage_parameter(temp_ctxt)
+        contexts['temp'] = temp, temp_ctxt_id
 
         # Conductivity - values expected to be the decimal results of conversion from hex
-        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
-        cond_ctxt.uom = 'S m-1'
-        cond_ctxt_id = self.dataset_management.create_parameter_context(name='conductivity', parameter_context=cond_ctxt.dump())
-        contexts['conductivity'] = cond_ctxt, cond_ctxt_id
+        cond_ctxt = ParameterContext(name='conductivity', 
+                                     parameter_type='quantity',
+                                     value_encoding='float32', 
+                                     units='S m-1',
+                                     fill_value=fill_value)
+        cond_ctxt_id = self.dataset_management.create_parameter(cond_ctxt)
+        cond = DatasetManagementService.get_coverage_parameter(cond_ctxt)
+        contexts['conductivity'] = cond, cond_ctxt_id
 
         # Pressure - values expected to be the decimal results of conversion from hex
-        press_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
-        press_ctxt.uom = 'dbar'
-        press_ctxt_id = self.dataset_management.create_parameter_context(name='pressure', parameter_context=press_ctxt.dump())
-        contexts['pressure'] = press_ctxt, press_ctxt_id
+        press_ctxt = ParameterContext(name='pressure', 
+                                      parameter_type='quantity',
+                                      value_encoding='float32', 
+                                      units='dbar',
+                                      fill_value=fill_value)
+        press_ctxt_id = self.dataset_management.create_parameter(press_ctxt)
+        press = DatasetManagementService.get_coverage_parameter(press_ctxt)
+        contexts['pressure'] = press, press_ctxt_id
 
-        preffered_ctxt = ParameterContext('preferred_timestamp', param_type=CategoryType(categories={0:'port_timestamp', 1:'driver_timestamp', 2:'internal_timestamp', 3:'time', -99:'empty'}), fill_value=-99)
-        preffered_ctxt.uom = ''
-        preffered_ctxt_id = self.dataset_management.create_parameter_context(name='preferred_timestamp', parameter_context=preffered_ctxt.dump())
-        contexts['preferred_timestamp'] = preffered_ctxt, preffered_ctxt_id
+        preferred_ctxt = ParameterContext(name='preferred_timestamp', 
+                                          parameter_type='category<int8:str>',
+                                          value_encoding='int8',
+                                          code_report={0:'port_timestamp', 1:'driver_timestamp', 2:'internal_timestamp', 3:'time', -99:'empty'}, 
+                                          units='1',
+                                          fill_value=-99)
+        preferred_ctxt_id = self.dataset_management.create_parameter(preferred_ctxt)
+        preferred = DatasetManagementService.get_coverage_parameter(preferred_ctxt)
+        contexts['preferred_timestamp'] = preferred, preferred_ctxt_id
         
-        port_ctxt = ParameterContext('port_timestamp', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=fill_value)
-        port_ctxt.uom = 'seconds since 1900-01-01'
-        port_ctxt_id = self.dataset_management.create_parameter_context(name='port_timestamp', parameter_context=port_ctxt.dump())
-        contexts['port_timestamp'] = port_ctxt, port_ctxt_id
+        port_ctxt = ParameterContext(name='port_timestamp', 
+                                     parameter_type='quantity',
+                                     value_encoding='float64', 
+                                     units='seconds since 1900-01-01',
+                                     fill_value=fill_value)
+        port_ctxt_id = self.dataset_management.create_parameter(port_ctxt)
+        port = DatasetManagementService.get_coverage_parameter(port_ctxt)
+        contexts['port_timestamp'] = port, port_ctxt_id
         
-        driver_ctxt = ParameterContext('driver_timestamp', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=fill_value)
-        driver_ctxt.uom = 'seconds since 1900-01-01'
-        driver_ctxt_id = self.dataset_management.create_parameter_context(name='driver_timestamp', parameter_context=driver_ctxt.dump())
-        contexts['driver_timestamp'] = driver_ctxt, driver_ctxt_id
+        driver_ctxt = ParameterContext(name='driver_timestamp', 
+                                       parameter_type='quantity',
+                                       value_encoding='float64',
+                                       units='seconds since 1900-01-01',
+                                       fill_value=fill_value)
+        driver_ctxt_id = self.dataset_management.create_parameter(driver_ctxt)
+        driver = DatasetManagementService.get_coverage_parameter(driver_ctxt)
+        contexts['driver_timestamp'] = driver, driver_ctxt_id
         
-        internal_ctxt = ParameterContext('internal_timestamp', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=fill_value)
-        internal_ctxt.uom = 'seconds since 1900-01-01'
-        internal_ctxt_id = self.dataset_management.create_parameter_context(name='internal_timestamp', parameter_context=internal_ctxt.dump())
-        contexts['internal_timestamp'] = internal_ctxt, internal_ctxt_id
+        internal_ctxt = ParameterContext(name='internal_timestamp', 
+                                         parameter_type='quantity',
+                                         value_encoding='float64',
+                                         units='seconds since 1900-01-01',
+                                         fill_value=fill_value)
+        internal_ctxt_id = self.dataset_management.create_parameter(internal_ctxt)
+        internal = DatasetManagementService.get_coverage_parameter(internal_ctxt)
+        contexts['internal_timestamp'] = internal, internal_ctxt_id
         
-        quality_ctxt = ParameterContext('quality_flag', param_type=ArrayType())
-        quality_ctxt.uom = ''
-        quality_ctxt_id = self.dataset_management.create_parameter_context(name='quality_flag', parameter_context=quality_ctxt.dump())
-        contexts['quality_flag'] = quality_ctxt, quality_ctxt_id
+        quality_ctxt = ParameterContext(name='quality_flag', 
+                                        parameter_type='array<quantity>',
+                                        value_encoding='float32',
+                                        units='1')
+        quality_ctxt_id = self.dataset_management.create_parameter(quality_ctxt)
+        quality = DatasetManagementService.get_coverage_parameter(quality_ctxt)
+        contexts['quality_flag'] = quality, quality_ctxt_id
 
         # Dependent Parameters
 
@@ -208,14 +254,15 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
         funcs['temp_L1'] = pf, expr_id
 
-        tl1_pmap = {'temperature':'temp'}
-        expr = DatasetManagementService.get_coverage_function(pf)
-        expr.param_map = tl1_pmap
-        tempL1_ctxt = ParameterContext('temp_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
-        tempL1_ctxt.uom = 'deg_C'
-        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='temp_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_id=expr_id)
-        self.addCleanup(self.dataset_management.delete_parameter_context, tempL1_ctxt_id)
-        contexts['temp_L1'] = tempL1_ctxt, tempL1_ctxt_id
+        tempL1_ctxt = ParameterContext(name='temp_L1', 
+                                       parameter_type='function',
+                                       parameter_function_id=expr_id,
+                                       units='deg_C',
+                                       value_encoding='float32',
+                                       parameter_function_map={'temperature':'temp'})
+        tempL1_ctxt_id = self.dataset_management.create_parameter(tempL1_ctxt)
+        tempL1 = DatasetManagementService.get_coverage_parameter(tempL1_ctxt)
+        contexts['temp_L1'] = tempL1, tempL1_ctxt_id
 
         # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
         cl1_func = '(conductivity / 100000.0) - 0.5'
@@ -224,14 +271,17 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
         funcs['conductivity_L1'] = pf, expr_id
 
-        cl1_pmap = {'conductivity':'conductivity'}
-        expr = DatasetManagementService.get_coverage_function(pf)
-        expr.param_map = cl1_pmap
-        condL1_ctxt = ParameterContext('conductivity_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
-        condL1_ctxt.uom = 'S m-1'
-        condL1_ctxt_id = self.dataset_management.create_parameter_context(name='conductivity_L1', parameter_context=condL1_ctxt.dump(), parameter_function_id=expr_id)
+        condL1_ctxt = ParameterContext(name='conductivity_L1', 
+                                       parameter_type='function',
+                                       parameter_function_id=expr_id,
+                                       parameter_function_map={'conductivity':'conductivity'},
+                                       value_encoding='float32',
+                                       units='S m-1')
+
+        condL1_ctxt_id = self.dataset_management.create_parameter(condL1_ctxt)
         self.addCleanup(self.dataset_management.delete_parameter_context, condL1_ctxt_id)
-        contexts['conductivity_L1'] = condL1_ctxt, condL1_ctxt_id
+        condL1 = DatasetManagementService.get_coverage_parameter(condL1_ctxt)
+        contexts['conductivity_L1'] = condL1, condL1_ctxt_id
 
         # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
         #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
@@ -241,14 +291,16 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
         funcs['pressure_L1'] = pf, expr_id
         
-        pl1_pmap = {'pressure':'pressure'}
-        expr = DatasetManagementService.get_coverage_function(pf)
-        expr.param_map = pl1_pmap
-        presL1_ctxt = ParameterContext('pressure_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
-        presL1_ctxt.uom = 'S m-1'
-        presL1_ctxt_id = self.dataset_management.create_parameter_context(name='pressure_L1', parameter_context=presL1_ctxt.dump(), parameter_function_id=expr_id)
+        presL1_ctxt = ParameterContext(name='pressure_L1',
+                                       parameter_type='function',
+                                       parameter_function_id=expr_id,
+                                       parameter_function_map={'pressure':'pressure'},
+                                       value_encoding='float32',
+                                       units='S m-1')
+        presL1_ctxt_id = self.dataset_management.create_parameter(presL1_ctxt)
         self.addCleanup(self.dataset_management.delete_parameter_context, presL1_ctxt_id)
-        contexts['pressure_L1'] = presL1_ctxt, presL1_ctxt_id
+        presL1 = DatasetManagementService.get_coverage_parameter(presL1_ctxt)
+        contexts['pressure_L1'] = presL1, presL1_ctxt_id
 
         # Density & practical salinity calucluated using the Gibbs Seawater library - available via python-gsw project:
         #       https://code.google.com/p/python-gsw/ & http://pypi.python.org/pypi/gsw/3.0.1
@@ -262,15 +314,16 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
         funcs['salinity_L2'] = pf, expr_id
         
-        # A magic function that may or may not exist actually forms the line below at runtime.
-        sal_pmap = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1'}
-        expr = DatasetManagementService.get_coverage_function(pf)
-        expr.param_map = sal_pmap
-        sal_ctxt = ParameterContext('salinity', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
-        sal_ctxt.uom = 'g kg-1'
-        sal_ctxt_id = self.dataset_management.create_parameter_context(name='salinity', parameter_context=sal_ctxt.dump(), parameter_function_id=expr_id)
+        sal_ctxt = ParameterContext(name='salinity',
+                                    parameter_type='function',
+                                    parameter_function_id=expr_id,
+                                    parameter_function_map={'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1'},
+                                    value_encoding='float32',
+                                    units='1')
+        sal_ctxt_id = self.dataset_management.create_parameter(sal_ctxt)
         self.addCleanup(self.dataset_management.delete_parameter_context, sal_ctxt_id)
-        contexts['salinity'] = sal_ctxt, sal_ctxt_id
+        sal = DatasetManagementService.get_coverage_parameter(sal_ctxt)
+        contexts['salinity'] = sal, sal_ctxt_id
 
         # absolute_salinity = gsw.SA_from_SP(PRACSAL, PRESWAT_L1, longitude, latitude)
         # conservative_temperature = gsw.CT_from_t(absolute_salinity, TEMPWAT_L1, PRESWAT_L1)
@@ -284,14 +337,16 @@ class ParameterHelper(object):
         funcs['density_L2'] = pf, expr_id
 
 
-        dens_pmap = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1', 'lat':'lat', 'lon':'lon'}
-        expr = DatasetManagementService.get_coverage_function(pf)
-        expr.param_map = dens_pmap
-        dens_ctxt = ParameterContext('density', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
-        dens_ctxt.uom = 'kg m-3'
-        dens_ctxt_id = self.dataset_management.create_parameter_context(name='density', parameter_context=dens_ctxt.dump(), parameter_function_id=expr_id)
+        dens_ctxt = ParameterContext(name='density',
+                                     parameter_type='function',
+                                     parameter_function_id=expr_id,
+                                     parameter_function_map={'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1', 'lat':'lat', 'lon':'lon'},
+                                     value_encoding='float32',
+                                     units='kg m-3')
+        dens_ctxt_id = self.dataset_management.create_parameter(dens_ctxt)
         self.addCleanup(self.dataset_management.delete_parameter_context, dens_ctxt_id)
-        contexts['density'] = dens_ctxt, dens_ctxt_id
+        dens = DatasetManagementService.get_coverage_parameter(dens_ctxt)
+        contexts['density'] = dens, dens_ctxt_id
 
         return contexts, funcs
 
@@ -312,17 +367,17 @@ class ParameterHelper(object):
         funcs = {}
         
 
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt = CovParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
         t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
         contexts['time'] = (t_ctxt, t_ctxt_id)
 
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        lat_ctxt = CovParameterContext('lat', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
         lat_ctxt.uom = 'degree_north'
         lat_ctxt_id = self.dataset_management.create_parameter_context(name='lat', parameter_context=lat_ctxt.dump())
         contexts['lat'] = lat_ctxt, lat_ctxt_id
 
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        lon_ctxt = CovParameterContext('lon', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
         lon_ctxt.uom = 'degree_east'
         lon_ctxt_id = self.dataset_management.create_parameter_context(name='lon', parameter_context=lon_ctxt.dump())
         contexts['lon'] = lon_ctxt, lon_ctxt_id
@@ -330,44 +385,44 @@ class ParameterHelper(object):
         # Independent Parameters
 
         # Temperature - values expected to be the decimal results of conversion from hex
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        temp_ctxt = CovParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
         temp_ctxt.uom = 'deg_C'
         temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
         # Conductivity - values expected to be the decimal results of conversion from hex
-        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        cond_ctxt = CovParameterContext('conductivity', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
         cond_ctxt.uom = 'S m-1'
         cond_ctxt_id = self.dataset_management.create_parameter_context(name='conductivity', parameter_context=cond_ctxt.dump())
         contexts['conductivity'] = cond_ctxt, cond_ctxt_id
 
         # Pressure - values expected to be the decimal results of conversion from hex
-        press_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        press_ctxt = CovParameterContext('pressure', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
         press_ctxt.uom = 'dbar'
         press_ctxt_id = self.dataset_management.create_parameter_context(name='pressure', parameter_context=press_ctxt.dump())
         contexts['pressure'] = press_ctxt, press_ctxt_id
 
-        preffered_ctxt = ParameterContext('preferred_timestamp', param_type=CategoryType(categories={0:'port_timestamp', 1:'driver_timestamp', 2:'internal_timestamp', 3:'time', -99:'empty'}), fill_value=-99)
+        preffered_ctxt = CovParameterContext('preferred_timestamp', param_type=CategoryType(categories={0:'port_timestamp', 1:'driver_timestamp', 2:'internal_timestamp', 3:'time', -99:'empty'}), fill_value=-99)
         preffered_ctxt.uom = ''
         preffered_ctxt_id = self.dataset_management.create_parameter_context(name='preferred_timestamp', parameter_context=preffered_ctxt.dump())
         contexts['preferred_timestamp'] = preffered_ctxt, preffered_ctxt_id
         
-        port_ctxt = ParameterContext('port_timestamp', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=fill_value)
+        port_ctxt = CovParameterContext('port_timestamp', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=fill_value)
         port_ctxt.uom = 'seconds since 1900-01-01'
         port_ctxt_id = self.dataset_management.create_parameter_context(name='port_timestamp', parameter_context=port_ctxt.dump())
         contexts['port_timestamp'] = port_ctxt, port_ctxt_id
         
-        driver_ctxt = ParameterContext('driver_timestamp', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=fill_value)
+        driver_ctxt = CovParameterContext('driver_timestamp', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=fill_value)
         driver_ctxt.uom = 'seconds since 1900-01-01'
         driver_ctxt_id = self.dataset_management.create_parameter_context(name='driver_timestamp', parameter_context=driver_ctxt.dump())
         contexts['driver_timestamp'] = driver_ctxt, driver_ctxt_id
         
-        internal_ctxt = ParameterContext('internal_timestamp', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=fill_value)
+        internal_ctxt = CovParameterContext('internal_timestamp', param_type=QuantityType(value_encoding=np.dtype('float64')), fill_value=fill_value)
         internal_ctxt.uom = 'seconds since 1900-01-01'
         internal_ctxt_id = self.dataset_management.create_parameter_context(name='internal_timestamp', parameter_context=internal_ctxt.dump())
         contexts['internal_timestamp'] = internal_ctxt, internal_ctxt_id
         
-        quality_ctxt = ParameterContext('quality_flag', param_type=ArrayType())
+        quality_ctxt = CovParameterContext('quality_flag', param_type=ArrayType())
         quality_ctxt.uom = ''
         quality_ctxt_id = self.dataset_management.create_parameter_context(name='quality_flag', parameter_context=quality_ctxt.dump())
         contexts['quality_flag'] = quality_ctxt, quality_ctxt_id
@@ -384,7 +439,7 @@ class ParameterHelper(object):
         tl1_pmap = {'temperature':'temp'}
         expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = tl1_pmap
-        tempL1_ctxt = ParameterContext('temp_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
+        tempL1_ctxt = CovParameterContext('temp_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         tempL1_ctxt.uom = 'deg_C'
         tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='temp_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, tempL1_ctxt_id)
@@ -400,7 +455,7 @@ class ParameterHelper(object):
         cl1_pmap = {'conductivity':'conductivity'}
         expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = cl1_pmap
-        condL1_ctxt = ParameterContext('conductivity_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
+        condL1_ctxt = CovParameterContext('conductivity_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         condL1_ctxt.uom = 'S m-1'
         condL1_ctxt_id = self.dataset_management.create_parameter_context(name='conductivity_L1', parameter_context=condL1_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, condL1_ctxt_id)
@@ -417,7 +472,7 @@ class ParameterHelper(object):
         pl1_pmap = {'pressure':'pressure'}
         expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = pl1_pmap
-        presL1_ctxt = ParameterContext('pressure_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
+        presL1_ctxt = CovParameterContext('pressure_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         presL1_ctxt.uom = 'S m-1'
         presL1_ctxt_id = self.dataset_management.create_parameter_context(name='pressure_L1', parameter_context=presL1_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, presL1_ctxt_id)
@@ -439,7 +494,7 @@ class ParameterHelper(object):
         sal_pmap = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1'}
         expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = sal_pmap
-        sal_ctxt = ParameterContext('salinity', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
+        sal_ctxt = CovParameterContext('salinity', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         sal_ctxt.uom = 'g kg-1'
         sal_ctxt_id = self.dataset_management.create_parameter_context(name='salinity', parameter_context=sal_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, sal_ctxt_id)
@@ -460,7 +515,7 @@ class ParameterHelper(object):
         dens_pmap = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1', 'lat':'lat', 'lon':'lon'}
         expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = dens_pmap
-        dens_ctxt = ParameterContext('density', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
+        dens_ctxt = CovParameterContext('density', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         dens_ctxt.uom = 'kg m-3'
         dens_ctxt_id = self.dataset_management.create_parameter_context(name='density', parameter_context=dens_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, dens_ctxt_id)
@@ -474,14 +529,14 @@ class ParameterHelper(object):
         
         density_lookup_map = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1', 'lat':'lat_lookup', 'lon':'lon_lookup'}
         expr.param_map = density_lookup_map
-        density_lookup_ctxt = ParameterContext('density_lookup', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
+        density_lookup_ctxt = CovParameterContext('density_lookup', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         density_lookup_ctxt.uom = 'kg m-3'
         density_lookup_ctxt_id = self.dataset_management.create_parameter_context(name='density_lookup', parameter_context=density_lookup_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, density_lookup_ctxt_id)
         contexts['density_lookup'] = density_lookup_ctxt, density_lookup_ctxt_id
 
 
-        lat_lookup_ctxt = ParameterContext('lat_lookup', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=fill_value)
+        lat_lookup_ctxt = CovParameterContext('lat_lookup', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=fill_value)
         lat_lookup_ctxt.uom = 'degree_north'
         lat_lookup_ctxt.lookup_value = 'lat'
         lat_lookup_ctxt.document_key = ''
@@ -490,7 +545,7 @@ class ParameterHelper(object):
         contexts['lat_lookup'] = lat_lookup_ctxt, lat_lookup_ctxt_id
         
 
-        lon_lookup_ctxt = ParameterContext('lon_lookup', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=fill_value)
+        lon_lookup_ctxt = CovParameterContext('lon_lookup', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=fill_value)
         lon_lookup_ctxt.uom = 'degree_east'
         lon_lookup_ctxt.lookup_value = 'lon'
         lon_lookup_ctxt.document_key = ''
@@ -499,7 +554,7 @@ class ParameterHelper(object):
         contexts['lon_lookup'] = lon_lookup_ctxt, lon_lookup_ctxt_id
 
 
-        beam_samples = ParameterContext('beam_samples', param_type=ArrayType(inner_encoding='float64'))
+        beam_samples = CovParameterContext('beam_samples', param_type=ArrayType(inner_encoding='float64'))
         beam_samples.uom = 'db'
         beam_samples_id = self.dataset_management.create_parameter_context(name='beam_samples', parameter_context=beam_samples.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, beam_samples_id)
@@ -509,7 +564,7 @@ class ParameterHelper(object):
 
     def create_qc_contexts(self):
         contexts = {}
-        qc_whatever_ctxt = ParameterContext('qc_whatever', param_type=ArrayType())
+        qc_whatever_ctxt = CovParameterContext('qc_whatever', param_type=ArrayType())
         qc_whatever_ctxt.uom = '1'
         qc_whatever_ctxt_id = self.dataset_management.create_parameter_context(name='qc_whatever', parameter_context=qc_whatever_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, qc_whatever_ctxt_id)
@@ -523,7 +578,7 @@ class ParameterHelper(object):
         pmap = {'min':0, 'max':20, 'var':'temp'}
         nexpr = DatasetManagementService.get_coverage_function(pf)
         nexpr.param_map = pmap
-        temp_qc_ctxt = ParameterContext('temp_qc', param_type=ParameterFunctionType(function=nexpr), variability=VariabilityEnum.TEMPORAL)
+        temp_qc_ctxt = CovParameterContext('temp_qc', param_type=ParameterFunctionType(function=nexpr), variability=VariabilityEnum.TEMPORAL)
         temp_qc_ctxt.uom = '1'
         temp_qc_ctxt_id = self.dataset_management.create_parameter_context(name='temp_qc', parameter_context=temp_qc_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_qc_ctxt_id)
@@ -619,13 +674,13 @@ class ParameterHelper(object):
     def create_simple_cc(self):
         contexts = {}
         types_manager = TypesManager(self.dataset_management, None, None)
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt = CovParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
         t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
         contexts['time'] = t_ctxt, t_ctxt_id
 
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        temp_ctxt = CovParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
         temp_ctxt.uom = 'deg_C'
         temp_ctxt.ooi_short_name = 'TEMPWAT'
         temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
@@ -642,7 +697,7 @@ class ParameterHelper(object):
         func_id = self.dataset_management.create_parameter_function(pf)
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
 
-        offset_ctxt = ParameterContext('offset', param_type=ParameterFunctionType(func), fill_value=fill_value)
+        offset_ctxt = CovParameterContext('offset', param_type=ParameterFunctionType(func), fill_value=fill_value)
         offset_ctxt.uom = '1'
         offset_ctxt_id = self.dataset_management.create_parameter_context('offset', offset_ctxt.dump(), parameter_function_id=func_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
@@ -666,13 +721,13 @@ class ParameterHelper(object):
     def create_simple_array(self):
         contexts = {}
         types_manager = TypesManager(self.dataset_management,None,None)
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt = CovParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
         t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
         contexts['time'] = (t_ctxt, t_ctxt_id)
 
-        temp_ctxt = ParameterContext('temp_sample', param_type=ArrayType(inner_encoding='float32'))
+        temp_ctxt = CovParameterContext('temp_sample', param_type=ArrayType(inner_encoding='float32'))
         temp_ctxt.uom = 'deg_C'
         temp_ctxt.ooi_short_name = 'TEMPWAT'
         temp_ctxt.display_name = 'Temperature'
@@ -680,7 +735,7 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp_sample'] = temp_ctxt, temp_ctxt_id
         
-        cond_ctxt = ParameterContext('cond_sample', param_type=ArrayType(inner_encoding='float64'))
+        cond_ctxt = CovParameterContext('cond_sample', param_type=ArrayType(inner_encoding='float64'))
         cond_ctxt.uom = 'deg_C'
         cond_ctxt.ooi_short_name = 'CONDWAT'
         cond_ctxt.display_anme = 'Conductivity'
@@ -690,7 +745,7 @@ class ParameterHelper(object):
 
         func = self.create_matrix_offset_function()
         func.param_map = {'x':'temp_sample', 'y':'cond_sample'}
-        temp_offset = ParameterContext('temp_offset', param_type=ParameterFunctionType(func))
+        temp_offset = CovParameterContext('temp_offset', param_type=ParameterFunctionType(func))
         temp_offset.uom = '1'
         temp_offset_id = self.dataset_management.create_parameter_context(name='temp_offset', parameter_context=temp_offset.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_offset_id)
@@ -710,13 +765,13 @@ class ParameterHelper(object):
     
     def create_illegal_char(self):
         contexts = {}
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt = CovParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
         t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
         contexts['time'] = (t_ctxt, t_ctxt_id)
 
-        i_ctxt = ParameterContext('ice-cream', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        i_ctxt = CovParameterContext('ice-cream', param_type=QuantityType(value_encoding=np.dtype('float32')))
         i_ctxt.uom = '1'
         i_ctxt_id = self.dataset_management.create_parameter_context(name='ice-cream', parameter_context=i_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, i_ctxt_id)
@@ -736,13 +791,13 @@ class ParameterHelper(object):
     def create_simple_qc(self):
         contexts = {}
         types_manager = TypesManager(self.dataset_management,None,None)
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt = CovParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
         t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
         contexts['time'] = (t_ctxt, t_ctxt_id)
         
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        temp_ctxt = CovParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
         temp_ctxt.uom = 'deg_C'
         temp_ctxt.ooi_short_name = 'TEMPWAT'
         temp_ctxt.qc_contexts = types_manager.make_qc_functions('temp','TEMPWAT',lambda *args, **kwargs : None)
@@ -750,7 +805,7 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
-        press_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        press_ctxt = CovParameterContext('pressure', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
         press_ctxt.uom = 'dbar'
         press_ctxt.ooi_short_name = 'PRESWAT'
         press_ctxt.qc_contexts = types_manager.make_qc_functions('pressure', 'PRESWAT', lambda *args, **kwargs : None)
@@ -758,12 +813,12 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, press_ctxt_id)
         contexts['pressure'] = press_ctxt, press_ctxt_id
         
-        lat_ctxt = ParameterContext('lat', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value), fill_value=fill_value)
+        lat_ctxt = CovParameterContext('lat', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value), fill_value=fill_value)
         lat_ctxt.uom = 'degree_north'
         lat_ctxt_id = self.dataset_management.create_parameter_context(name='lat', parameter_context=lat_ctxt.dump())
         contexts['lat'] = lat_ctxt, lat_ctxt_id
 
-        lon_ctxt = ParameterContext('lon', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value), fill_value=fill_value)
+        lon_ctxt = CovParameterContext('lon', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value), fill_value=fill_value)
         lon_ctxt.uom = 'degree_east'
         lon_ctxt_id = self.dataset_management.create_parameter_context(name='lon', parameter_context=lon_ctxt.dump())
         contexts['lon'] = lon_ctxt, lon_ctxt_id
@@ -793,17 +848,17 @@ class ParameterHelper(object):
 
     def create_lookup_contexts(self):
         contexts = {}
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt = CovParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
         t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
         contexts['time'] = (t_ctxt, t_ctxt_id)
         
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
+        temp_ctxt = CovParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=fill_value)
         temp_ctxt.uom = 'deg_C'
         temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
-        offset_ctxt = ParameterContext(name='offset_a', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value))
+        offset_ctxt = CovParameterContext(name='offset_a', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value))
         offset_ctxt.uom = ''
         offset_ctxt.lookup_value = 'offset_a'
         offset_ctxt.document_key = ''
@@ -811,7 +866,7 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
         contexts['offset_a'] = offset_ctxt, offset_ctxt_id
 
-        offsetb_ctxt = ParameterContext('offset_b', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value))
+        offsetb_ctxt = CovParameterContext('offset_b', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value))
         offsetb_ctxt.uom = ''
         offsetb_ctxt.lookup_value = 'offset_b'
         offsetb_ctxt.document_key = 'coefficient_document'
@@ -819,7 +874,7 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, offsetb_ctxt_id)
         contexts['offset_b'] = offsetb_ctxt, offsetb_ctxt_id
         
-        offsetc_ctxt = ParameterContext('offset_c', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value))
+        offsetc_ctxt = CovParameterContext('offset_c', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=fill_value))
         offsetc_ctxt.uom = ''
         offsetc_ctxt.lookup_value = 'offset_c'
         offsetc_ctxt.document_key = '$designator_OFFSETC'
@@ -829,7 +884,7 @@ class ParameterHelper(object):
 
         func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
         func.lookup_values = ['LV_offset']
-        calibrated = ParameterContext('calibrated', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=fill_value)
+        calibrated = CovParameterContext('calibrated', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=fill_value)
         calibrated.uom = 'deg_C'
         calibrated_id = self.dataset_management.create_parameter_context(name='calibrated', parameter_context=calibrated.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_id)
@@ -837,7 +892,7 @@ class ParameterHelper(object):
 
         func = NumexprFunction('calibrated_b', 'temp + offset_a + offset_b', ['temp','offset_a', 'offset_b'], param_map={'temp':'temp', 'offset_a':'offset_a', 'offset_b':'offset_b'})
         func.lookup_values = ['LV_offset_a', 'LV_offset_b']
-        calibrated_b = ParameterContext('calibrated_b', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=fill_value)
+        calibrated_b = CovParameterContext('calibrated_b', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=fill_value)
         calibrated_b.uom = 'deg_C'
         calibrated_b_id = self.dataset_management.create_parameter_context(name='calibrated_b', parameter_context=calibrated_b.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_b_id)
