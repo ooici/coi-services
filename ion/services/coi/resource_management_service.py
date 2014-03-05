@@ -194,6 +194,43 @@ class ResourceManagementService(BaseResourceManagementService):
 
         self._call_crud(res_interface['delete'], None, resource_id, res_type)
 
+    CORE_ATTRIBUTES = {"_id", "name", "description", "ts_modified", "ts_updated",
+                       "lcstate", "availability", "visibility", "alt_resource_type"}
+
+    def get_org_resource_attributes(self, org_id='', order_by='', type_filter=None, limit=0, skip=0):
+        if not org_id:
+            raise BadRequest("Must provide org_id")
+        res_list = []
+        res_objs, _ = self.clients.resource_registry.find_objects(org_id, PRED.hasResource, id_only=False)
+        res_list.extend(res_objs)
+        # TODO: The following is not correct - this should be all attachments in the Org
+        res_objs, _ = self.clients.resource_registry.find_objects(org_id, PRED.hasAttachment, id_only=False)
+        res_list.extend(res_objs)
+        # TODO: The following should be shared in the Org
+        res_objs, _ = self.clients.resource_registry.find_objects(org_id, PRED.hasRole, id_only=False)
+        res_list.extend(res_objs)
+
+        def get_core_attrs(resource):
+            res_attr = {k:v for k, v in resource.__dict__.iteritems() if k in self.CORE_ATTRIBUTES}
+            # HACK: Cannot use type_ because that would treat the dict as IonObject and add back all attributes
+            res_attr["type__"] = resource.type_
+            return res_attr
+        if type_filter:
+            type_filter = set(type_filter)
+        attr_list = [get_core_attrs(res) for res in res_list if not type_filter or res.type_ in type_filter]
+
+        order_by = order_by or "name"
+        attr_list = sorted(attr_list, key=lambda o: o.get(order_by, ""))
+
+        if skip:
+            attr_list = attr_list[skip:]
+        if limit:
+            attr_list = attr_list[:limit]
+
+        # Need to return a similar type than RR.find_objects
+        # Major bug in service gateway
+        return attr_list, []
+
     def execute_lifecycle_transition(self, resource_id='', transition_event=''):
         """Alter object lifecycle according to given transition event. Throws exception
         if resource object does not exist or given transition_event is unknown/illegal.
