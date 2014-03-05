@@ -1134,11 +1134,11 @@ class TestDMExtended(DMTestCase):
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['eastward_turbulent_velocity'], 
-                np.array([-9999., -9999., -9999., -9999., -9999., 
-                          -9999., -9999., -9999., -9999., -9999.], dtype=np.float32))
+                np.array([-9999999., -9999999., -9999999., -9999999., -9999999., 
+                          -9999999., -9999999., -9999999., -9999999., -9999999.], dtype=np.float32))
         np.testing.assert_array_equal(rdt['northward_turbulent_velocity'], 
-                np.array([-9999., -9999., -9999., -9999., -9999., 
-                          -9999., -9999., -9999., -9999., -9999.], dtype=np.float32))
+                np.array([-9999999., -9999999., -9999999., -9999999., -9999999., 
+                          -9999999., -9999999., -9999999., -9999999., -9999999.], dtype=np.float32))
         self.container.spawn_process(
                 'injector', 
                 'ion.util.direct_coverage_utils', 
@@ -1154,17 +1154,15 @@ class TestDMExtended(DMTestCase):
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['eastward_turbulent_velocity'], 
-                 np.array([  2.3491168, -15.21462631,   1.09815776,
-                            -18.77588654,   60.7967453, -18.37199211,
-                            -18.26946259,  61.37233734,  61.84563065,
-                            60.203228  ], dtype=np.float32))
+                 np.array([  2349.11694336, -15214.62695312,   1098.15771484, -18775.88671875,
+                            60796.74609375, -18371.9921875 , -18269.46289062,  61372.3359375 ,
+                            61845.6328125 ,  60203.23046875], dtype=np.float32))
 
         # Evaluates the L1a data product for eastward_turbulent_velocity
         np.testing.assert_array_equal(rdt['northward_turbulent_velocity'], 
-                 np.array([  1.30138195, 63.76234055,  0.75369668,
-                            62.45711136,  21.0368309, 61.89337921,
-                            62.22140884, 19.49301529, 20.71268082,
-                            19.47528076], dtype=np.float32))
+                 np.array([  1301.38183594,  63762.33984375,    753.69665527,  62457.11328125,
+                            21036.83203125,  61893.37890625,  62221.40625   ,  19493.015625  ,
+                            20712.68164062,  19475.28125   ], dtype=np.float32))
 
     @attr("UTIL")
     def test_alpha(self):
