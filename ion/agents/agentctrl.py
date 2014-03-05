@@ -213,7 +213,7 @@ class AgentControl(ImmediateProcess):
             client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE))
             client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE))
             client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN))
-            #client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE))
+            client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE))
 
             log.info('Agent active!')
 
