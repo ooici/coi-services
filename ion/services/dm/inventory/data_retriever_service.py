@@ -158,7 +158,9 @@ class DataRetrieverService(BaseDataRetrieverService):
             data_products, _ = Container.instance.resource_registry.find_subjects(object=dataset_id, predicate=PRED.hasDataset, subject_type=RT.DataProduct)
             for data_product in data_products:
                 log.exception("Data Product %s (%s) had issues reading from the coverage model\nretrieve_oob(dataset_id='%s', query=%s, delivery_format=%s)", data_product.name, data_product._id, dataset_id, query, delivery_format)
-            log.exception('Problems reading from the coverage', exc_info=True)
+            from traceback import format_exception
+            exc_info = format_exception()
+            log.exception('Problems reading from the coverage\n%s' % exc_info)
             raise BadRequest('Problems reading from the coverage')
         return rdt.to_granule()
 
