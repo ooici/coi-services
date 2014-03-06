@@ -1031,10 +1031,10 @@ class TestDMExtended(DMTestCase):
         data_product_id = data_products[0]._id
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         rdt = ParameterHelper.rdt_for_data_product(data_product_id)
-        rdt['time'] = np.array([  3.59837010e+09,   3.59837010e+09,   3.59837010e+09,
-         3.59837010e+09,   3.59837010e+09,   3.59837010e+09,
-         3.59837010e+09,   3.59837010e+09,   3.59837010e+09,
-         3.59837010e+09])
+        rdt['time'] = np.array([  3.598370100e+09,   3.598370101e+09,   3.598370102e+09,
+                                  3.598370103e+09,   3.598370104e+09,   3.598370105e+09,
+                                  3.598370106e+09,   3.598370107e+09,   3.598370108e+09,
+                                  3.598370109e+09]) 
         rdt['amplitude_beam_1'] = np.array([48, 47, 47, 47, 47, 47, 47, 47, 47, 47], dtype=np.int16)
         rdt['amplitude_beam_2'] = np.array([49, 48, 49, 50, 49, 48, 49, 50, 50, 49], dtype=np.int16)
         rdt['amplitude_beam_3'] = np.array([50, 49, 49, 49, 49, 49, 49, 49, 49, 49], dtype=np.int16)
@@ -1049,13 +1049,13 @@ class TestDMExtended(DMTestCase):
         rdt['turbulent_velocity_east'] = np.array([  2629.,   4334.,   1272.,    546.,  64299.,    765.,    960., 64392.,  65205.,  63270.], dtype=np.float32)
         rdt['turbulent_velocity_north'] = np.array([   548.,  65409.,    395.,  65216.,   2105.,  64558.,  64841., 460.,   1485.,    789.], dtype=np.float32)
         rdt['turbulent_velocity_vertical'] = np.array([  4.60000000e+02,   6.68000000e+02,   7.00000000e+01,
-             6.53850000e+04,   1.89000000e+02,   6.54920000e+04,
-             5.00000000e+00,   1.43000000e+02,   2.55000000e+02,
-             6.53480000e+04], dtype=np.float32)
-        rdt['upward_turbulent_velocity'] = np.array([  4.60000008e-01,   6.67999983e-01,   7.00000003e-02,
-             6.53850021e+01,   1.88999996e-01,   6.54919968e+01,
-             4.99999989e-03,   1.43000007e-01,   2.54999995e-01,
-             6.53479996e+01], dtype=np.float32)
+                                                         6.53850000e+04,   1.89000000e+02,   6.54920000e+04,
+                                                         5.00000000e+00,   1.43000000e+02,   2.55000000e+02,
+                                                         6.53480000e+04], dtype=np.float32)
+        rdt['upward_turbulent_velocity'] = np.array([4.60000008e-01,   6.67999983e-01,   7.00000003e-02,
+                                                     6.53850021e+01,   1.88999996e-01,   6.54919968e+01,
+                                                     4.99999989e-03,   1.43000007e-01,   2.54999995e-01,
+                                                     6.53479996e+01], dtype=np.float32)
 
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
@@ -1067,11 +1067,11 @@ class TestDMExtended(DMTestCase):
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['eastward_turbulent_velocity'], 
-                np.array([-9999., -9999., -9999., -9999., -9999., 
-                          -9999., -9999., -9999., -9999., -9999.], dtype=np.float32))
+                np.array([-9999999., -9999999., -9999999., -9999999., -9999999., 
+                          -9999999., -9999999., -9999999., -9999999., -9999999.], dtype=np.float32))
         np.testing.assert_array_equal(rdt['northward_turbulent_velocity'], 
-                np.array([-9999., -9999., -9999., -9999., -9999., 
-                          -9999., -9999., -9999., -9999., -9999.], dtype=np.float32))
+                np.array([-9999999., -9999999., -9999999., -9999999., -9999999., 
+                          -9999999., -9999999., -9999999., -9999999., -9999999.], dtype=np.float32))
         self.container.spawn_process(
                 'injector', 
                 'ion.util.direct_coverage_utils', 
@@ -1083,16 +1083,14 @@ class TestDMExtended(DMTestCase):
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['eastward_turbulent_velocity'], 
-                 np.array([  2.3491168, -15.21462631,   1.09815776,
-                          -18.77588654,   60.7967453, -18.37199211,
-                          -18.26946259,  61.37233734,  61.84563065,
-                          60.203228  ], dtype=np.float32))
+                 np.array([  2349.11694336, -15214.62695312,   1098.15771484, -18775.88671875,
+                            60796.74609375, -18371.9921875 , -18269.46289062,  61372.3359375 ,
+                            61845.6328125 ,  60203.23046875], dtype=np.float32))
 
         np.testing.assert_array_equal(rdt['northward_turbulent_velocity'], 
-                 np.array([  1.30138195, 63.76234055,  0.75369668,
-                            62.45711136,  21.0368309, 61.89337921,
-                            62.22140884, 19.49301529, 20.71268082,
-                            19.47528076], dtype=np.float32))
+                 np.array([  1301.38183594,  63762.33984375,    753.69665527,  62457.11328125,
+                            21036.83203125,  61893.37890625,  62221.40625   ,  19493.015625  ,
+                            20712.68164062,  19475.28125   ], dtype=np.float32))
 
     @attr("UTIL")
     def test_alpha(self):
