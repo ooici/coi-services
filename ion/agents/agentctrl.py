@@ -6,12 +6,18 @@ Control agents including external dataset.
 
 Supports the following ops:
 - start: via DAMS service call, start agent instance and subsequently put it into streaming mode (optionally)
+         can provide start and stop date for instrument agent reachback recover (optionally)
 - stop: via DAMS service call, stop agent instance
 - configure_instance: using a config csv lookup file, update the AgentInstance driver_config
 - activate_persistence: activate persistence for the data products of the devices
 - suspend_persistence: suspend persistence for the data products of the devices
+- recover_data: requires start and stop dates, issues reachback command for instrument agents.  Running this command
+                against other agents will get a warning.
+- set_calibration: add or replace calibration information for devices and their data products
 
 Resource ids (uuid) can be used instead of names.
+
+start and stop date must be floating point strings representing seconds since 1900-01-01 00:00:00 (NTP64 Epoch)
 
 Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF'
@@ -19,19 +25,23 @@ Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl agent_name='uuid' op=stop
     bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=start recurse=True
     bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=config_instance cfg=file.csv recurse=True
+    bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=set_calibration cfg=file.csv recurse=True
+    bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF' op=recover_data recover_start=0.0 recover_end=1.0
     and others (see Confluence page)
 TODO:
+- Ability to apply to all platforms (maybe a facility/site), not just one
 - Reset agent
 - Support for instrument and platform agents
 - Force terminate agents
 """
 
-__author__ = 'Michael Meisinger, Ian Katz'
+__author__ = 'Michael Meisinger, Ian Katz, Bill French'
 
 import csv
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
-from pyon.public import RT, log, PRED, ImmediateProcess, BadRequest, NotFound
+from pyon.ion.event import EventPublisher
+from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound
 
 from ion.core.includes.mi import DriverEvent
 from ion.util.parse_utils import parse_dict
@@ -39,6 +49,7 @@ from ion.util.parse_utils import parse_dict
 from interface.objects import AgentCommand
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceProcessClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
+from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 
 
 class AgentControl(ImmediateProcess):
@@ -47,7 +58,8 @@ class AgentControl(ImmediateProcess):
         self.rr = self.container.resource_registry
 
         self.op = self.CFG.get("op", "start")
-        if self.op not in {"start", "stop", "config_instance", "activate_persistence", "suspend_persistence"}:
+        if self.op not in {"start", "stop", "config_instance", "activate_persistence", "suspend_persistence",
+                           "recover_data", "set_calibration"}:
             raise BadRequest("Operation %s unknown", self.op)
 
         dataset_name = self.CFG.get("dataset", None)
@@ -57,6 +69,8 @@ class AgentControl(ImmediateProcess):
 
         self.recurse = self.CFG.get("recurse", False)
         self.cfg_mappings = {}
+
+        self._recover_data_status = {'ignored': [], 'success': [], 'fail': []}
 
         if not resource_name:
             raise BadRequest("Must provide ExternalDataset, Device or AgentInstance resource name or id")
@@ -110,12 +124,7 @@ class AgentControl(ImmediateProcess):
             res_obj = self.rr.read(resource_id)
 
             if agent_instance_id is None:
-                aids, _ = self.rr.find_objects(subject=resource_id,
-                                               predicate=PRED.hasAgentInstance,
-                                               object_type=RT.ExternalDatasetAgentInstance,
-                                               id_only=True)
-                if aids:
-                    agent_instance_id = aids[0]
+                agent_instance_id = self._get_agent_instance_id(resource_id)
 
             log.info("--- Executing %s on '%s' id=%s agent=%s ---", self.op, res_obj.name, resource_id, agent_instance_id)
 
@@ -129,6 +138,10 @@ class AgentControl(ImmediateProcess):
                 self._suspend_persistence(agent_instance_id, resource_id)
             elif self.op == "config_instance":
                 self._config_instance(agent_instance_id, resource_id)
+            elif self.op == "set_calibration":
+                self._set_calibration(agent_instance_id, resource_id)
+            elif self.op == "recover_data":
+                self._recover_data(agent_instance_id, resource_id)
 
         except Exception:
             log.exception("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
@@ -145,14 +158,56 @@ class AgentControl(ImmediateProcess):
                 except Exception:
                     log.exception("Could not %s agent %s for child device %s", self.op, agent_instance_id, ch_id)
 
+        if self.op == "recover_data":
+            self._recover_data_report()
+
+    def _get_agent_instance_id(self, resource_id):
+        dsaids, _ = self.rr.find_objects(subject=resource_id,
+                                         predicate=PRED.hasAgentInstance,
+                                         object_type=RT.ExternalDatasetAgentInstance,
+                                         id_only=True)
+
+        iaids, _ = self.rr.find_objects(subject=resource_id,
+                                        predicate=PRED.hasAgentInstance,
+                                        object_type=RT.InstrumentAgentInstance,
+                                        id_only=True)
+
+        paids, _ = self.rr.find_objects(subject=resource_id,
+                                        predicate=PRED.hasAgentInstance,
+                                        object_type=RT.PlatformAgentInstance,
+                                        id_only=True)
+
+        aids = dsaids + iaids + paids
+        if len(aids) > 1:
+            log.error("Multiple agent instances found")
+            raise BadRequest("Failed to identify agent instance")
+
+        if len(aids) == 0:
+            log.error("Agent instance not found")
+            raise BadRequest("Failed to identify agent instance")
+
+        log.info("Found agent instance ID: %s", aids[0])
+        return aids[0]
+
     def _start_agent(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
 
+        res_obj = self.rr.read(resource_id)
+
         log.info('Starting agent...')
-        dams = DataAcquisitionManagementServiceProcessClient(process=self)
-        dams.start_external_dataset_agent_instance(agent_instance_id)
+        if res_obj.type_ == RT.ExternalDatasetAgentInstance or res_obj == RT.ExternalDataset:
+            dams = DataAcquisitionManagementServiceProcessClient(process=self)
+            dams.start_external_dataset_agent_instance(agent_instance_id)
+        elif res_obj.type_ == RT.InstrumentDevice:
+            ims = InstrumentManagementServiceClient()
+            ims.start_instrument_agent_instance(agent_instance_id)
+        elif res_obj.type_ == RT.PlatformDevice:
+            ims = InstrumentManagementServiceClient()
+            ims.start_platform_agent_instance(agent_instance_id)
+        else:
+            BadRequest("Attempt to start unsupported agent type: %s", res_obj.type_)
         log.info('Agent started!')
 
         activate = self.CFG.get("activate", True)
@@ -167,6 +222,8 @@ class AgentControl(ImmediateProcess):
             log.info('Agent active!')
 
     def _stop_agent(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+
         if not agent_instance_id or not resource_id:
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
@@ -177,11 +234,27 @@ class AgentControl(ImmediateProcess):
             log.warn("Agent for resource %s seems not running", resource_id)
 
         log.info('Stopping agent...')
-        dams = DataAcquisitionManagementServiceProcessClient(process=self)
-        try:
-            dams.stop_external_dataset_agent_instance(agent_instance_id)
-        except NotFound:
-            log.warn("Agent for resource %s not found", resource_id)
+
+        if res_obj.type_ == RT.ExternalDatasetAgentInstance or res_obj == RT.ExternalDataset:
+            dams = DataAcquisitionManagementServiceProcessClient(process=self)
+            try:
+                dams.stop_external_dataset_agent_instance(agent_instance_id)
+            except NotFound:
+                log.warn("Agent for resource %s not found", resource_id)
+        elif res_obj.type_ == RT.InstrumentDevice:
+            ims = InstrumentManagementServiceClient()
+            try:
+                ims.stop_instrument_agent_instance(agent_instance_id)
+            except NotFound:
+                log.warn("Agent for resource %s not found", resource_id)
+        elif res_obj.type_ == RT.PlatformDevice:
+            ims = InstrumentManagementServiceClient()
+            try:
+                ims.stop_platform_agent_instance(agent_instance_id)
+            except NotFound:
+                log.warn("Agent for resource %s not found", resource_id)
+        else:
+            BadRequest("Attempt to start unsupported agent type: %s", res_obj.type_)
 
         log.info('Agent stopped!')
 
@@ -224,6 +297,67 @@ class AgentControl(ImmediateProcess):
 
         self.rr.update(edai)
 
+    def _set_calibration(self, agent_instance_id, resource_id):
+        if not agent_instance_id:
+            log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
+            return
+
+        cfg_file = self.CFG.get("cfg", None)
+        if not cfg_file:
+            raise BadRequest("No cfg argument provided")
+
+        if not self.cfg_mappings:
+            self.cfg_mappings = {}
+
+            with open(cfg_file, "rU") as f:
+                reader = csv.DictReader(f, delimiter=',')
+                for row in reader:
+                    device_id = row["ID"]
+                    param_name = row["Name"]
+                    self.cfg_mappings.setdefault(device_id, {})[param_name] = {k:v for k, v in row.iteritems() if k not in {"ID", "Name", "Value"}}
+                    self.cfg_mappings[device_id][param_name]["value"] = row["Value"]  # Make sure it exists
+
+        res_obj = self.rr.read(resource_id)
+
+        # Device has no reference designator - but use preload ID as reference designator
+        alt_ids = [aid[4:] for aid in res_obj.alt_ids if aid.startswith("PRE:ID")]
+        device_rd = alt_ids[0] if alt_ids else None
+
+        dev_cfg = self.cfg_mappings.get(resource_id, None) or self.cfg_mappings.get(device_rd, None)
+        if not dev_cfg:
+            return
+        log.info("Setting calibration for device %s (RD %s) '%s': %s", resource_id, device_rd, res_obj.name, dev_cfg)
+
+        # Find parsed data product from device id
+        dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
+        dp_objs_filtered = [dp for dp in dp_objs if dp.processing_level_code == "Parsed"]
+        for dp_obj in dp_objs_filtered:
+            self._set_calibration_for_data_product(dp_obj, dev_cfg)
+
+        log.info("Calibration set for device %s (RD %s) '%s'", resource_id, device_rd, res_obj.name)
+
+    def _set_calibration_for_data_product(self, dp_obj, dev_cfg):
+        from ion.util.direct_coverage_utils import DirectCoverageAccess
+        from coverage_model import SparseConstantType
+
+        log.debug(" Setting calibration for data product '%s'", dp_obj.name)
+        dataset_ids, _ = self.rr.find_objects(dp_obj, PRED.hasDataset, id_only=True)
+        publisher = EventPublisher(OT.InformationContentModifiedEvent)
+        for dataset_id in dataset_ids:
+            # Synchronize with ingestion
+            with DirectCoverageAccess() as dca:
+                cov = dca.get_editable_coverage(dataset_id)
+                # Iterate over the calibrations
+                for cal_name, contents in dev_cfg.iteritems():
+                    if cal_name in cov.list_parameters() and isinstance(cov.get_parameter_context(cal_name).param_type, SparseConstantType):
+                        value = float(contents['value'])
+                        cov.set_parameter_values(cal_name, value)
+                    else:
+                        log.warn("Calibration %s not found in dataset", cal_name)
+                publisher.publish_event(origin=dataset_id, description="Calibrations Updated")
+        publisher.close()
+        log.info(" Calibration set for data product '%s' in %s coverages", dp_obj.name, len(dataset_ids))
+
     def _activate_persistence(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
@@ -251,5 +385,57 @@ class AgentControl(ImmediateProcess):
                 dpms.suspend_data_product_persistence(dp._id)
             except Exception:
                 log.exception("Could not suspend persistence")
+
+    def _recover_data(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+
+        if res_obj.type_ != RT.InstrumentDevice:
+            log.warn("Ignoring resource because it is not an instrument: %s - %s", res_obj.name, res_obj.type_)
+            self._recover_data_status['ignored'].append("%s (%s)" % (res_obj.name, res_obj.type_))
+            return
+
+        self.recover_start = self.CFG.get("recover_start", None)
+        self.recover_end = self.CFG.get("recover_end", None)
+
+        if self.recover_end is None:
+            raise BadRequest("Missing recover_end parameter")
+        if self.recover_start is None:
+            raise BadRequest("Missing recover_start parameter")
+
+        try:
+            ia_client = ResourceAgentClient(resource_id, process=self)
+            log.info('Got ia client %s.', str(ia_client))
+            ia_client.execute_resource(command=AgentCommand(command=DriverEvent.GAP_RECOVERY, args=[self.recover_start, self.recover_end]))
+
+            self._recover_data_status['success'].append(res_obj.name)
+        except Exception as e:
+            log.warn("Failed to start recovery process for %s", res_obj.name)
+            log.warn("Exception: %s", e)
+            self._recover_data_status['fail'].append("%s (%s)" % (res_obj.name, e))
+
+    def _recover_data_report(self):
+        print "==================== Recover Data Report: ===================="
+
+        print "\nSuccessfully started recovery for:"
+        if self._recover_data_status['success']:
+            for name in self._recover_data_status['success']:
+                print "   %s" % name
+        else:
+            print "    None"
+
+        print "\nIgnored resources:"
+        if self._recover_data_status['ignored']:
+            for name in self._recover_data_status['ignored']:
+                print "   %s" % name
+        else:
+            print "    None"
+
+        print "\nFailed to start recovery for:"
+        if self._recover_data_status['fail']:
+            for name in self._recover_data_status['fail']:
+                print "   %s" % name
+        else:
+            print "    None"
+
 
 ImportDataset = AgentControl
