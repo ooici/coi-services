@@ -130,7 +130,7 @@ class TestSimpleMission(BaseIntTestPlatform):
             self._assign_instrument_to_platform(i_obj, p_root)
 
         self._start_platform(p_root)
-
+        
         self.addCleanup(self._stop_platform, p_root)
         self.addCleanup(self._run_shutdown_commands)
 
