@@ -23,12 +23,17 @@ from interface.services.dm.idataset_management_service import BaseDatasetManagem
 from coverage_model.basic_types import AxisTypeEnum
 from coverage_model import AbstractCoverage, ViewCoverage, ComplexCoverage, ComplexCoverageType
 from coverage_model.parameter_functions import AbstractFunction
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceProcessClient
+from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
+from interface.objects import DataProcessDefinition, DataProcessTypeEnum, ParameterFunctionType as PFT
 
 from uuid import uuid4
+from udunitspy.udunits2 import UdunitsError
 
 import os
 import numpy as np
 import re
+import ast
 
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
@@ -190,6 +195,67 @@ class DatasetManagementService(BaseDatasetManagementService):
             return tuple(map(cls.numpy_walk, obj))
         return obj
 
+    def create_parameter(self, parameter_context=None):
+        '''
+        Creates a parameter context using the IonObject
+        '''
+
+        context = self.get_coverage_parameter(parameter_context)
+        parameter_context.parameter_context = context.dump()
+        parameter_context = self.numpy_walk(parameter_context)
+        parameter_context_id, _ = self.clients.resource_registry.create(parameter_context)
+        if parameter_context.parameter_function_id:
+            self.read_parameter_function(parameter_context.parameter_function_id)
+            self.clients.resource_registry.create_association(
+                    subject=parameter_context_id, 
+                    predicate=PRED.hasParameterFunction, 
+                    object=parameter_context.parameter_function_id)
+        return parameter_context_id
+
+    @classmethod
+    def get_coverage_parameter(cls, parameter_context):
+        '''
+        Creates a Coverage Model based Parameter Context given the 
+        ParameterContext IonObject.
+
+        Note: If the parameter is a parameter function and depends on dynamically
+        created calibrations, this will fail.
+        '''
+        # Only CF and netCDF compliant variable names
+        parameter_context.name = re.sub(r'[^a-zA-Z0-9_]', '_', parameter_context.name)
+        from ion.services.dm.utility.types import TypesManager
+        # The TypesManager does all the parsing and converting to the coverage model instances
+        tm = TypesManager(None, {}, {})
+        # First thing to do is create the parameter type
+        param_type = tm.get_parameter_type(
+                    parameter_context.parameter_type,
+                    parameter_context.value_encoding,
+                    parameter_context.code_report,
+                    parameter_context.parameter_function_id,
+                    parameter_context.parameter_function_map)
+        # Ugh, I hate it but I did copy this section from
+        # ion/processes/bootstrap/ion_loader.py
+        context = ParameterContext(name=parameter_context.name, param_type=param_type)
+        # Now copy over all the attrs
+        context.uom = parameter_context.units
+        try:
+            if isinstance(context.uom, basestring):
+                tm.get_unit(context.uom)
+        except UdunitsError:
+            log.warning('Parameter %s has invalid units: %s', parameter_context.name, context.uom)
+        # Fill values can be a bit tricky...
+        context.fill_value = tm.get_fill_value(parameter_context.fill_value, 
+                                               parameter_context.value_encoding, 
+                                               param_type)
+        context.reference_urls = parameter_context.reference_urls
+        context.internal_name  = parameter_context.name
+        context.display_name   = parameter_context.display_name
+        context.standard_name  = parameter_context.standard_name
+        context.ooi_short_name = parameter_context.ooi_short_name
+        context.description    = parameter_context.description
+        context.precision      = parameter_context.precision
+        context.visible        = parameter_context.visible
+        return context
 
     def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report='', units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map='', standard_name='', ooi_short_name='', precision='', visible=True):
         
@@ -246,24 +312,83 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_parameter_function(self, name='', parameter_function=None, description=''):
-        validate_true(name, 'Name field may not be empty')
-        validate_is_instance(parameter_function, dict, 'parameter_function field is not dictable.')
-        parameter_function = self.numpy_walk(parameter_function)
-        pf_res = ParameterFunctionResource(name=name, parameter_function=parameter_function, description=description)
-        pf_id, ver = self.clients.resource_registry.create(pf_res)
+    def create_parameter_function(self, parameter_function=None):
+        validate_is_instance(parameter_function, ParameterFunctionResource)
+        pf_id, ver = self.clients.resource_registry.create(parameter_function)
         return pf_id
 
     def read_parameter_function(self, parameter_function_id=''):
         res = self.clients.resource_registry.read(parameter_function_id)
         validate_is_instance(res, ParameterFunctionResource)
-        res.parameter_function = self.numpy_walk(res.parameter_function)
         return res
 
     def delete_parameter_function(self, parameter_function_id=''):
         self.read_parameter_function(parameter_function_id)
         self.clients.resource_registry.delete(parameter_function_id)
         return True
+
+    @classmethod
+    def get_coverage_function(self, parameter_function):
+        func = None
+        if parameter_function.function_type == PFT.PYTHON:
+            func = PythonFunction(name=parameter_function.name,
+                                  owner=parameter_function.owner,
+                                  func_name=parameter_function.function,
+                                  arg_list=parameter_function.args,
+                                  kwarg_map=None,
+                                  param_map=None,
+                                  egg_uri=parameter_function.egg_uri)
+        elif parameter_function.function_type == PFT.NUMEXPR:
+            func = NumexprFunction(name=parameter_function.name, 
+                                   expression=parameter_function.function, 
+                                   arg_list=parameter_function.args)
+        if not isinstance(func, AbstractFunction):
+            raise Conflict("Incompatible parameter function loaded: %s" % parameter_function._id)
+        return func
+
+
+#--------
+
+    def load_parameter_function(self, row):
+        name      = row['Name']
+        ftype     = row['Function Type']
+        func_expr = row['Function']
+        owner     = row['Owner']
+        args      = ast.literal_eval(row['Args'])
+        #kwargs    = row['Kwargs']
+        descr     = row['Description']
+
+        data_process_management = DataProcessManagementServiceProcessClient(self)
+
+        function_type=None
+        if ftype == 'PythonFunction':
+            function_type = PFT.PYTHON
+        elif ftype == 'NumexprFunction':
+            function_type = PFT.NUMEXPR
+        else:
+            raise Conflict('Unsupported Function Type: %s' % ftype)
+        
+        parameter_function = ParameterFunctionResource(
+                    name=name, 
+                    function=func_expr,
+                    function_type=function_type,
+                    owner=owner,
+                    args=args,
+                    description=descr)
+        parameter_function.alt_ids = ['PRE:' + row['ID']]
+
+        parameter_function_id = self.create_parameter_function(parameter_function)
+        
+
+        dpd = DataProcessDefinition()
+        dpd.name = name
+        dpd.description = 'Parameter Function Definition for %s' % name
+        dpd.data_process_type = DataProcessTypeEnum.PARAMETER_FUNCTION
+        dpd.parameters = args
+
+        data_process_management.create_data_process_definition(dpd, parameter_function_id)
+
+        return parameter_function_id
 
 #--------
 

@@ -48,12 +48,13 @@ class TypesManager(object):
         groups = re.match(r'(category)(<)(.*)(:)(.*)(>)', parameter_type).groups()
         dtype = np.dtype(groups[2])
         try:
-            codestr = code_set.replace('\\', '')
-            code_set = ast.literal_eval(codestr)
-            for k in code_set.keys():
-                v = code_set[k]
-                del code_set[k]
-                code_set[dtype.type(k)] = v
+            if isinstance(code_set, basestring):
+                codestr = code_set.replace('\\', '')
+                code_set = ast.literal_eval(codestr)
+                for k in code_set.keys():
+                    v = code_set[k]
+                    del code_set[k]
+                    code_set[dtype.type(k)] = v
         except:
             raise TypeError('Invalid Code Set: %s' % code_set)
         return CategoryType(categories=code_set)
@@ -87,22 +88,24 @@ class TypesManager(object):
 
         if val == '':
             return None
-        if val.lower() == 'none':
+        if isinstance(val, basestring) and val.lower() == 'none':
             return None
-        if val.lower() == 'empty':
+        if isinstance(val, basestring) and val.lower() == 'empty':
             return ''
-        if val.lower() == 'false':
+        if isinstance(val, basestring) and val.lower() == 'false':
             return 0
-        if val.lower() == 'true':
+        if isinstance(val, basestring) and val.lower() == 'true':
             return 1
         if 'float' in encoding:
             return float(val)
         if 'int' in encoding:
             return int(val)
-        if encoding.lower()[0] == 's':
+        if isinstance(val, basestring) and encoding.lower()[0] == 's':
             return val
-        if encoding.lower() == 'opaque':
+        if isinstance(val, basestring) and encoding.lower() == 'opaque':
             raise TypeError('Fill value for opaque must be None, not: %s' % val)
+        if 'category' in encoding.lower() and isinstance(val, (int, float)):
+            return val
         else:
             raise TypeError('Invalid Fill Value: %s' % val) # May never be called
 
@@ -139,12 +142,21 @@ class TypesManager(object):
         return param_name
 
     def get_pfunc(self,pfid):
-        if pfid not in self.resource_objs: 
-            raise KeyError('Function %s was not loaded' % pfid)
+        # Preload Case
+        if not pfid:
+            raise TypeError('No parameter function id specified')
+        if pfid.startswith('PFID'):
+            if pfid not in self.resource_objs: 
+                raise KeyError('Function %s was not loaded' % pfid)
 
-        func_dump = self.resource_objs[pfid].parameter_function
-        pfunc = AbstractFunction.load(func_dump)
-        return pfunc
+            pf = self.resource_objs[pfid]
+            func = DatasetManagementService.get_coverage_function(pf)
+            return func
+        # System Case
+        else:
+            pf = Container.instance.resource_registry.read(pfid)
+            func = DatasetManagementService.get_coverage_function(pf)
+            return func
 
     def _placeholder(self, value, pc_callback):
         placeholder = value.replace('LV_','')
@@ -219,7 +231,7 @@ class TypesManager(object):
                 pmap[k] = placeholder
                 coefficients.append(ctxt_id)
 
-        func = deepcopy(self.get_pfunc(pfid))
+        func = self.get_pfunc(pfid)
         func.param_map = pmap
         if lookup_values:
             func.lookup_values = lookup_values
@@ -234,8 +246,9 @@ class TypesManager(object):
     @memoize_lru(maxsize=100)
     def find_function(self,name):
         res_obj, _ = Container.instance.resource_registry.find_resources(name=name, restype=RT.ParameterFunction, id_only=False)
+
         if res_obj:
-            return res_obj[0]._id, AbstractFunction.load(res_obj[0].parameter_function)
+            return res_obj[0]._id, DatasetManagementService.get_coverage_function(res_obj[0])
         else:
             raise KeyError('%s was never loaded' % name)
 
@@ -446,10 +459,11 @@ class TypesManager(object):
     def get_function_type(self, parameter_type, encoding, pfid, pmap):
         if pfid is None or pmap is None:
             raise TypeError('Function Types require proper function IDs and maps')
-        try:
-            pmap = ast.literal_eval(pmap)
-        except:
-            raise TypeError('Invalid Parameter Map Syntax')
+        if isinstance(pmap, basestring):
+            try:
+                pmap = ast.literal_eval(pmap)
+            except:
+                raise TypeError('Invalid Parameter Map Syntax')
         func = self.evaluate_pmap(pfid, pmap) # Parse out nested PFIDs and such
         param_type = ParameterFunctionType(func)
         return param_type
