@@ -19,7 +19,7 @@ from ion.util.geo_utils import GeoUtils
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess
+from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess, DataProcessTypeEnum
 from interface.objects import ComputedValueAvailability
 
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
@@ -490,7 +490,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Retrieve information that characterizes how this data was produced
         # Return in a dictionary
 
-        # There are two parts to the prrovenance tree as returned by this method. The first part is
+        # There are two parts to the provenance tree as returned by this method. The first part is
         # a path that follows the DataProduct to its parent DataProduct .. all the way to the InstrumentAgent
         # The second part is along the parameters contained within the DataProducts. The Provenance along the
         # parameters can follow its own pathways.
@@ -503,8 +503,8 @@ class DataProductManagementService(BaseDataProductManagementService):
 
             #Get data product object to verify it exists and what type it is
             if resource_id not in result.keys():
-                result[resource_id] = {'parents' : None, 'type' : None}
-            parent_ids = []
+                result[resource_id] = {'parents' : {}, 'type' : None, 'parameter_provenance': {}}
+            #parent_info = []
 
             # determine the type of resource. This will determine what parents to look for
             resource_obj = self.clients.resource_registry.read(resource_id)
@@ -513,22 +513,30 @@ class DataProductManagementService(BaseDataProductManagementService):
                 return
             result[resource_id]['type'] = resource_obj.type_
 
-            if result[resource_id]['type'] == "InstrumentDevice":
+            if result[resource_id]['type'] == "InstrumentDevice" or \
+               result[resource_id]['type'] == 'PlatformDevice':
                 # Do nothing. We have reached the top of the tree
                 return
 
+            # if the resource is a dataproduct, check for parent dataproduct, data process or Instrument/Platform/Dataset Agent
             if result[resource_id]['type'] == "DataProduct":
                 # If its a derived data product, it should have a parent
-                parent_ids,_ = self.clients.resource_registry.find_objects(subject=resource_id,
+                parent_data_product_ids,_ = self.clients.resource_registry.find_objects(subject=resource_id,
                                                                             object_type=RT.DataProduct,
                                                                             predicate=PRED.hasDataProductParent,
                                                                             id_only=True)
+
                 # recurse if we found data product parents
-                if(parent_ids !=None and len(parent_ids) > 0):
-                    result[resource_id]['parents'] = self.append_and_merge(result[resource_id]['parents'], parent_ids)
-                    for parent in parent_ids:
-                        resource_traversal(parent, result)
-                    return
+                if(parent_data_product_ids !=None and len(parent_data_product_ids) > 0):
+                    for _id in parent_data_product_ids:
+                        result[resource_id]['parents'][_id] = {'data_process_definition_id' : None,
+                                                                'data_process_definition_name' : None,
+                                                                'data_process_definition_rev' : None}
+
+                    #recurse
+                    for _id in parent_data_product_ids:
+                        resource_traversal(_id, result)
+                    #return
 
                 # Code reaches here if no parents were found.
                 # Try the hasOutputProduct association with a dataprocess (from a transform
@@ -550,125 +558,73 @@ class DataProductManagementService(BaseDataProductManagementService):
                             raise BadRequest('Could not locate Data Process Definition')
                             return
 
-                        #result[resource_id]['parents'] = self.append_and_merge(result[resource_id]['parents'], [parent_dpd_objs[0]._id])
+                        #Check to see what type of data_process_type was associated with it. If its a TRANSFORM_PROCESS
+                        # or RETRIEVE_PROCESS, treat it as a parent. If its a PARAMETER_FUNCTION, add it to the parameter
+                        # provenance.
 
-                        # Whats the input data product of the data process ?
-                        input_to_data_process_ids,_ = self.clients.resource_registry.find_objects(subject=parent_process_id,
-                                                                                                object_type=RT.DataProduct,
-                                                                                                predicate=PRED.hasInputProduct,
-                                                                                                id_only=True)
+                        if parent_dpd_objs[0].data_process_type == DataProcessTypeEnum.TRANSFORM_PROCESS or \
+                           parent_dpd_objs[0].data_process_type == DataProcessTypeEnum.RETRIEVE_PROCESS :
+                            # Whats the input data product ?
+                            input_to_data_process_ids,_ = self.clients.resource_registry.find_objects(subject=parent_process_id,
+                                                                                                    object_type=RT.DataProduct,
+                                                                                                    predicate=PRED.hasInputProduct,
+                                                                                                    id_only=True)
 
-                        result[resource_id]['parents'] = self.append_and_merge(result[resource_id]['parents'],
-                                                                                input_to_data_process_ids)
+                            # Add information about the parent
+                            for _id in input_to_data_process_ids:
+                                result[resource_id]['parents'][_id] = {'data_process_definition_id' : parent_dpd_objs[0]._id,
+                                                                    'data_process_definition_name' : parent_dpd_objs[0].name,
+                                                                    'data_process_definition_rev' : parent_dpd_objs[0]._rev}
 
-                        # Add information about the data process definition
-                        result[resource_id]['dpd_id'] = parent_dpd_objs[0]._id
-                        result[resource_id]['dpd_name'] = parent_dpd_objs[0].name
-                        result[resource_id]['dpd_rev'] = parent_dpd_objs[0]._rev
+                            # recurse
+                            for _id in input_to_data_process_ids:
+                                resource_traversal(_id, result)
 
-                        for input_data_product in input_to_data_process_ids:
-                            resource_traversal(input_data_product, result)
-                    return
+                        # In case of a parameter function, follow parameter provenance
+                        if parent_dpd_objs[0].data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
+                            input_params = parent_dpd_objs[0].parameters
+
+                            result[resource_id]['parameter_provenance'][parent_process_id] = \
+                                                                                {'data_process_definition_id' : parent_dpd_objs[0]._id,
+                                                                                'data_process_definition_name' : parent_dpd_objs[0].name,
+                                                                                'data_process_definition_rev' : parent_dpd_objs[0]._rev,
+                                                                                'parameters' : input_params}
+
+                    #return
 
 
 
-                # If code reaches here, we still have not found any parents.
-                # maybe we have reached a parsed data product, in which case we want to
-                # follow a link to an Instrument Device via a hasSource predicate
-                instrument_device_ids,_ = self.clients.resource_registry.find_objects(subject=resource_id,
-                                                                                    object_type=RT.InstrumentDevice,
-                                                                                    predicate=PRED.hasSource,
+                # If code reaches here, we still have not found any parents, maybe we have reached a parsed data product,
+                # in which case we want to follow a link to an InstrumentDevice or PlatformDeveice
+                # via a hasOutputProduct predicate
+                instrument_device_ids,_ = self.clients.resource_registry.find_subjects(object=resource_id,
+                                                                                    subject_type=RT.InstrumentDevice,
+                                                                                    predicate=PRED.hasOutputProduct,
                                                                                     id_only=True)
-                if (instrument_device_ids != None and len(instrument_device_ids) > 0):
-                    result[resource_id]['parents'] = self.append_and_merge(result[resource_id]['parents'],instrument_device_ids)
-                    for parent in instrument_device_ids:
-                        resource_traversal(parent, result)
-                    return
+                platform_device_ids,_ = self.clients.resource_registry.find_subjects(object=resource_id,
+                                                                                    subject_type=RT.PlatformDevice,
+                                                                                    predicate=PRED.hasOutputProduct,
+                                                                                    id_only=True)
+                source_device_ids = instrument_device_ids + platform_device_ids
+
+                if (source_device_ids != None and len(source_device_ids) > 0):
+                    for _id in source_device_ids:
+                        result[resource_id]['parents'][_id]={'data_process_definition_id' : None,
+                                                             'data_process_definition_name' : None,
+                                                             'data_process_definition_rev' : None}
+
+                    for _id in source_device_ids:
+                        resource_traversal(_id, result)
+                    #return
                 else:
                     # log an error for not being able to find the source instrument
-                    log.error("Could not locate the source Instrument for :" + resource_id)
+                    log.error("Could not locate the source device for :" + resource_id)
 
 
         resource_traversal(data_product_id, self.provenance_results)
 
-
-        # Now that we have the data product lineage, for each entry walk the parameter lineage
-        for resource_id in self.provenance_results.keys():
-            # Get the list of all parameter funcs associated with creating this Data Product
-            data_process_ids, _ = self.clients.resource_registry.find_subjects(object=resource_id,
-                                                                            subject_type=RT.DataProcess,
-                                                                            predicate=PRED.hasOutputProduct,
-                                                                            id_only=True)
-
-
-            self.provenance_results[resource_id]['parameter_provenance'] = {}
-            parameter_provenance = self.provenance_results[resource_id]['parameter_provenance']
-
-            for dproc_id in data_process_ids:
-                dpd_objs,_ = self.clients.resource_registry.find_subjects(object=dproc_id,
-                                                                        subject_type=RT.DataProcessDefinition,
-                                                                        predicate=PRED.hasDataProcess,
-                                                                        id_only=False)
-                # Store the dpd_id
-                # parameter_provenance[dpd_objs[0].output_param] =
-                parameter_provenance[dpd_objs[0].name] = {'dpd_name': dpd_objs[0].name,
-                                                     'dpd_rev' : dpd_objs[0]._rev,
-                                                     'dpd_id' : dpd_objs[0]._id}
-
-            # Todo: At this point the parameter functions associated with the data products only work on the data products
-            # internal parameters. In the future this might change and we need to follow that association chain
-
-
         # We are actually interested in the DataProcessDefinitions for the DataProcess. Find those
         return self.provenance_results
-
-
-    def append_and_merge(self, arr1, arr2):
-        if arr1 == None:
-            arr1 = []
-
-        if arr2 == None:
-            arr2 == []
-
-        return list(set(arr1 + arr2))
-
-
-    def get_data_product_provenance_report(self, data_product_id=''):
-
-        ''' Performs a breadth-first traversal of the provenance for a data product'''
-        validate_is_not_none(data_product_id, 'A data product identifier must be passed to create a provenance report')
-
-        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id,
-                                                                      predicate=PRED.hasDataProducer,
-                                                                      id_only=True)
-        if not len(producer_ids):
-            raise BadRequest('Data product has no known data producers')
-
-        producer_id = producer_ids.pop(0)
-        result = {}
-
-        def traversal(result, producer_id):
-            ret = {}
-            data_producer_obj = self.clients.resource_registry.read(object_id=producer_id)
-            ret['config'] = data_producer_obj.producer_context.configuration
-            data_obj_ids, _ = self.clients.resource_registry.find_subjects(predicate=PRED.hasDataProducer,
-                                                                           object=producer_id, id_only=True)
-
-            if data_obj_ids:
-                producer_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id,
-                                                                              predicate=PRED.hasParent,
-                                                                              id_only=True)
-                if producer_ids:
-                    ret['parent'] = producer_ids
-
-                result[data_obj_ids[0]] = ret
-
-                for prod_id in producer_ids:
-                    traversal(result, prod_id)
-
-        traversal(result, producer_id)
-
-        return result
 
 
     def get_data_product_parameter_provenance(self, data_product_id='', parameter_name=''):
