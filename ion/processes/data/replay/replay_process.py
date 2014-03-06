@@ -212,7 +212,7 @@ class ReplayProcess(BaseReplayProcess):
         try:
             n = coverage.get_parameter_values(field,tdoa=slice_)
         except ParameterFunctionException:
-            log.exception('Parameter Function Exception', exc_info=True)
+            log.exception('Parameter Function Exception')
             # Just don't fill it in 
             return
         if n is None:
@@ -243,7 +243,7 @@ class ReplayProcess(BaseReplayProcess):
             else: 
                 rdt = self._coverage_to_granule(coverage=coverage,start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters,tdoa=self.tdoa)
         except:
-            log.exception('Problems reading from the coverage', exc_info=True)
+            log.exception('Problems reading from the coverage')
             raise BadRequest('Problems reading from the coverage')
         finally:
             coverage.close(timeout=5)
