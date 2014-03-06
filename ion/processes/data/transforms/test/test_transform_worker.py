@@ -38,8 +38,11 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from ion.processes.data.transforms.transform_worker import TransformWorker
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
+
 
 from coverage_model.coverage import AbstractCoverage
+from pyon.util.context import LocalContextMixin
 
 from gevent.event import Event
 
@@ -59,7 +62,10 @@ def validate_salinity_array(a, context={}):
 
     event_publisher.publish_event(  origin = stream_id, values=[dataprocess_id], description="Invalid value for salinity")
 
-
+class TransformWorkerTestProcess(LocalContextMixin):
+    name = 'tranform_worker_test'
+    id='tranform_worker_int_test'
+    process_type = 'simple'
 
 @attr('INT', group='dm')
 class TestTransformWorker(IonIntegrationTestCase):
@@ -67,6 +73,9 @@ class TestTransformWorker(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+        #Instantiate a process to represent the test
+        process=TransformWorkerTestProcess()
+
         self.dataset_management_client = DatasetManagementServiceClient(node=self.container.node)
         self.pubsub_client = PubsubManagementServiceClient(node=self.container.node)
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
@@ -74,6 +83,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
+        self.imsclient = InstrumentManagementServiceProcessClient(node=self.container.node, process = process)
 
         self.time_dom, self.spatial_dom = time_series_domain()
 
@@ -172,14 +182,13 @@ class TestTransformWorker(IonIntegrationTestCase):
             id_only=True)
 
         output_data_product_provenance = self.dataproductclient.get_data_product_provenance(output_data_product_id[0])
-        #print ">>>>>>>>>>>>>>> output_data_product_id[0] : ", output_data_product_id[0]
-        #print ">>>>>>>>>>>>>>> output_data_product_provenance : ", output_data_product_provenance
 
         # Do a basic check to see if there were 3 entries in the provenance graph. Parent and Child and the
         # DataProcessDefinition creating the child from the parent.
         self.assertTrue(len(output_data_product_provenance) == 2)
-        self.assertTrue(output_data_product_provenance[output_data_product_id[0]]['parents'][0] == self.input_dp_id)
-        self.assertTrue(output_data_product_provenance[output_data_product_id[0]]['dpd_id'] == dataprocessdef_id)
+        self.assertTrue(self.input_dp_id in output_data_product_provenance[output_data_product_id[0]]['parents'])
+        self.assertTrue(output_data_product_provenance[output_data_product_id[0]]['parents'][self.input_dp_id]['data_process_definition_id'] == dataprocessdef_id)
+
 
         # NEW SA - 4 | Data processing shall include the appropriate data product algorithm name and version number in
         # the metadata of each output data product created by the data product algorithm.
@@ -228,6 +237,123 @@ class TestTransformWorker(IonIntegrationTestCase):
         src = self.dataprocessclient.inspect_data_process_definition(dataprocessdef_id)
         self.assertIn( 'def add_arrays(a, b)', src)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_transform_worker_with_instrumentdevice(self):
+
+        # test that a data process (type: data-product-in / data-product-out) can be defined and launched.
+        # verify that the output granule fields are correctly populated
+
+        # test that the input and output data products are linked to facilitate provenance
+
+        self.data_process_objs = []
+        self._output_stream_ids = []
+        self.event_verified = Event()
+
+        #-------------------------------
+        # Create CTD Parsed as the initial data product
+        #-------------------------------
+        # create a stream definition for the data from the ctd simulator
+        self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        self.stream_def_id = self.pubsub_client.create_stream_definition(name='stream_def', parameter_dictionary_id=self.parameter_dict_id)
+
+        # create the DataProduct that is the input to the data processes
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream',
+            temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
+
+        #retrieve the Stream for this data product
+        stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_id, PRED.hasStream, RT.Stream, True)
+        self.stream_id = stream_ids[0]
+
+        log.debug('new ctd_parsed_data_product_id = %s' % self.input_dp_id)
+
+        #Only ever need one device for testing purposes.
+        instDevice_obj,_ = self.rrclient.find_resources(restype=RT.InstrumentDevice, name='test_ctd_device')
+        if instDevice_obj:
+            instDevice_id = instDevice_obj[0]._id
+        else:
+            instDevice_obj = IonObject(RT.InstrumentDevice, name='test_ctd_device', description="test_ctd_device", serial_number="12345" )
+            instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
+
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=self.input_dp_id)
+
+        #create the DPD, DataProcess and output DataProduct
+        dataprocessdef_id, dataprocess_id, dataproduct_id = self.create_data_process()
+
+        # Test for provenance. Get Data product produced by the data processes
+        output_data_product_id,_ = self.rrclient.find_objects(subject=dataprocess_id,
+            object_type=RT.DataProduct,
+            predicate=PRED.hasOutputProduct,
+            id_only=True)
+
+        output_data_product_provenance = self.dataproductclient.get_data_product_provenance(output_data_product_id[0])
+
+        # Do a basic check to see if there were 3 entries in the provenance graph. Parent and Child and the
+        # DataProcessDefinition creating the child from the parent.
+        self.assertTrue(len(output_data_product_provenance) == 3)
+        self.assertTrue(self.input_dp_id in output_data_product_provenance[output_data_product_id[0]]['parents'])
+        self.assertTrue(instDevice_id in output_data_product_provenance[self.input_dp_id]['parents'])
+        self.assertTrue(output_data_product_provenance[instDevice_id]['type'] == 'InstrumentDevice')
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_transform_worker_with_platformdevice(self):
+
+        # test that a data process (type: data-product-in / data-product-out) can be defined and launched.
+        # verify that the output granule fields are correctly populated
+
+        # test that the input and output data products are linked to facilitate provenance
+
+        self.data_process_objs = []
+        self._output_stream_ids = []
+        self.event_verified = Event()
+
+        #-------------------------------
+        # Create CTD Parsed as the initial data product
+        #-------------------------------
+        # create a stream definition for the data from the ctd simulator
+        self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        self.stream_def_id = self.pubsub_client.create_stream_definition(name='stream_def', parameter_dictionary_id=self.parameter_dict_id)
+
+        # create the DataProduct that is the input to the data processes
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream',
+            temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
+
+        #retrieve the Stream for this data product
+        stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_id, PRED.hasStream, RT.Stream, True)
+        self.stream_id = stream_ids[0]
+
+        log.debug('new ctd_parsed_data_product_id = %s' % self.input_dp_id)
+
+        #Only ever need one device for testing purposes.
+        platform_device_obj,_ = self.rrclient.find_resources(restype=RT.PlatformDevice, name='TestPlatform')
+        if platform_device_obj:
+            platform_device_id = platform_device_obj[0]._id
+        else:
+            platform_device_obj = IonObject(RT.PlatformDevice, name='TestPlatform', description="TestPlatform", serial_number="12345" )
+            platform_device_id = self.imsclient.create_platform_device(platform_device=platform_device_obj)
+
+        self.damsclient.assign_data_product(input_resource_id=platform_device_id, data_product_id=self.input_dp_id)
+
+        #create the DPD, DataProcess and output DataProduct
+        dataprocessdef_id, dataprocess_id, dataproduct_id = self.create_data_process()
+
+        # Test for provenance. Get Data product produced by the data processes
+        output_data_product_id,_ = self.rrclient.find_objects(subject=dataprocess_id,
+            object_type=RT.DataProduct,
+            predicate=PRED.hasOutputProduct,
+            id_only=True)
+
+        output_data_product_provenance = self.dataproductclient.get_data_product_provenance(output_data_product_id[0])
+
+        # Do a basic check to see if there were 3 entries in the provenance graph. Parent and Child and the
+        # DataProcessDefinition creating the child from the parent.
+        self.assertTrue(len(output_data_product_provenance) == 3)
+        self.assertTrue(self.input_dp_id in output_data_product_provenance[output_data_product_id[0]]['parents'])
+        self.assertTrue(platform_device_id in output_data_product_provenance[self.input_dp_id]['parents'])
+        self.assertTrue(output_data_product_provenance[platform_device_id]['type'] == 'PlatformDevice')
 
 
     @attr('LOCOINT')
