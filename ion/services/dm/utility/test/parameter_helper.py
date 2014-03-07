@@ -573,6 +573,7 @@ class ParameterHelper(object):
     def create_extended_parsed_contexts(self):
         contexts, funcs = self.create_parsed_params()
         expr, expr_id = funcs['density_L2']
+        expr = DatasetManagementService.get_coverage_function(expr)
         
         density_lookup_map = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1', 'lat':'lat_lookup', 'lon':'lon_lookup'}
         expr.param_map = density_lookup_map
