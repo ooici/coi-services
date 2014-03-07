@@ -148,7 +148,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.RR2.update(transform_function, RT.TransformFunction)
 
     def delete_transform_function(self, transform_function_id=''):
-        self.RR2.lcs_delete(transform_function_id, RT.TransformFunction)
+        self.clients.resource_registry.retire(transform_function_id)
 
     def force_delete_transform_function(self, transform_function_id=''):
         self.RR2.force_delete(transform_function_id, RT.TransformFunction)
@@ -187,7 +187,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_def_obj
 
     def delete_data_process_definition(self, data_process_definition_id=''):
-        self.RR2.lcs_delete(data_process_definition_id, RT.DataProcessDefinition)
+
+        self.clients.resource_registry.retire(data_process_definition_id)
 
     def force_delete_data_process_definition(self, data_process_definition_id=''):
 
@@ -854,16 +855,12 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def delete_data_process(self, data_process_id=""):
 
-        data_process_definitions, _ = self.clients.resource_registry.find_subjects(object=data_process_id, predicate=PRED.hasDataProcess, subject_type=RT.DataProcessDefinition, id_only=False)
-        dpd = data_process_definitions[0]
+        data_process_obj = self.read_data_process(data_process_id)
 
-        #Stops processes and deletes the data process associations
-        #TODO: Delete the processes also?
-        self.deactivate_data_process(data_process_id)
-        processes, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasProcess, id_only=False)
-        for process, assoc in zip(processes,assocs):
-            self._stop_process(data_process=process)
-            self.clients.resource_registry.delete_association(assoc)
+        dpd = ''
+        data_process_definitions, _ = self.clients.resource_registry.find_subjects(object=data_process_id, predicate=PRED.hasDataProcess, subject_type=RT.DataProcessDefinition, id_only=False)
+        if data_process_definitions:
+            dpd = data_process_definitions[0]
 
         #Delete all subscriptions associations
         subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
@@ -871,18 +868,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(assoc)
             self.clients.pubsub_management.delete_subscription(subscription_id)
 
-        #Unassign data products
-        data_product_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
-        for data_product_id, assoc in zip(data_product_ids, assocs):
-            self.clients.data_acquisition_management.unassign_data_product(input_resource_id=data_process_id, data_product_id=data_product_id)
-
         #Remove assocs to the TransformWorker process which hosts this data process
         process_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasProcess, object_type=RT.Process)
         for process_id, assoc in zip(process_ids, assocs):
             self.clients.resource_registry.delete_association(assoc)
 
         # Remove the streams associated with the data process if it's a retrieve process
-        if dpd.data_process_type == DataProcessTypeEnum.RETRIEVE_PROCESS:
+        if dpd and dpd.data_process_type == DataProcessTypeEnum.RETRIEVE_PROCESS:
             stream_ids, _ = self.clients.find_objects(data_process_id, PRED.hasStream, id_only=True)
             for stream_id in stream_ids:
                 self.clients.pubsub_management.delete_stream(stream_id)
@@ -892,7 +884,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.data_acquisition_management.unregister_process(data_process_id=data_process_id)
 
         #Delete the data process from the resource registry
-        self.RR2.lcs_delete(data_process_id, RT.DataProcess)
+        self.clients.resource_registry.retire(data_process_id)
+
 
     def force_delete_data_process(self, data_process_id=""):
 

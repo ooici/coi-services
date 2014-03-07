@@ -324,7 +324,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def delete_parameter_function(self, parameter_function_id=''):
         self.read_parameter_function(parameter_function_id)
-        self.clients.resource_registry.delete(parameter_function_id)
+        self.clients.resource_registry.retire(parameter_function_id)
         return True
 
     @classmethod
