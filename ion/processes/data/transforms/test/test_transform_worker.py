@@ -73,7 +73,7 @@ class TestTransformWorker(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        #Instantiate a process to represent the test
+        # Instantiate a process to represent the test
         process=TransformWorkerTestProcess()
 
         self.dataset_management_client = DatasetManagementServiceClient(node=self.container.node)
@@ -101,7 +101,6 @@ class TestTransformWorker(IonIntegrationTestCase):
         rdt = self.ph.rdt_for_data_product(data_product_id)
         self.ph.fill_parsed_rdt(rdt)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-
 
         assert dataset_monitor.wait()
         dataset_monitor.stop()
@@ -148,7 +147,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         # validate the repository for data product algorithms persists the new resources  NEW SA-1
         # create_data_process call created one of each
         dpd_ids, _ = self.rrclient.find_resources(restype=OT.DataProcessDefinition, id_only=False)
-        #there will be more than one becuase of the DPDs that reperesent the PFs in the data product above
+        # there will be more than one becuase of the DPDs that reperesent the PFs in the data product above
         self.assertTrue(dpd_ids is not None)
         dp_ids, _ = self.rrclient.find_resources(restype=OT.DataProcess, id_only=False)
         # only one DP becuase the PFs that are in the code dataproduct above are not activated yet.
@@ -172,8 +171,6 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.assertEqual(len(outproduct_ids), 1)
         inproduct_ids, assoc_ids = self.rrclient.find_objects(dataprocess_id, PRED.hasInputProduct, RT.DataProduct, True)
         self.assertEqual(len(inproduct_ids), 1)
-
-
 
         # Test for provenance. Get Data product produced by the data processes
         output_data_product_id,_ = self.rrclient.find_objects(subject=dataprocess_id,
@@ -199,11 +196,11 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.assertTrue(output_data_product_obj[0].name != None)
         self.assertTrue(output_data_product_obj[0]._rev != None)
 
-        #retrieve subscription from data process
+        # retrieve subscription from data process
         subscription_objs, _ = self.rrclient.find_objects(subject=dataprocess_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
         log.debug('test_transform_worker subscription_obj:  %s', subscription_objs[0])
 
-        #create a queue to catch the published granules
+        # create a queue to catch the published granules
         self.subscription_id = self.pubsub_client.create_subscription(name='parsed_subscription', stream_ids=[self.stream_id], exchange_name=subscription_objs[0].exchange_name)
         self.addCleanup(self.pubsub_client.delete_subscription, self.subscription_id)
 
@@ -223,19 +220,29 @@ class TestTransformWorker(IonIntegrationTestCase):
 
             self.publisher.publish(rdt.to_granule())
 
-        #validate that the output granule is received and the updated value is correct
+        # validate that the output granule is received and the updated value is correct
         self.assertTrue(self.granule_verified.wait(self.wait_time))
 
-        #validate that the data process load is received    (L4-CI-SA-RQ-182)
+        # validate that the data process load is received    (L4-CI-SA-RQ-182)
         self.assertTrue(self.status_event_verified.wait(self.wait_time))
 
-        #validate that the data process heartbeat event is received (for every hundred granules processed) (L4-CI-SA-RQ-182)
+        # validate that the data process heartbeat event is received (for every hundred granules processed) (L4-CI-SA-RQ-182)
         #this takes a while so set wait limit to large value
         self.assertTrue(self.heartbeat_event_verified.wait(200))
 
-        #validate that the code from the transform function can be retrieve via inspect_data_process_definition
+        # validate that the code from the transform function can be retrieve via inspect_data_process_definition
         src = self.dataprocessclient.inspect_data_process_definition(dataprocessdef_id)
         self.assertIn( 'def add_arrays(a, b)', src)
+
+        # now delete the DPD and DP then verify that the resources are retired so that information required for provenance are still available
+        self.dataprocessclient.delete_data_process(dataprocess_id)
+        self.dataprocessclient.delete_data_process_definition(dataprocessdef_id)
+
+        in_dp_objs, _ = self.rrclient.find_objects(subject=dataprocess_id, predicate=PRED.hasInputProduct, object_type=RT.DataProduct, id_only=True)
+        self.assertTrue(in_dp_objs is not None)
+
+        dpd_objs, _ = self.rrclient.find_subjects(subject_type=RT.DataProcessDefinition, predicate=PRED.hasDataProcess, object=dataprocess_id, id_only=True)
+        self.assertTrue(dpd_objs is not None)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -250,9 +257,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self._output_stream_ids = []
         self.event_verified = Event()
 
-        #-------------------------------
         # Create CTD Parsed as the initial data product
-        #-------------------------------
         # create a stream definition for the data from the ctd simulator
         self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         self.stream_def_id = self.pubsub_client.create_stream_definition(name='stream_def', parameter_dictionary_id=self.parameter_dict_id)
@@ -262,13 +267,13 @@ class TestTransformWorker(IonIntegrationTestCase):
             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
         self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
-        #retrieve the Stream for this data product
+        # retrieve the Stream for this data product
         stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_id, PRED.hasStream, RT.Stream, True)
         self.stream_id = stream_ids[0]
 
         log.debug('new ctd_parsed_data_product_id = %s' % self.input_dp_id)
 
-        #Only ever need one device for testing purposes.
+        # only ever need one device for testing purposes.
         instDevice_obj,_ = self.rrclient.find_resources(restype=RT.InstrumentDevice, name='test_ctd_device')
         if instDevice_obj:
             instDevice_id = instDevice_obj[0]._id
@@ -278,7 +283,7 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=self.input_dp_id)
 
-        #create the DPD, DataProcess and output DataProduct
+        # create the DPD, DataProcess and output DataProduct
         dataprocessdef_id, dataprocess_id, dataproduct_id = self.create_data_process()
 
         # Test for provenance. Get Data product produced by the data processes
@@ -309,9 +314,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self._output_stream_ids = []
         self.event_verified = Event()
 
-        #-------------------------------
         # Create CTD Parsed as the initial data product
-        #-------------------------------
         # create a stream definition for the data from the ctd simulator
         self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         self.stream_def_id = self.pubsub_client.create_stream_definition(name='stream_def', parameter_dictionary_id=self.parameter_dict_id)
@@ -321,13 +324,13 @@ class TestTransformWorker(IonIntegrationTestCase):
             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
         self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
-        #retrieve the Stream for this data product
+        # retrieve the Stream for this data product
         stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_id, PRED.hasStream, RT.Stream, True)
         self.stream_id = stream_ids[0]
 
         log.debug('new ctd_parsed_data_product_id = %s' % self.input_dp_id)
 
-        #Only ever need one device for testing purposes.
+        # only ever need one device for testing purposes.
         platform_device_obj,_ = self.rrclient.find_resources(restype=RT.PlatformDevice, name='TestPlatform')
         if platform_device_obj:
             platform_device_id = platform_device_obj[0]._id
@@ -337,7 +340,7 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         self.damsclient.assign_data_product(input_resource_id=platform_device_id, data_product_id=self.input_dp_id)
 
-        #create the DPD, DataProcess and output DataProduct
+        # create the DPD, DataProcess and output DataProduct
         dataprocessdef_id, dataprocess_id, dataproduct_id = self.create_data_process()
 
         # Test for provenance. Get Data product produced by the data processes
@@ -379,18 +382,18 @@ class TestTransformWorker(IonIntegrationTestCase):
                                              temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
         self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
-        #retrieve the Stream for this data product
+        # retrieve the Stream for this data product
         stream_ids, assoc_ids = self.rrclient.find_objects(self.input_dp_id, PRED.hasStream, RT.Stream, True)
         self.stream_id = stream_ids[0]
 
-        #create the DPD and two DPs
+        # create the DPD and two DPs
         self.event_data_process_id = self.create_event_data_processes()
 
-        #retrieve subscription from data process
+        # retrieve subscription from data process
         subscription_objs, _ = self.rrclient.find_objects(subject=self.event_data_process_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
         log.debug('test_event_transform_worker subscription_obj:  %s', subscription_objs[0])
 
-        #create a queue to catch the published granules
+        # create a queue to catch the published granules
         self.subscription_id = self.pubsub_client.create_subscription(name='parsed_subscription', stream_ids=[self.stream_id], exchange_name=subscription_objs[0].exchange_name)
         self.addCleanup(self.pubsub_client.delete_subscription, self.subscription_id)
 
@@ -424,7 +427,6 @@ class TestTransformWorker(IonIntegrationTestCase):
         # test that a data process (type: data-product-in / data-product-out) parameter mapping it validated during
         # data process creation and that the correct exception is raised for both input and output.
 
-
         self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
 
         # create the StreamDefinition
@@ -436,8 +438,7 @@ class TestTransformWorker(IonIntegrationTestCase):
                                              temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
         self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
-
-        #two data processes using one transform and one DPD
+        # two data processes using one transform and one DPD
 
         dp1_func_output_dp_id =  self.create_output_data_product()
 
@@ -462,7 +463,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='add_array_func' )
 
-        # Create the data process with invalid argument map
+        # create the data process with invalid argument map
         argument_map = {"arr1": "foo", "arr2": "bar"}
         output_param = "salinity"
         with self.assertRaises(BadRequest) as cm:
@@ -473,7 +474,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         log.debug(' exception raised: %s', cm)
         self.assertEqual(ex.message, "Input data product does not contain the parameters defined in argument map")
 
-        # Create the data process with invalid output parameter name
+        # create the data process with invalid output parameter name
         argument_map = {"arr1": "conductivity", "arr2": "pressure"}
         output_param = "foo"
         with self.assertRaises(BadRequest) as cm:
@@ -487,11 +488,11 @@ class TestTransformWorker(IonIntegrationTestCase):
 
     def create_event_data_processes(self):
 
-        #two data processes using one transform and one DPD
+        # two data processes using one transform and one DPD
         argument_map= {"a": "salinity"}
 
 
-        # Set up DPD and DP #2 - array add function
+        # set up DPD and DP #2 - array add function
         tf_obj = IonObject(RT.TransformFunction,
             name='validate_salinity_array',
             description='validate_salinity_array',
@@ -511,7 +512,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='validate_salinity_array' )
 
-        # Create the data process
+        # create the data process
         dp1_data_process_id = self.dataprocessclient.create_data_process(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
                                                                              outputs=None, argument_map=argument_map)
         self.damsclient.register_process(dp1_data_process_id)
@@ -521,14 +522,14 @@ class TestTransformWorker(IonIntegrationTestCase):
 
     def create_data_process(self):
 
-        #two data processes using one transform and one DPD
+        # two data processes using one transform and one DPD
 
         dp1_func_output_dp_id =  self.create_output_data_product()
         argument_map = {"arr1": "conductivity", "arr2": "pressure"}
         output_param = "salinity"
 
 
-        # Set up DPD and DP #2 - array add function
+        # set up DPD and DP #2 - array add function
         tf_obj = IonObject(RT.TransformFunction,
             name='add_array_func',
             description='adds values in an array',
@@ -549,13 +550,13 @@ class TestTransformWorker(IonIntegrationTestCase):
         add_array_dpd_id = self.dataprocessclient.create_data_process_definition(data_process_definition=dpd_obj, function_id=add_array_func_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.stream_def_id, add_array_dpd_id, binding='add_array_func' )
 
-        # Create the data process
+        # create the data process
         dp1_data_process_id = self.dataprocessclient.create_data_process(data_process_definition_id=add_array_dpd_id, inputs=[self.input_dp_id],
                                                                              outputs=[dp1_func_output_dp_id], argument_map=argument_map, out_param_name=output_param)
         self.damsclient.register_process(dp1_data_process_id)
-        self.addCleanup(self.dataprocessclient.delete_data_process, dp1_data_process_id)
+        #self.addCleanup(self.dataprocessclient.delete_data_process, dp1_data_process_id)
 
-        #add an attachment object to this DPD to test new SA-21
+        # add an attachment object to this DPD to test new SA-21
         import msgpack
         attachment_content = 'foo bar'
         attachment_obj = IonObject( RT.Attachment,
@@ -566,12 +567,10 @@ class TestTransformWorker(IonIntegrationTestCase):
         att_id = self.rrclient.create_attachment(add_array_dpd_id, attachment_obj)
         self.addCleanup(self.rrclient.delete_attachment, att_id)
 
-
         return add_array_dpd_id, dp1_data_process_id, dp1_func_output_dp_id
 
 
     def create_output_data_product(self):
-
         dp1_outgoing_stream_id = self.pubsub_client.create_stream_definition(name='dp1_stream', parameter_dictionary_id=self.parameter_dict_id)
 
         dp1_output_dp_obj = IonObject(  RT.DataProduct,
@@ -582,10 +581,9 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         dp1_func_output_dp_id = self.dataproductclient.create_data_product(dp1_output_dp_obj,  dp1_outgoing_stream_id)
         self.addCleanup(self.dataproductclient.delete_data_product, dp1_func_output_dp_id)
-        # Retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
+        # retrieve the id of the OUTPUT stream from the out Data Product and add to granule logger
         stream_ids, _ = self.rrclient.find_objects(dp1_func_output_dp_id, PRED.hasStream, None, True)
         self._output_stream_ids.append(stream_ids[0])
-
 
         subscription_id = self.pubsub_client.create_subscription('validator', data_product_ids=[dp1_func_output_dp_id])
         self.addCleanup(self.pubsub_client.delete_subscription, subscription_id)
@@ -594,7 +592,6 @@ class TestTransformWorker(IonIntegrationTestCase):
             log.debug('recv_packet stream_id: %s route: %s   msg: %s', stream_id, route, msg)
             self.validate_output_granule(msg, route, stream_id)
             self.granule_verified.set()
-
 
         validator = StandaloneStreamSubscriber('validator', callback=on_granule)
         validator.start()
@@ -613,16 +610,16 @@ class TestTransformWorker(IonIntegrationTestCase):
         data_process_event = args[0]
         log.debug("DataProcessStatusEvent: %s" ,  str(data_process_event.__dict__))
 
-        #if data process already created, check origin
+        # if data process already created, check origin
         if self.dp_list:
             self.assertIn( data_process_event.origin, self.dp_list)
 
-            #if this is a heartbeat event then 100 granules have been processed
+            # if this is a heartbeat event then 100 granules have been processed
             if 'data process status update.' in data_process_event.description:
                 self.heartbeat_event_verified.set()
 
         else:
-            #else check that this is the assign event
+            # else check that this is the assign event
             self.assertIn( 'data process assigned to transform worker', data_process_event.description)
 
         self.status_event_verified.set()
@@ -656,12 +653,10 @@ class TestTransformWorker(IonIntegrationTestCase):
 
 
     def start_event_transform_listener(self):
-
         es = EventSubscriber(event_type=OT.DeviceStatusAlertEvent, callback=self.validate_transform_event)
         es.start()
 
         self.addCleanup(es.stop)
-
 
 
     def test_download(self):

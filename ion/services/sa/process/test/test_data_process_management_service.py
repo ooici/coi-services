@@ -122,7 +122,4 @@ utg = UnitTestGenerator(Test_DataProcessManagementService_Unit,
 
 utg.test_all_in_one(True)
 
-utg.add_resource_unittests(RT.TransformFunction, "transform_function", {})
-#utg.add_resource_unittests(RT.DataProcessDefinition, "data_process_definition", {})
-#utg.add_resource_unittests(RT.DataProcess, "data_process", {})
 
