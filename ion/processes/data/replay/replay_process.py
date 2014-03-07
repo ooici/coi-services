@@ -208,6 +208,8 @@ class ReplayProcess(BaseReplayProcess):
         try:
             n = coverage.get_parameter_values(field,tdoa=slice_)
         except ParameterFunctionException:
+            log.exception('Parameter Function Exception')
+            # Just don't fill it in 
             return
         if n is None:
             rdt[field] = [n]
