@@ -5,46 +5,42 @@ description: Sample OMS Simulator Mission 1
 platform:
   platformID: LJ01D
 
-# This sets up a mission for 2 CTD simulators (SBE37_SIM_01 and SBE37_SIM_02) 
+# This sets up a mission for 2 CTD simulators (SBE37_SIM_02 and SBE37_SIM_03) 
 # on LJ01D from the RSN OMS simulator
-# SBE37_SIM_01 mission will start at 20:00:00, wait, sample, and idle
+# SBE37_SIM_02 mission will start at 00:00:00, wait, sample, and idle
 # This mission will loop every 30 mins until an operator intervenes
-# SBE37_SIM_02 mission will start at 20:00:00, wait, sample, and idle
-# This mission will loop every 30 mins until an operator intervenes
+# SBE37_SIM_03 mission will start at 00:00:00, wait, sample, and idle
+# This mission will loop every day until an operator intervenes
 
 mission:
     - instrument: 
       instrumentID: SBE37_SIM_02
 
       schedule:
-        startTime: 03/04/2014 15:00:00
+        startTime: 03/04/2014 00:00:00
         loop:
-          quantity: 2  # No. of loops (-1 for infinite)
-          value: 3     # Repeat missionParams every 'xx' 'units'
+          quantity: -1  # No. of loops (-1 for infinite)
+          value: 30     # Repeat missionParams every 'xx' 'units'
           units: mins   # mins, hrs, days
 
       missionParams:
         - command: Wait
-          params: [5, 'secs']      #[duration, duration units]
-        # - command: Calibrate
-        #   params: []
+          params: {'duration': 5, 'units': 'secs'}      #[duration, duration units]
         - command: Sample
-          params: [55, 'secs', 5]  #[duration, duration units, time between samples]
+          params: {'duration': 55, 'units': 'secs', 'interval': 5}  #[duration, duration units, time between samples]
 
     - instrument: 
       instrumentID: SBE37_SIM_03
 
       schedule:
-        startTime: 03/04/2014 15:01:00
+        startTime: 03/04/2014 00:00:00
         loop:
-          quantity: 2  # No. of loops (-1 for infinite)
-          value: 3     # Repeat missionParams every 'xx' 'units'
-          units: mins   # mins, hrs, days
+          quantity: -1  # No. of loops (-1 for infinite)
+          value: 24     # Repeat missionParams every 'xx' 'units'
+          units: hrs   # mins, hrs, days
 
       missionParams:
         - command: Wait
-          params: [5, 'secs']      #[duration, duration units]
-        # - command: Calibrate
-        #   params: []
+          params: {'duration': 5, 'units': 'secs'}      #[duration, duration units]
         - command: Sample
-          params: [55, 'secs', 5]  #[duration, duration units, time between samples]
+          params: {'duration': 55, 'units': 'secs', 'interval': 5}   #[duration, duration units, time between samples]

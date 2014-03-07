@@ -23,7 +23,7 @@ from pyon.util.breakpoint import breakpoint
 import gevent
 from gevent import Greenlet
 from interface.objects import AgentCommand
-from ion.agents.platform.platform_agent import PlatformAgentEvent
+# from ion.agents.platform.platform_agent import PlatformAgentEvent
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import FakeProcess
@@ -87,6 +87,41 @@ class MissionLoader(object):
             print "Next start at: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
             return (start_time - current_time) + loop_duration
 
+    def _check_start_time(self, schedule, loop_duration):
+        """
+        Check mission start time 
+        """
+        start_time_string = schedule['startTime']
+        if start_time_string.lower() == 'none':
+            start_time = None
+        else:
+            try:
+                # Get start time
+                start_time = calendar.timegm(time.strptime(start_time_string,'%m/%d/%Y %H:%M:%S'))
+                # Now get current time
+                current_time = time.time()
+                
+                # Compare mission start time to current time
+                # num_loops = schedule['loop']['quantity']
+                if (current_time > start_time):
+                    if loop_duration > 0:
+                        nloops = int((current_time-start_time)/loop_duration)+1
+                        start_time += nloops*loop_duration
+                    else:
+                        print "MissionLoader: validate_schedule: Start time has already elapsed"
+                        # raise
+
+                    # print "MissionLoader: validate_schedule: Start time has already elapsed"
+
+            except ValueError:
+                # log.error("MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
+                print "MissionLoader: validate_schedule: startTime format error: " + str(start_time_string)
+
+            print "Current time is: " +  time.strftime("%Y-%m-%d %H:%M:%S", gmtime(current_time))
+            print "Start time is: " +  time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
+        
+        return start_time
+
     def _check_intersections(self, indices):
         """
         In the case of a single instrument with multiple missions,
@@ -136,6 +171,69 @@ class MissionLoader(object):
                             return False
         return True
 
+    def _calculate_loop_duration(self, schedule):
+        """
+        Calculate loop duration if given.
+        """
+
+        num_loops = schedule['loop']['quantity']
+        loop_duration = schedule['loop']['value']
+
+        if type(loop_duration) == str:
+            # TODO: Come up with event 
+            loop_duration = None
+            # print loop_duration
+            #This is an event driven loop, check event cases
+        elif loop_duration == -1 or loop_duration > 1:
+            loop_units = schedule['loop']['units']
+            if loop_units.lower() == 'days':
+                loop_duration *= 3600*24
+            elif loop_units.lower() == 'hrs':
+                loop_duration *= 3600
+            elif loop_units.lower() == 'mins':
+                loop_duration *= 60
+
+            print 'Loop duration = ' + str(loop_duration) + ' secs'
+
+        return loop_duration, num_loops
+
+    def _calculate_mission_duration(self, mission_params = {}):
+        """
+        Check the mission commands and parameters for duration
+        """
+        mission_duration = 0;
+        # Check mission duration
+        # TODO: Add all commands that include time duration 
+        for index, items in enumerate(mission_params):
+            #Calculate mission duration
+            command = items['command'].lower() 
+            if command == 'wait':
+                    duration = items['params']['duration']
+                    units = items['params']['units']
+            elif command == 'sample':
+                    duration = items['params']['duration']
+                    units = items['params']['units']
+            else:
+                units = None
+                duration = 0
+
+            if units == 'days':
+                duration *= 86400
+            elif units == 'hrs':
+                duration *= 3600
+            elif units == 'mins':
+                duration *= 60
+
+            # For convenience convert time commands to seconds
+            if units:
+                mission_params[index]['params']['duration'] = duration
+                mission_params[index]['params']['units'] = 'secs'
+
+            mission_duration += duration
+        
+        print 'Mission Duration = ' + str(mission_duration) + ' secs'
+        return mission_duration
+
     def _validate_schedule(self, mission = {}):
         """
         Check the mission parameters for scheduling conflicts
@@ -153,90 +251,15 @@ class MissionLoader(object):
 
             print instrument_id
             
-            #Check mission start time 
-            start_time_string = schedule['startTime']
-            if start_time_string.lower() == 'none':
-                start_time = None
-                print 'None'
-            else:
-                try:
-                    start_time = calendar.timegm(time.strptime(start_time_string,'%m/%d/%Y %H:%M:%S'))
-                    #Now get current time
-                    current_time = time.time()
-                    #Compare mission start time to current time
-                    if current_time > start_time:
-                        print "MissionLoader: validate_schedule: Start time has already elapsed"
-                        print "Current time is: " +  time.strftime("%Y-%m-%d %H:%M:%S", gmtime(current_time))
-                        print "Start time is: " +  time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
-                    else:
-                        print "Start time is OK" 
-                except ValueError:
-                    # log.error("MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
-                    print "MissionLoader: validate_schedule: startTime format error: " + str(start_time_string)
+            mission_duration = self._calculate_mission_duration(mission_params)
 
-            mission_duration = 0;
-            # Check mission duration
-            # TODO: Add all commands that include time duration 
-            for index, items in enumerate(mission_params):
-                #Calculate mission duration
-                command = items['command'].lower() 
-                if command == 'wait':
-                    if len(items['params']) != 2:
-                        raise IndexError('Need 2 parameters for a wait command')
-                    else:
-                        duration = items['params'][0]
-                        units = items['params'][1]
-                elif command == 'sample':
-                    if len(items['params']) != 3:
-                        raise IndexError('Need 3 parameters for a wait command')
-                    else:
-                        duration = items['params'][0]
-                        units = items['params'][1]
-                else:
-                    units = None
-                    duration = 0
+            loop_duration, num_loops = self._calculate_loop_duration(schedule)
 
-                if units == 'days':
-                    duration *= 86400
-                elif units == 'hrs':
-                    duration *= 3600
-                elif units == 'mins':
-                    duration *= 60
+            if (loop_duration and loop_duration < mission_duration):
+                print 'Mission File Error: Mission duration > scheduled loop duration'
+                raise Exception('Mission Error: Mission duration greater than scheduled loop duration') 
 
-                # For convenience convert time commands to seconds
-                if units:
-                    mission_params[index]['params'][0] = duration
-                    mission_params[index]['params'][1] = 'secs'
-
-                mission_duration += duration
-
-            print 'Mission Duration = ' + str(mission_duration) + ' secs'
-            
-            #Now check loop schedule
-            num_loops = schedule['loop']['quantity']
-            
-            loop_duration = schedule['loop']['value']
-            if type(loop_duration) == str:
-                # TODO: Come up with event 
-                pass
-                # print loop_duration
-                #This is an event driven loop, check event cases
-
-            elif loop_duration == -1 or loop_duration > 1:
-                loop_units = schedule['loop']['units']
-                if loop_units.lower() == 'days':
-                    loop_duration *= 3600*24
-                elif loop_units.lower() == 'hrs':
-                    loop_duration *= 3600
-                elif loop_units.lower() == 'mins':
-                    loop_duration *= 60
-
-                if loop_duration <= mission_duration:
-                    print 'Mission File Error: Mission duration > scheduled loop duration'
-                    raise Exception('Mission Error: Mission duration greater than scheduled loop duration') 
-
-                print 'Loop duration = ' + str(loop_duration) + ' secs'
-
+            start_time = self._check_start_time(schedule, loop_duration)
             if num_loops != 0:
                 #Add mission entry
                 self._add_entry(instrument_id, start_time, mission_duration, 
@@ -261,23 +284,21 @@ class MissionLoader(object):
 
         print 'Parsing ' + filename.split('/')[-1]
         
-        try:
-            f = open(filename)
-        except IOError:
-            print "Error: Can\'t find file"
-            return False
+        with open(filename) as f:
+            mission_dict = yaml.safe_load(f)
+        
+        # except IOError:
+        #     print "Error: Can\'t find file"
+        #     return False
 
         # mission_dict = yaml.load(f, Loader=OrderedDictYAMLLoader)
-        mission_dict = yaml.safe_load(f)
-        f.close()
+        # f.close()
 
-        # Get start time
         self.raw_mission = mission_dict['mission']
 
         self._validate_schedule(self.raw_mission)
 
         return True
-
 
 class MissionScheduler(object):
     """
@@ -319,7 +340,7 @@ class MissionScheduler(object):
             start_time = mission[missionIndex]['start_time']
             if start_time:  
                 start_in = start_time - time.time() if (time.time() < start_time) else 0
-                print 'Start in ' + str(start_in) + ' seconds'
+                print 'Start in ' + str(int(start_in)) + ' seconds'
                 self.threads.append(Greenlet.spawn_later(start_in, self._run_mission, mission[missionIndex]))
 
         gevent.joinall(self.threads)
@@ -348,40 +369,37 @@ class MissionScheduler(object):
                 # Parse command and parameters
                 self._parse_command(instrument_id, cmd)
 
-            if mission_params['num_loops'] > 0:
-                loop_count += 1
-                if loop_count >= mission_params['num_loops']:
-                    loop_running = False
-                else:
-                    #Calculate next start time
-                    if start_time:
-                        start_time += mission_params['loop_duration']
-                        print "Next Sequence starts at " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
-                        while (time.time() < start_time):
-                            gevent.sleep(1)
+            loop_count += 1
 
+            # Calculate next start time if on a synchronized loop
+            if start_time:
+                if (mission_params['num_loops']) > 0 and loop_count >= mission_params['num_loops']:
+                    break
 
-
-
-    # def wait_for_next_sequence(self, start_time, loop_duration)
+                start_time += mission_params['loop_duration']
+                print "Next Sequence starts at " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
+  
+                # Wait until next start
+                while (time.time() < start_time):
+                    gevent.sleep(1)
 
     def _parse_command(self, instrument_id, cmd):
 
         command = cmd['command'].lower() 
         params = cmd['params']
         if command == 'wait':
-            print ('Waiting ' + str(params[0]) + ' Seconds ' +
+            print ('Waiting ' + str(params['duration']) + ' Seconds ' +
                     time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))    
-            gevent.sleep(params[0]) 
+            gevent.sleep(params['duration']) 
             print 'Wait Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
 
         elif command == 'sample':
             
-            self._send_command(instrument_id, command, params[2:])
+            self._send_command(instrument_id, command, params)
 
-            print ('Sampling ' + str(params[0]) + ' Seconds ' +
+            print ('Sampling ' + str(params['duration']) + ' Seconds ' +
                     time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
-            gevent.sleep(params[0])
+            gevent.sleep(params['duration'])
             print 'Sample Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
 
             self._send_command(instrument_id, 'stop')
@@ -392,7 +410,7 @@ class MissionScheduler(object):
             self._send_command(instrument_id, command)
 
             
-            # gevent.sleep(params[0])
+            # gevent.sleep(params['duration'])
             print 'Calibrating Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
 
             self._send_command(instrument_id, 'stop')
@@ -416,8 +434,8 @@ class MissionScheduler(object):
             reply = ia_client.get_resource(SBEparams)
             print 'Sample Interval= ' + str(reply[SBE37Parameter.INTERVAL])
             
-            if params and params[0] != reply[SBE37Parameter.INTERVAL]:
-                ia_client.set_resource({SBE37Parameter.INTERVAL:params[0]})     
+            if params and params['interval'] != reply[SBE37Parameter.INTERVAL]:
+                ia_client.set_resource({SBE37Parameter.INTERVAL:params['interval']})     
                 reply = ia_client.get_resource(SBEparams)
 
             # # Acquire Status from SBE37
@@ -492,7 +510,9 @@ if __name__ == "__main__":  # pragma: no cover
     Stand alone to check the mission loading/parsing capabilities
     """
     filename =  "ion/agents/platform/test/mission_RSN_simulator1.yml"
-
+    # filename = '/Users/bobfratantonio/Desktop/mission_HDCamera.yml'
+    # filename = '/Users/bobfratantonio/Desktop/mission_MASSP.yml'
+    # filename = '/Users/bobfratantonio/Desktop/mission_ShallowProfiler.yml'
     mission = MissionLoader()
     mission.load_mission_file(filename)
 
