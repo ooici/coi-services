@@ -83,7 +83,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.process_dispatcher = ProcessDispatcherServiceClient()
 
     def test_create_data_process_definition(self):
-        func_id = self.dataset_management.create_parameter_function('test_func', parameter_function={'a':0})
+        pfunc = ParameterFunction(name='test_func')
+        func_id = self.dataset_management.create_parameter_function(pfunc)
 
         data_process_definition = DataProcessDefinition()
         data_process_definition.name = 'Simple'
