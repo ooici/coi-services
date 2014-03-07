@@ -86,6 +86,10 @@ class TypesManager(object):
                 if retval is not None:
                     raise TypeError('Invalid range fill value: %s' % val)
 
+        if 'float' in encoding and val == '':
+            return -9999999.0
+        if 'int' in encoding and val == '':
+            return -9999999
         if val == '':
             return None
         if isinstance(val, basestring) and val.lower() == 'none':

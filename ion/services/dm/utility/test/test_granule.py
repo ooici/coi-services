@@ -15,10 +15,11 @@ from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.objects import ParameterContext, ParameterFunction, ParameterFunctionType as PFT
 
 from gevent.event import Event
 from nose.plugins.attrib import attr
-from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
+from coverage_model import ParameterContext as CoverageParameterContext, QuantityType, AxisTypeEnum, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
 
 from ion.util.stored_values import StoredValueManager
 
@@ -174,7 +175,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         rdt['LAT'] = [45]
         rdt['LON'] = [-71]
 
-        np.testing.assert_array_almost_equal(rdt['DENSITY'], np.array([1001.76506258], dtype='float32'))
+        np.testing.assert_array_almost_equal(rdt['DENSITY'], np.array([1037.5534668], dtype='float32'))
 
     def test_rdt_lookup(self):
         rdt = self.create_lookup_rdt()
@@ -200,7 +201,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
     def create_rdt(self):
         contexts, pfuncs = self.create_pfuncs()
-        context_ids = [_id for ct,_id in contexts.itervalues()]
+        context_ids = list(contexts.itervalues())
 
         pdict_id = self.dataset_management.create_parameter_dictionary(name='functional_pdict', parameter_context_ids=context_ids, temporal_context='test_TIME')
         self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
@@ -224,97 +225,110 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         contexts = {}
         funcs = {}
 
-        t_ctxt = ParameterContext('TIME', param_type=QuantityType(value_encoding=np.dtype('int64')))
-        t_ctxt.uom = 'seconds since 1900-01-01'
-        t_ctxt_id = self.dataset_management.create_parameter_context(name='TIME', parameter_context=t_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
-        contexts['TIME'] = (t_ctxt, t_ctxt_id)
+        t_ctxt = ParameterContext(name='TIME', 
+                                  parameter_type='quantity',
+                                  value_encoding='float64',
+                                  units='seconds since 1900-01-01')
+        t_ctxt_id = self.dataset_management.create_parameter(t_ctxt)
+        contexts['TIME'] = t_ctxt_id
 
-        lat_ctxt = ParameterContext('LAT', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
-        lat_ctxt.axis = AxisTypeEnum.LAT
-        lat_ctxt.uom = 'degree_north'
-        lat_ctxt_id = self.dataset_management.create_parameter_context(name='LAT', parameter_context=lat_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, lat_ctxt_id)
-        contexts['LAT'] = lat_ctxt, lat_ctxt_id
+        lat_ctxt = ParameterContext(name='LAT', 
+                                    parameter_type="sparse",
+                                    value_encoding='float32',
+                                    units='degrees_north')
+        lat_ctxt_id = self.dataset_management.create_parameter(lat_ctxt)
+        contexts['LAT'] = lat_ctxt_id
 
-        lon_ctxt = ParameterContext('LON', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
-        lon_ctxt.axis = AxisTypeEnum.LON
-        lon_ctxt.uom = 'degree_east'
-        lon_ctxt_id = self.dataset_management.create_parameter_context(name='LON', parameter_context=lon_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, lon_ctxt_id)
-        contexts['LON'] = lon_ctxt, lon_ctxt_id
+        lon_ctxt = ParameterContext(name='LON', 
+                                    parameter_type='sparse',
+                                    value_encoding='float32',
+                                    units='degrees_east')
+        lon_ctxt_id = self.dataset_management.create_parameter(lon_ctxt)
+        contexts['LON'] = lon_ctxt_id
 
         # Independent Parameters
 
         # Temperature - values expected to be the decimal results of conversion from hex
-        temp_ctxt = ParameterContext('TEMPWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
-        temp_ctxt.uom = 'deg_C'
-        temp_ctxt_id = self.dataset_management.create_parameter_context(name='TEMPWAT_L0', parameter_context=temp_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
-        contexts['TEMPWAT_L0'] = temp_ctxt, temp_ctxt_id
+        temp_ctxt = ParameterContext(name='TEMPWAT_L0', 
+                parameter_type='quantity',
+                value_encoding='float32',
+                units='deg_C')
+        temp_ctxt_id = self.dataset_management.create_parameter(temp_ctxt)
+        contexts['TEMPWAT_L0'] = temp_ctxt_id
 
         # Conductivity - values expected to be the decimal results of conversion from hex
-        cond_ctxt = ParameterContext('CONDWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
-        cond_ctxt.uom = 'S m-1'
-        cond_ctxt_id = self.dataset_management.create_parameter_context(name='CONDWAT_L0', parameter_context=cond_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, cond_ctxt_id)
-        contexts['CONDWAT_L0'] = cond_ctxt, cond_ctxt_id
+        cond_ctxt = ParameterContext(name='CONDWAT_L0', 
+                parameter_type='quantity',
+                value_encoding='float32',
+                units='S m-1')
+        cond_ctxt_id = self.dataset_management.create_parameter(cond_ctxt)
+        contexts['CONDWAT_L0'] = cond_ctxt_id
 
         # Pressure - values expected to be the decimal results of conversion from hex
-        press_ctxt = ParameterContext('PRESWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
-        press_ctxt.uom = 'dbar'
-        press_ctxt_id = self.dataset_management.create_parameter_context(name='PRESWAT_L0', parameter_context=press_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, press_ctxt_id)
-        contexts['PRESWAT_L0'] = press_ctxt, press_ctxt_id
+        press_ctxt = ParameterContext(name='PRESWAT_L0', 
+                parameter_type='quantity',
+                value_encoding='float32',
+                units='dbar')
+        press_ctxt_id = self.dataset_management.create_parameter(press_ctxt)
+        contexts['PRESWAT_L0'] = press_ctxt_id
 
 
         # Dependent Parameters
 
         # TEMPWAT_L1 = (TEMPWAT_L0 / 10000) - 10
         tl1_func = '(T / 10000) - 10'
-        expr = NumexprFunction('TEMPWAT_L1', tl1_func, ['T'])
-        expr_id = self.dataset_management.create_parameter_function(name='TEMPWAT_L1', parameter_function=expr.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['TEMPWAT_L1'] = expr, expr_id
+        expr = ParameterFunction(name='TEMPWAT_L1',
+                function_type=PFT.NUMEXPR,
+                function=tl1_func,
+                args=['T'])
+        expr_id = self.dataset_management.create_parameter_function(expr)
+        funcs['TEMPWAT_L1'] = expr_id
 
         tl1_pmap = {'T': 'TEMPWAT_L0'}
-        expr.param_map = tl1_pmap
-        tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
-        tempL1_ctxt.uom = 'deg_C'
-        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='TEMPWAT_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_id=expr_id)
-        self.addCleanup(self.dataset_management.delete_parameter_context, tempL1_ctxt_id)
-        contexts['TEMPWAT_L1'] = tempL1_ctxt, tempL1_ctxt_id
+        tempL1_ctxt = ParameterContext(name='TEMPWAT_L1', 
+                parameter_type='function',
+                parameter_function_id=expr_id,
+                parameter_function_map=tl1_pmap,
+                value_encoding='float32',
+                units='deg_C')
+        tempL1_ctxt_id = self.dataset_management.create_parameter(tempL1_ctxt)
+        contexts['TEMPWAT_L1'] = tempL1_ctxt_id
 
         # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
         cl1_func = '(C / 100000) - 0.5'
-        expr = NumexprFunction('CONDWAT_L1', cl1_func, ['C'])
-        expr_id = self.dataset_management.create_parameter_function(name='CONDWAT_L1', parameter_function=expr.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['CONDWAT_L1'] = expr, expr_id
+        expr = ParameterFunction(name='CONDWAT_L1',
+                function_type=PFT.NUMEXPR,
+                function=cl1_func,
+                args=['C'])
+        expr_id = self.dataset_management.create_parameter_function(expr)
+        funcs['CONDWAT_L1'] = expr_id
 
         cl1_pmap = {'C': 'CONDWAT_L0'}
-        expr.param_map = cl1_pmap
-        condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
-        condL1_ctxt.uom = 'S m-1'
-        condL1_ctxt_id = self.dataset_management.create_parameter_context(name='CONDWAT_L1', parameter_context=condL1_ctxt.dump(), parameter_function_id=expr_id)
-        self.addCleanup(self.dataset_management.delete_parameter_context, condL1_ctxt_id)
-        contexts['CONDWAT_L1'] = condL1_ctxt, condL1_ctxt_id
+        condL1_ctxt = ParameterContext(name='CONDWAT_L1', 
+                parameter_type='function',
+                parameter_function_id=expr_id,
+                parameter_function_map=cl1_pmap,
+                value_encoding='float32',
+                units='S m-1')
+        condL1_ctxt_id = self.dataset_management.create_parameter(condL1_ctxt)
+        contexts['CONDWAT_L1'] = condL1_ctxt_id
 
         # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
         #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
         pl1_func = '(P * p_range / (0.85 * 65536)) - (0.05 * p_range)'
-        expr = NumexprFunction('PRESWAT_L1', pl1_func, ['P', 'p_range'])
-        expr_id = self.dataset_management.create_parameter_function(name='PRESWAT_L1', parameter_function=expr.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['PRESWAT_L1'] = expr, expr_id
+        expr = ParameterFunction(name='PRESWAT_L1',function=pl1_func,function_type=PFT.NUMEXPR,args=['P','p_range'])
+        expr_id = self.dataset_management.create_parameter_function(expr)
+        funcs['PRESWAT_L1'] = expr_id
         
         pl1_pmap = {'P': 'PRESWAT_L0', 'p_range': 679.34040721}
-        expr.param_map = pl1_pmap
-        presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
-        presL1_ctxt.uom = 'S m-1'
-        presL1_ctxt_id = self.dataset_management.create_parameter_context(name='PRESWAT_L1', parameter_context=presL1_ctxt.dump(), parameter_function_id=expr_id)
-        self.addCleanup(self.dataset_management.delete_parameter_context, presL1_ctxt_id)
-        contexts['PRESWAT_L1'] = presL1_ctxt, presL1_ctxt_id
+        presL1_ctxt = ParameterContext(name='PRESWAT_L1',
+                parameter_type='function',
+                parameter_function_id=expr_id,
+                parameter_function_map=pl1_pmap,
+                value_encoding='float32',
+                units='S m-1')
+        presL1_ctxt_id = self.dataset_management.create_parameter(presL1_ctxt)
+        contexts['PRESWAT_L1'] = presL1_ctxt_id
 
         # Density & practical salinity calucluated using the Gibbs Seawater library - available via python-gsw project:
         #       https://code.google.com/p/python-gsw/ & http://pypi.python.org/pypi/gsw/3.0.1
@@ -323,19 +337,32 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         owner = 'gsw'
         sal_func = 'SP_from_C'
         sal_arglist = ['C', 't', 'p']
-        expr = PythonFunction('PRACSAL', owner, sal_func, sal_arglist)
-        expr_id = self.dataset_management.create_parameter_function(name='PRACSAL', parameter_function=expr.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
-        funcs['PRACSAL'] = expr, expr_id
+        expr = ParameterFunction(name='PRACSAL',function_type=PFT.PYTHON,function=sal_func,owner=owner,args=sal_arglist)
+        expr_id = self.dataset_management.create_parameter_function(expr)
+        funcs['PRACSAL'] = expr_id
         
+        c10_f = ParameterFunction(name='c10', function_type=PFT.NUMEXPR, function='C*10', args=['C'])
+        expr_id = self.dataset_management.create_parameter_function(c10_f)
+        c10 = ParameterContext(name='c10', 
+                parameter_type='function',
+                parameter_function_id=expr_id,
+                parameter_function_map={'C':'CONDWAT_L1'},
+                value_encoding='float32',
+                units='1')
+        c10_id = self.dataset_management.create_parameter(c10)
+        contexts['c10'] = c10_id
+
         # A magic function that may or may not exist actually forms the line below at runtime.
-        sal_pmap = {'C': NumexprFunction('CONDWAT_L1*10', 'C*10', ['C'], param_map={'C': 'CONDWAT_L1'}), 't': 'TEMPWAT_L1', 'p': 'PRESWAT_L1'}
-        expr.param_map = sal_pmap
-        sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
-        sal_ctxt.uom = 'g kg-1'
-        sal_ctxt_id = self.dataset_management.create_parameter_context(name='PRACSAL', parameter_context=sal_ctxt.dump(), parameter_function_id=expr_id)
-        self.addCleanup(self.dataset_management.delete_parameter_context, sal_ctxt_id)
-        contexts['PRACSAL'] = sal_ctxt, sal_ctxt_id
+        sal_pmap = {'C': 'c10', 't': 'TEMPWAT_L1', 'p': 'PRESWAT_L1'}
+        sal_ctxt = ParameterContext(name='PRACSAL', 
+                parameter_type='function',
+                parameter_function_id=expr_id,
+                parameter_function_map=sal_pmap,
+                value_encoding='float32',
+                units='g kg-1')
+
+        sal_ctxt_id = self.dataset_management.create_parameter(sal_ctxt)
+        contexts['PRACSAL'] = sal_ctxt_id
 
         # absolute_salinity = gsw.SA_from_SP(PRACSAL, PRESWAT_L1, longitude, latitude)
         # conservative_temperature = gsw.CT_from_t(absolute_salinity, TEMPWAT_L1, PRESWAT_L1)
@@ -344,11 +371,11 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         abs_sal_expr = PythonFunction('abs_sal', owner, 'SA_from_SP', ['PRACSAL', 'PRESWAT_L1', 'LON','LAT'])
         cons_temp_expr = PythonFunction('cons_temp', owner, 'CT_from_t', [abs_sal_expr, 'TEMPWAT_L1', 'PRESWAT_L1'])
         dens_expr = PythonFunction('DENSITY', owner, 'rho', [abs_sal_expr, cons_temp_expr, 'PRESWAT_L1'])
-        dens_ctxt = ParameterContext('DENSITY', param_type=ParameterFunctionType(dens_expr), variability=VariabilityEnum.TEMPORAL)
+        dens_ctxt = CoverageParameterContext('DENSITY', param_type=ParameterFunctionType(dens_expr), variability=VariabilityEnum.TEMPORAL)
         dens_ctxt.uom = 'kg m-3'
         dens_ctxt_id = self.dataset_management.create_parameter_context(name='DENSITY', parameter_context=dens_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, dens_ctxt_id)
-        contexts['DENSITY'] = dens_ctxt, dens_ctxt_id
+        contexts['DENSITY'] = dens_ctxt_id
         return contexts, funcs
 
     
