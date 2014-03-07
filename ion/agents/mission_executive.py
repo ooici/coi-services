@@ -23,7 +23,7 @@ from pyon.util.breakpoint import breakpoint
 import gevent
 from gevent import Greenlet
 from interface.objects import AgentCommand
-# from ion.agents.platform.platform_agent import PlatformAgentEvent
+from ion.agents.platform.platform_agent import PlatformAgentEvent
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import FakeProcess
@@ -36,6 +36,26 @@ class MissionEvents(BaseEnum):
     """
     PROFILER_AT_CEILING = 'ShallowProfilerAtCeiling'
     PROFILER_STEP = 'ShallowProfilerStep'
+
+class MissionCommands(BaseEnum):
+    """
+    Acceptable mission commands.
+    """
+    # General commands
+    WAIT = 'wait'
+    SAMPLE = 'sample'
+    CALIBRATE = 'calibrate'
+
+    # HD Camera commands
+    ZOOM = 'zoom'
+    PAN = 'pan'
+    TILT = 'tilt'
+    LIGHTS = 'lights'
+    LASERS = 'lasers'
+
+    # Shallow Profiler
+    LOAD = 'loadmission'
+    RUN = 'runmission'
 
 class MissionLoader(object):  
     """
@@ -86,6 +106,27 @@ class MissionLoader(object):
             print "Current time is: " +  time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
             print "Next start at: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
             return (start_time - current_time) + loop_duration
+
+
+    def _verify_command(self, cmd):
+        """
+        Verify that specified command is defined. 
+        """
+        all_cmds = [
+            MissionCommands.CALIBRATE,
+            MissionCommands.LASERS,
+            MissionCommands.LIGHTS,
+            MissionCommands.LOAD,
+            MissionCommands.PAN,
+            MissionCommands.RUN,
+            MissionCommands.SAMPLE,
+            MissionCommands.TILT,
+            MissionCommands.WAIT,
+            MissionCommands.ZOOM]
+
+        if cmd not in all_cmds: return False
+        
+        return True
 
     def _check_start_time(self, schedule, loop_duration):
         """
@@ -260,6 +301,7 @@ class MissionLoader(object):
                 raise Exception('Mission Error: Mission duration greater than scheduled loop duration') 
 
             start_time = self._check_start_time(schedule, loop_duration)
+
             if num_loops != 0:
                 #Add mission entry
                 self._add_entry(instrument_id, start_time, mission_duration, 
