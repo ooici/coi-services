@@ -282,6 +282,9 @@ class IdentityManagementService(BaseIdentityManagementService):
             #now append the active NotificationRequests
             extended_user.owned_resources.extend(extended_user.subscriptions)
 
+        from ion.util.extresource import strip_resource_extension
+        strip_resource_extension(extended_user)
+
         return extended_user
 
     def prepare_user_info_support(self, user_info_id=''):

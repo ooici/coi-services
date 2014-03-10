@@ -1604,34 +1604,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             extended_instrument.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
             extended_instrument.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
 
-            """
-            # Prefetch persisted status from object store for all devices of interest (one here)
-            dsm = DeviceStateManager()
-            device_ids_of_interest = [instrument_device_id]
-            state_list = dsm.read_states(device_ids_of_interest)
-            status_dict = {}
-            for dev_id, dev_state in zip(device_ids_of_interest, state_list):
-                status = {AggregateStatusType.AGGREGATE_DATA: DeviceStatusType.STATUS_UNKNOWN,
-                          AggregateStatusType.AGGREGATE_COMMS: DeviceStatusType.STATUS_UNKNOWN,
-                          AggregateStatusType.AGGREGATE_POWER: DeviceStatusType.STATUS_UNKNOWN,
-                          AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_UNKNOWN}
-                if dev_state is not None:
-                    for k, v in dev_state['agg_status'].iteritems():
-                        status[int(k)] = v['status']
-                status_dict[dev_id] = status
-
-            # retrieve the statuses for the instrument
-            self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
-                                                                                        extended_instrument.computed,
-                                                                                        status_dict=status_dict)
-            # retrieve the aggregate status for the instrument
-            status_values = [ extended_instrument.computed.communications_status_roll_up,
-                              extended_instrument.computed.data_status_roll_up,
-                              extended_instrument.computed.location_status_roll_up,
-                              extended_instrument.computed.power_status_roll_up  ]
-            status = self.agent_status_builder._crush_status_list(status_values)
-            """
-
             log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
             if t:
                 t.complete_step('ims.instrument_device_extension.rollup')
@@ -1646,6 +1618,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         except Exception as ex:
             log.exception("Cannot build instrument %s status", instrument_device_id)
+
+        from ion.util.extresource import strip_resource_extension, get_matchers, matcher_DataProduct, matcher_DeviceModel, matcher_Site
+        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Site])
+        strip_resource_extension(extended_instrument, matchers=matchers)
 
         return extended_instrument
 
@@ -2003,76 +1979,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         else:
             extended_platform.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
 
-        """
-        # Building status - for PlatformAgents only (not ExternalDatasetAgent)
-        # @TODO: clean this UP!!!
-        child_device_ids = device_relations.keys()
-        ### agent_status_builder
-        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
-                                                                                    extended_platform.computed,
-                                                                                    portal_instrument_ids)
-        ### agent_status_builder
-        statuses, reason = self.agent_status_builder.get_cumulative_status_dict(platform_device_id)
-        def csl(device_id_list):
-            ### agent_status_builder
-            return self.agent_status_builder.compute_status_list(statuses, device_id_list)
-
-        extended_platform.computed.instrument_status = csl([dev._id for dev in extended_platform.instrument_devices])
-        extended_platform.computed.platform_status   = csl([platform._id for platform in extended_platform.platforms])
-        log.debug('instrument_status: %s %r instruments %d\nplatform_status: %s %r platforms %d',
-            extended_platform.computed.instrument_status.reason, extended_platform.computed.instrument_status.value, len(extended_platform.instrument_devices),
-            extended_platform.computed.platform_status.reason, extended_platform.computed.platform_status.value, len(extended_platform.platforms))
-        if t:
-            t.complete_step('ims.platform_device_extension.status')
-
-        # TODO: why don't we just use the immediate device children? child_objs
-        ids =[i._id if i else None for i in extended_platform.portal_instruments]
-        extended_platform.computed.portal_status = csl(ids)
-        log.debug('%d portals, %d instruments, %d status: %r', len(extended_platform.portals),
-                  len(extended_platform.portal_instruments), len(extended_platform.computed.portal_status.value), ids)
-
-        rollx_builder = RollXBuilder(self)
-        top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
-        if t:
-            t.complete_step('ims.platform_device_extension.top')
-
-        ### agent_status_builder
-        net_stats, ancestors = rollx_builder.get_network_hierarchy(top_platformnode_id,
-                                                                   lambda x: self.agent_status_builder.get_aggregate_status_of_device(x))
-        if t:
-            t.complete_step('ims.platform_device_extension.hierarchy')
-        extended_platform.computed.rsn_network_child_device_status = ComputedDictValue(value=net_stats,
-                                                                                       status=ComputedValueAvailability.PROVIDED)
-        if t:
-            t.complete_step('ims.platform_device_extension.nodes')
-        parent_node_device_ids = rollx_builder.get_parent_network_nodes(platform_device_id)
-
-        if not parent_node_device_ids:
-            # todo, just the current network status?
-            extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                                                              reason="Could not find parent network node")
-        else:
-            ### agent_status_builder
-            parent_node_statuses = [self.agent_status_builder.get_status_of_device(x) for x in parent_node_device_ids]
-            rollup_values = {}
-            for astkey, astname in AggregateStatusType._str_map.iteritems():
-                log.debug("collecting all %s values to crush", astname)
-                single_type_list = [nodestat.get(astkey, DeviceStatusType.STATUS_UNKNOWN) for nodestat in parent_node_statuses]
-                 ### agent_status_builder
-                rollup_values[astkey] = self.agent_status_builder._crush_status_list(single_type_list)
-
-            extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
-                                                                             value=rollup_values)
-        if t:
-            t.complete_step('ims.platform_device_extension.crush')
-        """
-
         # add UI details for deployments
         extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients,
                 instruments=extended_platform.instrument_devices, instrument_status=extended_platform.computed.instrument_status.value)
         if t:
             t.complete_step('ims.platform_device_extension.deploy')
             stats.add(t)
+
+        from ion.util.extresource import strip_resource_extension, get_matchers, matcher_DataProduct, \
+            matcher_DeviceModel, matcher_Site
+        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Site])
+        strip_resource_extension(extended_platform, matchers=matchers)
 
         return extended_platform
 
