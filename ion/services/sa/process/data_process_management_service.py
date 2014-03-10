@@ -287,7 +287,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @param configuration : The configuration dictionary for the process, and the routing table:
         '''
 
-        #todo: out publishers can be either stream or event
         #todo: determine if/how routing tables will be managed
         dpd_obj = self.read_data_process_definition(data_process_definition_id)
         configuration = DotDict(configuration or {})
@@ -354,6 +353,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         queue_name = self._create_subscription(dproc, in_data_product_ids, exchange_name)
         log.debug('create_data_process  queue_name: %s', queue_name)
 
+        self.event_publisher.publish_event(origin=dproc_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
+                           description='Data process created for data product ', values= in_data_product_ids )
+
         return dproc_id
 
     def _assign_worker(self, data_process_id):
@@ -380,7 +382,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.resource_registry.create_association(subject=data_process_id, predicate=PRED.hasProcess, object=transform_worker_pid)
 
         self.event_publisher.publish_event(origin=data_process_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
-                               description='data process assigned to transform worker: ' + transform_worker_pid )
+                               description='Data process assigned to transform worker. ', values=[transform_worker_pid] )
 
         return exchange_name
 
@@ -423,6 +425,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         # Create streams and subscription for a replay
         self._create_replay(data_process_id, in_data_product_ids, exchange_name, configuration)
+
+        self.event_publisher.publish_event(origin=data_process_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
+                           description='Data process created for data product ', values= in_data_product_ids )
+
         return data_process_id
 
 
@@ -474,7 +480,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             log.debug('data process _create_replay: %s. ', data_product_id)
             self.event_publisher.publish_event(origin=data_process_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
-                                   description='data process replay created from data product: '+ data_product_id )
+                                   description='data process replay created from data product. ', values= [data_product_id] )
 
         subscription_id = self.clients.pubsub_management.create_subscription(name=exchange_name, 
                                                                              stream_ids=streams)
@@ -732,6 +738,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             # Create a data process and we'll return all the ids we make
             dp_id = self._create_data_process_for_parameter_function(dpd, data_product_id, param_map)
             data_process_ids.append(dp_id)
+            self.event_publisher.publish_event(origin=dp_id, origin_type='DataProcess', status=DataProcessStatusType.NORMAL,
+                        description='Data process created for data product ', values= [data_product_id] )
+
         return data_process_ids
 
     def _get_param_ctx_from_dpd(self, data_process_definition_id, param_map, out_param_name):
