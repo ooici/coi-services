@@ -194,7 +194,7 @@ class ResourceManagementService(BaseResourceManagementService):
 
         self._call_crud(res_interface['delete'], None, resource_id, res_type)
 
-    CORE_ATTRIBUTES = {"_id", "name", "description", "ts_modified", "ts_updated",
+    CORE_ATTRIBUTES = {"_id", "name", "description", "ts_created", "ts_updated",
                        "lcstate", "availability", "visibility", "alt_resource_type"}
 
     def get_org_resource_attributes(self, org_id='', order_by='', type_filter=None, limit=0, skip=0):

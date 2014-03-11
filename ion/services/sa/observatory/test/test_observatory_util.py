@@ -25,7 +25,7 @@ def _devstat(dev_id, power, comms, data, loc):
                     })
     return res_dict
 
-@attr('UNIT', group='saob')
+@attr('UNIT', group='sa')
 class TestObservatoryUtil(IonUnitTestCase):
 
     def setUp(self):

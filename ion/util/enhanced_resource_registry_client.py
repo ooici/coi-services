@@ -202,7 +202,7 @@ class EnhancedResourceRegistryClient(object):
         self._check_type(resource_obj, specific_type, "to be read")
 
         if specific_type in self._cached_resources:
-            log.info("Adding cached %s object", specific_type)
+            log.debug("Adding cached %s object", specific_type)
             self._add_resource_to_cache(specific_type, resource_obj)
 
         return resource_obj
@@ -229,13 +229,13 @@ class EnhancedResourceRegistryClient(object):
                                      specific_type)
             return ret
 
-        log.info("Returning cached %s resources", specific_type)
+        log.debug("Returning cached %s resources", specific_type)
         cache = self._cached_resources[specific_type]
 
         # fill in any holes that we can
         misses = [x for x in resource_ids if x not in cache.by_id]
         if misses:
-            log.info("Attempting to fill in %s cache misses", len(misses))
+            log.debug("Attempting to fill in %s cache misses", len(misses))
             misses_objs = self.RR.read_mult(misses)
             for mo in misses_objs:
                 if None is not mo:
@@ -350,10 +350,10 @@ class EnhancedResourceRegistryClient(object):
             return ret
 
         if not name in self._cached_resources[resource_type].by_name:
-            log.info("The %s resource with name '%s' was not in the cache", resource_type, name)
+            log.debug("The %s resource with name '%s' was not in the cache", resource_type, name)
             return []
 
-        log.info("Returning object(s) from cache")
+        log.debug("Returning object(s) from cache")
         objs = self._cached_resources[resource_type].by_name[name]
         if id_only:
             return [obj._id for obj in objs]
@@ -373,7 +373,7 @@ class EnhancedResourceRegistryClient(object):
                                            id_only=id_only)
             return ret
 
-        log.info("Using %s cached results for 'find (%s) subjects'", len(self._cached_predicates[predicate]), predicate)
+        log.debug("Using %s cached results for 'find (%s) subjects'", len(self._cached_predicates[predicate]), predicate)
 
         def filter_fn(assoc):
             if object != assoc.o:
@@ -569,7 +569,7 @@ class EnhancedResourceRegistryClient(object):
 
         total_time = int(time_caching_stop) - int(time_caching_start)
 
-        log.info("Cached predicate %s with %s resources in %s seconds", predicate, len(preds), total_time / 1000.0)
+        log.debug("Cached predicate %s with %s resources in %s seconds", predicate, len(preds), total_time / 1000.0)
         self._cached_predicates[predicate] = preds
 
 
