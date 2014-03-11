@@ -97,6 +97,8 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         dp1_func_output_dp_id, dp2_func_output_dp_id =  self.create_output_data_products()
         first_dp_id = self.create_data_process_one(dpd_id, dp1_func_output_dp_id)
 
+        second_dp_id = self.create_data_process_two(dpd_id, self.input_dp_two_id, dp2_func_output_dp_id)
+
         #retrieve subscription from data process
         subscription_objs, _ = self.rrclient.find_objects(subject=first_dp_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)
         log.debug('test_transform_worker subscription_obj:  %s', subscription_objs[0])
@@ -123,8 +125,6 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         rdt['salinity']     = [8]
 
         self.publisher_one.publish(msg=rdt.to_granule(), stream_id=self.stream_one_id)
-
-        second_dp_id = self.create_data_process_two(dpd_id, self.input_dp_two_id, dp2_func_output_dp_id)
 
         #retrieve subscription from data process
         subscription_objs, _ = self.rrclient.find_objects(subject=second_dp_id, predicate=PRED.hasSubscription, object_type=RT.Subscription, id_only=False)

@@ -120,7 +120,8 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.data_process_objs = []
         self._output_stream_ids = []
         self.granule_verified = Event()
-        self.status_event_verified = Event()
+        self.worker_assigned_event_verified = Event()
+        self.dp_created_event_verified = Event()
         self.heartbeat_event_verified = Event()
 
         self.parameter_dict_id = self.dataset_management_client.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
@@ -223,8 +224,12 @@ class TestTransformWorker(IonIntegrationTestCase):
         # validate that the output granule is received and the updated value is correct
         self.assertTrue(self.granule_verified.wait(self.wait_time))
 
-        # validate that the data process load is received    (L4-CI-SA-RQ-182)
-        self.assertTrue(self.status_event_verified.wait(self.wait_time))
+
+        # validate that the data process loaded into worker event is received    (L4-CI-SA-RQ-182)
+        self.assertTrue(self.worker_assigned_event_verified.wait(self.wait_time))
+
+        # validate that the data process create (with data product ids) event is received    (NEW SA -42)
+        self.assertTrue(self.dp_created_event_verified.wait(self.wait_time))
 
         # validate that the data process heartbeat event is received (for every hundred granules processed) (L4-CI-SA-RQ-182)
         #this takes a while so set wait limit to large value
@@ -286,6 +291,9 @@ class TestTransformWorker(IonIntegrationTestCase):
         # create the DPD, DataProcess and output DataProduct
         dataprocessdef_id, dataprocess_id, dataproduct_id = self.create_data_process()
 
+        self.addCleanup(self.dataprocessclient.delete_data_process, dataprocess_id)
+        self.addCleanup(self.dataprocessclient.delete_data_process_definition, dataprocessdef_id)
+
         # Test for provenance. Get Data product produced by the data processes
         output_data_product_id,_ = self.rrclient.find_objects(subject=dataprocess_id,
             object_type=RT.DataProduct,
@@ -342,6 +350,8 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         # create the DPD, DataProcess and output DataProduct
         dataprocessdef_id, dataprocess_id, dataproduct_id = self.create_data_process()
+        self.addCleanup(self.dataprocessclient.delete_data_process, dataprocess_id)
+        self.addCleanup(self.dataprocessclient.delete_data_process_definition, dataprocessdef_id)
 
         # Test for provenance. Get Data product produced by the data processes
         output_data_product_id,_ = self.rrclient.find_objects(subject=dataprocess_id,
@@ -620,9 +630,11 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         else:
             # else check that this is the assign event
-            self.assertIn( 'data process assigned to transform worker', data_process_event.description)
 
-        self.status_event_verified.set()
+            if 'Data process assigned to transform worker' in data_process_event.description:
+                self.worker_assigned_event_verified.set()
+            elif 'Data process created for data product' in data_process_event.description:
+                self.dp_created_event_verified.set()
 
 
     def validate_output_granule(self, msg, route, stream_id):
