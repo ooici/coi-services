@@ -1,14 +1,18 @@
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+#!/usr/bin/env python
 
-#from pyon.ion.endpoint import ProcessRPCClient
-from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from nose.plugins.attrib import attr
+import unittest
+
+from ooi.logging import log
 
 from pyon.datastore.datastore import DataStore
-from pyon.public import IonObject
+from pyon.public import RT, PRED, OT, LCE, IonObject, CFG
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
+
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.sa.test.helpers import any_old
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -18,16 +22,10 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.objects import ComputedValueAvailability
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
-
-from pyon.public import RT, PRED, OT, LCE
-from nose.plugins.attrib import attr
-from ooi.logging import log
-import unittest
-
-
-from ion.services.sa.test.helpers import any_old
 
 
 @attr('INT', group='sa')
@@ -65,7 +63,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         create one of each resource and association used by IMS
         to guard against problems in ion-definitions
         """
-        
+        self.patch_cfg(CFG["container"], {"extended_resources": {"strip_results": False}})
+
         #stuff we control
         instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
         instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
