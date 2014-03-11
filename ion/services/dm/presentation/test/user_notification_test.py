@@ -201,7 +201,7 @@ class UserNotificationTest(PyonTestCase):
         self.mock_rr_client.update.assert_called_once_with(notification_request)
 
 
-@attr('UNIT', group='evt')
+@attr('UNIT', group='dm')
 class UserNotificationEventsTest(PyonTestCase):
     def _load_mock_events(self, event_list):
         for cnt, event_entry in enumerate(event_list):

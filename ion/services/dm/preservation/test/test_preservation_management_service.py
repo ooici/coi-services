@@ -19,7 +19,7 @@ from interface.objects import PersistenceInstance, PersistenceSystem, DataStore
 
 
 @unittest.skip('Obsolete in R2')
-@attr('UNIT', group='dm_pres')
+@attr('UNIT', group='dm')
 class PreservationManagementServiceTest(PyonTestCase):
 
     def setUp(self):
