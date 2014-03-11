@@ -1,17 +1,21 @@
-#from interface.services.icontainer_agent import ContainerAgentClient
-#from pyon.ion.endpoint import ProcessRPCClient
+#!/usr/bin/env python
 
 import unittest
-from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from nose.plugins.attrib import attr
 
-from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.context import LocalContextMixin
-from pyon.public import RT, PRED, OT, log
-from pyon.public import IonObject
+from pyon.public import RT, PRED, OT, log, CFG, IonObject
 from pyon.event.event import EventPublisher
 from pyon.agent.agent import ResourceAgentState
+from pyon.core.governance import get_actor_header
+
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.sa.test.helpers import any_old
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+
+from interface.objects import ComputedValueAvailability
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
@@ -20,11 +24,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from pyon.core.governance import get_actor_header
-from nose.plugins.attrib import attr
-from interface.objects import ComputedValueAvailability
 
-from ion.services.sa.test.helpers import any_old
 
 
 
@@ -551,6 +551,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
     @attr('EXT')
     def test_observatory_extensions(self):
+        self.patch_cfg(CFG["container"], {"extended_resources": {"strip_results": False}})
+
         obs_id = self.RR2.create(any_old(RT.Observatory))
         pss_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="StationSite")))
         pas_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="PlatformAssemblySite")))
@@ -591,6 +593,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
     @attr('EXT')
     @attr('EXT1')
     def test_observatory_org_extended(self):
+        self.patch_cfg(CFG["container"], {"extended_resources": {"strip_results": False}})
 
         stuff = self._make_associations()
 
@@ -640,7 +643,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Get the extended Site (platformSite)
         #--------------------------------------------------------------------------------
-
 
         try:
             extended_site = self.OMS.get_site_extension(stuff.platform_site_id)
