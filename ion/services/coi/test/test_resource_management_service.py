@@ -242,7 +242,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-@attr('INT', group='rms')
+@attr('INT', group='coi')
 class TestResourceManagementServiceInterface(IonIntegrationTestCase):
 
     def setUp(self):
