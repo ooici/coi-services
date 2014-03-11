@@ -740,6 +740,10 @@ class DataProductManagementService(BaseDataProductManagementService):
                         replacement_data_products.append(actual_data_product)
         extended_product.process_input_data_products = replacement_data_products
 
+        from ion.util.extresource import strip_resource_extension, get_matchers, matcher_ParameterContext
+        matchers = get_matchers([matcher_ParameterContext])
+        strip_resource_extension(extended_product, matchers=matchers)
+
         return extended_product
 
 

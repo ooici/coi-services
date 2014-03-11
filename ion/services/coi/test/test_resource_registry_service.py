@@ -13,7 +13,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from interface.objects import Attachment, AttachmentType, Resource, DataProcess, Transform, ProcessDefinition
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-@attr('INT', group='rr1')
+@attr('INT', group='coi')
 class TestResourceRegistry(IonIntegrationTestCase):
 
     def setUp(self):
@@ -54,10 +54,11 @@ class TestResourceRegistry(IonIntegrationTestCase):
             IonObject("UserInfo", name="name", foo="bar")
         self.assertTrue(cm.exception.message == "__init__() got an unexpected keyword argument 'foo'")
 
+        # TODO: This error is different than with other methods of initialization - CHANGE
         # Can't call new with fields that aren't defined in the object's schema
-        with self.assertRaises(TypeError) as cm:
+        with self.assertRaises(AttributeError) as cm:
             IonObject("UserInfo", {"name": "name", "foo": "bar"})
-        self.assertTrue(cm.exception.message == "__init__() got an unexpected keyword argument 'foo'")
+        self.assertIn("object has no attribute 'foo'", cm.exception.message)
 
         # Can't call new with fields that aren't defined in the object's schema
         with self.assertRaises(TypeError) as cm:

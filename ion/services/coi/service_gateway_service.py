@@ -3,7 +3,8 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, ast, simplejson, sys, traceback, string, copy
+import inspect, ast, sys, traceback, string
+import json, simplejson
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
@@ -50,14 +51,16 @@ OMS_ACCEPTED_RESPONSE = '202 Accepted'
 OMS_BAD_REQUEST_RESPONSE = '400 Bad Request'
 
 
-
 DEFAULT_EXPIRY = '0'
 
-#Stuff for specifying other return types
+# Stuff for specifying other return types
 RETURN_MIMETYPE_PARAM = 'return_mimetype'
 
+# Set standard json functions
+json_dumps = json.dumps
+json_loads = simplejson.loads
 
-#This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
+
 class ServiceGatewayService(BaseServiceGatewayService):
     """
 	The Service Gateway Service is the service that uses a gevent web server and Flask
@@ -230,7 +233,7 @@ def process_gateway_request(service_name, operation):
             payload = request.form['payload']
             #debug only
             #payload = '{"serviceRequest": { "serviceName": "resource_registry", "serviceOp": "find_resources", "params": { "restype": "BankAccount", "lcstate": "", "name": "", "id_only": false } } }'
-            json_params = simplejson.loads(str(payload))
+            json_params = json_loads(str(payload))
 
             if not json_params.has_key('serviceRequest'):
                 raise Inconsistent("The JSON request is missing the 'serviceRequest' key in the request")
@@ -293,7 +296,7 @@ def process_gateway_agent_request(resource_id, operation):
         if request.method == "POST":
             payload = request.form['payload']
 
-            json_params = simplejson.loads(str(payload))
+            json_params = json_loads(str(payload))
 
             if not json_params.has_key('agentRequest'):
                 raise Inconsistent("The JSON request is missing the 'agentRequest' key in the request")
@@ -343,7 +346,7 @@ def process_oms_event():
 
     # oms direct request
     if request.data:
-        json_params  = simplejson.loads(str(request.data))
+        json_params  = json_loads(str(request.data))
         log.debug('ServiceGatewayService:process_oms_event request.data:  %s', json_params)
 
     #validate payload
@@ -373,7 +376,7 @@ def process_oms_event():
 #Private implementation of standard flask jsonify to specify the use of an encoder to walk ION objects
 def json_response(response_data):
 
-    return service_gateway_app.response_class(simplejson.dumps(response_data, default=ion_object_encoder,
+    return service_gateway_app.response_class(json_dumps(response_data, default=ion_object_encoder,
         indent=None if request.is_xhr else 2), mimetype='application/json')
 
 def gateway_json_response(response_data):
@@ -685,7 +688,7 @@ def create_attachment():
 
     try:
         payload              = request.form['payload']
-        json_params          = simplejson.loads(str(payload))
+        json_params          = json_loads(str(payload))
 
         ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
@@ -744,7 +747,7 @@ def get_visualization_image():
     params = request.args
 
     data_product_id = params["data_product_id"]
-    visualization_parameters = simplejson.loads(params["visualization_parameters"])
+    visualization_parameters = json_loads(params["visualization_parameters"])
     image_info = vs_cli.get_visualization_image(data_product_id, visualization_parameters)
 
     return service_gateway_app.response_class(image_info['image_obj'],mimetype=image_info['content_type'])
@@ -754,7 +757,7 @@ def get_visualization_image():
 def get_parameter_provenance_visualization_image():
 
     payload = request.form['payload']
-    json_params = simplejson.loads(str(payload))
+    json_params = json_loads(str(payload))
     #log.debug('get_parameter_provenance_visualization_image  json_params:  %s', json_params)
 
     # Create client to interface with the viz service
@@ -851,7 +854,7 @@ def find_resources_by_type(resource_type):
 def resolve_org_negotiation():
     try:
         payload              = request.form['payload']
-        json_params          = simplejson.loads(str(payload))
+        json_params          = json_loads(str(payload))
 
         ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
