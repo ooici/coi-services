@@ -30,6 +30,7 @@ __license__ = 'Apache 2.0'
 #
 
 
+from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from pyon.public import log, CFG
 
 from pyon.util.containers import get_ion_ts
@@ -50,7 +51,6 @@ from ion.agents.platform.responses import NormalResponse
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverState
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.public import IonObject
 from pyon.util.containers import current_time_millis
