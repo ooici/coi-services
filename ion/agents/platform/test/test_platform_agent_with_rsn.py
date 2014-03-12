@@ -14,7 +14,7 @@ __license__ = 'Apache 2.0'
 # with a single platform (with no sub-platforms). Otherwise a small network is
 # used. See HelperTestMixin.
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_capabilities
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_capabilities
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_some_state_transitions
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_get_set_resources
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_some_commands
@@ -270,6 +270,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
             PlatformAgentEvent.START_MONITORING,
             PlatformAgentEvent.STOP_MONITORING,
+
+            PlatformAgentEvent.RUN_MISSION,
+            PlatformAgentEvent.ABORT_MISSION,
+            PlatformAgentEvent.KILL_MISSION,
         ]
 
         def sort_caps(caps_list):
@@ -537,6 +541,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
             #PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.START_MONITORING,
+
+            PlatformAgentEvent.RUN_MISSION,
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
@@ -601,6 +607,9 @@ class TestPlatformAgent(BaseIntTestPlatform):
             #PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.STOP_MONITORING,
+
+            PlatformAgentEvent.RUN_MISSION,
+
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_monitoring)
