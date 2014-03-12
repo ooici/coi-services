@@ -49,7 +49,7 @@ from interface.objects import StreamAlertType, AggregateStatusType
 from gevent import sleep
 from gevent.event import AsyncResult
 
-# Nosetest imports.
+# Mock imports.
 from mock import patch
 
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})

@@ -10,9 +10,12 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
-
+# Import pyon test class first.
 from pyon.util.int_test import IonIntegrationTestCase
 
+
+# Nose imports.
+from nose.plugins.attrib import attr
 
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_exec.py:TestMissionExec
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_exec.py:TestMissionExec.test_mission_loader
@@ -39,7 +42,6 @@ class TestMissionExec(IonIntegrationTestCase):
         @return:
         """
         pass
-
 
 
     def test_mission_exec(self):
