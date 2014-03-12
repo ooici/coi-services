@@ -82,7 +82,8 @@ class PlatformAgentState(BaseEnum):
     MONITORING        = 'PLATFORM_AGENT_STATE_AUTOSAMPLE'
     LAUNCHING         = 'PLATFORM_AGENT_STATE_LAUNCHING'
     LOST_CONNECTION   = ResourceAgentState.LOST_CONNECTION
-
+    MISSION_STREAMING = 'PLATFORM_AGENT_STATE_MISSION_STREAMING'
+    MISSION_COMMAND   = 'PLATFORM_AGENT_STATE_MISSION_COMMAND'
 
 class PlatformAgentEvent(BaseEnum):
     ENTER                     = ResourceAgentEvent.ENTER
@@ -113,6 +114,9 @@ class PlatformAgentEvent(BaseEnum):
     LOST_CONNECTION           = ResourceAgentEvent.LOST_CONNECTION
     AUTORECONNECT             = ResourceAgentEvent.AUTORECONNECT
 
+    RUN_MISSION               = 'PLATFORM_AGENT_RUN_MISSION'
+    ABORT_MISSION             = 'PLATFORM_AGENT_ABORT_MISSION'
+    KILL_MISSION              = 'PLATFORM_AGENT_KILL_MISSION'
 
 class PlatformAgentCapability(BaseEnum):
     INITIALIZE                = PlatformAgentEvent.INITIALIZE
@@ -137,6 +141,9 @@ class PlatformAgentCapability(BaseEnum):
     START_MONITORING          = PlatformAgentEvent.START_MONITORING
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
 
+    RUN_MISSION               = PlatformAgentEvent.RUN_MISSION
+    ABORT_MISSION             = PlatformAgentEvent.ABORT_MISSION
+    KILL_MISSION              = PlatformAgentEvent.KILL_MISSION
 
 class ResourceInterfaceCapability(BaseEnum):
     #GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
@@ -256,6 +263,13 @@ class PlatformAgent(ResourceAgent):
         # verified. This object does all main status management including
         # event subscribers, and helps with related publications.
         self._status_manager = None
+
+        # The current loaded mission file.
+        self.aparm_mission = None
+
+        # The get/set helpers set by the mission loader.
+        self.aparm_get_mission = None
+        self.aparm_set_mission = None
 
         #####################################
         # lost_connection handling:
@@ -3508,6 +3522,64 @@ class PlatformAgent(ResourceAgent):
         return next_state, result
 
     ##############################################################
+    # COMMAND or STREAMING handers.
+    ##############################################################
+
+    def _handler_run_mission(self):
+        """
+        Begin a mission execution in COMMAND or STREAMING mode.
+        Transitions to the appropriate mission substate.
+        @param args:
+        @param kwargs:
+        @return:
+        """
+        pass
+
+    ##############################################################
+    # MISSION_COMMAND handers.
+    ##############################################################
+
+    def _handler_mission_command_abort(self, *args, **kwargs):
+        """
+        Abort mission from MISSION_COMMAND.
+        @param args:
+        @param kwargs:
+        @return:
+        """
+        pass
+
+    def _handler_mission_command_kill(self, *args, **kwargs):
+        """
+        Kill mission from MISSION_COMMAND.
+        @param args:
+        @param kwargs:
+        @return:
+        """
+        pass
+
+    ##############################################################
+    # MISSION_STREAMING handers.
+    ##############################################################
+
+    def _handler_mission_streaming_abort(self, *args, **kwargs):
+        """
+        Abort mission from MISSION_STREAMING.
+        @param args:
+        @param kwargs:
+        @return:
+        """
+        pass
+
+    def _handler_mission_streaming_kill(self, *args, **kwargs):
+        """
+        Kill mission form MISSION_STREAMING.
+        @param args:
+        @param kwargs:
+        @return:
+        """
+        pass
+
+    ##############################################################
     # Agent parameter functions.
     ##############################################################
 
@@ -3629,6 +3701,8 @@ class PlatformAgent(ResourceAgent):
             self._fsm.add_handler(state, PlatformAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
+            self._fsm.add_handler(state, PlatformAgentEvent.RUN_MISSION, self._handler_run_mission)
+
         # additional COMMAND state event handlers.
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.PAUSE, self._handler_command_pause)
@@ -3645,3 +3719,9 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.AUTORECONNECT, self._handler_lost_connection_autoreconnect)
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GO_INACTIVE, self._handler_lost_connection_go_inactive)
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
+
+        # MISSION state event handlers.
+        self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.ABORT_MISSION, self._handler_mission_command_abort)
+        self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.KILL_MISSION, self._handler_mission_command_kill)
+        self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.ABORT_MISSION, self._handler_mission_streaming_abort)
+        self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.KILL_MISSION, self._handler_mission_streaming_kill)
