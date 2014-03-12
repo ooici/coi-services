@@ -169,7 +169,7 @@ class DatasetAgentTestConfig(object):
         """
         return os.path.dirname(__file__)
 
-@unittest.skipIf(((os.getenv('PYCC_MODE') is not "1") and (os.getenv('CEI_LAUNCH_TEST') is not False)), 'Skip tests during launch without NFS shared directories.')
+@unittest.skipIf(( (os.getenv('PYCC_MODE', False) is False) and (os.getenv('CEI_LAUNCH_TEST', False) is not False)), 'Skip tests during launch without NFS shared directories.')
 class DatasetAgentTestCase(IonIntegrationTestCase):
     """
     Base class for all dataset agent end to end tests
