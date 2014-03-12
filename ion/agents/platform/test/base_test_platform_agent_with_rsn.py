@@ -33,12 +33,13 @@ __license__ = 'Apache 2.0'
 # containing the corresponding agent configurations as they are constructed.
 #
 
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.public import RT, OT, PRED, CFG
 from pyon.public import log
 import logging
 from pyon.public import IonObject
 from pyon.core.exception import ServerError, Conflict
 
-from pyon.util.int_test import IonIntegrationTestCase
 
 from pyon.event.event import EventSubscriber
 
@@ -54,7 +55,6 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from pyon.ion.stream import StandaloneStreamSubscriber
 
 from pyon.util.context import LocalContextMixin
-from pyon.public import RT, OT, PRED, CFG
 
 from nose.plugins.attrib import attr
 
