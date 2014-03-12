@@ -1239,16 +1239,6 @@ class TestDMExtended(DMTestCase):
 
     @attr("UTIL")
     def test_magic_preload(self):
-        '''
-bin/pycc path=master --rel res/deploy/r2deploy.yml –-mx -bc -fc -s ion_luke
-mw bin/pycc path=master -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_alpha.yml -s ion_luke
-mw bin/pycc path=master -x ion.processes.bootstrap.ion_loader.IONLoader cfg=test_data/wfp_flortk01.yml -s ion_luke
-mw bin/pycc path=master -x ion.processes.bootstrap.ion_loader.IONLoader cfg=test_data/wfp_paradk01.yml -s ion_luke
-mw bin/pycc -x ion.agents.agentctrl.AgentControl instrument='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore' op=config_instance cfg=test_data/ai_configs_pioneer_v06.csv -s ion_luke
-
-mw bin/pycc -x ion.agents.agentctrl.AgentControl device_name='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore' op=set_calibration cfg=test_data/wfpCalData_v01.csv -s ion_luke
-mw bin/pycc -x ion.agents.agentctrl.AgentControl device_name='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore' op=activate_persistence -s ion_luke
-        '''        
         try:
             self.preload_alpha()
             print 'Alpha preloaded'
