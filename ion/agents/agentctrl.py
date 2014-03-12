@@ -320,12 +320,20 @@ class AgentControl(ImmediateProcess):
         res_obj = self.rr.read(resource_id)
 
         # Device has no reference designator - but use preload ID as reference designator
-        alt_ids = [aid[4:] for aid in res_obj.alt_ids if aid.startswith("PRE:ID")]
+        alt_ids = []
+        for aid in res_obj.alt_ids:
+            if aid.startswith('PRE:') and aid.endswith('_ID'):
+                alt_ids.append(aid[4:-3])
+            elif aid.startswith('PRE:ID'):
+                alt_ids.append(aid[4:])
+
         device_rd = alt_ids[0] if alt_ids else None
+
+
 
         dev_cfg = self.cfg_mappings.get(resource_id, None) or self.cfg_mappings.get(device_rd, None)
         if not dev_cfg:
-            return
+            raise NotFound("Could not reference designator %s in %s" % (self.cfg_mappings, device_rd))
         log.info("Setting calibration for device %s (RD %s) '%s': %s", resource_id, device_rd, res_obj.name, dev_cfg)
 
         # Find parsed data product from device id
@@ -334,7 +342,6 @@ class AgentControl(ImmediateProcess):
         for dp_obj in dp_objs_filtered:
             self._set_calibration_for_data_product(dp_obj, dev_cfg)
 
-        log.info("Calibration set for device %s (RD %s) '%s'", resource_id, device_rd, res_obj.name)
 
     def _set_calibration_for_data_product(self, dp_obj, dev_cfg):
         from ion.util.direct_coverage_utils import DirectCoverageAccess
@@ -343,6 +350,13 @@ class AgentControl(ImmediateProcess):
         log.debug(" Setting calibration for data product '%s'", dp_obj.name)
         dataset_ids, _ = self.rr.find_objects(dp_obj, PRED.hasDataset, id_only=True)
         publisher = EventPublisher(OT.InformationContentModifiedEvent)
+        if not dataset_ids:
+            data_product_management = DataProductManagementServiceProcessClient(process=self)
+            data_product_management.activate_data_product_persistence(dp_obj._id)
+            dataset_ids, _ = self.rr.find_objects(dp_obj, PRED.hasDataset, id_only=True)
+            log.info("Activating data product %s", dp_obj.name)
+            if not dataset_ids:
+                raise NotFound('No datasets were found for this data product, ensure that it is activated')
         for dataset_id in dataset_ids:
             # Synchronize with ingestion
             with DirectCoverageAccess() as dca:
@@ -351,6 +365,7 @@ class AgentControl(ImmediateProcess):
                 for cal_name, contents in dev_cfg.iteritems():
                     if cal_name in cov.list_parameters() and isinstance(cov.get_parameter_context(cal_name).param_type, SparseConstantType):
                         value = float(contents['value'])
+                        log.info('Updating Calibrations for %s in %s', cal_name, dataset_id)
                         cov.set_parameter_values(cal_name, value)
                     else:
                         log.warn("Calibration %s not found in dataset", cal_name)

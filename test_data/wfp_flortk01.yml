@@ -1,0 +1,29 @@
+# This file configures the OOI FLORT-K instance configuration
+
+load_sequence:
+
+  - name: load_ooi_assets_inc1
+    docstring: Reapply OOI preload to create new models, devices, sites for increased deployment time period
+    config:
+      op: load
+      loadooi: True
+      assets: res/preload/r2_ioc/ooi_assets
+      ooiuntil: "6/30/2014"
+      ooiparams: True
+ 
+  - name: load_flortk
+    docstring: Load the agent definition and parameters for WFP FLORT-K
+    config:
+      op: load
+      scenario: FLORT_KN
+      idmap: True
+      categories: ExternalDatasetAgent,ParameterFunctions,ParameterDefs,ParameterDictionary,StreamConfiguration,IDMap
+ 
+  - name: load_ooi_assets_inc2
+    docstring: Reapply OOI preload to finish off data product generation
+    config:
+      op: load
+      loadooi: True
+      assets: res/preload/r2_ioc/ooi_assets
+      ooiuntil: "6/30/2014"
+      ooiparams: True
