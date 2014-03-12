@@ -139,7 +139,6 @@ class AgentControl(ImmediateProcess):
             elif self.op == "config_instance":
                 self._config_instance(agent_instance_id, resource_id)
             elif self.op == "set_calibration":
-                print 'attempting to set calibrations'
                 self._set_calibration(agent_instance_id, resource_id)
             elif self.op == "recover_data":
                 self._recover_data(agent_instance_id, resource_id)
@@ -335,7 +334,6 @@ class AgentControl(ImmediateProcess):
         dev_cfg = self.cfg_mappings.get(resource_id, None) or self.cfg_mappings.get(device_rd, None)
         if not dev_cfg:
             raise NotFound("Could not reference designator %s in %s" % (self.cfg_mappings, device_rd))
-        print "Setting calibration for device %s (RD %s) '%s': %s" %( resource_id, device_rd, res_obj.name, dev_cfg)
         log.info("Setting calibration for device %s (RD %s) '%s': %s", resource_id, device_rd, res_obj.name, dev_cfg)
 
         # Find parsed data product from device id
@@ -344,14 +342,12 @@ class AgentControl(ImmediateProcess):
         for dp_obj in dp_objs_filtered:
             self._set_calibration_for_data_product(dp_obj, dev_cfg)
 
-        print "Calibration set for device %s (RD %s) '%s'" % (resource_id, device_rd, res_obj.name)
 
     def _set_calibration_for_data_product(self, dp_obj, dev_cfg):
         from ion.util.direct_coverage_utils import DirectCoverageAccess
         from coverage_model import SparseConstantType
 
         log.debug(" Setting calibration for data product '%s'", dp_obj.name)
-        print " Setting calibration for data product '%s' (%s)" % (dp_obj.name ,dp_obj._id)
         dataset_ids, _ = self.rr.find_objects(dp_obj, PRED.hasDataset, id_only=True)
         publisher = EventPublisher(OT.InformationContentModifiedEvent)
         if not dataset_ids:
@@ -370,7 +366,6 @@ class AgentControl(ImmediateProcess):
                     if cal_name in cov.list_parameters() and isinstance(cov.get_parameter_context(cal_name).param_type, SparseConstantType):
                         value = float(contents['value'])
                         log.info('Updating Calibrations for %s in %s', cal_name, dataset_id)
-                        print 'Updating Calibrations for %s to %s in %s' %( cal_name, value, dataset_id)
                         cov.set_parameter_values(cal_name, value)
                     else:
                         log.warn("Calibration %s not found in dataset", cal_name)
