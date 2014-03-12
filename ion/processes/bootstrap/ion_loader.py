@@ -11,11 +11,7 @@
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=BETA
 
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
-      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path=https://userexperience.oceanobservatories.org/database-exports/
-
-      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master assets=res/preload/r2_ioc/ooi_assets scenario=R2_DEMO loadooi=True
-      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True assets=res/preload/r2_ioc/ooi_assets
-      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadui=True
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path=http://userexperience.oceanobservatories.org/database-exports/
 
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_load_config.yml
 
@@ -53,9 +49,9 @@
     TODO:
       support attachments using HTTP URL
       Owner, Events with bulk load
-      Set lifecycle state through appropriate service operations
+      Set lifecycle state through RMS service operation
 
-        #from pyon.util.breakpoint import breakpoint; breakpoint(locals())
+    #from pyon.util.breakpoint import breakpoint; breakpoint(locals())
 """
 
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan, Jonathan Newbrough'
@@ -1342,7 +1338,31 @@ class IONLoader(ImmediateProcess):
             "instrument_management", "create_instrument_model",
             support_bulk=True)
 
+    def _get_primary_model(self, model_id):
+        """Given a series ID/instrument model ID, return the primary model ID based on model mapping or
+        the provided model id otherwise"""
+        modelmap_objs = self.ooi_loader.get_type_assets("modelmap")
+        series_objs = self.ooi_loader.get_type_assets("series")
+
+        if model_id not in series_objs:
+            raise iex.BadRequest("Unknown series/model_id: %s" % model_id)
+
+        if model_id in modelmap_objs:
+            mmap_series = modelmap_objs[model_id]
+            primary_series = mmap_series["primary_series"]
+            if primary_series not in series_objs:
+                raise iex.BadRequest("Unknown primary series: %s" % primary_series)
+            return primary_series
+
+        return model_id
+
     def _load_InstrumentModel_OOI(self):
+        """
+        Creates one InstrumentModel resource for each series in SAF or for the primary series if a model
+        mapping exists.
+        Filters to all series that are known as deployed before the cutoff date or are referenced as "Present"
+        in the InstAgents or DataAgents spreadsheets.
+        """
         class_objs = self.ooi_loader.get_type_assets("class")
         series_objs = self.ooi_loader.get_type_assets("series")
         subseries_objs = self.ooi_loader.get_type_assets("subseries")
@@ -1351,7 +1371,7 @@ class IONLoader(ImmediateProcess):
         iagent_objs = self.ooi_loader.get_type_assets("instagent")
         dagent_objs = self.ooi_loader.get_type_assets("dataagent")
 
-        # Collect all models referenced by agents (to prevent dangling agents)
+        # Collect all models referenced by agents (drivers) to make sure models exist for all agents.
         agent_models = set()
         for ooi_id, agent_obj in iagent_objs.iteritems():
             if agent_obj.get('present', False):
@@ -1370,6 +1390,13 @@ class IONLoader(ImmediateProcess):
                 continue
             if not self._before_cutoff(series_obj) and ooi_id not in agent_models:
                 continue
+
+            # Apply model mapping: many series are treated as one
+            # NOTE: This has implications later when other resources reference a model by series
+            primary_series = self._get_primary_model(ooi_id)
+            if ooi_id != primary_series:
+                log.debug("Using model map to treat series %s as primary %s", ooi_id, primary_series)
+                ooi_id = primary_series
 
             family_obj = family_objs[class_obj['family']]
             makemodel_obj = makemodel_objs[series_obj['makemodel']] if series_obj.get('makemodel', None) else None
@@ -1829,7 +1856,7 @@ class IONLoader(ImmediateProcess):
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
-            newrow['instrument_model_ids'] = inst_obj['instrument_model']
+            newrow['instrument_model_ids'] = self._get_primary_model(inst_obj['instrument_model'])
             newrow['parent_site_id'] = ooi_rd.node_rd
 
             if not self._match_filter(ooi_rd.array):
@@ -2361,7 +2388,7 @@ Reason: %s
             newrow['id/description'] = "Instrument %s device #01" % ooi_id
             newrow['id/reference_urls'] = ''
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
-            newrow['instrument_model_id'] = ooi_rd.series_rd
+            newrow['instrument_model_id'] = self._get_primary_model(ooi_rd.series_rd)
             # Commented out the following because a bug. Create hasDevice links for ALL instrument to platform now.
             # if self._is_cabled(ooi_rd):
             #     newrow['platform_device_id'] = ""
@@ -2548,11 +2575,76 @@ Reason: %s
 
         self.resource_ids[row['ID']] = res_id
 
+    def _get_agent_definition(self, ooi_rd):
+        """
+        For a given reference designator, determine the agent definition to use.
+        Use the AgentMap, is_cabled status with Series agent code, node type to agent code mapping as input.
+        """
+        series_objs = self.ooi_loader.get_type_assets("series")
+        nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
+        series_obj, nodetype_obj = None, None
+        is_cabled = self._is_cabled(ooi_rd)
+
+        if ooi_rd.rd_type == "asset" and ooi_rd.rd_subtype == "instrument":
+            series_obj = series_objs[ooi_rd.series_rd]
+            agent_map = series_obj.get("agentmap", [])
+        elif ooi_rd.rd_type == "asset" and ooi_rd.rd_subtype == "node":
+            nodetype_obj = nodetype_objs[ooi_rd.node_type]
+            agent_map = nodetype_obj.get("agentmap", [])
+        else:
+            raise iex.BadRequest("Must provide instrument or node RD: %s" % ooi_rd.rd)
+
+        # Try to see if agentmap provides a match by RD prefix
+        if agent_map:
+            for agent_id, rd_prefix in agent_map:
+                if ooi_rd.rd.startswith(rd_prefix):
+                    agent_obj = self._get_resource_obj(agent_id, True)
+                    if agent_obj:
+                        return agent_id, agent_obj
+                    else:
+                        #log.debug("Agentmap matches for RD=%s but agent definition %s not found", ooi_rd.rd, agent_id)
+                        return None, None
+
+        if ooi_rd.rd_subtype == "instrument":
+            if is_cabled:
+                # Try the IA Code defined in the Series spreadsheet
+                ia_code = series_obj["ia_code"]
+                agent_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
+                if agent_obj:
+                    return "IA_" + ia_code, agent_obj
+
+            # For non-cabled or as fallback for cabled, try the DART code defined in the Series spreadsheet
+            dart_code = series_obj["dart_code"]
+            agent_obj = self._get_resource_obj(dart_code, True) if dart_code else None
+            if agent_obj:
+                return dart_code, agent_obj
+
+        elif ooi_rd.rd_subtype == "node":
+            # See if there is a PA code defined for the node type
+            pa_code = nodetype_obj.get("pa_code", None)
+            agent_obj = self._get_resource_obj(pa_code, True) if pa_code else None  # This could be a PA or EDA
+            if agent_obj:
+                return pa_code, agent_obj
+
+            if is_cabled:
+                # Try a default agent code derived from node type for cabled
+                pa_code = "PA_" + ooi_rd.node_type
+                agent_obj = self._get_resource_obj(pa_code, True)
+                if agent_obj:
+                    return pa_code, agent_obj
+
+            # For non-cabled or as fallback for cabled, try the PA code defined with the node type
+            dart_code = "DART_" + ooi_rd.node_type
+            agent_obj = self._get_resource_obj(dart_code, True)
+            if agent_obj:
+                return dart_code, agent_obj
+
+        return None, None
+
     def _load_PlatformAgentInstance_OOI(self):
         """Creates PlatformAgentInstance and ExternalDatasetAgentInstance resources for platforms
         to load if agent definitions exists. Supports increments."""
         node_objs = self.ooi_loader.get_type_assets("node")
-        nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
 
         for node_id, node_obj in node_objs.iteritems():
             if not self._before_cutoff(node_obj):
@@ -2561,28 +2653,19 @@ Reason: %s
                 continue
 
             ooi_rd = OOIReferenceDesignator(node_id)
-
             platform_id = node_id + "_PD"
-            platform_agent_id = "PA_" + ooi_rd.node_type
-            ed_agent_id = "DART_" + ooi_rd.node_type
-            nodetype_obj = nodetype_objs.get(ooi_rd.node_type, None)
-            pa_code = nodetype_obj.get("pa_code", None) if nodetype_obj else None
-            pagent_res_obj = self._get_resource_obj(pa_code, True) if pa_code else None  # This could be an EDA
-            if pagent_res_obj is None:
-                pagent_res_obj = self._get_resource_obj(platform_agent_id, True) or self._get_resource_obj(ed_agent_id, True)
-            else:
-                platform_agent_id = ed_agent_id = pa_code
-            if not pagent_res_obj:
+            agent_id, agent_obj = self._get_agent_definition(ooi_rd)
+            if agent_obj is None:
                 continue
 
-            if pagent_res_obj.type_ == RT.PlatformAgent:
+            if agent_obj.type_ == RT.PlatformAgent:
                 newrow = {}
                 pai_id = node_id + "_PAI"
                 newrow[COL_ID] = pai_id
                 newrow['pai/name'] = "Platform agent instance for %s" % (node_obj['name'])
                 newrow['pai/description'] = "Platform agent instance %s device #01" % node_id
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
-                newrow['platform_agent_id'] = platform_agent_id
+                newrow['platform_agent_id'] = agent_id
                 newrow['platform_device_id'] = platform_id
                 newrow['driver_config'] = ""
                 newrow['platform_id'] = ooi_rd.node_type + ooi_rd.node_seq
@@ -2594,14 +2677,14 @@ Reason: %s
                 if not self._resource_exists(newrow[COL_ID]):
                     self._load_PlatformAgentInstance(newrow)
 
-            elif pagent_res_obj.type_ == RT.ExternalDatasetAgent:
+            elif agent_obj.type_ == RT.ExternalDatasetAgent:
                 newrow = {}
                 edai_id = node_id + "_EDAI"
                 newrow[COL_ID] = edai_id
                 newrow['ai/name'] = "Data platform agent instance for %s" % (node_obj['name'])
                 newrow['ai/description'] = "Data agent instance %s device #01" % node_id
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
-                newrow['agent_id'] = ed_agent_id
+                newrow['agent_id'] = agent_id
                 newrow['device_id'] = platform_id
                 newrow['dataset_id'] = ""
                 newrow['driver_config'] = ""
@@ -2694,7 +2777,7 @@ Reason: %s
                     newrow = {}
                     newrow[COL_ID] = ia_id
                     series_list = agent_obj.get('series_list', [])
-                    series_list = [sid for sid in series_list if self._get_resource_obj(sid)]
+                    series_list = {self._get_primary_model(sid) for sid in series_list if self._get_resource_obj(self._get_primary_model(sid))}
                     newrow['instrument_model_ids'] = ",".join(series_list)
                     #newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
                     newrow['org_ids'] = ""
@@ -2744,12 +2827,14 @@ Reason: %s
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
 
     def _load_InstrumentAgentInstance_OOI(self):
-        """Create InstrumentAgentInstance and ExternalDatasetAgentInstance (!!) for instruments with agents present.
-        Supports incremental preload"""
+        """Create InstrumentAgentInstance and ExternalDatasetAgentInstance (!!) resources
+        for instruments with agents present.
+        Filters all instruments that are past the cutoff date or whose platforms are past the cutoff date or
+        for which no agent definitions exist.
+        """
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         node_objs = self.ooi_loader.get_type_assets("node")
         class_objs = self.ooi_loader.get_type_assets("class")
-        series_objs = self.ooi_loader.get_type_assets("series")
 
         for ooi_id, inst_obj in inst_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(ooi_id)
@@ -2766,14 +2851,13 @@ Reason: %s
                 if not node_obj.get('is_platform', False):
                     log.warn("Node %s is not a platform!!" % node_id)
 
-            series_obj = series_objs[ooi_rd.series_rd]
-            ia_code = series_obj["ia_code"]
-            iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
-            dart_code = series_obj["dart_code"]
-            dagent_res_obj = self._get_resource_obj(dart_code, True) if dart_code else None
+            agent_id, agent_obj = self._get_agent_definition(ooi_rd)
             idev_id = ooi_id + "_ID"
 
-            if iagent_res_obj:
+            if agent_obj is None:
+                pass
+
+            elif agent_obj.type_ == RT.InstrumentAgent:
                 newrow = {}
                 iai_id = ooi_id + "_IAI"
                 newrow[COL_ID] = iai_id
@@ -2781,7 +2865,7 @@ Reason: %s
                 newrow['iai/description'] = "Instrument agent instance %s device #01" % ooi_id
                 newrow['iai/reference_urls'] = ''
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
-                newrow['instrument_agent_id'] = "IA_" + ia_code
+                newrow['instrument_agent_id'] = "IA_" + agent_id
                 newrow['instrument_device_id'] = idev_id
                 newrow['comms_device_address'] = ""
                 newrow['comms_device_port'] = "0"
@@ -2795,14 +2879,14 @@ Reason: %s
                 if not self._resource_exists(newrow[COL_ID]):
                     self._load_InstrumentAgentInstance(newrow)
 
-            elif dagent_res_obj:
+            elif agent_obj.type_ == RT.ExternalDatasetAgent:
                 newrow = {}
                 edai_id = ooi_id + "_EDAI"
                 newrow[COL_ID] = edai_id
                 newrow['ai/name'] = "Data agent instance for %s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
                 newrow['ai/description'] = "Data agent instance %s device #01" % ooi_id
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
-                newrow['agent_id'] = dart_code
+                newrow['agent_id'] = agent_id
                 newrow['device_id'] = idev_id
                 newrow['dataset_id'] = ""
                 newrow['driver_config'] = ""
@@ -3746,7 +3830,7 @@ Reason: %s
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-            newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+            newrow['lcstate'] = "INTEGRATED_AVAILABLE"
 
             if self._is_cabled(ooi_rd):
                 newrow['context_type'] = 'CabledNodeDeploymentContext'
