@@ -211,6 +211,47 @@ class TestDMExtended(DMTestCase):
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
+    def preload_wfp_flortk(self):
+        config = DotDict()
+        config.cfg = 'test_data/wfp_flortk01.yml'
+        config.path = 'master'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
+    def preload_wfp_paradk(self):
+        config = DotDict()
+        config.cfg = 'test_data/wfp_flortk01.yml'
+        config.path = 'master'
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+
+    def agentctrl_config_instance(self):
+        '''
+        bin/pycc -x ion.agents.agentctrl.AgentControl instrument='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore' op=config_instance cfg=test_data/ai_configs_pioneer_v06.csv 
+        '''
+        config = DotDict()
+        config.op = 'config_instance'
+        config.instrument='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore'
+        config.cfg = 'test_data/ai_configs_pioneer_v06.csv'
+        self.container.spawn_process('agentctrl', 'ion.agents.agentctrl', 'AgentControl', config)
+
+    def agentctrl_set_calibration(self):
+        '''
+        mw bin/pycc -x ion.agents.agentctrl.AgentControl device_name='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore' op=set_calibration cfg=test_data/wfpcaldata_v01.csv 
+        '''
+        config = DotDict()
+        config.op = 'set_calibration'
+        config.instrument='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore'
+        config.cfg = 'test_data/wfpcaldata_v01.csv'
+        self.container.spawn_process('agentctrl', 'ion.agents.agentctrl', 'AgentControl', config)
+
+    def agentctrl_activate_persistence(self):
+        '''
+        mw bin/pycc -x ion.agents.agentctrl.AgentControl device_name='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore' op=activate_persistence 
+        '''
+        config = DotDict()
+        config.op = 'activate_persistence'
+        config.instrument='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore'
+        self.container.spawn_process('agentctrl', 'ion.agents.agentctrl', 'AgentControl', config)
+
     def stop_ctdgv(self):
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'stop', 'instrument':'CTDGV'})
 
@@ -1195,4 +1236,34 @@ class TestDMExtended(DMTestCase):
         # We'll give it about ten seconds, after that it *probably* didn't get run. It would be nice to be certain
         # but, I don't know of any pattern that ensures this.
         self.assertFalse(verified.wait(10))
+
+    @attr("UTIL")
+    def test_magic_preload(self):
+        '''
+bin/pycc path=master --rel res/deploy/r2deploy.yml –-mx -bc -fc -s ion_luke
+mw bin/pycc path=master -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_alpha.yml -s ion_luke
+mw bin/pycc path=master -x ion.processes.bootstrap.ion_loader.IONLoader cfg=test_data/wfp_flortk01.yml -s ion_luke
+mw bin/pycc path=master -x ion.processes.bootstrap.ion_loader.IONLoader cfg=test_data/wfp_paradk01.yml -s ion_luke
+mw bin/pycc -x ion.agents.agentctrl.AgentControl instrument='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore' op=config_instance cfg=test_data/ai_configs_pioneer_v06.csv -s ion_luke
+
+mw bin/pycc -x ion.agents.agentctrl.AgentControl device_name='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore' op=set_calibration cfg=test_data/wfpCalData_v01.csv -s ion_luke
+mw bin/pycc -x ion.agents.agentctrl.AgentControl device_name='3-Wavelength Fluorometer on Wire-Following Profiler - Coastal Pioneer Upstream Inshore' op=activate_persistence -s ion_luke
+        '''        
+        try:
+            self.preload_alpha()
+            print 'Alpha preloaded'
+            self.preload_wfp_flortk()
+            print 'WFP FLORTK Preloaded'
+            self.preload_wfp_paradk()
+            print 'Paradk preloaded'
+            self.agentctrl_config_instance()
+            print 'Configured Instance'
+            self.agentctrl_activate_persistence()
+            print 'Activated Persistence'
+            self.agentctrl_set_calibration()
+            print 'Calibrations set'
+            breakpoint(locals(), globals())
+        except Exception as e:
+            print 'ERROR OCCURRED'
+            breakpoint(locals(), globals())
 
