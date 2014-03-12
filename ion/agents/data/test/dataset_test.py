@@ -12,6 +12,7 @@ __license__ = 'Apache 2.0'
 
 import os
 import sys
+import unittest
 import pprint
 from gevent.event import AsyncResult
 import gevent
@@ -168,6 +169,7 @@ class DatasetAgentTestConfig(object):
         """
         return os.path.dirname(__file__)
 
+@unittest.skipIf(((os.getenv('PYCC_MODE') is not "1") and (os.getenv('CEI_LAUNCH_TEST') is not False)), 'Skip tests during launch without NFS shared directories.')
 class DatasetAgentTestCase(IonIntegrationTestCase):
     """
     Base class for all dataset agent end to end tests
