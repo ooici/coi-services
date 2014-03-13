@@ -227,24 +227,10 @@ class TestDMExtended(DMTestCase):
         self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'stop', 'instrument':'CTDGV'})
 
 
-    def preload_ui(self):
-        config = DotDict()
-        config.op='loadui'
-        config.loadui=True
-        config.attachments='res/preload/r2_ioc/attachments'
-        config.ui_path = "http://userexperience.oceanobservatories.org/database-exports/Candidates"
-        
-        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     def preload_indexes(self):
         pass
 
-    def launch_ui_facepage(self, data_product_id):
-        '''
-        Opens the UI face page on localhost for a particular data product
-        '''
-        from subprocess import call
-        call(['open', 'http://localhost:3000/DataProduct/face/%s/' % data_product_id])
 
     def launch_device_facepage(self, instrument_device_id):
         '''
@@ -253,22 +239,6 @@ class TestDMExtended(DMTestCase):
         from subprocess import call
         call(['open', 'http://localhost:3000/InstrumentDevice/face/%s/' % instrument_device_id])
 
-
-    def strap_erddap(self, data_product_id=None):
-        '''
-        Copies the datasets.xml to /tmp
-        '''
-        datasets_xml_path = RegistrationProcess.get_datasets_xml_path(CFG)
-        if os.path.lexists('/tmp/datasets.xml'):
-            os.unlink('/tmp/datasets.xml')
-        os.symlink(datasets_xml_path, '/tmp/datasets.xml')
-        if data_product_id:
-            with open('/tmp/erddap/flag/data%s' % data_product_id, 'a'):
-                pass
-
-        gevent.sleep(5)
-        from subprocess import call
-        call(['open', 'http://localhost:9000/erddap/tabledap/data%s.html' % data_product_id])
 
     def create_google_dt_workflow_def(self):
         # Check to see if the workflow defnition already exist
