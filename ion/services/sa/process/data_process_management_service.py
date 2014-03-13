@@ -19,7 +19,7 @@ from pyon.ion.resource import ExtendedResourceContainer
 from pyon.event.event import EventPublisher
 
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, DataProcess, ProcessQueueingMode, ComputedValueAvailability
-from interface.objects import ParameterFunction, TransformFunction, DataProcessTypeEnum, DataProcessStatusType
+from interface.objects import ParameterFunction, TransformFunction, DataProcessTypeEnum, DataProcessStatusType, ParameterFunctionType as PFT
 
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -640,6 +640,45 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     # Inspection
     #--------------------------------------------------------------------------------
 
+    def get_data_process_definition_url(self, data_process_definition_id=''):
+        '''
+        Returns the github URL for the data process definition if available
+        '''
+        dpd = self.read_data_process_definition(data_process_definition_id)
+        if dpd.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
+            return self._get_parameter_function_url(data_process_definition_id)
+        elif dpd.data_process_type == DataProcessTypeEnum.TRANSFORM_PROCESS:
+            return self._get_transform_worker_subscription_name(data_process_definition_id)
+        else:
+            raise BadRequest("Data process type not yet supported")
+
+    def _get_parameter_function_url(self, data_process_definition_id):
+        '''
+        Generates an appropriate github URL for a parameter function 
+        if it was defined within ion-functions
+        '''
+        pfuncs, _ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasParameterFunction, id_only=False)
+        if not pfuncs:
+            raise BadRequest('Data Process Definition %s has no parameter functions' % data_process_definition_id)
+        pfunc = pfuncs[0]
+        if pfunc.function_type == PFT.PYTHON:
+            owner = pfunc.owner
+            egg_uri = pfunc.egg_uri
+            if owner.startswith('ion_functions'):
+                url = 'https://github.com/ooici/ion-functions/blob/master/%s.py' % owner.replace('.','/')
+            elif egg_uri and egg_uri.startswith('http'):
+                url = egg_uri
+            else:
+                raise BadRequest("No valid URL exists")
+        elif pfunc.function_type == PFT.NUMEXPR:
+            raise BadRequest("Numexpr expressions do not have URLs")
+        else:
+            raise BadRequest("Unknown parameter function type")
+        return url
+
+    def _get_transform_function_url(self):
+        raise BadRequest("Transform function URL not supported yet")
+
     def inspect_data_process_definition(self, data_process_definition_id=''):
         '''
         Returns the source code for the data process definition
@@ -647,7 +686,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         dpd = self.read_data_process_definition(data_process_definition_id)
         if dpd.data_process_type == DataProcessTypeEnum.PARAMETER_FUNCTION:
             return self._inspect_parameter_function(data_process_definition_id)
-        if dpd.data_process_type == DataProcessTypeEnum.TRANSFORM_PROCESS:
+        elif dpd.data_process_type == DataProcessTypeEnum.TRANSFORM_PROCESS:
             return self._inspect_transform_function(data_process_definition_id)
         #TODO: add the rest of the types
         else:

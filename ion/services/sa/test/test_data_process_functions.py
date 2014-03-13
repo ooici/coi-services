@@ -156,6 +156,15 @@ class TestDataProcessFunctions(DMTestCase):
         source_code = self.data_process_management.inspect_data_process_definition(dpd_id)
         self.assertEquals(source_code, 'def add_arrays(a, b):\n    return a+b\n')
 
+        url = self.data_process_management.get_data_process_definition_url(dpd_id) 
+        self.assertEquals(url, 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg')
+
+        dpd_ids, _ = self.resource_registry.find_resources(name='dataqc_spiketest', restype=RT.DataProcessDefinition, id_only=True)
+        dpd_id = dpd_ids[0]
+        url = self.data_process_management.get_data_process_definition_url(dpd_id) 
+        self.assertEquals(url, 'https://github.com/ooici/ion-functions/blob/master/ion_functions/qc/qc_functions.py')
+
+
     @attr("UTIL")
     def test_ui_functionality(self):
         '''
