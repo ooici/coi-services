@@ -45,6 +45,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceDependentClients
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
+from ion.processes.bootstrap.ion_loader import TESTED_DOC
+
 ###############################################################################
 # Global constants.
 ###############################################################################
@@ -240,7 +242,8 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
             preload_config=dict(
                 op="load",
                 scenario=scenario,
-                path="master",
+                #path="master",
+                path=TESTED_DOC,
                 categories=categories,
                 clearcols="owner_id,org_ids",
                 #assets="res/preload/r2_ioc/ooi_assets",
