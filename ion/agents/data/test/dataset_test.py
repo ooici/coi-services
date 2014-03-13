@@ -764,6 +764,65 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         cmd = AgentCommand(command=command, kwargs=args)
         retval = self._dsa_client.execute_resource(cmd)
 
+    def assert_schema(self, caps_list):
+
+        dd_list = ['display_name','description']
+        ddt_list = ['display_name','description','type']
+        ddvt_list = ['display_name','description','visibility','type']
+        ddak_list = ['display_name','description','args','kwargs']
+
+        for x in caps_list:
+            if isinstance(x,dict):
+                x.pop('type_')
+                x = IonObject('AgentCapability', **x)
+
+            if x.cap_type == CapabilityType.AGT_CMD:
+                keys = x.schema.keys()
+                for y in ddak_list:
+                    self.assertIn(y, keys)
+
+            elif x.cap_type == CapabilityType.AGT_PAR:
+                    if x.name != 'example':
+                        keys = x.schema.keys()
+                        for y in ddvt_list:
+                            self.assertIn(y, keys)
+
+            elif x.cap_type == CapabilityType.RES_CMD:
+                keys = x.schema.keys()
+                self.assertIn('return',keys)
+                self.assertIn('display_name',keys)
+                self.assertIn('arguments',keys)
+                self.assertIn('timeout',keys)
+
+            elif x.cap_type == CapabilityType.RES_IFACE:
+                pass
+
+            elif x.cap_type == CapabilityType.RES_PAR:
+                keys = x.schema.keys()
+                self.assertIn('get_timeout',keys)
+                self.assertIn('set_timeout',keys)
+                self.assertIn('direct_access',keys)
+                self.assertIn('startup',keys)
+                self.assertIn('visibility',keys)
+
+            elif x.cap_type == CapabilityType.AGT_STATES:
+                for (k,v) in x.schema.iteritems():
+                    keys = v.keys()
+                    for y in dd_list:
+                        self.assertIn(y, keys)
+
+            elif x.cap_type == CapabilityType.ALERT_DEFS:
+                for (k,v) in x.schema.iteritems():
+                    keys = v.keys()
+                    for y in ddt_list:
+                        self.assertIn(y, keys)
+
+            elif x.cap_type == CapabilityType.AGT_CMD_ARGS:
+                for (k,v) in x.schema.iteritems():
+                    keys = v.keys()
+                    for y in ddt_list:
+                        self.assertIn(y, keys)
+
     def assert_agent_capabilities(self):
         """
         Verify capabilities throughout the agent lifecycle
@@ -909,6 +968,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         # go get the active capabilities
         retval = self._dsa_client.get_capabilities()
         agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_capabilities(retval)
+        self.assert_schema(retval)
 
         log.debug("Agent Commands: %s ", str(agt_cmds))
         log.debug("Compared to: %s", expected_agent_cmd)
@@ -940,7 +1000,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         list of common agent parameters
         @return: list of agent parameters
         '''
-        return ['aggstatus', 'alerts', 'child_agg_status', 'driver_name', 'driver_pid', 'example', 'pubrate', 'streams']
+        return ['aggstatus', 'alerts', 'driver_name', 'driver_pid', 'example', 'pubrate', 'streams']
 
     def _common_agent_commands(self, agent_state):
         '''
