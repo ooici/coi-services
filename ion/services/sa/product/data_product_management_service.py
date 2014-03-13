@@ -467,6 +467,31 @@ class DataProductManagementService(BaseDataProductManagementService):
         else:
             log.warning('Data product is not currently persisted, no action taken: %s', data_product_id)
 
+    def add_parameter_to_data_product(self, parameter_context_id='', data_product_id=''):
+        pc = self.clients.dataset_management.read_parameter_context(parameter_context_id)
+
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
+        stream_def = stream_def_ids[0]
+        pdict_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasParameterDictionary,id_only=True)
+        pdict_id = pdict_ids[0]
+        self.clients.resource_registry.create_association(subject=pdict_id, predicate=PRED.hasParameterContext, object=pdict_id)
+        if stream_def.available_fields:
+            stream_def.append(pc.name)
+            self.clients.resource_registry.update(stream_def)
+
+        datasets = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
+        if not datasets:
+            raise BadRequest("No associated dataset, please ensure that this data product is activated")
+        
+        dataset_id = datasets[0]
+
+        self.clients.dataset_management.add_parameter_to_dataset(parameter_context_id, dataset_id)
+
+        #TODO: we need a better way of updating the XML files
+        config = DotDict()
+        config.op = 'register_datasets'
+        self.container.spawn_process('refresh_catalog', 'ion.processes.bootstrap.registration_bootstrap', 'RegistrationBootstrap', config)
+
 
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
