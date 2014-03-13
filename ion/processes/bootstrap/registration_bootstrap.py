@@ -38,5 +38,8 @@ class RegistrationBootstrap(ImmediateProcess):
         real_path = FileSystem.get_extended_url(base)
         datasets_xml_path = os.path.join(real_path, filename)
 
-        os.remove(datasets_xml_path)
+        try:
+            os.remove(datasets_xml_path)
+        except OSError:
+            pass # File doesn't exist
 
