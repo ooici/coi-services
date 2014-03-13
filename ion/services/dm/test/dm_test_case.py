@@ -19,8 +19,9 @@ from interface.services.dm.idata_retriever_service import DataRetrieverServiceCl
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
 from interface.services.ans.ivisualization_service import VisualizationServiceClient
+from ion.processes.data.registration.registration_process import RegistrationProcess
 
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, CFG
 from interface.objects import DataProduct
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
@@ -29,9 +30,11 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.breakpoint import breakpoint
 from pyon.container.cc import Container
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from pyon.util.containers import DotDict
 from uuid import uuid4
 
 import numpy as np
+import os
 import time
 import gevent
 from gevent.event import Event
@@ -107,6 +110,38 @@ class DMTestCase(IonIntegrationTestCase):
         data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
         self.activate_data_product(data_product_id)
         return data_product_id
+    
+    def preload_ui(self):
+        config = DotDict()
+        config.op='loadui'
+        config.loadui=True
+        config.attachments='res/preload/r2_ioc/attachments'
+        config.ui_path = "http://userexperience.oceanobservatories.org/database-exports/Candidates"
+        
+        self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
+    
+    def strap_erddap(self, data_product_id=None):
+        '''
+        Copies the datasets.xml to /tmp
+        '''
+        datasets_xml_path = RegistrationProcess.get_datasets_xml_path(CFG)
+        if os.path.lexists('/tmp/datasets.xml'):
+            os.unlink('/tmp/datasets.xml')
+        os.symlink(datasets_xml_path, '/tmp/datasets.xml')
+        if data_product_id:
+            with open('/tmp/erddap/flag/data%s' % data_product_id, 'a'):
+                pass
+
+        gevent.sleep(5)
+        from subprocess import call
+        call(['open', 'http://localhost:9000/erddap/tabledap/data%s.html' % data_product_id])
+    
+    def launch_ui_facepage(self, data_product_id):
+        '''
+        Opens the UI face page on localhost for a particular data product
+        '''
+        from subprocess import call
+        call(['open', 'http://localhost:3000/DataProduct/face/%s/' % data_product_id])
 
 class Streamer(object):
     def __init__(self, data_product_id, interval=1, simple_time=False, connection=False):
