@@ -472,14 +472,14 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         stream_def_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
         stream_def = stream_def_ids[0]
-        pdict_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasParameterDictionary,id_only=True)
+        pdict_ids, _ = self.clients.resource_registry.find_objects(stream_def._id, PRED.hasParameterDictionary,id_only=True)
         pdict_id = pdict_ids[0]
-        self.clients.resource_registry.create_association(subject=pdict_id, predicate=PRED.hasParameterContext, object=pdict_id)
+        self.clients.resource_registry.create_association(subject=pdict_id, predicate=PRED.hasParameterContext, object=parameter_context_id)
         if stream_def.available_fields:
-            stream_def.append(pc.name)
+            stream_def.available_fields.append(pc.name)
             self.clients.resource_registry.update(stream_def)
 
-        datasets = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
+        datasets, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
         if not datasets:
             raise BadRequest("No associated dataset, please ensure that this data product is activated")
         

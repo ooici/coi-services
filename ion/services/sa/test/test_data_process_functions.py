@@ -22,6 +22,7 @@ import os
 import unittest
 import numpy as np
 import calendar
+import gevent
 
 class TestDataProcessFunctions(DMTestCase):
 
@@ -236,8 +237,9 @@ class TestDataProcessFunctions(DMTestCase):
         self.data_product_management.add_parameter_to_data_product(p_id,dp_id)
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        gevent.sleep(2) # Yield to close
 
-        @poll_wrapper(CFG.get_safe('endpoint.receive.timeout', 10))
+        @poll_wrapper(30)
         def poller():
             granule = self.data_retriever.retrieve(dataset_id)
             rdt = RecordDictionaryTool.load_from_granule(granule)
