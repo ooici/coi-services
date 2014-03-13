@@ -208,6 +208,7 @@ class TestDataProcessFunctions(DMTestCase):
 
     @attr('INT')
     def test_add_parameter_to_data_product(self):
+        #self.preload_ui()
         self.test_add_parameter_function()
         data_product_id = self.data_product_id
         stream_def_id = self.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)[0][0]
@@ -237,7 +238,7 @@ class TestDataProcessFunctions(DMTestCase):
         self.data_product_management.add_parameter_to_data_product(p_id,dp_id)
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
-        gevent.sleep(2) # Yield to close
+        gevent.sleep(5) # Yield to close
 
         @poll_wrapper(30)
         def poller():
@@ -250,7 +251,6 @@ class TestDataProcessFunctions(DMTestCase):
         np.testing.assert_array_almost_equal(rdt['temperature_corrected'], np.arange(30,dtype=np.float32) * 1.03 + 0.25, decimal=5)
 
 
-        #self.preload_ui()
         #self.launch_ui_facepage(dp_id)
         #self.strap_erddap(dp_id)
         #breakpoint(locals(), globals())
