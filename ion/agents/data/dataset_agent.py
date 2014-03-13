@@ -78,7 +78,7 @@ class DataSetAgent(InstrumentAgent):
         self._retry_calculator = FactorialRetryCalculator(60, 1.5, 3600)
 
         # simulate compliance with platform agent - dict of aggregate statuses for all descendants
-        self.aparam_child_agg_status = {}
+        #self.aparam_child_agg_status = {}
 
     ####
     ##    Response Handlers
@@ -273,6 +273,8 @@ class DataSetAgent(InstrumentAgent):
                 self._resource_schema = resource_schema
             else:
                 self._resource_schema = {}
+        if isinstance(resource_schema, dict):
+            self._resource_schema = resource_schema
         else:
             self._resource_schema = {}
 
