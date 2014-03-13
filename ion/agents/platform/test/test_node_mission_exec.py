@@ -10,10 +10,9 @@
 __author__ = 'Edward Hunter'
 __license__ = 'Apache 2.0'
 
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_node_mission_exec.py:TestNodeMissionExec
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_node_mission_exec.py:TestNodeMissionExec.test_resource_monitoring
-# bin/nosetests -sv --with-pycc  --nologcapture ion/agents/platform/test/test_node_mission_exec.py:TestNodeMissionExec.test_some_commands
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_node_mission_exec.py:TestNodeMissionExec.test_some_commands
-# bin/nosetests -sv ion/agents/platform/test/test_node_mission_exec.py:TestNodeMissionExec.test_resource_monitoring
 
 # Import base test class first.
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
@@ -273,20 +272,3 @@ class TestNodeMissionExec(BaseIntTestPlatform):
             self._wait_for_a_data_sample()
         finally:
             self._stop_resource_monitoring()
-
-
-    def test_connect_disconnect_instrument(self):
-        self._create_network_and_start_root_platform()
-
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
-        self._ping_agent()
-
-        self._initialize()
-        self._go_active()
-        self._run()
-
-        self._connect_instrument()
-        self._turn_on_port()
-
-        self._turn_off_port()
-        self._disconnect_instrument()
