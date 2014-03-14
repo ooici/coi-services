@@ -240,7 +240,8 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
             preload_config=dict(
                 op="load",
                 scenario=scenario,
-                path="master",
+                #path="master",
+                path="https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dDZoajE3d1Z3WkE0T0tyOW9oYmZqenc&output=xls",
                 categories=categories,
                 clearcols="owner_id,org_ids",
                 #assets="res/preload/r2_ioc/ooi_assets",
