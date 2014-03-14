@@ -6,7 +6,10 @@ __license__ = 'Apache 2.0'
 import inspect, ast, sys, traceback, string
 import json, simplejson
 from flask import Flask, request, abort
+from werkzeug import secure_filename
 from gevent.wsgi import WSGIServer
+import os
+import time
 
 from pyon.public import IonObject, Container, OT
 from pyon.core.object import IonObjectBase
@@ -16,6 +19,7 @@ from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, fin
 from pyon.core.governance.negotiation import Negotiation
 from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.resource import get_object_schema
+from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -28,7 +32,7 @@ from pyon.util.containers import current_time_millis
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
-from interface.objects import Attachment
+from interface.objects import Attachment, FileUploadContext
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
 
 #Initialize the flask app
@@ -899,3 +903,40 @@ def resolve_org_negotiation():
     except Exception, e:
         return build_error_response(e)
 
+
+@service_gateway_app.route('/ion-service/upload/data', methods=['POST'])
+def upload_data():
+    upload_folder = '/tmp/uploads'
+    try:
+        upload = request.files['file'] # <input type=file name=file>
+        if upload and _upload_data_allowed_file(upload.filename):
+            # client to process dispatch
+            pd_client = BaseProcessDispatcherService(node=Container.instance.node, process=service_gateway_instance)
+            # client to resource registry
+            rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+            # upload file (run name through secure_filename)
+            filename = secure_filename(upload.filename)
+            path = os.path.join(upload_folder, filename)
+            upload_time = time.time()
+            upload.save(path)
+            # register upload
+            context_id, _ = rr_client.create(FileUploadContext(name='File Upload %s' % filename, filename=filename, path=path, upload_time=upload_time))
+            # response
+            resp = {'context_id': context_id}
+            return gateway_json_response(resp)
+        raise BadRequest('Invalid Upload')
+    except Exception as e:
+        return build_error_response(e)
+
+@service_gateway_app.route('/ion-service/upload/<context_id>', methods=['GET'])
+def upload_status(context_id):
+    try:
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        context = rr_client.read(str(context_id))
+        return gateway_json_response(context)
+    except Exception as e:
+        return build_error_response(e)
+
+def _upload_data_allowed_file(filename):
+    extensions = ['mat','nc']
+    return '.' in filename and filename.rsplit('.', 1)[1] in extensions
