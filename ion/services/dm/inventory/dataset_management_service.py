@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-'''
+"""
 @author Luke Campbell <LCampbell@ASAScience.com>
 @file ion/services/dm/inventory/dataset_management_service.py
 @date Tue Jul 24 08:59:29 EDT 2012
 @brief Dataset Management Service implementation
-'''
+"""
 from pyon.public import PRED, RT
 from pyon.core.exception import BadRequest, NotFound, Conflict
 from pyon.datastore.datastore import DataStore
@@ -26,6 +26,8 @@ from coverage_model.parameter_functions import AbstractFunction
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceProcessClient
 from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
 from interface.objects import DataProcessDefinition, DataProcessTypeEnum, ParameterFunctionType as PFT
+
+from ion.services.eoi.table_loader import ResourceParser
 
 from uuid import uuid4
 from udunitspy.udunits2 import UdunitsError
@@ -49,9 +51,25 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
         #self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
+        self.rr_table_loader = ResourceParser()
+        self.geos_available = False
+        #check that the services are available 
+        if self.rr_table_loader.use_geo_services:
+            self.geos_available = True
+            # if they are proceed with the reset
+            try:
+                self.rr_table_loader.reset()
+                self.geos_available = True
+                pass
+            except Exception as e:
+                #check the eoi geoserver importer service is started
+                raise e
+
+
 #--------
 
     def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None, temporal_domain=None, parameter_dictionary_id='', description='', parent_dataset_id=''):
+        
         validate_true(parameter_dict or parameter_dictionary_id, 'A parameter dictionary must be supplied to register a new dataset.')
         validate_is_not_none(spatial_domain, 'A spatial domain must be supplied to register a new dataset.')
         validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
@@ -79,7 +97,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
         dataset_id, _ = self.clients.resource_registry.create(dataset)
         if stream_id:
-            self.add_stream(dataset_id,stream_id)
+            self.add_stream(dataset_id, stream_id)
 
         log.debug('creating dataset: %s', dataset_id)
         if parent_dataset_id:
@@ -90,6 +108,12 @@ class DatasetManagementService(BaseDatasetManagementService):
         cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
         self._save_coverage(cov)
         cov.close()
+
+        #table loader code goes here
+        
+        if self.geos_available:
+            log.debug('DM:create dataset: %s -- dataset_id: %s', name, dataset_id)
+            self.rr_table_loader.create_single_resource(dataset_id, parameter_dict)
 
         return dataset_id
 
@@ -103,13 +127,23 @@ class DatasetManagementService(BaseDatasetManagementService):
             raise BadRequest('%s: Dataset either not provided or malformed.' % self.logging_name)
         self.clients.resource_registry.update(dataset)
         #@todo: Check to make sure retval is boolean
+
+        log.debug('DM:update dataset: dataset_id: %s', dataset._id)
+        if self.geos_available:
+            self.rr_table_loader.remove_single_resource(dataset._id)
+            self.rr_table_loader.create_single_resource(dataset._id, dataset.parameter_dictionary)
+
         return True
 
     def delete_dataset(self, dataset_id=''):
-        assocs = self.clients.resource_registry.find_associations(subject=dataset_id,predicate=PRED.hasStream)
+        assocs = self.clients.resource_registry.find_associations(subject=dataset_id, predicate=PRED.hasStream)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
+
+        log.debug('DM:delete dataset: dataset_id: %s', dataset_id)
+        if self.geos_available:
+            self.rr_table_loader.remove_single_resource(dataset_id)
 
     def register_dataset(self, data_product_id=''):
         procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
@@ -196,9 +230,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         return obj
 
     def create_parameter(self, parameter_context=None):
-        '''
+        """
         Creates a parameter context using the IonObject
-        '''
+        """
 
         context = self.get_coverage_parameter(parameter_context)
         parameter_context.parameter_context = context.dump()
@@ -214,13 +248,13 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     @classmethod
     def get_coverage_parameter(cls, parameter_context):
-        '''
+        """
         Creates a Coverage Model based Parameter Context given the 
         ParameterContext IonObject.
 
         Note: If the parameter is a parameter function and depends on dynamically
         created calibrations, this will fail.
-        '''
+        """
         # Only CF and netCDF compliant variable names
         parameter_context.name = re.sub(r'[^a-zA-Z0-9_]', '_', parameter_context.name)
         from ion.services.dm.utility.types import TypesManager
@@ -533,10 +567,10 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     @classmethod
     def get_parameter_context(cls, parameter_context_id=''):
-        '''
+        """
         Preferred client-side class method for constructing a parameter context
         from a service call.
-        '''
+        """
         dms_cli = DatasetManagementServiceClient()
         pc_res = dms_cli.read_parameter_context(parameter_context_id=parameter_context_id)
         pc = ParameterContext.load(pc_res.parameter_context)
@@ -545,9 +579,9 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     @classmethod
     def get_parameter_function(cls, parameter_function_id=''):
-        '''
+        """
         Preferred client-side class method for constructing a parameter function
-        '''
+        """
         dms_cli = DatasetManagementServiceClient()
         pf_res = dms_cli.read_parameter_function(parameter_function_id=parameter_function_id)
         pf = AbstractFunction.load(pf_res.parameter_function)
@@ -564,10 +598,10 @@ class DatasetManagementService(BaseDatasetManagementService):
     
     @classmethod
     def get_parameter_dictionary(cls, parameter_dictionary_id=''):
-        '''
+        """
         Preferred client-side class method for constructing a parameter dictionary
         from a service call.
-        '''
+        """
         dms_cli = DatasetManagementServiceClient()
         pd  = dms_cli.read_parameter_dictionary(parameter_dictionary_id)
         pcs = dms_cli.read_parameter_contexts(parameter_dictionary_id=parameter_dictionary_id, id_only=False)
