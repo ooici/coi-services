@@ -27,6 +27,8 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
 from interface.objects import DataProcessDefinition, DataProcessTypeEnum, ParameterFunctionType as PFT
 
+from ion.services.eoi.tableLoader import resource_parser
+
 from uuid import uuid4
 from udunitspy.udunits2 import UdunitsError
 
@@ -49,9 +51,25 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
         #self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
+        self.rr_table_loader = resource_parser()
+        self.geos_available = False
+        #check that the services are available 
+        if (self.rr_table_loader.use_geo_services):
+            self.geos_available = True
+            # if they are proceed with the reset
+            try:
+                self.rr_table_loader.reset()
+                self.geos_available = True
+                pass
+            except Exception, e:
+                #check the eoi geoserver importer service is started
+                raise e
+
+
 #--------
 
     def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None, temporal_domain=None, parameter_dictionary_id='', description='', parent_dataset_id=''):
+        
         validate_true(parameter_dict or parameter_dictionary_id, 'A parameter dictionary must be supplied to register a new dataset.')
         validate_is_not_none(spatial_domain, 'A spatial domain must be supplied to register a new dataset.')
         validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
@@ -91,6 +109,12 @@ class DatasetManagementService(BaseDatasetManagementService):
         self._save_coverage(cov)
         cov.close()
 
+        #table loader code goes here
+        
+        if (self.geos_available):
+            #print "DM:create dataset:"+name+" : " + "dataset_id:" + dataset_id
+            self.rr_table_loader.createSingleResource(dataset_id,parameter_dict)
+
         return dataset_id
 
     def read_dataset(self, dataset_id=''):
@@ -103,6 +127,12 @@ class DatasetManagementService(BaseDatasetManagementService):
             raise BadRequest('%s: Dataset either not provided or malformed.' % self.logging_name)
         self.clients.resource_registry.update(dataset)
         #@todo: Check to make sure retval is boolean
+
+        #print "DM:update dataset:" + "dataset_id:" + dataset._id
+        if (self.geos_available):
+            self.rr_table_loader.removeSingleResource(dataset._id)           
+            self.rr_table_loader.createSingleResource(dataset._id,dataset.parameter_dictionary)
+
         return True
 
     def delete_dataset(self, dataset_id=''):
@@ -110,6 +140,10 @@ class DatasetManagementService(BaseDatasetManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
+
+        #print "DM:delete dataset:" + "dataset_id:" + dataset._id
+        if (self.geos_available):
+            self.rr_table_loader.removeSingleResource(dataset._id)      
 
     def register_dataset(self, data_product_id=''):
         procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
