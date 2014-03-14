@@ -54,7 +54,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.rr_table_loader = resource_parser()
         self.geos_available = False
         #check that the services are available 
-        if (self.rr_table_loader.useGeoServices):
+        if (self.rr_table_loader.use_geo_services):
             self.geos_available = True
             # if they are proceed with the reset
             try:
@@ -112,9 +112,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         #table loader code goes here
         
         if (self.geos_available):
-            print "DM:create dataset:"+name+" : " + "dataset_id:" + dataset_id
-            print temporal_domain
-            print spatial_domain
+            #print "DM:create dataset:"+name+" : " + "dataset_id:" + dataset_id
             self.rr_table_loader.createSingleResource(dataset_id,parameter_dict)
 
         return dataset_id
@@ -130,7 +128,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.clients.resource_registry.update(dataset)
         #@todo: Check to make sure retval is boolean
 
-        print "DM:update dataset:" + "dataset_id:" + dataset._id
+        #print "DM:update dataset:" + "dataset_id:" + dataset._id
         if (self.geos_available):
             self.rr_table_loader.removeSingleResource(dataset._id)           
             self.rr_table_loader.createSingleResource(dataset._id,dataset.parameter_dictionary)
@@ -143,7 +141,7 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.clients.resource_registry.delete_association(assoc)
         self.clients.resource_registry.delete(dataset_id)
 
-        print "DM:delete dataset:" + "dataset_id:" + dataset._id
+        #print "DM:delete dataset:" + "dataset_id:" + dataset._id
         if (self.geos_available):
             self.rr_table_loader.removeSingleResource(dataset._id)      
 

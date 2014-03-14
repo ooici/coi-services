@@ -17,7 +17,7 @@ import sys
 import requests
 import os
 
-DEBUG = True
+DEBUG = False
 
 REAL = "real,"
 INT = "int,"
@@ -26,25 +26,25 @@ TIMEDATE = "timestamp,"
 class resource_parser():
 
     def __init__(self):
-        eoiData = Config(["res/config/eoi.yml"])
-        dataMap = eoiData.data
+        eoidata = Config(["res/config/eoi.yml"])
+        datamap = eoidata.data
         
-        self.LATITUDE = dataMap['eoi']['meta']['lat_field']
-        self.LONGITUDE = dataMap['eoi']['meta']['lon_field']
+        self.LATITUDE = datamap['eoi']['meta']['lat_field']
+        self.LONGITUDE = datamap['eoi']['meta']['lon_field']
 
-        self.RESETSTORE = dataMap['eoi']['importer_service']['reset_store']
-        self.REMOVELAYER = dataMap['eoi']['importer_service']['remove_layer']
-        self.ADDLAYER = dataMap['eoi']['importer_service']['add_layer']
+        self.RESETSTORE = datamap['eoi']['importer_service']['reset_store']
+        self.REMOVELAYER = datamap['eoi']['importer_service']['remove_layer']
+        self.ADDLAYER = datamap['eoi']['importer_service']['add_layer']
 
-        self.SERVER = dataMap['eoi']['importer_service']['server']+":"+str(dataMap['eoi']['importer_service']['port'])
-        self.DATABASE = dataMap['eoi']['postgres']['database']
-        self.DB_USER = dataMap['eoi']['postgres']['user_name']
-        self.DB_PASS =  dataMap['eoi']['postgres']['password']
+        self.SERVER = datamap['eoi']['importer_service']['server']+":"+str(datamap['eoi']['importer_service']['port'])
+        self.DATABASE = datamap['eoi']['postgres']['database']
+        self.DB_USER = datamap['eoi']['postgres']['user_name']
+        self.DB_PASS =  datamap['eoi']['postgres']['password']
 
-        self.TABLE_PREFIX = dataMap['eoi']['postgres']['table_prefix']
-        self.VIEW_SUFFIX = dataMap['eoi']['postgres']['table_suffix']
+        self.TABLE_PREFIX = datamap['eoi']['postgres']['table_prefix']
+        self.VIEW_SUFFIX = datamap['eoi']['postgres']['table_suffix']
 
-        self.coverageFDWSever = dataMap['eoi']['fdw']['server']
+        self.coverage_fdw_sever = datamap['eoi']['fdw']['server']
 
         self.con = None
         self.postgres_db_availabe = False
@@ -64,9 +64,9 @@ class resource_parser():
             #error setting up connection
             print 'Error %s' % e
 
-        self.useGeoServices = False
+        self.use_geo_services = False
         if (self.postgres_db_availabe and self.importer_service_available):
-            self.useGeoServices = True
+            self.use_geo_services = True
             print "TableLoader:Using geoservices..."
         else:
             print "TableLoader:NOT using geoservices..."
@@ -211,28 +211,28 @@ class resource_parser():
         if (not self.doesTableExist(dataset_id)):
 
             valid_types={}
-            createTableString ="create foreign table \""+dataset_id+"\" ("
+            create_table_string ="create foreign table \""+dataset_id+"\" ("
 
             #loop through the params
             for param in relevant:
                 #get the information
-                dataItem = params[param]
-                desc =  dataItem[1]['description']
-                ooi_short_name =  dataItem[1]['ooi_short_name']
-                name =  dataItem[1]['name']
-                disp_name = dataItem[1]['display_name']
-                internal_name = dataItem[1]['internal_name']
-                cm_type = dataItem[1]['param_type']['cm_type']
+                data_item = params[param]
+                desc =  data_item[1]['description']
+                ooi_short_name =  data_item[1]['ooi_short_name']
+                name =  data_item[1]['name']
+                disp_name = data_item[1]['display_name']
+                internal_name = data_item[1]['internal_name']
+                cm_type = data_item[1]['param_type']['cm_type']
                 units = ""
                 try:
-                    units= dataItem[1]['uom']
+                    units= data_item[1]['uom']
                 except Exception, e:
                     if (DEBUG):
                         print "no units available..."
                 
-                value_encoding = dataItem[1]['param_type']['_value_encoding']
-                fill_value = dataItem[1]['param_type']['_fill_value']
-                std_name = dataItem[1]['standard_name']
+                value_encoding = data_item[1]['param_type']['_value_encoding']
+                fill_value = data_item[1]['param_type']['_fill_value']
+                std_name = data_item[1]['standard_name']
 
                 #only use things that have valid value
                 if (len(name)>0): #and (len(desc)>0) and (len(units)>0) and (value_encoding is not None)):
@@ -253,22 +253,22 @@ class resource_parser():
                     else:
                         [encoding,prim_type] = self.getValueEncoding(name,value_encoding)          
                         if encoding is not None:
-                            createTableString+=encoding
+                            create_table_string+=encoding
                             valid_types[name] = prim_type
 
                 pass
 
-            pos = createTableString.rfind(',')
-            createTableString = createTableString[:pos] + ' ' + createTableString[pos+1:]
+            pos = create_table_string.rfind(',')
+            create_table_string = create_table_string[:pos] + ' ' + create_table_string[pos+1:]
             print coverage_path
-            createTableString = self.addServerInfo(createTableString,coverage_path)
+            create_table_string = self.addServerInfo(create_table_string,coverage_path)
             
             if (DEBUG):
                 print "\n"
-                print createTableString
+                print create_table_string
 
             try:
-                self.cur.execute(createTableString)
+                self.cur.execute(create_table_string)
                 self.con.commit()
                 #should always be lat and lon
                 self.cur.execute(self.generateTableView(dataset_id,self.LATITUDE,self.LONGITUDE))
@@ -302,7 +302,7 @@ class resource_parser():
     add the server info to the sql create table request
     '''
     def addServerInfo(self, sqlquery,coverage_path):
-        sqlquery += ") server " +self.coverageFDWSever+ " options(k \'1\',cov_path \'"+coverage_path+"\');"
+        sqlquery += ") server " +self.coverage_fdw_sever+ " options(k \'1\',cov_path \'"+coverage_path+"\');"
         return sqlquery
 
     def modifySQLTable(self, dataset_id, params):
