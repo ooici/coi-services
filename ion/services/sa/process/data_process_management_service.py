@@ -825,12 +825,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         '''
         Adds the parameter context to the data product
         '''
-        # Get the dataset id
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
-        dataset_id = dataset_ids[0]
-
         # Add the parameter
-        self.clients.dataset_management.add_parameter_to_dataset(parameter_context_id, dataset_id)
+        self.clients.data_product_management.add_parameter_to_data_product(parameter_context_id, data_product_id)
 
     def _create_data_process_for_parameter_function(self, data_process_definition, data_product_id, param_map):
         '''

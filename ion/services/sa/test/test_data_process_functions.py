@@ -7,7 +7,7 @@ from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from coverage_model import ParameterFunctionType 
 from ion.processes.data.transforms.transform_worker import TransformWorker
-from interface.objects import DataProcessDefinition
+from interface.objects import DataProcessDefinition, DataProduct
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from datetime import datetime, timedelta
@@ -16,10 +16,13 @@ from pyon.util.log import log
 from pyon.public import RT, PRED, IonObject
 from interface.objects import TransformFunctionType, DataProcessTypeEnum
 from interface.objects import ParameterFunction, ParameterFunctionType as PFT, ParameterContext
+from pyon.util.poller import poll_wrapper
+from pyon.public import CFG
 import os
 import unittest
 import numpy as np
 import calendar
+import gevent
 
 class TestDataProcessFunctions(DMTestCase):
 
@@ -202,6 +205,57 @@ class TestDataProcessFunctions(DMTestCase):
 
         params = dpms.parameters_for_data_product(data_product_id, True)
         self.assertEquals(len(params), 2)
+
+    @attr('INT')
+    def test_add_parameter_to_data_product(self):
+        #self.preload_ui()
+        self.test_add_parameter_function()
+        data_product_id = self.data_product_id
+        stream_def_id = self.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)[0][0]
+        pdict_id = self.resource_registry.find_objects(stream_def_id, PRED.hasParameterDictionary, id_only=True)[0][0]
+        # Create a new data product htat represents the L1 temp from the ctd simulator
+        dp = DataProduct(name='CTD Simulator TEMPWAT L1')
+        stream_def_id = self.pubsub_management.create_stream_definition(name='tempwat_l1', parameter_dictionary_id=pdict_id, available_fields=['time','temp'])
+        dp_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, parent_data_product_id=data_product_id)
+
+        parameter_function = ParameterFunction(name='linear_corr',
+                                               function_type=PFT.NUMEXPR,
+                                               function='a * x + b',
+                                               args=['x','a','b'])
+        pf_id = self.dataset_management.create_parameter_function(parameter_function)
+
+        dpd = DataProcessDefinition(name='linear_corr', description='Linear Correction')
+        self.data_process_management.create_data_process_definition(dpd, pf_id)
+
+        parameter = ParameterContext(name='temperature_corrected',
+                                     parameter_type='function',
+                                     parameter_function_id=pf_id,
+                                     parameter_function_map={'x':'temp', 'a':1.03, 'b':0.25},
+                                     value_encoding='float32',
+                                     units='deg_C',
+                                     display_name='Temperature Corrected')
+        p_id = self.dataset_management.create_parameter(parameter)
+        self.data_product_management.add_parameter_to_data_product(p_id,dp_id)
+
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        gevent.sleep(5) # Yield to close
+
+        @poll_wrapper(30)
+        def poller():
+            granule = self.data_retriever.retrieve(dataset_id)
+            rdt = RecordDictionaryTool.load_from_granule(granule)
+            if 'temperature_corrected' in rdt:
+                return rdt
+            return None
+        rdt = poller()
+        np.testing.assert_array_almost_equal(rdt['temperature_corrected'], np.arange(30,dtype=np.float32) * 1.03 + 0.25, decimal=5)
+
+
+        #self.launch_ui_facepage(dp_id)
+        #self.strap_erddap(dp_id)
+        #breakpoint(locals(), globals())
+        
+
 
     @attr('UTIL')
     def test_logger(self):
