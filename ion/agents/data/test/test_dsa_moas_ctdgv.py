@@ -47,13 +47,22 @@ class GliderCTDTest(DatasetAgentTestCase):
         """
         Verify file import and connection ids
         """
+        expected_state = {'version': 0.1,
+                          'unit_363_2013_245_10_6.mrg': {'ingested': True, 'parser_state': {'position': 1852}, 'file_checksum': '31b4a31fb4a192ce67c89dfe32b72813', 'file_mod_date': 1391110766.0, 'file_size': 1852},
+                          'unit_363_2013_245_6_6.mrg': {'ingested': True, 'parser_state': {'position': 5599}, 'file_checksum': 'e14ee0749eceb928390ed007b7d7ebd1', 'file_mod_date': 1391110815.0, 'file_size': 5914}}
+
         self.assert_initialize()
+
+        self.assert_driver_state(None)
 
         self.create_sample_data("moas_ctdgv/file_1.mrg", "unit_363_2013_245_6_6.mrg")
         self.create_sample_data("moas_ctdgv/file_2.mrg", "unit_363_2013_245_10_6.mrg")
 
         granules = self.get_samples(self.test_config.stream_name, 4)
         self.assert_data_values(granules, 'moas_ctdgv/merged.result.yml')
+        self.assert_driver_state(expected_state)
+
+        self.assert_agent_state_after_restart()
         self.assert_sample_queue_size(self.test_config.stream_name, 0)
 
     def test_large_file(self):
@@ -100,3 +109,4 @@ class GliderCTDTest(DatasetAgentTestCase):
 
         granules = self.get_samples(self.test_config.stream_name, 4, timeout=30)
         self.assert_data_values(granules, 'moas_ctdgv/merged.result.yml')
+

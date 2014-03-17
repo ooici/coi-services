@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 import os
 import sys
 import pprint
+import collections
 import unittest
 from gevent.event import AsyncResult
 import gevent
@@ -34,6 +35,8 @@ from pyon.public import RT, log, PRED, BadRequest, Conflict, Timeout, IonExcepti
 from pyon.util.context import LocalContextMixin
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState, ResourceAgentEvent
 
+from ion.agents.data.dataset_agent import DSA_STATE_KEY
+
 # ION services and utils
 from ion.services.dm.test.dm_test_case import breakpoint
 from ion.services.dm.utility.granule_utils import time_series_domain, RecordDictionaryTool
@@ -44,6 +47,7 @@ from interface.objects import DataProduct, AgentCapability, CapabilityType, Agen
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceDependentClients
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.sa.idata_acquisition_management_service import  DataAcquisitionManagementServiceClient
 
 from ion.processes.bootstrap.ion_loader import TESTED_DOC
 
@@ -186,6 +190,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         Start agent client.
         """
         self._dsa_client = None
+        self.dams = DataAcquisitionManagementServiceClient()
 
         # Ensure we have a good test configuration
         self.test_config.verify()
@@ -207,7 +212,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         log.info('Starting DSA process')
         self._dsa_client = self._start_dataset_agent_process()
         log.debug("Client created: %s", type(self._dsa_client))
-        self.addCleanup(self.assert_reset)
+        self.addCleanup(self._stop_dataset_agent_process)
         log.info('test setup complete')
 
         # Start data subscribers
@@ -263,10 +268,18 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         self._update_dsa_config(dsa_instance)
         self._update_harvester_config(dsa_instance)
 
+        self._dsa_instance = dsa_instance
         self.clear_sample_data()
 
         # Return a resource agent client
         return self._get_dsa_client(instrument_device, dsa_instance)
+
+    def _stop_dataset_agent_process(self):
+        """
+        Stop the dataset agent instance
+        """
+        self.assert_reset()
+        self.dams.stop_external_dataset_agent_instance(self._dsa_instance._id)
 
     def _get_dsa_instance(self):
         """
@@ -346,10 +359,13 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         try:
             config_builder.set_agent_instance_object(dsa_instance)
             self.agent_config = config_builder.prepare()
-            log.trace("Using dataset agent configuration: %s", pprint.pformat(self.agent_config))
         except Exception as e:
             log.error('failed to launch: %s', e, exc_info=True)
             raise ServerError('failed to launch')
+
+        self._dsa_pid = self.dams.start_external_dataset_agent_instance(dsa_instance._id)
+        log.debug("_get_dsa_client CFG")
+        return ResourceAgentClient(instrument_device._id, process=FakeProcess())
 
         dispatcher = ProcessDispatcherServiceClient()
         launcher = AgentLauncher(dispatcher)
@@ -363,6 +379,15 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
 
         launcher.await_launch(10.0)
         return ResourceAgentClient(instrument_device._id, process=FakeProcess())
+
+    def _get_dsa_object_state(self):
+        state, _id = self.container.state_repository.get_state(self._dsa_pid)
+        log.debug("agent_state (%s): %s", self._dsa_pid, state)
+
+        driver_state = state.get(DSA_STATE_KEY)
+        log.debug("driver_state (%s): %s", self._dsa_pid, driver_state)
+
+        return driver_state
 
     ###
     #   Data file helpers
@@ -634,6 +659,17 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
     #   Common assert methods
     ###
 
+    def assertDictEqual(self, d1, d2, msg=None): # assertEqual uses for dicts
+        for k,v1 in d1.iteritems():
+            self.assertIn(k, d2, msg)
+            v2 = d2[k]
+            if(isinstance(v1, collections.Iterable) and
+               not isinstance(v1, basestring)):
+                self.assertItemsEqual(v1, v2, msg)
+            else:
+                self.assertEqual(v1, v2, msg)
+        return True
+
     def assert_initialize(self, final_state = ResourceAgentState.STREAMING):
         '''
         Walk through DSA states to get to streaming mode from uninitialized
@@ -893,6 +929,41 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         self.assert_initialize(final_state=ResourceAgentState.COMMAND)
         self.assert_resource_command('DRIVER_EVENT_START_AUTOSAMPLE')
         self.assert_state_change(ResourceAgentState.LOST_CONNECTION, 90)
+
+    def assert_driver_state(self, expected_state=None):
+        '''
+        verify that expected persisted agent state matches was it actually stored
+        @param expected_state dict expected
+        '''
+        state = self._get_dsa_object_state()
+
+        if expected_state is None:
+            self.assertIsNone(expected_state)
+        else:
+            self.assertEqual(expected_state, state)
+
+    def assert_agent_state_after_restart(self):
+        '''
+        Restart the agent.  Verify that the agent PID changes. Then verify the new state
+        matches the old state.
+        '''
+        old_pid = self._dsa_pid
+        old_state = self._get_dsa_object_state()
+
+        # Start a resource agent client to talk with the instrument agent.
+        log.info('Restarting DSA process')
+        self._stop_dataset_agent_process()
+        self._dsa_client = self._start_dataset_agent_process()
+        log.debug("Client created: %s", type(self._dsa_client))
+        self.addCleanup(self.assert_reset)
+
+        self.assert_initialize()
+
+        self.assertNotEqual(old_pid, self._dsa_pid)
+        self.assertEqual(old_state, self._get_dsa_object_state())
+
+        # Kick it into autosample and give it time for samples to come in, there shouldn't be any
+        gevent.sleep(5)
 
     def assert_capabilities(self, capabilities):
         '''
