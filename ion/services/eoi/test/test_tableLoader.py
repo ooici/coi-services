@@ -35,18 +35,7 @@ import numpy as np
 import requests
 import json
 import platform
-from pyon.util.config import Config
-
-USING_EOI_SERVICES = Config(["res/config/eoi.yml"]).data['eoi']['meta']['use_eoi_services']
-USERNAME = Config(["res/config/eoi.yml"]).data['eoi']['geoserver']['user_name']
-PASSWORD = Config(["res/config/eoi.yml"]).data['eoi']['geoserver']['password']
-GS_HOST = Config(["res/config/eoi.yml"]).data['eoi']['geoserver']['server']
-GS_REST_URL = ''.join([GS_HOST, '/geoserver/rest'])
-GS_OWS_URL = ''.join([GS_HOST, '/geoserver/ows'])
-
-IS_HOSTNAME = Config(["res/config/eoi.yml"]).data['eoi']['importer_service']['server']
-IS_PORT = str(Config(["res/config/eoi.yml"]).data['eoi']['importer_service']['port'])
-IMPORTER_SERVICE_URL = ''.join([IS_HOSTNAME, ':', IS_PORT])
+from pyon.public import CFG
 
 """
 The following integration tests (INTMAN) are to ONLY be run manually
@@ -63,7 +52,13 @@ class DatasetLoadTest(IonIntegrationTestCase):
         self.pubsub_management = PubsubManagementServiceClient()
         self.resource_registry = self.container.resource_registry
 
-    @unittest.skipIf(not USING_EOI_SERVICES, 'Skip test in TABLE LOADER as services are not loaded')
+        self.USERNAME = CFG.get_safe('eoi.geoserver.user_name', False)
+        self.PASSWORD = CFG.get_safe('eoi.geoserver.password', False)
+        self.GS_HOST = CFG.get_safe('eoi.geoserver.server', False)
+        self.GS_REST_URL = ''.join([GS_HOST, '/geoserver/rest'])
+        self.GS_OWS_URL = ''.join([self.GS_HOST, '/geoserver/ows'])
+
+    @unittest.skipIf((CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_create_dataset(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         pdict_id = ph.create_extended_parsed()
@@ -120,6 +115,12 @@ class ServiceTests(IonIntegrationTestCase):
         self.resource_registry = self.container.resource_registry
         self.offering_id = ''
 
+        self.USERNAME = CFG.get_safe('eoi.geoserver.user_name', False)
+        self.PASSWORD = CFG.get_safe('eoi.geoserver.password', False)
+        self.GS_HOST = CFG.get_safe('eoi.geoserver.server', False)
+        self.GS_REST_URL = ''.join([self.GS_HOST, '/geoserver/rest'])
+        self.GS_OWS_URL = ''.join([self.GS_HOST, '/geoserver/ows'])
+
     def setup_resource(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         pdict_id = ph.create_extended_parsed()
@@ -150,19 +151,19 @@ class ServiceTests(IonIntegrationTestCase):
         gevent.sleep(1) # Yield to other greenlets, had an issue with connectivity
         self.offering_id = dataset_id
 
-    @unittest.skipIf(not USING_EOI_SERVICES, 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf( (CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_reset_store(self):
         # Makes sure store is empty 
         self.assertTrue(_reset_store())
-        url = ''.join([GS_REST_URL, '/layers.json'])
+        url = ''.join([self.GS_REST_URL, '/layers.json'])
         # Asserts layers were able to be retrieved
-        r = requests.get(url, auth=(USERNAME, PASSWORD))
+        r = requests.get(url, auth=(self.USERNAME, self.PASSWORD))
         self.assertTrue(r.status_code == 200)
         # Asserts there are no layers in the ooi store
         layers = json.loads(r.content)
         self.assertTrue(len(layers['layers']) == 0)
 
-    @unittest.skipIf(not USING_EOI_SERVICES, 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf( (CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_create_dataset_verify_geoserver_layer(self):
         #generate layer and check that the service created it in geoserver
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
@@ -202,13 +203,13 @@ class ServiceTests(IonIntegrationTestCase):
 
         # verify that the layer exists in geoserver
         try:
-            r = requests.get(GS_REST_URL + '/layers/ooi_' + dataset_id + '_ooi.xml', auth=(USERNAME, PASSWORD))
+            r = requests.get(self.GS_REST_URL + '/layers/ooi_' + dataset_id + '_ooi.xml', auth=(self.USERNAME, self.PASSWORD))
             self.assertTrue(r.status_code == 200)
         except Exception, e:
             print "check service and layer exist..."
             self.assertTrue(False)
 
-    @unittest.skipIf(not USING_EOI_SERVICES, 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf( (CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_verify_importer_service_online(self):
         try:
             r = requests.get('http://localhost:8844')
@@ -354,30 +355,30 @@ class ServiceTests(IonIntegrationTestCase):
         assertTrue(r.status_code == 200)
         #check r.text does not contain <ServiceException code="InvalidParameterValue" locator="typeName">
 
-    @unittest.skipIf(not USING_EOI_SERVICES, 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf( (CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_sos_response(self):
         expected_content = 'SOS SERVICE IS UP.....Hello World!'
-        url = GS_OWS_URL + '?request=echo&service=sos'
+        url = self.GS_OWS_URL + '?request=echo&service=sos'
         r = requests.get(url)
         self.assertEqual(r.content, expected_content)
 
-    @unittest.skipIf(not USING_EOI_SERVICES, 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf( (CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_sos_get_capabilities(self):
         # Validates reponse is not an exception, assues valid otherwise
         self.setup_resource()
         expected_content = ''
-        url = GS_OWS_URL + '?request=getCapabilities&service=sos&version=1.0.0&offering=_' + self.offering_id + '_view'
+        url = self.GS_OWS_URL + '?request=getCapabilities&service=sos&version=1.0.0&offering=_' + self.offering_id + '_view'
         r = requests.get(url)
         self.assertEquals(r.status_code, 200)
         self.assertTrue(r.content.find('<sos:Capabilities') >= 0)
 
-    @unittest.skipIf(not USING_EOI_SERVICES, 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf( (CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_sos_get_offering(self):
         # Validates reponse is not an exception, assues valid otherwise
         # TODO: Use deterministic <swe:values> for comparison
         self.setup_resource()
         expected_content = ''
-        url = GS_OWS_URL + '?request=getObservation&service=sos&version=1.0.0&offering=_' + self.offering_id + '_view&observedproperty=time,temp,density&responseformat=text/xml'
+        url = self.GS_OWS_URL + '?request=getObservation&service=sos&version=1.0.0&offering=_' + self.offering_id + '_view&observedproperty=time,temp,density&responseformat=text/xml'
         r = requests.get(url)
         self.assertEquals(r.status_code, 200)
         self.assertTrue(r.content.find('<om:ObservationCollection') >= 0)
@@ -395,8 +396,8 @@ def _get_all_layers():
         """
     	{"layers":{"layer":[{"name":"ooi_7c0026a3d38a4b05974c58e236a9ea56_ooi","href":"http:\/\/eoi-dev1.oceanobservatories.org:8080\/geoserver\/rest\/layers\/ooi_7c0026a3d38a4b05974c58e236a9ea56_ooi.json"}]}}
         """
-        url = ''.join([GS_REST_URL, '/layers.json'])
-        r = requests.get(url, auth=(USERNAME, PASSWORD))
+        url = ''.join([self.GS_REST_URL, '/layers.json'])
+        r = requests.get(url, auth=(self.USERNAME, self.PASSWORD))
         if r.status_code == 200:
             layers = json.loads(r.content)
         else:

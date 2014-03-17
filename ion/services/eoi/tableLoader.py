@@ -9,13 +9,12 @@ import os
 from pyon.util.breakpoint import breakpoint
 from pyon.ion.resource import LCS, LCE, PRED
 from pyon.util.file_sys import FileSystem, FS
-from pyon.util.config import Config
-#from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 import time
 import psycopg2
 import sys
 import requests
 import os
+from pyon.public import CFG
 
 DEBUG = False
 
@@ -26,25 +25,25 @@ TIMEDATE = "timestamp,"
 class resource_parser():
 
     def __init__(self):
-        eoidata = Config(["res/config/eoi.yml"])
-        datamap = eoidata.data
+        self.USING_EOI_SERVICES = CFG.get_safe('eoi.meta.use_eoi_services', False)
         
-        self.LATITUDE = datamap['eoi']['meta']['lat_field']
-        self.LONGITUDE = datamap['eoi']['meta']['lon_field']
+        if (self.USING_EOI_SERVICES):
+            self.LATITUDE = CFG.get_safe('eoi.meta.lat_field', False)
+            self.LONGITUDE = CFG.get_safe('eoi.meta.lon_field', False)
 
-        self.RESETSTORE = datamap['eoi']['importer_service']['reset_store']
-        self.REMOVELAYER = datamap['eoi']['importer_service']['remove_layer']
-        self.ADDLAYER = datamap['eoi']['importer_service']['add_layer']
+            self.RESETSTORE = CFG.get_safe('eoi.importer_service.reset_store', False)
+            self.REMOVELAYER = CFG.get_safe('eoi.importer_service.remove_layer', False)
+            self.ADDLAYER = CFG.get_safe('eoi.importer_service.add_layer', False)
+            #add default varaibles
+            self.SERVER = CFG.get_safe('eoi.importer_service.server', "localhost")+":"+str(CFG.get_safe('eoi.importer_service.port', 8844))
+            self.DATABASE = CFG.get_safe('eoi.postgres.database', False)
+            self.DB_USER = CFG.get_safe('eoi.postgres.user_name', False)
+            self.DB_PASS =  CFG.get_safe('eoi.postgres.password', False)
 
-        self.SERVER = datamap['eoi']['importer_service']['server']+":"+str(datamap['eoi']['importer_service']['port'])
-        self.DATABASE = datamap['eoi']['postgres']['database']
-        self.DB_USER = datamap['eoi']['postgres']['user_name']
-        self.DB_PASS =  datamap['eoi']['postgres']['password']
+            self.TABLE_PREFIX = CFG.get_safe('eoi.postgres.table_prefix', False)
+            self.VIEW_SUFFIX = CFG.get_safe('eoi.postgres.table_suffix', False)
 
-        self.TABLE_PREFIX = datamap['eoi']['postgres']['table_prefix']
-        self.VIEW_SUFFIX = datamap['eoi']['postgres']['table_suffix']
-
-        self.coverage_fdw_sever = datamap['eoi']['fdw']['server']
+            self.coverage_fdw_sever = CFG.get_safe('eoi.fdw.server', False)
 
         self.con = None
         self.postgres_db_availabe = False
