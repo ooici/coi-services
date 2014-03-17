@@ -21,7 +21,7 @@ interrupt/resume state:
 __author__ = 'Christopher Mueller, Jonathan Newbrough, Bill French'
 
 
-import os, sys, gevent, json, math, time
+import os, sys, gevent, json, math, time, copy
 
 from ooi.logging import log
 from ooi.poller import DirectoryPoller
@@ -40,6 +40,8 @@ from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.instrument_agent import InstrumentAgent
 from ion.core.includes.mi import DriverEvent
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.agents.agent_stream_publisher import AgentStreamPublisher
+from ion.agents.agent_alert_manager import AgentAlertManager
 
 from coverage_model import ParameterDictionary
 
@@ -76,9 +78,6 @@ class DataSetAgent(InstrumentAgent):
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXIT, self._handler_streaming_exit)
 
         self._retry_calculator = FactorialRetryCalculator(60, 1.5, 3600)
-
-        # simulate compliance with platform agent - dict of aggregate statuses for all descendants
-        #self.aparam_child_agg_status = {}
 
     ####
     ##    Response Handlers
@@ -208,6 +207,7 @@ class DataSetAgent(InstrumentAgent):
 
             # Set state based on CFG using prior process' state
             prior_state = self.CFG.get_safe("agent.prior_state")
+
             if prior_state:
                 if isinstance(prior_state, dict):
                     if DSA_STATE_KEY in prior_state:
@@ -283,6 +283,9 @@ class DataSetAgent(InstrumentAgent):
         if self._dvr_client:
             self._dvr_client.stop_sampling()
 
+        # Force the driver state to be stored
+        self._flush_state()
+
     ####
     ##    Callbacks
     ####
@@ -344,6 +347,9 @@ class DataSetAgent(InstrumentAgent):
              origin=self.resource_id,
              **kwargs
          )
+
+    def _build_stream_publisher(self):
+        return AgentStreamPublisher(self, flush_on_publish=True)
 
     def on_quit(self):
         super(DataSetAgent, self).on_quit()
