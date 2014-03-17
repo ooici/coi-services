@@ -36,7 +36,7 @@ from ion.agents.populate_rdt import populate_rdt
 class AgentStreamPublisher(object):
     """
     """
-    def __init__(self, agent):
+    def __init__(self, agent, flush_on_publish=False):
         self._agent = agent
         self._stream_defs = {}
         self._publishers = {}
@@ -44,6 +44,7 @@ class AgentStreamPublisher(object):
         self._stream_buffers = {}
         self._connection_ID = None
         self._connection_index = {}
+        self._flush_on_publish = flush_on_publish
         
         stream_info = self._agent.CFG.get('stream_config', None)
         if not stream_info:
@@ -187,6 +188,15 @@ class AgentStreamPublisher(object):
         """
 
         try:
+            ### Flush the agent state to the object store.  This was added for the dataset agent publishers who store
+            ### their driver state in the object store.  We had talked about about flushing the state after publiction
+            ### by grabbing current state here, doing out work, and then saving this state.  However, flush_state
+            ### doesn't accept parameters.  It seems more complex than simply flushing here.  There is a slight downside
+            ### if publishing fails then the state will be slightly out of sync.
+            if self._flush_on_publish:
+                log.debug("ASP Flush Agent State")
+                self._agent._flush_state()
+
             buf_len = len(self._stream_buffers[stream_name])
             if buf_len == 0:
                 return

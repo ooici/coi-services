@@ -231,6 +231,9 @@ class InstrumentAgent(ResourceAgent):
         # Default initial state.
         self._initial_state = ResourceAgentState.UNINITIALIZED
 
+    def _build_stream_publisher(self):
+        return AgentStreamPublisher(self)
+
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -244,7 +247,7 @@ class InstrumentAgent(ResourceAgent):
         self._test_mode = self.CFG.get('test_mode', False)        
 
         # Set up streams.
-        self._asp = AgentStreamPublisher(self)        
+        self._asp = self._build_stream_publisher()
         self._agent_schema['streams'] = copy.deepcopy(self.aparam_streams)
         
         # Set up alert manager.
