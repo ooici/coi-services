@@ -181,7 +181,14 @@ class TypesManager(object):
 
         pc = ParameterContext(name=placeholder, param_type=SparseConstantType(value_encoding='float64'), fill_value=-9999.)
         pc.uom = '1'
-        ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
+        pc.display_name = 'Calibration %s' % placeholder
+        pc.description = 'Calibration Coefficient'
+        ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, 
+                parameter_context=pc.dump(),
+                units='1',
+                value_encoding='float64',
+                display_name=pc.display_name,
+                description=pc.description)
         return ctxt_id, placeholder
 
 
