@@ -50,6 +50,9 @@ class RegistrationProcess(StandaloneProcess):
         with open(path, 'w') as f:
             f.write(datasets_xml)
 
+    def register_dap_dataset_(self, data_product_id):
+        pass
+
     def register_dap_dataset(self, data_product_id):
         dataset_id = self.container.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
         data_product = self.container.resource_registry.read(data_product_id)
