@@ -30,6 +30,8 @@ from pyon.util.containers import DotDict
 from pydap.client import open_url
 from shutil import rmtree
 from datetime import datetime, timedelta
+from pyon.net.endpoint import RPCClient
+from pyon.util.log import log
 import simplejson as json
 import pkg_resources
 import tempfile
@@ -1448,3 +1450,18 @@ def rotate_v(u,v,theta):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_allclose(rdt['time'], np.arange(10))
         np.testing.assert_allclose(rdt['temp'], np.arange(10))
+
+    @attr("UTIL")
+    def test_data_product_catalog(self):
+        data_product_id = self.make_ctd_data_product()
+        procs,_ = self.resource_registry.find_resources(restype=RT.Process, id_only=True)
+        pid = None
+        for p in procs:
+            if 'registration_worker' in p:
+                pid = p
+        if not pid: 
+            log.warning('No registration worker found')
+            return
+        rpc_cli = RPCClient(to_name=pid)
+        rpc_cli.request({'data_product_id':data_product_id}, op='dap_entry')
+
