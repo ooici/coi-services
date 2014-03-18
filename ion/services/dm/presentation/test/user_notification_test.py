@@ -1476,31 +1476,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertTrue(success)
 
 
-    @unittest.skip("Reenable after Postgres discovery can deal with events search")
-    def test_find_events_extended(self):
-        # Test the find events functionality of UNS
-
-        # publish some events for the event repository
-        event_publisher_1 = EventPublisher("PlatformEvent")
-        event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
-
-        min_time = get_ion_ts()
-
-        for i in xrange(10):
-            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = get_ion_ts())
-            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = get_ion_ts())
-
-        max_time = get_ion_ts()
-
-        # allow search to populate the indexes. This gives enough time for the reload of user_info
-        def poller():
-            events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_time=min_time, max_time=max_time)
-            return len(events) >= 4
-
-        success = self.event_poll(poller, 10)
-        self.assertTrue(success)
-
-
     def test_create_several_workers(self):
         # Create more than one worker. Test that they process events in round robin
 

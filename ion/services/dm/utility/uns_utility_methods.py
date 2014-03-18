@@ -361,7 +361,7 @@ def calculate_reverse_user_info(user_info=None):
 
     return reverse_user_info
 
-def get_event_computed_attributes(event):
+def get_event_computed_attributes(event, include_event=False, include_special=False, include_formatted=False):
     """
     @param event any Event to compute attributes for
     @retval an EventComputedAttributes object for given event
@@ -369,16 +369,18 @@ def get_event_computed_attributes(event):
     evt_computed = IonObject(OT.EventComputedAttributes)
     evt_computed.event_id = event._id
     evt_computed.ts_computed = get_ion_ts()
+    evt_computed.event = event if include_event else None
 
     try:
         summary = get_event_summary(event)
         evt_computed.event_summary = summary
 
-        # The following is unused apparently
-        #spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'type_', 'origin', 'origin_type', 'ts_created', 'base_types']]
-        #evt_computed.special_attributes = ", ".join(spc_attrs)
+        if include_special:
+            spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'type_', 'origin', 'origin_type', 'ts_created', 'base_types']]
+            evt_computed.special_attributes = ", ".join(spc_attrs)
 
-        #evt_computed.event_attributes_formatted = pprint.pformat(event.__dict__)
+        if include_formatted:
+            evt_computed.event_attributes_formatted = pprint.pformat(event.__dict__)
     except Exception as ex:
         log.exception("Error computing EventComputedAttributes for event %s: %s", event, ex)
 
