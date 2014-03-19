@@ -54,11 +54,10 @@ class TestResourceRegistry(IonIntegrationTestCase):
             IonObject("UserInfo", name="name", foo="bar")
         self.assertTrue(cm.exception.message == "__init__() got an unexpected keyword argument 'foo'")
 
-        # TODO: This error is different than with other methods of initialization - CHANGE
         # Can't call new with fields that aren't defined in the object's schema
-        with self.assertRaises(AttributeError) as cm:
+        with self.assertRaises(TypeError) as cm:
             IonObject("UserInfo", {"name": "name", "foo": "bar"})
-        self.assertIn("object has no attribute 'foo'", cm.exception.message)
+        self.assertIn("got an unexpected keyword argument 'foo'", cm.exception.message)
 
         # Can't call new with fields that aren't defined in the object's schema
         with self.assertRaises(TypeError) as cm:
