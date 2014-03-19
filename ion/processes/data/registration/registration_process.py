@@ -1,8 +1,9 @@
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.process import StandaloneProcess
 from pyon.util.file_sys import FileSystem
 from pyon.util.log import log
 from pyon.public import PRED
+from interface.objects import ParameterFunctionType as PFT
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
@@ -13,6 +14,8 @@ from coverage_model.parameter_functions import PythonFunction, NumexprFunction
 from xml.dom.minidom import parse, parseString
 from xml.parsers.expat import ExpatError
 from zipfile import ZipFile
+from jinja2 import Environment, FileSystemLoader
+import lxml.etree as etree
 
 import base64
 import os
@@ -31,9 +34,10 @@ class RegistrationProcess(StandaloneProcess):
         self.pydap_data_path = self.CFG.get_safe('server.pydap.data_path', 'RESOURCE:ext/pydap')
         self.datasets_xml_path = self.get_datasets_xml_path(self.CFG)
         self.pydap_data_path = FileSystem.get_extended_url(self.pydap_data_path) + '/'
-        self.setup_filesystem(self.datasets_xml_path)
-
         self.ux_url = self.CFG.get_safe('system.web_ui_url','http://localhost:3000/')
+        self.jenv = Environment(loader=FileSystemLoader('res/templates'), trim_blocks=True, lstrip_blocks=True)
+        self.resource_registry = self.container.resource_registry
+        self.setup_filesystem(self.datasets_xml_path)
 
     @classmethod
     def get_datasets_xml_path(cls, cfg):
@@ -45,17 +49,175 @@ class RegistrationProcess(StandaloneProcess):
         return path
 
     def setup_filesystem(self, path):
-        if os.path.exists(path):
-            return
-        with open(path, 'w') as f:
-            f.write(datasets_xml)
+        template = self.jenv.get_template('datasets.xml')
+        buff = template.render()
+        if not os.path.exists(path):
+            with open(path,'w') as f:
+                f.write(buff)
+        try:
+            doc = self.container.object_store.read('datasets.xml')
+        except NotFound:
+            doc = {'xml':buff}
+            self.container.object_store.create_doc(doc, object_id='datasets.xml')
+
 
     def dap_entry(self, data_product_id):
-        from pyon.util.breakpoint import breakpoint
         dp = self.container.resource_registry.read(data_product_id)
+        self.create_entry(dp)
+        self.touch(data_product_id)
+
+        from pyon.util.breakpoint import breakpoint
         breakpoint(locals(), globals())
 
+    def slam(self, d, dp, k):
+        v = getattr(dp, k, None)
+        if v:
+            d[k] = v
+
+    def map_data_product(self, data_product):
+        ds = {} # Catalog Dataset
+        ds['dataset_id'] = 'data' + data_product._id
+        ds['url'] = self.pydap_url + data_product._id
+        ds['face_page'] = self.ux_url + 'DataProduct/face/' + data_product._id
+        ds['title'] = data_product.name
+        ds['summary'] = data_product.description
+        ds['attrs'] = {}
+        metadata_attrs = [
+            'comment',
+            'ooi_short_name',
+            'ooi_product_name',
+            'regime',
+            'qc_cmbnflg',
+            'qc_glblrng',
+            'qc_gradtst',
+            'qc_loclrng',
+            'qc_spketest',
+            'qc_stuckvl',
+            'qc_trndtst',
+            'dps_dcn',
+            'flow_diagram_dcn',
+            'doors_l2_requirement_num',
+            'doors_l2_requirement_text',
+            'provenance_description',
+            'citation_description',
+            'lineage_description',
+            'ioos_category',
+            'iso_spatial_representation_type',
+            'processing_level_code',
+            'ISO_spatial_representation_type',
+            'license_uri',
+            'exclusive_rights_status',
+            'exclusive_rights_end_date',
+            'exclusive_rights_notes',
+            'acknowledgement'
+        ]
+        for attr in metadata_attrs:
+            self.slam(ds['attrs'], data_product, attr)
+        if data_product.synonyms:
+            ds['attrs']['synonyms'] = ','.join(data_product.synonyms)
+        if data_product.iso_topic_category:
+            ds['attrs']['iso_topic_category'] = ','.join(data_product.iso_topic_category)
+        if data_product.reference_urls:
+            ds['attrs']['reference_urls'] = '\n'.join(data_product.reference_urls)
+
+        # Grab the parameters
+        stream_def_id = self.resource_registry.find_objects(data_product._id, PRED.hasStreamDefinition, id_only=True)[0][0]
+        pdict_id = self.resource_registry.find_objects(stream_def_id, PRED.hasParameterDictionary, id_only=True)[0][0]
+        parameter_contexts, _ = self.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=False)
+
+        ds['vars'] = []
+        for param in parameter_contexts:
+            var = {}
+            var['name'] = param.name
+            var['units'] = param.units or '1'
+            var['ioos_category'] = self.get_ioos_category(param.name, var['units'])
+            var['long_name'] = param.display_name
+            var['standard_name'] = param.standard_name
+            if 'seconds' in var['units'] and 'since' in var['units']:
+                var['time_precision'] =  '1970-01-01T00:00:00.000Z'
+            if param.ooi_short_name:
+                sname = param.ooi_short_name
+                sname = re.sub('[\t\n ]+', ' ', sname)
+                var['ooi_short_name'] = sname
+                m = re.match(r'[A-Z0-9]{7}', sname)
+                if m:
+                    reference_url = 'https://confluence.oceanobservatories.org/display/instruments/' + m.group()
+                    var['references'] = reference_url
+                if 'L2' in param.ooi_short_name:
+                    var['data_product_level'] = 'L2'
+                    var['source'] = 'level 2 calibrated sensor observation'
+                elif 'L1' in param.ooi_short_name:
+                    var['data_product_level'] = 'L1'
+                    var['source'] = 'level 1 calibrated sensor observation'
+                elif 'L0' in param.ooi_short_name:
+                    var['data_product_level'] = 'L0'
+                    var['source'] = 'level 0 calibrated sensor observation'
+                elif 'QC' in param.ooi_short_name:
+                    var['data_product_level'] = 'QC'
+            elif param.parameter_type != 'function':
+                if var['units'] == 'counts':
+                    var['data_product_level'] = 'L0'
+                    var['source'] = 'sensor observation'
+                elif 'seconds' in var['units'] and 'since' in var['units']:
+                    var['data_product_level'] = 'axis'
+                else:
+                    var['data_product_level'] = 'unknown'
+            if param.reference_urls:
+                var['instrument_type'] = '\n'.join(param.reference_urls)
+
+            if param.parameter_type == 'function':
+                parameter_function = self.resource_registry.read(param.parameter_function_id)
+                if parameter_function.function_type == PFT.PYTHON:
+                    var['function_module'] = parameter_function.owner or ''
+                    var['function_name'] = parameter_function.function or ''
+                    if var['function_module'].startswith('ion_functions'):
+                        s = var['function_module']
+                        url = s.replace('.','/') + '.py'
+                        url = 'https://github.com/ooici/ion-functions/blob/master/' + url
+                        var['function_url'] = url
+                    elif parameter_function.egg_uri:
+                        var['function_url'] = parameter_function.egg_uri
+                elif parameter_function.function_type == PFT.NUMEXPR:
+                    var['function_name'] = parameter_function.name
+                    var['expression'] = parameter_function.function
+            ds['vars'].append(var)
+
+        return ds
+
+    def create_entry(self, data_product):
+        ds = self.map_data_product(data_product)
+
+        template = self.jenv.get_template('dataset.xml')
+        entry = template.render(**ds)
+        doc = self.container.object_store.read('datasets.xml')
+        root = etree.fromstring(doc['xml'])
+        dataset_element = etree.fromstring(entry)
+        root.append(dataset_element)
+        doc['xml'] = etree.tostring(root, xml_declaration=True, encoding='utf8', pretty_print=True)
+
+        self.container.object_store.update_doc(doc)
+        with open(self.datasets_xml_path, 'w') as f:
+            f.write(doc['xml'])
+
+        
+    
+    def read_entry(self, data_product_id):
+        pass
+
+    def update_entry(self, data_product_id):
+        pass
+
+    def delete_entry(self, data_product_id):
+        pass
+
+    def touch(self, data_product_id):
+        '''Touches a file, so that pydap can catalog it'''
+        path = os.path.join(self.pydap_data_path, data_product_id)
+        with open(path, 'w'):
+            pass
+
     def register_dap_dataset(self, data_product_id):
+        return
         dataset_id = self.container.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
         data_product = self.container.resource_registry.read(data_product_id)
         data_product_name = data_product.name
@@ -63,7 +225,7 @@ class RegistrationProcess(StandaloneProcess):
         coverage_path = DatasetManagementService._get_coverage_path(dataset_id)
         try:
             self.add_dataset_to_xml(coverage_path=coverage_path, product_id=data_product_id, product_name=data_product_name, available_fields=stream_definition.available_fields)
-            self.create_symlink(coverage_path, self.pydap_data_path)
+            #self.create_symlink(coverage_path, self.pydap_data_path)
         except: # We don't re-raise to prevent clients from bombing out...
             log.exception('Problem registering dataset')
             log.error('Failed to register dataset for coverage path %s' % coverage_path)
