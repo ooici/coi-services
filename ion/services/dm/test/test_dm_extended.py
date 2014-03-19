@@ -1454,14 +1454,28 @@ def rotate_v(u,v,theta):
     @attr("UTIL")
     def test_data_product_catalog(self):
         data_product_id = self.make_ctd_data_product()
-        procs,_ = self.resource_registry.find_resources(restype=RT.Process, id_only=True)
-        pid = None
-        for p in procs:
-            if 'registration_worker' in p:
-                pid = p
-        if not pid: 
-            log.warning('No registration worker found')
-            return
-        rpc_cli = RPCClient(to_name=pid)
-        rpc_cli.request({'data_product_id':data_product_id}, op='dap_entry')
+        dp = self.resource_registry.read(data_product_id)
+        dp.name = 'Pioneer CTDBP Imaginary TEMPWAT L1'
+        dp.comment = 'An imaginary dataset'
+        dp.ooi_short_name = 'TEMPWAT'
+        dp.ooi_product_name = 'TEMPWAT'
+        dp.regime = 'Surface Water'
+        dp.qc_glblrng = 'applicable'
+        dp.flow_diagram_dcn = '1342-00010'
+        dp.dps_dcn = '1341-00010'
+        dp.synonyms = ['sst', 'sea-surface-temperature', 'sea_surface_temperature']
+        dp.acknowledgement = "To someone's darling wife?"
+        dp.iso_topic_category = ['isocat1', 'isocat2']
+        dp.ioos_category = 'temperature'
+        dp.iso_spatial_representation_type = 'timeSeries'
+        dp.processing_level_code = "L1"
+        dp.license_uri = "http://lmgtfy.com/?q=Open+Source"
+        dp.exclusive_rights_status = 'THERE CAN BE ONLY ONE!'
+        dp.reference_urls = ['https://confluence.oceanobservatories.org/display/instruments/TEMPWAT', 'https://confluence.oceanobservatories.org/display/instruments/CTDBP']
+        dp.provenance_description = 'Nope'
+        dp.citation_description = 'Consider this a warning'
+        dp.lineage_description = 'I am Connor MacLeod of the Clan MacLeod. I was born in 1518 in the village of Glenfinnan on the shores of Loch Shiel. And I am immortal.'
+        self.resource_registry.update(dp)
 
+        self.strap_erddap(data_product_id)
+        breakpoint(locals(), globals())

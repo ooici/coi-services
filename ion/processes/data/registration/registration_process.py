@@ -66,9 +66,6 @@ class RegistrationProcess(StandaloneProcess):
         self.create_entry(dp)
         self.touch(data_product_id)
 
-        from pyon.util.breakpoint import breakpoint
-        breakpoint(locals(), globals())
-
     def slam(self, d, dp, k):
         v = getattr(dp, k, None)
         if v:
@@ -80,7 +77,7 @@ class RegistrationProcess(StandaloneProcess):
         ds['url'] = self.pydap_url + data_product._id
         ds['face_page'] = self.ux_url + 'DataProduct/face/' + data_product._id
         ds['title'] = data_product.name
-        ds['summary'] = data_product.description
+        ds['summary'] = data_product.description or data_product.name
         ds['attrs'] = {}
         metadata_attrs = [
             'comment',
@@ -127,59 +124,71 @@ class RegistrationProcess(StandaloneProcess):
 
         ds['vars'] = []
         for param in parameter_contexts:
+            # Handle the placeholder variables
+            if re.match(r'.*_[a-z0-9]{32}', param.name):
+                continue # Let's not do this
             var = {}
             var['name'] = param.name
-            var['units'] = param.units or '1'
-            var['ioos_category'] = self.get_ioos_category(param.name, var['units'])
-            var['long_name'] = param.display_name
-            var['standard_name'] = param.standard_name
-            if 'seconds' in var['units'] and 'since' in var['units']:
-                var['time_precision'] =  '1970-01-01T00:00:00.000Z'
+            var['attrs'] = {}
+            attrs = var['attrs']
+            attrs['units'] = param.units or '1'
+            attrs['ioos_category'] = self.get_ioos_category(param.name, attrs['units'])
+            attrs['long_name'] = param.display_name
+            if param.standard_name: 
+                attrs['standard_name'] = param.standard_name
+            if 'seconds' in attrs['units'] and 'since' in attrs['units']:
+                attrs['time_precision'] =  '1970-01-01T00:00:00.000Z'
             if param.ooi_short_name:
                 sname = param.ooi_short_name
                 sname = re.sub('[\t\n ]+', ' ', sname)
-                var['ooi_short_name'] = sname
+                attrs['ooi_short_name'] = sname
                 m = re.match(r'[A-Z0-9]{7}', sname)
                 if m:
                     reference_url = 'https://confluence.oceanobservatories.org/display/instruments/' + m.group()
-                    var['references'] = reference_url
+                    attrs['references'] = reference_url
                 if 'L2' in param.ooi_short_name:
-                    var['data_product_level'] = 'L2'
-                    var['source'] = 'level 2 calibrated sensor observation'
+                    attrs['data_product_level'] = 'L2'
+                    attrs['source'] = 'level 2 calibrated sensor observation'
                 elif 'L1' in param.ooi_short_name:
-                    var['data_product_level'] = 'L1'
-                    var['source'] = 'level 1 calibrated sensor observation'
+                    attrs['data_product_level'] = 'L1'
+                    attrs['source'] = 'level 1 calibrated sensor observation'
                 elif 'L0' in param.ooi_short_name:
-                    var['data_product_level'] = 'L0'
-                    var['source'] = 'level 0 calibrated sensor observation'
+                    attrs['data_product_level'] = 'L0'
+                    attrs['source'] = 'level 0 calibrated sensor observation'
                 elif 'QC' in param.ooi_short_name:
-                    var['data_product_level'] = 'QC'
+                    attrs['data_product_level'] = 'QC'
             elif param.parameter_type != 'function':
-                if var['units'] == 'counts':
-                    var['data_product_level'] = 'L0'
-                    var['source'] = 'sensor observation'
-                elif 'seconds' in var['units'] and 'since' in var['units']:
-                    var['data_product_level'] = 'axis'
+                if attrs['units'] == 'counts':
+                    attrs['data_product_level'] = 'L0'
+                    attrs['source'] = 'sensor observation'
+                elif 'seconds' in attrs['units'] and 'since' in attrs['units']:
+                    attrs['data_product_level'] = 'axis'
+                elif var['name'].lower() in ('time', 'lat', 'lon', 'latitude', 'longitude'):
+                    attrs['data_product_level'] = 'axis'
                 else:
-                    var['data_product_level'] = 'unknown'
+                    attrs['data_product_level'] = 'unknown'
             if param.reference_urls:
-                var['instrument_type'] = '\n'.join(param.reference_urls)
+                attrs['instrument_type'] = '\n'.join(param.reference_urls)
 
             if param.parameter_type == 'function':
                 parameter_function = self.resource_registry.read(param.parameter_function_id)
                 if parameter_function.function_type == PFT.PYTHON:
-                    var['function_module'] = parameter_function.owner or ''
-                    var['function_name'] = parameter_function.function or ''
-                    if var['function_module'].startswith('ion_functions'):
-                        s = var['function_module']
+                    attrs['function_module'] = parameter_function.owner or ''
+                    attrs['function_name'] = parameter_function.function or ''
+                    if attrs['function_module'].startswith('ion_functions'):
+                        s = attrs['function_module']
                         url = s.replace('.','/') + '.py'
                         url = 'https://github.com/ooici/ion-functions/blob/master/' + url
-                        var['function_url'] = url
+                        attrs['function_url'] = url
                     elif parameter_function.egg_uri:
-                        var['function_url'] = parameter_function.egg_uri
+                        attrs['function_url'] = parameter_function.egg_uri
                 elif parameter_function.function_type == PFT.NUMEXPR:
-                    var['function_name'] = parameter_function.name
-                    var['expression'] = parameter_function.function
+                    attrs['function_name'] = parameter_function.name
+                    attrs['expression'] = parameter_function.function
+
+            for k,v in param.additional_metadata:
+                if re.match(r'[a-z][a-zA-Z0-9_]+', k):
+                    attrs[k] = v
             ds['vars'].append(var)
 
         return ds
@@ -217,7 +226,7 @@ class RegistrationProcess(StandaloneProcess):
             pass
 
     def register_dap_dataset(self, data_product_id):
-        return
+        return self.dap_entry(data_product_id)
         dataset_id = self.container.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
         data_product = self.container.resource_registry.read(data_product_id)
         data_product_name = data_product.name
