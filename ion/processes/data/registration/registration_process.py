@@ -193,7 +193,8 @@ class RegistrationProcess(StandaloneProcess):
 
         return ds
 
-    def create_entry(self, data_product):
+    def create_entry(self, data_product_id):
+        data_product = self.resource_registry.read(data_product_id)
         ds = self.map_data_product(data_product)
 
         template = self.jenv.get_template('dataset.xml')
@@ -214,7 +215,27 @@ class RegistrationProcess(StandaloneProcess):
         pass
 
     def update_entry(self, data_product_id):
-        pass
+        # Make a new XML entry for this data product from a template
+        data_product = self.resource_registry.read(data_product_id)
+        ds = self.map_data_product(data_product)
+        template = self.jenv.get_template('dataset.xml')
+        entry = template.render(**ds)
+        dataset_element = etree.fromstring(entry)
+        # Grab the XML document in the object store
+        doc = self.container.object_store.read('datasets.xml')
+        root = etree.fromstring(doc['xml'])
+        # Remove the existing entries that correspond to this data product
+        relevant = []
+        for ele in root:
+            if 'datasetID' in ele.attrib and ele.attrib['datasetID'] == 'data%s' % data_product_id:
+                relevant.append(ele)
+        for r in relevant:
+            root.remove(ele)
+        root.append(dataset_element)
+        doc['xml'] = etree.tostring(root, xml_declaration=True, encoding='utf8', pretty_print=True)
+        self.container.object_store.update_doc(doc)
+        with open(self.datasets_xml_path, 'w') as f:
+            f.write(doc['xml'])
 
     def delete_entry(self, data_product_id):
         pass
