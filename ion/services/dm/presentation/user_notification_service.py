@@ -1,52 +1,41 @@
 #!/usr/bin/env python
 
-"""Implementation of the UserNotificationService"""
+"""Service to manage user requested notifications about events in the system"""
 
-__author__ = 'Bill Bollenbacher, Swarbhanu Chatterjee, David Stuebe'
+__author__ = 'Bill Bollenbacher, Swarbhanu Chatterjee, David Stuebe, Michael Meisinger'
 
-
-from pyon.core.exception import BadRequest, IonException, NotFound, Inconsistent
-from pyon.core.bootstrap import CFG
-from pyon.util.log import log
-from pyon.util.containers import get_ion_ts
-from pyon.public import RT, PRED, get_sys_name, OT, IonObject
-from pyon.event.event import EventPublisher, EventSubscriber
+from pyon.public import RT, PRED, get_sys_name, OT, IonObject, get_ion_ts, log, CFG, BadRequest, IonException, NotFound, Inconsistent, EventPublisher, EventSubscriber
 from pyon.core.governance import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE, INSTRUMENT_OPERATOR, DATA_OPERATOR, OBSERVATORY_OPERATOR, GovernanceHeaderValues, has_org_role
 
-from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message, get_event_computed_attributes
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info
+from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message, \
+    get_event_computed_attributes, calculate_reverse_user_info
 
-from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 from interface.objects import ComputedValueAvailability, ComputedListValue
 from interface.objects import ProcessDefinition, TemporalBounds
-from interface.services.dm.iuser_notification_service import BaseUserNotificationService
 
 CFG_ELASTIC_SEARCH = CFG.get_safe('system.elasticsearch', False)
 
 
-"""
-For every user that has existing notification requests (who has called
-create_notification()) the UNS will contain a local EventProcessor
-instance that contains the user's notification information (email address)
-and all of the user's notifications (along with their event subscribers).
-The EventProcessors are maintained local to the UNS in a dictionary
-indexed by the user's resourceID.  When a notification is created the user's
-EventProcessor will be created if it doesn't already exist , and it will
-be deleted when the user deletes their last notification.
-
-The user's EventProcessor will encapsulate a list of notification objects
-that the user has requested, along with user information needed for send notifications
-(email address for LCA). It will also encapsulate a subscriber callback method
-that is passed to all event subscribers for each notification the user has created.
-
-Each notification object will encapsulate the notification information and a
-list of event subscribers (only one for LCA) that listen for the events in the notification.
-"""
 class EmailEventProcessor(object):
     """
-    A class that helps to get user subscribed to notifications
+    For every user that has existing notification requests (who has called
+    create_notification()) the UNS will contain a local EventProcessor
+    instance that contains the user's notification information (email address)
+    and all of the user's notifications (along with their event subscribers).
+    The EventProcessors are maintained local to the UNS in a dictionary
+    indexed by the user's resourceID.  When a notification is created the user's
+    EventProcessor will be created if it doesn't already exist , and it will
+    be deleted when the user deletes their last notification.
+
+    The user's EventProcessor will encapsulate a list of notification objects
+    that the user has requested, along with user information needed for send notifications
+    (email address for LCA). It will also encapsulate a subscriber callback method
+    that is passed to all event subscribers for each notification the user has created.
+
+    Each notification object will encapsulate the notification information and a
+    list of event subscribers (only one for LCA) that listen for the events in the notification.
     """
 
     def __init__(self):
@@ -54,12 +43,6 @@ class EmailEventProcessor(object):
         # TODO: This should be the client generated for the UNS (a process client)
         self.rr = ResourceRegistryServiceClient()
 
-
-#----------------------------------------------------------------------------------------------------------------
-# Keep this note for the time when we need to also include sms delivery via email to sms providers
-#        provider_email = sms_providers[provider] # self.notification.delivery_config.delivery['provider']
-#        self.msg_recipient = notification_request.delivery_config.delivery['phone_number'] + provider_email
-#----------------------------------------------------------------------------------------------------------------
 
 class UserNotificationService(BaseUserNotificationService):
     """
@@ -81,13 +64,7 @@ class UserNotificationService(BaseUserNotificationService):
         # The reverse_user_info is calculated from the user_info dictionary
         self.reverse_user_info = {}
 
-        # Get the clients
-        # @TODO: Why are these not dependencies in the service YML???
-        self.discovery = DiscoveryServiceClient()
-        self.process_dispatcher = ProcessDispatcherServiceClient()
-
         self.event_publisher = EventPublisher(process=self)
-        self.datastore = self.container.datastore_manager.get_datastore('events')
 
         self.start_time = get_ion_ts()
 
@@ -101,7 +78,7 @@ class UserNotificationService(BaseUserNotificationService):
             """
 
             notification_id =  event_msg.notification_id
-            log.debug("(UNS instance received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
+            log.debug("(UNS instance) received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
 
             try:
                 self.user_info = self.load_user_info()
@@ -214,7 +191,6 @@ class UserNotificationService(BaseUserNotificationService):
                                                                     predicate=PRED.hasNotification,
                                                                     object=notification_id,
                                                                     id_only=True)
-
 
         if assocs:
             log.debug("Got an already existing association: %s, between user_id: %s, and notification_id: %s", assocs,user_id,notification_id)
@@ -374,178 +350,6 @@ class UserNotificationService(BaseUserNotificationService):
 #
 #        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
-    def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit=-1, descending=False, offset=0):
-        """
-        This method leverages couchdb view and simple filters. It does not use elastic search.
-
-        Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
-        if no events exist for the given parameters.
-
-        @param origin         str
-        @param min_datetime   int  seconds
-        @param max_datetime   int  seconds
-        @param limit          int         (integer limiting the number of results (0 means unlimited))
-        @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
-        @retval event_list    []
-        @throws NotFound    object with specified parameters does not exist
-        @throws NotFound    object with specified parameters does not exist
-        """
-        event_tuples = []
-
-        try:
-            event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending, skip=offset)
-        except Exception as exc:
-            log.warning("The UNS find_events operation for event origin = %s and type = %s failed. Error message = %s", origin, type, exc.message)
-
-        events = [item[2] for item in event_tuples]
-        log.debug("(find_events) UNS found the following relevant events: %s", events)
-
-        return events
-
-
-    #todo Uses Elastic Search. Later extend this to a larger search criteria
-    def find_events_extended(self, origin='', type='', min_time= 0, max_time=0, limit=-1, descending=False):
-        """Uses Elastic Search. Returns a list of events that match the specified search criteria. Will throw a not NotFound exception
-        if no events exist for the given parameters.
-
-        @param origin         str
-        @param type           str
-        @param min_time   int seconds
-        @param max_time   int seconds
-        @param limit          int         (integer limiting the number of results (0 means unlimited))
-        @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
-        @retval event_list    []
-        @throws NotFound    object with specified parameters does not exist
-        @throws NotFound    object with specified parameters does not exist
-        """
-
-        query = []
-
-        if min_time and max_time:
-            query.append( "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (min_time, max_time))
-
-        if origin:
-            query.append( 'search "origin" is "%s" from "events_index"' % origin)
-
-        if type:
-            query.append( 'search "type_" is "%s" from "events_index"' % type)
-
-        search_string = ' and '.join(query)
-
-
-        # get the list of ids corresponding to the events
-        ret_vals = self.discovery.parse(search_string)
-        if len(query) > 1:
-            events = self.datastore.read_mult(ret_vals)
-        else:
-            events = [i['_source'] for i in ret_vals]
-
-        log.debug("(find_events_extended) Discovery search returned the following event ids: %s", ret_vals)
-
-
-        log.debug("(find_events_extended) UNS found the following relevant events: %s", events)
-
-        if limit > 0:
-            return events[:limit]
-
-        #todo implement time ordering: ascending or descending
-
-        return events
-
-    def publish_event_object(self, event=None):
-        """
-        This service operation would publish the given event from an event object.
-
-        @param event    !Event
-        @retval event   !Event
-        """
-        event = self.event_publisher.publish_event_object(event_object=event)
-        log.info("The publish_event_object(event) method of UNS was used to publish the event: %s", event )
-
-        return event
-
-    def publish_event(self, event_type='', origin='', origin_type='', sub_type='', description='', event_attrs=None):
-        """
-        This service operation assembles a new Event object based on event_type 
-        (e.g. via the pyon Event publisher) with optional additional attributes from a event_attrs
-        dict of arbitrary attributes.
-        
-        
-        @param event_type   str
-        @param origin       str
-        @param origin_type  str
-        @param sub_type     str
-        @param description  str
-        @param event_attrs  dict
-        @retval event       !Event
-        """
-        event_attrs = event_attrs or {}
-
-        event = self.event_publisher.publish_event(
-            event_type = event_type,
-            origin = origin,
-            origin_type = origin_type,
-            sub_type = sub_type,
-            description = description,
-            **event_attrs
-            )
-        log.info("The publish_event() method of UNS was used to publish an event: %s", event)
-
-        return event
-
-    def get_recent_events(self, resource_id='', limit=0):
-        """
-        Get recent events for use in extended resource computed attribute
-        @param resource_id str
-        @param limit int (if 0 is given
-        @retval ComputedListValue with value list of 4-tuple with Event objects
-        """
-        if limit == 0:
-            limit = int(self.CFG.get_safe("service.user_notification.max_events_limit", 1000))
-        return self.get_events(resource_id=resource_id, limit=limit, offset=0)
-
-    def get_events(self, resource_id='', limit=10, offset=0):
-        """
-        Get events for use in extended resource computed attribute
-        @param resource_id str
-        @param limit int
-        @param offset int
-        @retval ComputedListValue with value list of 4-tuple with Event objects
-        """
-        now = get_ion_ts()
-        events = self.find_events(origin=resource_id, limit=limit, max_datetime=now, descending=True, offset=offset)
-        ret = IonObject(OT.ComputedEventListValue)
-        if events:
-            ret.value = events
-            ret.computed_list = [get_event_computed_attributes(event) for event in events]
-            ret.status = ComputedValueAvailability.PROVIDED
-
-            try:
-                actor_ids = {evt.actor_id for evt in events if evt.actor_id}
-                log.debug("Looking up UserInfo for actors: %s" % actor_ids)
-                if actor_ids:
-                    #userinfo_list, assoc_list = self.clients.resource_registry.find_objects_mult(actor_ids, id_only=False)
-                    actor_map = {}
-                    for actor_id in actor_ids:
-                        # NOTE: This is an O(n) algorithm. Cannot use find_subjects_mult because it does not support
-                        # filter by predicate. Would get too many results
-                        uinfo_list, _ = self.clients.resource_registry.find_objects(actor_id, predicate=PRED.hasInfo, id_only=False)
-                        if uinfo_list:
-                            actor_map[actor_id] = uinfo_list[0]
-
-                    for evt, evt_cmp in zip(events, ret.computed_list):
-                        ui = actor_map.get(evt.actor_id, None)
-                        if ui:
-                            evt_cmp["event_summary"] += " [%s %s]" % (ui.contact.individual_names_given, ui.contact.individual_name_family)
-
-            except Exception as ex:
-                log.exception("Cannot find user names for event actor_ids")
-
-        else:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-
-        return ret
-
     def get_user_notifications(self, user_info_id=''):
         """
         Get the notification request objects that are subscribed to by the user
@@ -587,13 +391,13 @@ class UserNotificationService(BaseUserNotificationService):
                 'module': 'ion.processes.data.transforms.notification_worker',
                 'class':'NotificationWorker'
             }
-            process_definition_id = self.process_dispatcher.create_process_definition(process_definition=process_definition)
+            process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
             # ------------------------------------------------------------------------------------
             # Process Spawning
             # ------------------------------------------------------------------------------------
 
-            pid2 = self.process_dispatcher.create_process(process_definition_id)
+            pid2 = self.clients.process_dispatcher.create_process(process_definition_id)
 
             #@todo put in a configuration
             configuration = {}
@@ -603,7 +407,7 @@ class UserNotificationService(BaseUserNotificationService):
                 'queue_name': 'notification_worker_queue'
             })
 
-            pid  = self.process_dispatcher.schedule_process(
+            pid  = self.clients.process_dispatcher.schedule_process(
                 process_definition_id,
                 configuration = configuration,
                 process_id=pid2
@@ -821,8 +625,6 @@ class UserNotificationService(BaseUserNotificationService):
                 return notif._id
         return None
 
-
-
     def load_user_info(self):
         """
         Method to load the user info dictionary used by the notification workers and the UNS
@@ -863,12 +665,8 @@ class UserNotificationService(BaseUserNotificationService):
         return user_info
 
 
-    ##
-    ##
-    ##  GOVERNANCE FUNCTIONS
-    ##
-    ##
-
+    # -------------------------------------------------------------------------
+    #  Governance operations
 
     def check_subscription_policy(self, process, message, headers):
 
@@ -926,3 +724,119 @@ class UserNotificationService(BaseUserNotificationService):
 
 
         return False, '%s(%s) has been denied since the user is not a member in any org to which the origin id %s belongs ' % (process.name, gov_values.op, resource_id)
+
+
+    # -------------------------------------------------------------------------
+    # Events operations
+
+    def publish_event_object(self, event=None):
+        """
+        Publishes an event based on the given event object.
+        Returns the published event object with filled out _id and other attributes.
+        """
+        event = self.event_publisher.publish_event_object(event_object=event)
+        log.info("Event published: %s", event)
+
+        return event
+
+    def publish_event(self, event_type='', origin='', origin_type='', sub_type='', description='', event_attrs=None):
+        """
+        Publishes an event of given type based on given basic and additional attributes.
+        Returns the published event object with filled out _id and other attributes.
+        """
+        event_attrs = event_attrs or {}
+
+        event = self.event_publisher.publish_event(
+            event_type = event_type,
+            origin = origin,
+            origin_type = origin_type,
+            sub_type = sub_type,
+            description = description,
+            **event_attrs
+            )
+        log.info("Event published: %s", event)
+
+        return event
+
+    def find_events(self, origin='', type='', min_datetime='', max_datetime='', limit=-1,
+                    descending=False, skip=0, computed=False):
+        """
+        Returns a list of events that match the specified search criteria.
+        Can return a list of EventComputedAttributes if requested with event objects contained.
+        Pagination arguments are supported.
+
+        @param origin         str
+        @param min_datetime   str  milliseconds
+        @param max_datetime   str  milliseconds
+        @param limit          int         (integer limiting the number of results (0 means unlimited))
+        @param descending     boolean     (if True, reverse order (of production time) is applied, e.g. most recent first)
+        @retval event_list    []
+        """
+        if limit == 0:
+            limit = int(self.CFG.get_safe("service.user_notification.max_events_limit", 1000))
+        if max_datetime == "now":
+            max_datetime = get_ion_ts()
+
+        event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin,
+                                                                   start_ts=min_datetime, end_ts=max_datetime,
+                                                                   limit=limit, descending=descending, skip=skip)
+
+        events = [item[2] for item in event_tuples]
+        log.debug("find_events found %s events", len(events))
+
+        if computed:
+            computed_events = self._get_computed_events(events, include_events=True)
+            events = computed_events.computed_list
+
+        return events
+
+    def get_recent_events(self, resource_id='', limit=0, skip=0):
+        """
+        Returns a list of EventComputedAttributes for events that match the resource id as origin,
+        in descending order, most recent first. The total number of events is limited by default
+        based on system configuration. Pagination arguments are supported.
+        @param resource_id str
+        @param limit int (if 0 is given
+        @retval ComputedListValue with value list of 4-tuple with Event objects
+        """
+        if limit == 0:
+            limit = int(self.CFG.get_safe("service.user_notification.max_events_limit", 1000))
+        now = get_ion_ts()
+        events = self.find_events(origin=resource_id, max_datetime=now,
+                                  descending=True, limit=limit, skip=skip)
+
+        computed_events = self._get_computed_events(events)
+
+        return computed_events
+
+    def _get_computed_events(self, events, add_usernames=True, include_events=False):
+        """
+        Get events for use in extended resource computed attribute
+        @retval ComputedListValue with value list of 4-tuple with Event objects
+        """
+        events = events or []
+
+        ret = IonObject(OT.ComputedEventListValue)
+        ret.value = events
+        ret.computed_list = [get_event_computed_attributes(event, include_event=include_events) for event in events]
+        ret.status = ComputedValueAvailability.PROVIDED
+
+        if add_usernames:
+            try:
+                actor_ids = {evt.actor_id for evt in events if evt.actor_id}
+                log.debug("Looking up UserInfo for actors: %s" % actor_ids)
+                if actor_ids:
+                    userinfo_list, assoc_list = self.clients.resource_registry.find_objects_mult(actor_ids,
+                                                                                                 predicate=PRED.hasInfo,
+                                                                                                 id_only=False)
+                    actor_map = {assoc.s: uinfo for uinfo, assoc in zip(userinfo_list, assoc_list)}
+
+                    for evt, evt_cmp in zip(events, ret.computed_list):
+                        ui = actor_map.get(evt.actor_id, None)
+                        if ui:
+                            evt_cmp["event_summary"] += " [%s %s]" % (ui.contact.individual_names_given, ui.contact.individual_name_family)
+
+            except Exception as ex:
+                log.exception("Cannot find user names for event actor_ids")
+
+        return ret
