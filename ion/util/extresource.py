@@ -8,7 +8,7 @@ from pyon.core.object import IonObjectBase
 from pyon.public import OT, RT, log, CFG
 
 from interface.objects import Resource, Event, ResourceContainer, ComputedValue, EventComputedAttributes, \
-    ServiceRequest, Attachment, NegotiationRequest, NotificationRequest, UserInfo, Org
+    ServiceRequest, Attachment, NegotiationRequest, NotificationRequest, UserInfo, Org, ComputedEventListValue
 
 IGNORE_EXT_FIELDS = {"type_", "_id", "ts_created", "resource", "computed",
                      "availability_transitions", "lcstate_transitions", "ext_associations"}
@@ -17,6 +17,8 @@ CORE_RES_ATTRIBUTES = {"type_", "_id", "name", "description", "ts_updated",
                    "lcstate", "availability", "alt_resource_type"}
 
 CORE_EVENT_ATTRIBUTES = {"type_", "ts_created"}
+
+CORE_EVENTCMP_ATTRIBUTES = {"event_summary"}
 
 CORE_OBJ_ATTRIBUTES = {"type_"}
 
@@ -79,9 +81,12 @@ def matcher_special(obj, matchers=None):
         return
     if isinstance(obj, ComputedValue):
         setattr(obj, "value", strip_attribute(obj.value, keep=True, matchers=matchers))
+        if isinstance(obj, ComputedEventListValue):
+            setattr(obj, "computed_list", strip_attribute(obj.computed_list, keep=True, matchers=matchers))
         return obj
     elif isinstance(obj, EventComputedAttributes):
-        return obj
+        res_attr = {k:v for k, v in obj.__dict__.iteritems() if k in CORE_EVENTCMP_ATTRIBUTES}
+        return res_attr
     elif isinstance(obj, ServiceRequest):
         return obj
     elif isinstance(obj, Attachment):
