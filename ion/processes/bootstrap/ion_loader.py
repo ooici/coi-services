@@ -3444,11 +3444,13 @@ Reason: %s
                             param_list.append(param)
                             found_dptype_match = True
                         elif param_obj.name.startswith("cc_"):
-                            # Param match: All calibration coefficients of parsed (all prefixed with "cc_")
-                            param_list.append(param)
+                            if dp_obj['level'] != "L0":
+                                # Param match: All calibration coefficients of parsed (all prefixed with "cc_")
+                                param_list.append(param)
                         elif param_obj.name.endswith("_qc") and dp_obj['code'].lower() in param_obj.name:
-                            # Param match: QC param has DPS code in name and ends with "_qc"
-                            param_list.append(param)
+                            if dp_obj['level'] != "L0":
+                                # Param match: QC param has DPS code in name and ends with "_qc"
+                                param_list.append(param)
                         elif param_obj.ooi_short_name.startswith(dp_obj['code']):
                             # Param prefix match: SAF DPS == existing parameter name
                             # NOTE: This could also be a QC
