@@ -3044,20 +3044,31 @@ Reason: %s
         assocs = self.container.resource_registry.find_associations(predicate=PRED.hasParameterContext, id_only=False)
         assocs_filtered = [a for a in assocs if a.st == "ParameterDictionary" and a.ot == "ParameterContext"]
         mapping = {}
+        missing_pdef = set()
+        for assoc in assocs_filtered:
+            pdef = self._get_resource_obj(assoc.o, True)
+            if pdef is None:
+                missing_pdef.add(assoc.o)
+        if missing_pdef:
+            log.debug("Loading %s ParameterContext for QC or CC", len(missing_pdef))
+            pdef_objs = self.container.resource_registry.read_mult(missing_pdef)
+            for pdef in pdef_objs:
+                self._register_id(pdef._id, pdef._id, pdef)
+
         for assoc in assocs_filtered:
             pdict = self._get_resource_obj(assoc.s)
             pdef = self._get_resource_obj(assoc.o, True)
             if pdef is None:
-                #log.debug("Ignoring ParameterContext %s - no preload ID (QC param)", assoc.o)
+                log.warn("Ignoring ParameterContext %s - not found", assoc.o)
                 continue
             pdef_aliases = [aid[4:] for aid in pdef.alt_ids if aid.startswith("PRE:")]
-            if len(pdef_aliases) != 1:
-                log.warn("No preload IDs found for ParameterContext: %s", pdef.alt_ids)
-                continue
-            pdef_alias = pdef_aliases[0]
-            if pdict.name not in mapping:
-                mapping[pdict.name] = []
-            mapping[pdict.name].append(pdef_alias)
+            if len(pdef_aliases) < 1:
+                # Case: generated QC/CC parameter - has not PRE id. But we fetched it before and registered it
+                mapping.setdefault(pdict.name, []).append(pdef._id)
+            else:
+                # Case: human defined parameter with PRE id
+                pdef_alias = pdef_aliases[0]
+                mapping.setdefault(pdict.name, []).append(pdef_alias)
         return mapping
 
     def _create_dp_stream_def(self, rd, pdict_id, sdname=None, fields=""):
@@ -3240,6 +3251,7 @@ Reason: %s
                         newrow['dp/processing_level_code'] = "Raw"
                         newrow['dp/quality_control_level'] = "N/A"
                     elif scfg.stream_type == StreamConfigurationType.PARSED and not parsed_pdict_id:
+                        newrow['dp/name'] = "Combined science variables for %s" % (inst_id)
                         newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
@@ -3361,11 +3373,11 @@ Reason: %s
                     ooi_rd1 = OOIReferenceDesignator(iid)
                     iplatform = node_objs[node_objs[ooi_rd1.node_rd]["platform_id"]]
                     if found_num_onnode > 1:
-                        if platform_obj["id"] ==  iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class'] and \
+                        if platform_obj["id"] == iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class'] and \
                                 inst_obj.get("depth_port_min", None) == iobj.get("depth_port_min", None):
                             found_num_onplatform += 1
                     else:
-                        if platform_obj["id"] ==  iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class']:
+                        if platform_obj["id"] == iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class']:
                             found_num_onplatform += 1
                     if found_num_onplatform > 1:
                         break
@@ -3387,24 +3399,23 @@ Reason: %s
                 newrow['dp/processing_level_code'] = dp_obj['level']
                 newrow['dp/regime'] = dp_obj.get('regime', "")
                 newrow['dp/qc_cmbnflg'] = dp_obj.get('Combine QC Flags (CMBNFLG) QC', "")
-                newrow['dp/qc_condcmp'] = dp_obj.get('Conductivity Compressibility Compensation (CONDCMP) QC', "")
                 newrow['dp/qc_glblrng'] = dp_obj.get('Global Range Test (GLBLRNG) QC', "")
                 newrow['dp/qc_gradtst'] = dp_obj.get('Gradient Test (GRADTST) QC', "")
-                newrow['dp/qc_interp1'] = dp_obj.get('1-D Interpolation (INTERP1) QC', "")
                 newrow['dp/qc_loclrng'] = dp_obj.get('Local Range Test (LOCLRNG) QC', "")
-                newrow['dp/qc_modulus'] = dp_obj.get('Modulus (MODULUS) QC', "")
-                newrow['dp/qc_polyval'] = dp_obj.get('Evaluate Polynomial (POLYVAL) QC', "")
-                newrow['dp/qc_solarel'] = dp_obj.get('Solar Elevation (SOLAREL) QC', "")
                 newrow['dp/qc_spketest'] = dp_obj.get('Spike Test (SPKETST) QC', "")
                 newrow['dp/qc_stuckvl'] = dp_obj.get('Stuck Value Test (STUCKVL) QC', "")
                 newrow['dp/qc_trndtst'] = dp_obj.get('Trend Test (TRNDTST) QC', "")
+                #newrow['dp/qc_condcmp'] = dp_obj.get('Conductivity Compressibility Compensation (CONDCMP) QC', "")
+                #newrow['dp/qc_interp1'] = dp_obj.get('1-D Interpolation (INTERP1) QC', "")
+                #newrow['dp/qc_modulus'] = dp_obj.get('Modulus (MODULUS) QC', "")
+                #newrow['dp/qc_polyval'] = dp_obj.get('Evaluate Polynomial (POLYVAL) QC', "")
+                #newrow['dp/qc_solarel'] = dp_obj.get('Solar Elevation (SOLAREL) QC', "")
                 if dp_obj['level'] == "L0":
                     newrow['dp/quality_control_level'] = "N/A"
                 else:
-                    if any([True for val in [newrow['dp/qc_cmbnflg'], newrow['dp/qc_condcmp'], newrow['dp/qc_glblrng'],
-                                             newrow['dp/qc_gradtst'], newrow['dp/qc_interp1'], newrow['dp/qc_loclrng'],
-                                             newrow['dp/qc_modulus'], newrow['dp/qc_polyval'], newrow['dp/qc_solarel'],
-                                             newrow['dp/qc_spketest'], newrow['dp/qc_stuckvl'], newrow['dp/qc_trndtst']] if val == "applicable"]):
+                    if any([True for val in [newrow['dp/qc_cmbnflg'], newrow['dp/qc_glblrng'], newrow['dp/qc_gradtst'],
+                                             newrow['dp/qc_loclrng'], newrow['dp/qc_spketest'], newrow['dp/qc_stuckvl'],
+                                             newrow['dp/qc_trndtst']] if val == "applicable"]):
                         newrow['dp/quality_control_level'] = "b"
                     else:
                         newrow['dp/quality_control_level'] = "a"
@@ -3421,18 +3432,28 @@ Reason: %s
 
                 parsed_pdict_obj = self._get_resource_obj(parsed_pdict_id, True)
                 if parsed_pdict_obj:
-                    # Find all parameters based on the parsed param dict that belong this this DP (prefix)
+                    # The code below determines which parameters of the parsed PDICT are in the L0/L1/L2
+                    # available_fields. This includes time, DPS params and sub-params, QC and CC params.
                     param_list = ["PD7"]
                     found_dptype_match = False
                     params = pdict_map[parsed_pdict_obj.name]
                     for param in params:
                         param_obj = self._get_resource_obj(param)
                         if param_obj.ooi_short_name == dptype_id:
-                            # Param match: SAF DPS+level == existing parameter name
+                            # Param match: SAF DPS_level (e.g. CONDWAT_L1) == existing parameter name
                             param_list.append(param)
                             found_dptype_match = True
+                        elif param_obj.name.startswith("cc_"):
+                            if dp_obj['level'] != "L0":
+                                # Param match: All calibration coefficients of parsed (all prefixed with "cc_")
+                                param_list.append(param)
+                        elif param_obj.name.endswith("_qc") and dp_obj['code'].lower() in param_obj.name:
+                            if dp_obj['level'] != "L0":
+                                # Param match: QC param has DPS code in name and ends with "_qc"
+                                param_list.append(param)
                         elif param_obj.ooi_short_name.startswith(dp_obj['code']):
                             # Param prefix match: SAF DPS == existing parameter name
+                            # NOTE: This could also be a QC
                             # CAUTION: Preload spreadsheet ParamDef "Data Product Identifier" column contains
                             # non-compliant values e.g. VELPROF-VLN_L0 or VELPROF-PCG.
                             param_list.append(param)
