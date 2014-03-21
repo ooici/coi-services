@@ -20,6 +20,7 @@ from pyon.core.governance.negotiation import Negotiation
 from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.resource import get_object_schema
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -28,11 +29,11 @@ from interface.services.ans.ivisualization_service import VisualizationServicePr
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from pyon.util.log import log
 from pyon.util.lru_cache import LRUCache
-from pyon.util.containers import current_time_millis
+from pyon.util.containers import current_time_millis, DotDict
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
-from interface.objects import Attachment, FileUploadContext
+from interface.objects import Attachment, FileUploadContext, ProcessDefinition
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
 
 #Initialize the flask app
@@ -904,27 +905,76 @@ def resolve_org_negotiation():
         return build_error_response(e)
 
 
-@service_gateway_app.route('/ion-service/upload/data', methods=['POST'])
-def upload_data():
+@service_gateway_app.route('/ion-service/upload/data/<dataproduct_id>', methods=['POST'])
+def upload_data(dataproduct_id):
     upload_folder = '/tmp/uploads'
     try:
-        upload = request.files['file'] # <input type=file name=file>
-        if upload and _upload_data_allowed_file(upload.filename):
-            # client to process dispatch
-            pd_client = BaseProcessDispatcherService(node=Container.instance.node, process=service_gateway_instance)
-            # client to resource registry
-            rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-            # upload file (run name through secure_filename)
+
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+
+        try:
+            rr_client.read(str(dataproduct_id))
+        except BadRequest:
+            raise BadRequest('Unknown DataProduct ID %s' % dataproduct_id)
+
+        # required fields
+        upload = request.files['file'] # <input type=file name="file">
+
+        # determine filetype
+        filetype = _check_magic(upload)
+        upload.seek(0) # return to beginning for save
+
+        if upload and filetype is not None:            
+
+            # upload file - run filename through werkzeug.secure_filename
             filename = secure_filename(upload.filename)
             path = os.path.join(upload_folder, filename)
             upload_time = time.time()
             upload.save(path)
+
             # register upload
-            context_id, _ = rr_client.create(FileUploadContext(name='File Upload %s' % filename, filename=filename, path=path, upload_time=upload_time))
-            # response
-            resp = {'context_id': context_id}
+            file_upload_context = FileUploadContext(
+                # TODO add dataproduct_id
+                name='File Upload %s' % filename,
+                filename=filename,
+                filetype=filetype,
+                path=path,
+                upload_time=upload_time
+            )
+            context_id, _ = rr_client.create(file_upload_context)
+
+            # client to process dispatch
+            #pd_client = BaseProcessDispatcherService(node=Container.instance.node, process=service_gateway_instance)
+            pd_client = ProcessDispatcherServiceClient()
+
+            # create process definition
+            process_definition = ProcessDefinition(
+                name='upload_data_processor',
+                executable={
+                    'module':'ion.processes.data.upload.upload_data_processing',
+                    'class':'UploadDataProcessing'
+                }
+            )
+            process_definition_id = pd_client.create_process_definition(process_definition)
+            log.info(process_definition_id)
+            # create process
+            process_id = pd_client.create_process(process_definition_id)
+            log.info(process_id)
+            #schedule process
+            config = DotDict()
+            config.process.fu_id = context_id
+            config.process.dp_id = dataproduct_id
+            log.info(config)
+            pid = pd_client.schedule_process(process_definition_id, process_id=process_id, configuration=config)
+            log.info(pid)
+            print process_id
+
+            # response - only FileUploadContext ID and determined filetype for UX display
+            resp = {'context_id': context_id, 'filetype' : filetype}
             return gateway_json_response(resp)
+
         raise BadRequest('Invalid Upload')
+
     except Exception as e:
         return build_error_response(e)
 
@@ -937,6 +987,27 @@ def upload_status(context_id):
     except Exception as e:
         return build_error_response(e)
 
-def _upload_data_allowed_file(filename):
-    extensions = ['mat','nc']
-    return '.' in filename and filename.rsplit('.', 1)[1] in extensions
+def _check_magic(f):
+
+    '''
+    determines file type from leading bytes
+    '''
+
+    # CDF
+    f.seek(0)
+    CDF = f.read(3)
+    if CDF == 'CDF':
+        VERSION_BYTE = ord(f.read(1))
+        if VERSION_BYTE == 1:
+            return 'NetCDF Classic'
+        elif VERSION_BYTE == 2:
+            return 'NetCDF 64-bit'
+        return None
+    
+    # HDF
+    HDF_MAGIC = b"\x89HDF\r\n\x1a\n"
+    f.seek(0)
+    HDF = f.read(8)
+    if HDF == HDF_MAGIC:
+        return 'HDF'
+    return None
