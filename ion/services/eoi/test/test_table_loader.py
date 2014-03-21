@@ -30,16 +30,6 @@ import gevent
 import requests
 import json
 
-USERNAME = CFG.get_safe('eoi.geoserver.user_name', False)
-PASSWORD = CFG.get_safe('eoi.geoserver.password', False)
-GS_HOST = CFG.get_safe('eoi.geoserver.server', False)
-GS_REST_URL = ''.join([GS_HOST, '/geoserver/rest'])
-GS_OWS_URL = ''.join([GS_HOST, '/geoserver/ows'])
-IMPORTER_SERVICE_SERVER = CFG.get_safe('eoi.importer_service.server', False)
-IMPORTER_SERVICE_PORT = str(CFG.get_safe('eoi.importer_service.port', False))
-IMPORTER_SERVICE_URL = ''.join([IMPORTER_SERVICE_SERVER, ':', IMPORTER_SERVICE_PORT])
-
-
 @attr('INTMAN', group='eoi')
 class DatasetLoadTest(IonIntegrationTestCase):
     """
@@ -47,6 +37,16 @@ class DatasetLoadTest(IonIntegrationTestCase):
     """
 
     def setUp(self):
+
+        self.username = CFG.get_safe('eoi.geoserver.user_name', 'admin')
+        self.PASSWORD = CFG.get_safe('eoi.geoserver.password', 'geoserver')
+        GS_HOST = CFG.get_safe('eoi.geoserver.server', 'http://localhost:8080')
+        self.gs_rest_url = ''.join([GS_HOST, '/geoserver/rest'])
+        self.gs_ows_url = ''.join([GS_HOST, '/geoserver/ows'])
+        IMPORTER_SERVICE_SERVER = CFG.get_safe('eoi.importer_service.server', 'http://localhost')
+        IMPORTER_SERVICE_PORT = str(CFG.get_safe('eoi.importer_service.port', 8844))
+        self.importer_service_url = ''.join([IMPORTER_SERVICE_SERVER, ':', IMPORTER_SERVICE_PORT])
+
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.dataset_management = DatasetManagementServiceClient()
@@ -101,6 +101,16 @@ class ServiceTests(IonIntegrationTestCase):
     Tests the GeoServer and Foreign Data Wrapper (FDW) services.
     """
     def setUp(self):
+
+        self.username = CFG.get_safe('eoi.geoserver.user_name', 'admin')
+        self.PASSWORD = CFG.get_safe('eoi.geoserver.password', 'geoserver')
+        GS_HOST = CFG.get_safe('eoi.geoserver.server', 'http://localhost:8080')
+        self.gs_rest_url = ''.join([GS_HOST, '/geoserver/rest'])
+        self.gs_ows_url = ''.join([GS_HOST, '/geoserver/ows'])
+        IMPORTER_SERVICE_SERVER = CFG.get_safe('eoi.importer_service.server', 'http://localhost')
+        IMPORTER_SERVICE_PORT = str(CFG.get_safe('eoi.importer_service.port', 8844))
+        self.importer_service_url = ''.join([IMPORTER_SERVICE_SERVER, ':', IMPORTER_SERVICE_PORT])
+
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.dataset_management = DatasetManagementServiceClient()
@@ -145,10 +155,10 @@ class ServiceTests(IonIntegrationTestCase):
     def test_reset_store(self):
         # Makes sure store is empty 
         self.assertTrue(self.reset_store())
-        url = ''.join([GS_REST_URL, '/layers.json'])
+        url = ''.join([self.gs_rest_url, '/layers.json'])
 
         # Asserts layers were able to be retrieved
-        r = requests.get(url, auth=(USERNAME, PASSWORD))
+        r = requests.get(url, auth=(self.username, self.PASSWORD))
         self.assertTrue(r.status_code == 200)
 
         # Asserts there are no layers in the ooi store
@@ -195,7 +205,7 @@ class ServiceTests(IonIntegrationTestCase):
 
         # verify that the layer exists in geoserver
         try:
-            r = requests.get(GS_REST_URL + '/layers/ooi_' + dataset_id + '_ooi.xml', auth=(USERNAME, PASSWORD))
+            r = requests.get(self.gs_rest_url + '/layers/ooi_' + dataset_id + '_ooi.xml', auth=(self.username, self.PASSWORD))
             self.assertTrue(r.status_code == 200)
         except Exception as e:
             log.error("check service and layer exist...%s", e)
@@ -222,9 +232,7 @@ class ServiceTests(IonIntegrationTestCase):
                   'pressure_L1': 'real', 'lon': 'real', 'lat_lookup': 'real', 'density_lookup': 'real',
                   'pressure': 'real', 'lon_lookup': 'real', 'geom': 'geom', 'time': 'time', 'lat': 'real',
                   'salinity': 'real', 'conductivity': 'real'}
-        r = requests.get(
-            IMPORTER_SERVICE_URL + '/service=addlayer&name=45a6a3cea12e470b90f3e5a769f22161&id=45a6a3cea12e470b90f3e5a769f22161&params=' + str(
-                params))
+        r = requests.get(self.importer_service_url + '/service=addlayer&name=45a6a3cea12e470b90f3e5a769f22161&id=45a6a3cea12e470b90f3e5a769f22161&params=' + str(params))
 
         self.assertTrue(r.status_code == 200)
 
@@ -347,7 +355,7 @@ class ServiceTests(IonIntegrationTestCase):
     @unittest.skipIf((CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_sos_response(self):
         expected_content = 'SOS SERVICE IS UP.....Hello World!'
-        url = GS_OWS_URL + '?request=echo&service=sos'
+        url = self.gs_ows_url + '?request=echo&service=sos'
         r = requests.get(url)
         self.assertEqual(r.content, expected_content)
 
@@ -356,7 +364,7 @@ class ServiceTests(IonIntegrationTestCase):
         # Validates reponse is not an exception, assues valid otherwise
         self.setup_resource()
         expected_content = ''
-        url = GS_OWS_URL + '?request=getCapabilities&service=sos&version=1.0.0&offering=_' + self.offering_id + '_view'
+        url = self.gs_ows_url + '?request=getCapabilities&service=sos&version=1.0.0&offering=_' + self.offering_id + '_view'
         r = requests.get(url)
         self.assertEquals(r.status_code, 200)
         self.assertTrue(r.content.find('<sos:Capabilities') >= 0)
@@ -367,7 +375,7 @@ class ServiceTests(IonIntegrationTestCase):
         # TODO: Use deterministic <swe:values> for comparison
         self.setup_resource()
         expected_content = ''
-        url = GS_OWS_URL + '?request=getObservation&service=sos&version=1.0.0&offering=_' + self.offering_id + '_view&observedproperty=time,temp,density&responseformat=text/xml'
+        url = self.gs_ows_url + '?request=getObservation&service=sos&version=1.0.0&offering=_' + self.offering_id + '_view&observedproperty=time,temp,density&responseformat=text/xml'
         r = requests.get(url)
         self.assertEquals(r.status_code, 200)
         self.assertTrue(r.content.find('<om:ObservationCollection') >= 0)
@@ -378,7 +386,7 @@ class ServiceTests(IonIntegrationTestCase):
         Posts a resetstore request to the ImporterService
         """
         try:
-            url = ''.join([IMPORTER_SERVICE_URL, '/service=resetstore&name=', store_name, '&id=', store_id])
+            url = ''.join([self.importer_service_url, '/service=resetstore&name=', store_name, '&id=', store_id])
             r = requests.post(url)
             if r.status_code == 200:
                 return True
