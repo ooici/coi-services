@@ -281,6 +281,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         return ret
 
 
+    def get_data_product_updates(self, data_product_id_list=None, since_timestamp="" ):
+
+        # For a list of data products, retrieve events since the given timestamp. The return is a dict
+        # of dp_id to a dict containing dataset_id, updated: boolean, current geospatial bounds, current temporal bounds.
+
+        return {}
+
 
     def activate_data_product_persistence(self, data_product_id=''):
         """Persist data product data into a data set
