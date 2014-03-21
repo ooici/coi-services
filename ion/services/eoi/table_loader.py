@@ -51,9 +51,7 @@ class ResourceParser():
         self.importer_service_available = False
         self.use_geo_services = False
 
-        if (self.resetstore is False):
-            log.debug("TableLoader:Could not load properties from pyon or pyon local...")
-        else:
+        if self.using_eoi_services:
             try:
                 self.con = psycopg2.connect(database=self.database, user=self.db_user, password=self.db_pass)
                 self.cur = self.con.cursor()
