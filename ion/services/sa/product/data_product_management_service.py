@@ -681,6 +681,21 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return provenance_image.getvalue()
 
+    def create_catalog_entry(self, data_product_id=''):
+        # Stub
+        pass
+
+    def read_catalog_entry(self, data_product_id=''):
+        # Stub
+        pass
+
+    def update_catalog_entry(self, data_product_id=''):
+        # Stub
+        pass
+
+    def delete_catalog_entry(self, data_product_id=''):
+        # Stub
+        pass
 
 
     ############################
