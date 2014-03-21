@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Control agents including external dataset.
+Control agents and related resources.
 @see https://confluence.oceanobservatories.org/display/CIDev/R2+Agent+Use+Guide
 
 Supports the following ops:
@@ -14,10 +14,18 @@ Supports the following ops:
 - recover_data: requires start and stop dates, issues reachback command for instrument agents.  Running this command
                 against other agents will get a warning.
 - set_calibration: add or replace calibration information for devices and their data products
+- clear_saved_state: clear out the saved_agent_state in EDAI resources
+- clear_status: clear out the device status
+- create_dataset: create Dataset resource and coverage, but don't activate ingestion worker
+- delete_dataset: remove Dataset resource and coverage
+- delete_all_data: remove all device related DataProduct, StreamDefinition, Dataset, resources and coverages
 
-Resource ids (uuid) can be used instead of names.
-
-start and stop date must be floating point strings representing seconds since 1900-01-01 00:00:00 (NTP64 Epoch)
+Supports the following arguments:
+- instrument, platform, device_name: name of device. Resource ids (uuid) can be used instead of names.
+- agent_name: name of agent instance. Resource ids (uuid) can be used instead of names.
+- recurse: given platform device, execute op on plaform and all child platforms and instruments
+- fail_fast: if True, exit after the first exception. Otherwise log errors only
+- recover_start, recover_end: floating point strings representing seconds since 1900-01-01 00:00:00 (NTP64 Epoch)
 
 Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF'
@@ -28,14 +36,17 @@ Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=set_calibration cfg=file.csv recurse=True
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF' op=recover_data recover_start=0.0 recover_end=1.0
     and others (see Confluence page)
+
 TODO:
 - Ability to apply to all platforms (maybe a facility/site), not just one
-- Reset agent
-- Support for instrument and platform agents
-- Force terminate agents
+- Force terminate agents and clean up
+- Identify devices in CFG files other than by ID or RD
+- Share agent definition or resource in facility
+- Change owner of resource
+- Change contact info, metadata of resource based on spreadsheet
 """
 
-__author__ = 'Michael Meisinger, Ian Katz, Bill French'
+__author__ = 'Michael Meisinger, Ian Katz, Bill French, Luke Campbell'
 
 import csv
 
@@ -58,9 +69,9 @@ class AgentControl(ImmediateProcess):
         self.rr = self.container.resource_registry
 
         self.op = self.CFG.get("op", "start")
-        if self.op not in {"start", "stop", "config_instance", "activate_persistence", "suspend_persistence",
-                           "recover_data", "set_calibration"}:
-            raise BadRequest("Operation %s unknown", self.op)
+        if not self.op or self.op.startswith("_") or not hasattr(self, self.op):
+            if self.op not in {"start", "stop", "load"}:
+                raise BadRequest("Operation %s unknown", self.op)
 
         dataset_name = self.CFG.get("dataset", None)
         device_name = self.CFG.get("device_name", None) or self.CFG.get("instrument", None) or self.CFG.get("platform", None)
@@ -68,6 +79,7 @@ class AgentControl(ImmediateProcess):
         resource_name = dataset_name or device_name or agent_name
 
         self.recurse = self.CFG.get("recurse", False)
+        self.fail_fast = self.CFG.get("fail_fast", False)
         self.cfg_mappings = {}
 
         self._recover_data_status = {'ignored': [], 'success': [], 'fail': []}
@@ -128,23 +140,35 @@ class AgentControl(ImmediateProcess):
 
             log.info("--- Executing %s on '%s' id=%s agent=%s ---", self.op, res_obj.name, resource_id, agent_instance_id)
 
-            if self.op == "start" or self.op == "load":
-                self._start_agent(agent_instance_id, resource_id)
-            elif self.op == "stop":
-                self._stop_agent(agent_instance_id, resource_id)
+            if self.op == "start" or self.op == "load" or self.op == "start_agent":
+                self.start_agent(agent_instance_id, resource_id)
+            elif self.op == "stop" or self.op == "stop_agent":
+                self.stop_agent(agent_instance_id, resource_id)
             elif self.op == "activate_persistence":
-                self._activate_persistence(agent_instance_id, resource_id)
+                self.activate_persistence(agent_instance_id, resource_id)
             elif self.op == "suspend_persistence":
-                self._suspend_persistence(agent_instance_id, resource_id)
+                self.suspend_persistence(agent_instance_id, resource_id)
             elif self.op == "config_instance":
-                self._config_instance(agent_instance_id, resource_id)
+                self.config_instance(agent_instance_id, resource_id)
+            elif self.op == "clear_saved_state":
+                self.clear_saved_state(agent_instance_id, resource_id)
+            elif self.op == "clear_status":
+                self.clear_status(agent_instance_id, resource_id)
             elif self.op == "set_calibration":
-                self._set_calibration(agent_instance_id, resource_id)
+                self.set_calibration(agent_instance_id, resource_id)
             elif self.op == "recover_data":
-                self._recover_data(agent_instance_id, resource_id)
+                self.recover_data(agent_instance_id, resource_id)
+            elif self.op == "create_dataset":
+                self.create_dataset(agent_instance_id, resource_id)
+            elif self.op == "delete_dataset":
+                self.delete_dataset(agent_instance_id, resource_id)
+            elif self.op == "delete_all_data":
+                self.delete_all_data(agent_instance_id, resource_id)
 
         except Exception:
             log.exception("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
+            if self.fail_fast:
+                raise
 
         if self.recurse:
             child_devices, _ = self.rr.find_objects(resource_id, PRED.hasDevice, id_only=False)
@@ -157,6 +181,8 @@ class AgentControl(ImmediateProcess):
                     self._execute_op(None, ch_id)
                 except Exception:
                     log.exception("Could not %s agent %s for child device %s", self.op, agent_instance_id, ch_id)
+                    if self.fail_fast:
+                        raise
 
         if self.op == "recover_data":
             self._recover_data_report()
@@ -189,7 +215,7 @@ class AgentControl(ImmediateProcess):
         log.info("Found agent instance ID: %s", aids[0])
         return aids[0]
 
-    def _start_agent(self, agent_instance_id, resource_id):
+    def start_agent(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
@@ -221,7 +247,7 @@ class AgentControl(ImmediateProcess):
 
             log.info('Agent active!')
 
-    def _stop_agent(self, agent_instance_id, resource_id):
+    def stop_agent(self, agent_instance_id, resource_id):
         res_obj = self.rr.read(resource_id)
 
         if not agent_instance_id or not resource_id:
@@ -258,7 +284,7 @@ class AgentControl(ImmediateProcess):
 
         log.info('Agent stopped!')
 
-    def _config_instance(self, agent_instance_id, resource_id):
+    def config_instance(self, agent_instance_id, resource_id):
         if not agent_instance_id:
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
@@ -297,7 +323,7 @@ class AgentControl(ImmediateProcess):
 
         self.rr.update(edai)
 
-    def _set_calibration(self, agent_instance_id, resource_id):
+    def set_calibration(self, agent_instance_id, resource_id):
         if not agent_instance_id:
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
@@ -358,7 +384,7 @@ class AgentControl(ImmediateProcess):
         publisher.close()
         log.info(" Calibration set for data product '%s' in %s coverages", dp_obj.name, len(dataset_ids))
 
-    def _activate_persistence(self, agent_instance_id, resource_id):
+    def activate_persistence(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
@@ -372,7 +398,7 @@ class AgentControl(ImmediateProcess):
             except Exception:
                 log.exception("Could not activate persistence")
 
-    def _suspend_persistence(self, agent_instance_id, resource_id):
+    def suspend_persistence(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
@@ -386,7 +412,7 @@ class AgentControl(ImmediateProcess):
             except Exception:
                 log.exception("Could not suspend persistence")
 
-    def _recover_data(self, agent_instance_id, resource_id):
+    def recover_data(self, agent_instance_id, resource_id):
         res_obj = self.rr.read(resource_id)
 
         if res_obj.type_ != RT.InstrumentDevice:
@@ -436,6 +462,86 @@ class AgentControl(ImmediateProcess):
                 print "   %s" % name
         else:
             print "    None"
+
+    def clear_status(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        from ion.processes.event.device_state import STATE_PREFIX
+        try:
+            self.container.object_store.delete_doc(STATE_PREFIX+resource_id)
+            # TODO: Maybe we only want to reset any alerts?
+            log.info("Status cleared for device %s '%s'", resource_id, res_obj.name)
+        except NotFound:
+            pass
+
+    def clear_saved_state(self, agent_instance_id, resource_id):
+        if not agent_instance_id:
+            log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
+            return
+
+        res_obj = self.rr.read(resource_id)
+        ai = self.rr.read(agent_instance_id)
+        existed = bool(ai.saved_agent_state)
+        ai.saved_agent_state = {}
+        self.rr.update(ai)
+        if existed:
+            log.info("Saved state cleared for device %s '%s'", resource_id, res_obj.name)
+
+    def create_dataset(self, agent_instance_id, resource_id):
+        # Find hasOutputProduct DataProducts
+        # Execute call to create Dataset and coverage
+        pass
+
+    def delete_dataset(self, agent_instance_id, resource_id):
+
+        res_obj = self.rr.read(resource_id)
+        dpms = DataProductManagementServiceProcessClient(process=self)
+
+        # Find data products from device id
+        count_ds = 0
+        dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
+        for dp_obj in dp_objs:
+            if dpms.is_persisted(dp_obj._id):
+                raise BadRequest("DataProduct %s '%s' is currently persisted", dp_obj._id, dp_obj.name)
+
+            ds_objs, _ = self.rr.find_objects(dp_obj._id, PRED.hasDataset, RT.Dataset, id_only=False)
+            for ds_obj in ds_objs:
+                # Delete coverage
+                # TODO: Luke, please add delete coverage code here
+
+                # Delete Dataset and associations
+                self.rr.delete(ds_obj._id)
+                count_ds += 1
+
+        log.info("Datasets and coverages deleted for device %s '%s': %s", resource_id, res_obj.name, count_ds)
+
+    def delete_all_data(self, agent_instance_id, resource_id):
+        # Delete Dataset and coverage for all original DataProducts
+        self.delete_dataset(agent_instance_id, resource_id)
+
+        res_obj = self.rr.read(resource_id)
+
+        # Find parsed data product from device id
+        count_dp, count_sd, count_st = 0, 0, 0
+        dp_objs, _ = self.rr.find_subjects(RT.DataProduct, PRED.hasSource, resource_id, id_only=False)
+        for dp_obj in dp_objs:
+            # Find and delete Stream
+            st_objs, _ = self.rr.find_objects(dp_obj._id, PRED.hasStream, RT.Stream, id_only=False)
+            for st_obj in st_objs:
+                self.rr.delete(st_obj._id)
+                count_st += 1
+
+            # Find and delete StreamDefinition
+            sd_objs, _ = self.rr.find_objects(dp_obj._id, PRED.hasStreamDefinition, RT.StreamDefinition, id_only=False)
+            for sd_obj in sd_objs:
+                self.rr.delete(sd_obj._id)
+                count_sd += 1
+
+            # Delete DataProduct
+            self.rr.delete(dp_obj._id)
+            count_dp += 1
+
+        log.info("Data resources deleted for device %s '%s': %s DataProduct, %s StreamDefinition, %s Stream",
+                 resource_id, res_obj.name, count_dp, count_sd, count_st)
 
 
 ImportDataset = AgentControl
