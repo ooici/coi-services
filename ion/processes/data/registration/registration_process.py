@@ -16,6 +16,7 @@ from xml.parsers.expat import ExpatError
 from zipfile import ZipFile
 from jinja2 import Environment, FileSystemLoader
 import lxml.etree as etree
+from pyon.util.breakpoint import debug_wrapper
 
 import base64
 import os
@@ -25,6 +26,41 @@ import StringIO
 import re
 
 class RegistrationProcess(StandaloneProcess):
+    catalog_dir_path = '/Externalization/DataCatalog/Config/catalog.xml'
+    # All of the relevant metadata in the DataProduct resource
+    # TODO: Maybe reconsider if this is the place to put this.
+    catalog_metadata = [
+            'name',
+            'comment',
+            'ooi_short_name',
+            'ooi_product_name',
+            'regime',
+            'qc_cmbnflg',
+            'qc_glblrng',
+            'qc_gradtst',
+            'qc_loclrng',
+            'qc_spketest',
+            'qc_stuckvl',
+            'qc_trndtst',
+            'dps_dcn',
+            'flow_diagram_dcn',
+            'doors_l2_requirement_num',
+            'doors_l2_requirement_text',
+            'provenance_description',
+            'citation_description',
+            'lineage_description',
+            'ioos_category',
+            'iso_spatial_representation_type',
+            'processing_level_code',
+            'ISO_spatial_representation_type',
+            'license_uri',
+            'exclusive_rights_status',
+            'exclusive_rights_end_date',
+            'exclusive_rights_notes',
+            'acknowledgement',
+            'synonyms',
+            'iso_topic_category',
+            'reference_urls']
 
     def on_start(self):
         #these values should come in from a config file, maybe pyon.yml
@@ -54,22 +90,23 @@ class RegistrationProcess(StandaloneProcess):
         if not os.path.exists(path):
             with open(path,'w') as f:
                 f.write(buff)
-        try:
-            doc = self.container.object_store.read('datasets.xml')
-        except NotFound:
+
+        doc = self.container.directory.lookup(self.catalog_dir_path)
+        if not doc:
             doc = {'xml':buff}
-            self.container.object_store.create_doc(doc, object_id='datasets.xml')
+            self.container.directory.register(*os.path.split(self.catalog_dir_path), **doc)
 
 
     def dap_entry(self, data_product_id):
-        dp = self.container.resource_registry.read(data_product_id)
-        self.create_entry(dp)
+        self.create_entry(data_product_id)
         self.touch(data_product_id)
 
     def slam(self, d, dp, k):
         v = getattr(dp, k, None)
         if v:
             d[k] = v
+
+
 
     def map_data_product(self, data_product):
         ds = {} # Catalog Dataset
@@ -79,35 +116,7 @@ class RegistrationProcess(StandaloneProcess):
         ds['title'] = data_product.name
         ds['summary'] = data_product.description or data_product.name
         ds['attrs'] = {}
-        metadata_attrs = [
-            'comment',
-            'ooi_short_name',
-            'ooi_product_name',
-            'regime',
-            'qc_cmbnflg',
-            'qc_glblrng',
-            'qc_gradtst',
-            'qc_loclrng',
-            'qc_spketest',
-            'qc_stuckvl',
-            'qc_trndtst',
-            'dps_dcn',
-            'flow_diagram_dcn',
-            'doors_l2_requirement_num',
-            'doors_l2_requirement_text',
-            'provenance_description',
-            'citation_description',
-            'lineage_description',
-            'ioos_category',
-            'iso_spatial_representation_type',
-            'processing_level_code',
-            'ISO_spatial_representation_type',
-            'license_uri',
-            'exclusive_rights_status',
-            'exclusive_rights_end_date',
-            'exclusive_rights_notes',
-            'acknowledgement'
-        ]
+        metadata_attrs = [ i for i in self.catalog_metadata if i not in ['name', 'synonyms', 'iso_topic_category', 'reference_urls'] ]
         for attr in metadata_attrs:
             self.slam(ds['attrs'], data_product, attr)
         if data_product.synonyms:
@@ -194,27 +203,47 @@ class RegistrationProcess(StandaloneProcess):
         return ds
 
     def create_entry(self, data_product_id):
+        '''
+        Create a catalog entry for a data product
+        '''
         data_product = self.resource_registry.read(data_product_id)
         ds = self.map_data_product(data_product)
 
         template = self.jenv.get_template('dataset.xml')
         entry = template.render(**ds)
-        doc = self.container.object_store.read('datasets.xml')
+        doc = self.container.directory.lookup(self.catalog_dir_path)
+        #doc = self.container.object_store.read('datasets.xml')
         root = etree.fromstring(doc['xml'])
         dataset_element = etree.fromstring(entry)
         root.append(dataset_element)
         doc['xml'] = etree.tostring(root, xml_declaration=True, encoding='utf8', pretty_print=True)
 
-        self.container.object_store.update_doc(doc)
+        self.container.directory.register(*os.path.split(self.catalog_dir_path), **doc)
         with open(self.datasets_xml_path, 'w') as f:
             f.write(doc['xml'])
 
         
     
     def read_entry(self, data_product_id):
-        pass
+        '''
+        Grab the XML entry from the current catalog
+        '''
+        # Grab the XML document in the object store
+        doc = self.container.directory.lookup(self.catalog_dir_path)
+        root = etree.fromstring(doc['xml'])
+        relevant = []
+        for ele in root:
+            if 'datasetID' in ele.attrib and ele.attrib['datasetID'] == 'data%s' % data_product_id:
+                relevant.append(ele)
+        if relevant:
+            return etree.tostring(relevant[0])
+        raise NotFound('No catalog entry for %s' % data_product_id )
+
 
     def update_entry(self, data_product_id):
+        '''
+        Update the existing catalog entries (remove then add)
+        '''
         # Make a new XML entry for this data product from a template
         data_product = self.resource_registry.read(data_product_id)
         ds = self.map_data_product(data_product)
@@ -222,7 +251,7 @@ class RegistrationProcess(StandaloneProcess):
         entry = template.render(**ds)
         dataset_element = etree.fromstring(entry)
         # Grab the XML document in the object store
-        doc = self.container.object_store.read('datasets.xml')
+        doc = self.container.directory.lookup(self.catalog_dir_path)
         root = etree.fromstring(doc['xml'])
         # Remove the existing entries that correspond to this data product
         relevant = []
@@ -230,15 +259,34 @@ class RegistrationProcess(StandaloneProcess):
             if 'datasetID' in ele.attrib and ele.attrib['datasetID'] == 'data%s' % data_product_id:
                 relevant.append(ele)
         for r in relevant:
-            root.remove(ele)
+            root.remove(r)
         root.append(dataset_element)
         doc['xml'] = etree.tostring(root, xml_declaration=True, encoding='utf8', pretty_print=True)
-        self.container.object_store.update_doc(doc)
+        self.container.directory.register(*os.path.split(self.catalog_dir_path), **doc)
         with open(self.datasets_xml_path, 'w') as f:
             f.write(doc['xml'])
 
     def delete_entry(self, data_product_id):
-        pass
+        '''
+        Delete a catalog entry
+        '''
+        # Grab the XML document from the directory
+        doc = self.container.directory.lookup(self.catalog_dir_path)
+        root = etree.fromstring(doc['xml'])
+        relevant = []
+        for ele in root:
+            if 'datasetID' in ele.attrib and ele.attrib['datasetID'] == 'data%s' % data_product_id:
+                relevant.append(ele)
+        if not relevant:
+            raise NotFound('No catalog entry for %s' % data_product_id)
+        for r in relevant:
+            root.remove(r)
+        doc['xml'] = etree.tostring(root, xml_declaration=True, encoding='utf8', pretty_print=True)
+        self.container.directory.register(*os.path.split(self.catalog_dir_path), **doc)
+        with open(self.datasets_xml_path, 'w') as f:
+            f.write(doc['xml'])
+
+
 
     def touch(self, data_product_id):
         '''Touches a file, so that pydap can catalog it'''

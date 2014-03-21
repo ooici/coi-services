@@ -23,6 +23,7 @@ from ion.processes.data.transforms.transform_worker import TransformWorker
 from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT 
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
+from pyon.core.exception import NotFound
 from pyon.event.event import EventSubscriber
 from pyon.util.file_sys import FileSystem
 from pyon.public import IonObject, RT, CFG, PRED, OT
@@ -32,6 +33,7 @@ from shutil import rmtree
 from datetime import datetime, timedelta
 from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
+import lxml.etree as etree
 import simplejson as json
 import pkg_resources
 import tempfile
@@ -1451,8 +1453,10 @@ def rotate_v(u,v,theta):
         np.testing.assert_allclose(rdt['time'], np.arange(10))
         np.testing.assert_allclose(rdt['temp'], np.arange(10))
 
-    @attr("UTIL")
+    @attr("INT")
     def test_data_product_catalog(self):
+        with self.assertRaises(NotFound):
+            self.data_product_management.read_catalog_entry('fakeid1')
         data_product_id = self.make_ctd_data_product()
         dp = self.resource_registry.read(data_product_id)
         dp.name = 'Pioneer CTDBP Imaginary TEMPWAT L1'
@@ -1475,7 +1479,23 @@ def rotate_v(u,v,theta):
         dp.provenance_description = 'Nope'
         dp.citation_description = 'Consider this a warning'
         dp.lineage_description = 'I am Connor MacLeod of the Clan MacLeod. I was born in 1518 in the village of Glenfinnan on the shores of Loch Shiel. And I am immortal.'
-        self.resource_registry.update(dp)
+        self.data_product_management.update_data_product(dp)
 
-        self.strap_erddap(data_product_id)
-        breakpoint(locals(), globals())
+        entry = self.data_product_management.read_catalog_entry(data_product_id)
+        ele = etree.fromstring(entry)
+        d = { child.attrib['name'] : child.text for child in ele.find('addAttributes') }
+
+        from ion.processes.data.registration.registration_process import RegistrationProcess
+        for required in RegistrationProcess.catalog_metadata:
+            if required in ['iso_topic_category', 'synonyms', 'reference_urls', 'name']:
+                continue
+            if getattr(dp, required):
+                self.assertEquals(d[required], getattr(dp, required))
+
+        self.make_ctd_data_product() # Make another one so we have two catalog entries
+
+        self.data_product_management.delete_catalog_entry(data_product_id)
+
+        with self.assertRaises(NotFound):
+            self.data_product_management.read_catalog_entry(data_product_id)
+
