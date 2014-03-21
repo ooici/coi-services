@@ -744,8 +744,6 @@ class TestDMExtended(DMTestCase):
         Tests Complex Coverage aggregation of array types and proper splitting of coverages
         tests pydap and the visualization
         '''
-        if not CFG.get_safe('bootstrap.use_pydap',False):
-            raise unittest.SkipTest('PyDAP is off (bootstrap.use_pydap)')
 
         data_product_id, stream_def_id = self.make_array_data_product()
 

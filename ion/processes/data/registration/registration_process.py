@@ -97,9 +97,6 @@ class RegistrationProcess(StandaloneProcess):
             self.container.directory.register(*os.path.split(self.catalog_dir_path), **doc)
 
 
-    def dap_entry(self, data_product_id):
-        self.create_entry(data_product_id)
-        self.touch(data_product_id)
 
     def slam(self, d, dp, k):
         v = getattr(dp, k, None)
@@ -222,6 +219,7 @@ class RegistrationProcess(StandaloneProcess):
         with open(self.datasets_xml_path, 'w') as f:
             f.write(doc['xml'])
 
+        self.touch(data_product_id)
         
     
     def read_entry(self, data_product_id):
@@ -295,7 +293,7 @@ class RegistrationProcess(StandaloneProcess):
             pass
 
     def register_dap_dataset(self, data_product_id):
-        return self.dap_entry(data_product_id)
+        return self.create_entry(data_product_id)
         dataset_id = self.container.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
         data_product = self.container.resource_registry.read(data_product_id)
         data_product_name = data_product.name

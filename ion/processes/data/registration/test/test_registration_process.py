@@ -40,8 +40,6 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         return dataset_id
 
     def test_pydap(self):
-        if not CFG.get_safe('bootstrap.use_pydap',False):
-            raise unittest.SkipTest('PyDAP is off (bootstrap.use_pydap)')
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         pdict_id = ph.create_extended_parsed()
 

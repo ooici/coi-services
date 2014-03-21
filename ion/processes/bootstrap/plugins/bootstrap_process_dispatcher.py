@@ -48,7 +48,7 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
 
         registration_module = config.get_safe('bootstrap.processes.registration.module', 'ion.processes.data.registration.registration_process')
         registration_class  = config.get_safe('bootstrap.processes.registration.class', 'RegistrationProcess')
-        use_pydap = config.get_safe('bootstrap.use_pydap', False)
+        use_pydap = True
 
 
         process_definition = ProcessDefinition(
