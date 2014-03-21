@@ -782,7 +782,7 @@ class TestDMExtended(DMTestCase):
 
         pydap_host = CFG.get_safe('server.pydap.host','localhost')
         pydap_port = CFG.get_safe('server.pydap.port',8001)
-        url = 'http://%s:%s/%s' %(pydap_host, pydap_port, dataset_id)
+        url = 'http://%s:%s/%s' %(pydap_host, pydap_port, data_product_id)
 
         ds = open_url(url)
 
