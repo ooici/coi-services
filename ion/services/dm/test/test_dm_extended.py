@@ -1428,3 +1428,23 @@ def rotate_v(u,v,theta):
         # but, I don't know of any pattern that ensures this.
         self.assertFalse(verified.wait(10))
 
+    @attr('UTIL')
+    def test_cov_access(self):
+        ''' What happens when we access a coverage with no ingestion? '''
+        # Create a data product
+        data_product_id = self.create_data_product('uningested', param_dict_name='ctd_parsed_param_dict')
+        # initialize the dataset but don't launch ingestion
+        self.data_product_management.create_dataset_for_data_product(data_product_id)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        # Get raw access to the coverage
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_editable_coverage(dataset_id)
+            cov.insert_timesteps(10)
+            cov.set_parameter_values('time', np.arange(10))
+            cov.set_parameter_values('temp', np.arange(10))
+
+        # Verify that what we did is in there
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_allclose(rdt['time'], np.arange(10))
+        np.testing.assert_allclose(rdt['temp'], np.arange(10))

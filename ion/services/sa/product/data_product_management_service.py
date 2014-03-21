@@ -280,7 +280,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, None, False)
         return ret
 
-
     def get_data_product_updates(self, data_product_id_list=None, since_timestamp="" ):
 
         # For a list of data products, retrieve events since the given timestamp. The return is a dict
@@ -289,12 +288,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         return {}
 
 
-    def activate_data_product_persistence(self, data_product_id=''):
-        """Persist data product data into a data set
-
-        @param data_product_id    str
-        @throws NotFound    object with specified id does not exist
-        """
+    def create_dataset_for_data_product(self, data_product_id=''):
+        '''
+        Create a dataset for a data product
+        '''
         #-----------------------------------------------------------------------------------------
         # Step 1: Collect related resources
 
@@ -351,14 +348,34 @@ class DataProductManagementService(BaseDataProductManagementService):
             child_products, _ = self.clients.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
             for child_product in child_products:
                 self.clients.dataset_management.register_dataset(data_product_id=child_product)
-            
-            log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
         else:
             dataset_id = dataset_ids[0]
+        return dataset_id
+
+
+    def activate_data_product_persistence(self, data_product_id=''):
+        """Persist data product data into a data set
+
+        @param data_product_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        #-----------------------------------------------------------------------------------------
+        # Step 1: Collect related resources
+
+        data_product_obj = self.RR2.read(data_product_id)
+
+        validate_is_not_none(data_product_obj, "The data product id should correspond to a valid registered data product.")
+        
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest('Specified DataProduct has no streams associated with it')
+        stream_id = stream_ids[0]
+
+        dataset_id = self.create_dataset_for_data_product(data_product_id)
 
 
         #-----------------------------------------------------------------------------------------
-        # Step 3: Configure and start ingestion with lookup values
+        # Step 2: Configure and start ingestion with lookup values
 
         # grab the ingestion configuration id from the data_product in order to use to persist it
         if data_product_obj.dataset_configuration_id:
