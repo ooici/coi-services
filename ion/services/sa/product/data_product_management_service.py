@@ -226,9 +226,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, None, False)
         return ret
 
-
-
-    def activate_data_product_persistence(self, data_product_id=''):
+    def create_dataset_for_data_product(self, data_product_id=''):
         """Persist data product data into a data set
 
         @param data_product_id    str
@@ -290,10 +288,30 @@ class DataProductManagementService(BaseDataProductManagementService):
             child_products, _ = self.clients.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
             for child_product in child_products:
                 self.clients.dataset_management.register_dataset(data_product_id=child_product)
-            
-            log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
         else:
             dataset_id = dataset_ids[0]
+        return dataset_id
+
+
+    def activate_data_product_persistence(self, data_product_id=''):
+        """Persist data product data into a data set
+
+        @param data_product_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        #-----------------------------------------------------------------------------------------
+        # Step 1: Collect related resources
+
+        data_product_obj = self.RR2.read(data_product_id)
+
+        validate_is_not_none(data_product_obj, "The data product id should correspond to a valid registered data product.")
+        
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest('Specified DataProduct has no streams associated with it')
+        stream_id = stream_ids[0]
+
+        dataset_id = self.create_dataset_for_data_product(data_product_id)
 
 
         #-----------------------------------------------------------------------------------------
@@ -314,7 +332,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # persist the data stream using the ingestion config id and stream id
 
         # find datasets for the data product
-        dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
+        self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
                                                 ingestion_configuration_id=ingestion_configuration_id,
                                                 dataset_id=dataset_id,
                                                 config=config)
