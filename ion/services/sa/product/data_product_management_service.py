@@ -347,10 +347,10 @@ class DataProductManagementService(BaseDataProductManagementService):
             
             # register the dataset for externalization
 
-            self.clients.dataset_management.register_dataset(data_product_id=data_product_id)
+            self.create_catalog_entry(data_product_id=data_product_id)
             child_products, _ = self.clients.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
             for child_product in child_products:
-                self.clients.dataset_management.register_dataset(data_product_id=child_product)
+                self.create_catalog_entry(data_product_id=data_product_id)
         else:
             dataset_id = dataset_ids[0]
         return dataset_id

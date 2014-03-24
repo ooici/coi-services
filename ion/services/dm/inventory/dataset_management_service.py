@@ -112,16 +112,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.clients.resource_registry.delete(dataset_id)
 
     def register_dataset(self, data_product_id=''):
-        procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
-        pid = None
-        for p in procs:
-            if 'registration_worker' in p:
-                pid = p
-        if not pid: 
-            log.warning('No registration worker found')
-            return
-        rpc_cli = RPCClient(to_name=pid)
-        rpc_cli.request({'data_product_id':data_product_id}, op='register_dap_dataset')
+        raise BadRequest("register_dataset is no longer supported, please use create_catalog_entry in data product management")
 
 #--------
 
