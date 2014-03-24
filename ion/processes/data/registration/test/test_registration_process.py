@@ -30,42 +30,6 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         self.resource_registry       = self.container.resource_registry
         
             
-    @unittest.skip('XML formatting not important now, content is already tested')
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_get_dataset_to_xml(self):
-        def init(self):
-            super(RegistrationProcess, self).__init__()
-            self.CFG = CFG
-        RegistrationProcess.__init__ = init
-        self.rp = RegistrationProcess()
-        self.rp.on_start()
-        dataset_id = self._make_dataset()
-        coverage_path = DatasetManagementService()._get_coverage_path(dataset_id)
-        cov = SimplexCoverage.load(coverage_path)
-        
-        xml_str = self.rp.get_dataset_xml(coverage_path, 'product_id', 'product_name')
-        dom = parseString(xml_str)
-        node = dom.getElementsByTagName('addAttributes')
-        
-        metadata = node[0]
-        for n in metadata.childNodes:
-            if n.nodeType != 3:
-                if n.attributes["name"].value == "title":
-                    self.assertIn('product_name', n.childNodes[0].nodeValue)
-                if n.attributes["name"].value == "institution":
-                    self.assertIn('OOI', n.childNodes[0].nodeValue)
-                if n.attributes["name"].value == "infoUrl":
-                    self.assertIn(self.rp.pydap_url+cov.name, n.childNodes[0].nodeValue)
-        parameters = []
-        node = dom.getElementsByTagName('sourceName')
-        for n in node:
-            if n.nodeType != 3:
-                parameters.append(str(n.childNodes[0].nodeValue))
-        cov_params = [key for key in cov.list_parameters()]
-        for p in parameters:
-            self.assertIn(p, cov_params)
-        cov.close()
 
     def _make_dataset(self):
         tdom, sdom = time_series_domain()
@@ -76,8 +40,6 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         return dataset_id
 
     def test_pydap(self):
-        if not CFG.get_safe('bootstrap.use_pydap',False):
-            raise unittest.SkipTest('PyDAP is off (bootstrap.use_pydap)')
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         pdict_id = ph.create_extended_parsed()
 
@@ -110,7 +72,7 @@ class RegistrationProcessTest(IonIntegrationTestCase):
 
         pydap_host = CFG.get_safe('server.pydap.host','localhost')
         pydap_port = CFG.get_safe('server.pydap.port',8001)
-        url = 'http://%s:%s/%s' %(pydap_host, pydap_port, dataset_id)
+        url = 'http://%s:%s/%s' %(pydap_host, pydap_port, data_product_id)
 
         for i in xrange(3): # Do it three times to test that the cache doesn't corrupt the requests/responses
             ds = open_url(url)

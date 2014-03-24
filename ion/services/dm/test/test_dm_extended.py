@@ -23,6 +23,7 @@ from ion.processes.data.transforms.transform_worker import TransformWorker
 from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT 
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
+from pyon.core.exception import NotFound
 from pyon.event.event import EventSubscriber
 from pyon.util.file_sys import FileSystem
 from pyon.public import IonObject, RT, CFG, PRED, OT
@@ -30,6 +31,9 @@ from pyon.util.containers import DotDict
 from pydap.client import open_url
 from shutil import rmtree
 from datetime import datetime, timedelta
+from pyon.net.endpoint import RPCClient
+from pyon.util.log import log
+import lxml.etree as etree
 import simplejson as json
 import pkg_resources
 import tempfile
@@ -740,8 +744,6 @@ class TestDMExtended(DMTestCase):
         Tests Complex Coverage aggregation of array types and proper splitting of coverages
         tests pydap and the visualization
         '''
-        if not CFG.get_safe('bootstrap.use_pydap',False):
-            raise unittest.SkipTest('PyDAP is off (bootstrap.use_pydap)')
 
         data_product_id, stream_def_id = self.make_array_data_product()
 
@@ -780,7 +782,7 @@ class TestDMExtended(DMTestCase):
 
         pydap_host = CFG.get_safe('server.pydap.host','localhost')
         pydap_port = CFG.get_safe('server.pydap.port',8001)
-        url = 'http://%s:%s/%s' %(pydap_host, pydap_port, dataset_id)
+        url = 'http://%s:%s/%s' %(pydap_host, pydap_port, data_product_id)
 
         ds = open_url(url)
 
@@ -1448,3 +1450,50 @@ def rotate_v(u,v,theta):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_allclose(rdt['time'], np.arange(10))
         np.testing.assert_allclose(rdt['temp'], np.arange(10))
+
+    @attr("INT")
+    def test_data_product_catalog(self):
+        with self.assertRaises(NotFound):
+            self.data_product_management.read_catalog_entry('fakeid1')
+        data_product_id = self.make_ctd_data_product()
+        dp = self.resource_registry.read(data_product_id)
+        dp.name = 'Pioneer CTDBP Imaginary TEMPWAT L1'
+        dp.comment = 'An imaginary dataset'
+        dp.ooi_short_name = 'TEMPWAT'
+        dp.ooi_product_name = 'TEMPWAT'
+        dp.regime = 'Surface Water'
+        dp.qc_glblrng = 'applicable'
+        dp.flow_diagram_dcn = '1342-00010'
+        dp.dps_dcn = '1341-00010'
+        dp.synonyms = ['sst', 'sea-surface-temperature', 'sea_surface_temperature']
+        dp.acknowledgement = "To someone's darling wife?"
+        dp.iso_topic_category = ['isocat1', 'isocat2']
+        dp.ioos_category = 'temperature'
+        dp.iso_spatial_representation_type = 'timeSeries'
+        dp.processing_level_code = "L1"
+        dp.license_uri = "http://lmgtfy.com/?q=Open+Source"
+        dp.exclusive_rights_status = 'THERE CAN BE ONLY ONE!'
+        dp.reference_urls = ['https://confluence.oceanobservatories.org/display/instruments/TEMPWAT', 'https://confluence.oceanobservatories.org/display/instruments/CTDBP']
+        dp.provenance_description = 'Nope'
+        dp.citation_description = 'Consider this a warning'
+        dp.lineage_description = 'I am Connor MacLeod of the Clan MacLeod. I was born in 1518 in the village of Glenfinnan on the shores of Loch Shiel. And I am immortal.'
+        self.data_product_management.update_data_product(dp)
+
+        entry = self.data_product_management.read_catalog_entry(data_product_id)
+        ele = etree.fromstring(entry)
+        d = { child.attrib['name'] : child.text for child in ele.find('addAttributes') }
+
+        from ion.processes.data.registration.registration_process import RegistrationProcess
+        for required in RegistrationProcess.catalog_metadata:
+            if required in ['iso_topic_category', 'synonyms', 'reference_urls', 'name']:
+                continue
+            if getattr(dp, required):
+                self.assertEquals(d[required], getattr(dp, required))
+
+        self.make_ctd_data_product() # Make another one so we have two catalog entries
+
+        self.data_product_management.delete_catalog_entry(data_product_id)
+
+        with self.assertRaises(NotFound):
+            self.data_product_management.read_catalog_entry(data_product_id)
+

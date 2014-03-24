@@ -11,6 +11,7 @@ from pyon.util.ion_time import IonTime
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.event.event import EventPublisher
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false, validate_true
+from pyon.net.endpoint import RPCClient
 
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
@@ -38,17 +39,7 @@ from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OP
 from pyon.core.exception import Inconsistent
 
 import functools
-def debug_wrapper(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except:
-            from traceback import print_exc
-            print_exc()
-            raise
-    return wrapper
-
+from pyon.util.breakpoint import debug_wrapper
 
 
 class DataProductManagementService(BaseDataProductManagementService):
@@ -86,7 +77,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             for dataset_id in dataset_ids:
                 self.assign_dataset_to_data_product(data_product_id, dataset_id)
             if dataset_ids:
-                self.clients.dataset_management.register_dataset(data_product_id=data_product_id)
+                self.create_catalog_entry(data_product_id)
 
       # Return the id of the new data product
         return data_product_id
@@ -227,9 +218,21 @@ class DataProductManagementService(BaseDataProductManagementService):
         if data_product and data_product.type_ == RT.DataProduct:
             data_product.geospatial_point_center = GeoUtils.calc_geospatial_point_center(data_product.geospatial_bounds)
 
-        self.RR2.update(data_product, RT.DataProduct)
+        original = self.RR2.read(data_product._id)
 
-        #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
+        self.RR2.update(data_product, RT.DataProduct)
+        if self._metadata_changed(original, data_product):
+            self.update_catalog_entry(data_product._id)
+
+    def _metadata_changed(self, original_dp, new_dp):
+        from ion.processes.data.registration.registration_process import RegistrationProcess
+        for field in RegistrationProcess.catalog_metadata:
+            if hasattr(original_dp, field) and getattr(original_dp, field) != getattr(new_dp, field):
+                return True
+        return False
+
+
+
 
     def delete_data_product(self, data_product_id=''):
 
@@ -705,21 +708,33 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return provenance_image.getvalue()
 
+    def _registration_rpc(self, op, data_product_id):
+        procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
+        pid = None
+        for p in procs:
+            if 'registration_worker' in p:
+                pid = p
+        if not pid: 
+            log.warning('No registration worker found')
+            return
+        rpc_cli = RPCClient(to_name=pid)
+        return rpc_cli.request({'data_product_id':data_product_id}, op=op)
+
     def create_catalog_entry(self, data_product_id=''):
         # Stub
-        pass
+        return self._registration_rpc('create_entry',data_product_id) 
 
     def read_catalog_entry(self, data_product_id=''):
         # Stub
-        pass
+        return self._registration_rpc('read_entry', data_product_id)
 
     def update_catalog_entry(self, data_product_id=''):
         # Stub
-        pass
+        return self._registration_rpc('update_entry', data_product_id)
 
     def delete_catalog_entry(self, data_product_id=''):
         # Stub
-        pass
+        return self._registration_rpc('delete_entry', data_product_id)
 
 
     ############################

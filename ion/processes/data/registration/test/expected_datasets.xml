@@ -1,0 +1,44 @@
+<?xml version="1.0" ?>
+<erddapDatasets>
+    <requestBlacklist/>
+    <dataset active="True" datasetID="abc123" type="EDDTableFromDapSequence">
+        <sourceUrl>http://www.google.com/</sourceUrl>
+        <reloadEveryNMinutes>1440</reloadEveryNMinutes>
+        <outerSequenceName>data</outerSequenceName>
+        <defaultDataQuery>&amp;amp;time&amp;gt;=1970-01-01</defaultDataQuery>
+        <addAttributes>
+            <att name="infoUrl">http://www.google.com/</att>
+            <att name="license">These data were collected by the Ocean Observatory Initiative (OOI) project purely for internal system development purposes during the construction phase of the project and are offered for release to the public with no assurance of data quality, consistency, temporal continuity or additional support. The OOI Program assumes no liability resulting from the use of these data for other than the intended purpose. No data quality assurance steps have been implemented on this data to date.</att>
+            <att name="title">sample dataset</att>
+            <att name="standard_name_vocabulary">CF-12</att>
+            <att name="Conventions">COARDS, CF-1.6, Unidata Dataset Discovery v1.0</att>
+            <att name="cdm_data_type">Other</att>
+            <att name="summary">Sample Dataset</att>
+            <att name="institution">OOI</att>
+        </addAttributes>
+        <dataVariable>
+            <sourceName>time</sourceName>
+            <destinationName>time</destinationName>
+            <addAttributes>
+                <att name="ioos_category">Time</att>
+                <att name="ooi_short_name">time</att>
+                <att name="data_product_level">axis</att>
+                <att name="long_name">Time</att>
+                <att name="standard_name">time</att>
+                <att name="units">seconds since 1900-01-01</att>
+                <att name="time_precision">blah</att>
+            </addAttributes>
+        </dataVariable>
+        <dataVariable>
+            <sourceName>temperature</sourceName>
+            <destinationName>temperature</destinationName>
+            <addAttributes>
+                <att name="units">deg_C</att>
+                <att name="ioos_category">Temperature</att>
+                <att name="standard_name">temperature</att>
+                <att name="function_name">linear_corr</att>
+                <att name="long_name">Temperature Corrected</att>
+            </addAttributes>
+        </dataVariable>
+    </dataset>
+</erddapDatasets>

@@ -67,6 +67,7 @@ class DMTestCase(IonIntegrationTestCase):
         self.workflow_management = WorkflowManagementServiceClient()
         self.visualization = VisualizationServiceClient()
         self.ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        self.ctd_count = 0
 
     def create_stream_definition(self, *args, **kwargs):
         stream_def_id = self.pubsub_management.create_stream_definition(*args, **kwargs)
@@ -106,9 +107,10 @@ class DMTestCase(IonIntegrationTestCase):
     
     def make_ctd_data_product(self):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
-        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
-        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
+        stream_def_id = self.create_stream_definition('ctd %d' % self.ctd_count, parameter_dictionary_id=pdict_id)
+        data_product_id = self.create_data_product('ctd %d' % self.ctd_count, stream_def_id=stream_def_id)
         self.activate_data_product(data_product_id)
+        self.ctd_count += 1
         return data_product_id
     
     def preload_ui(self):
