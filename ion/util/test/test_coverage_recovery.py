@@ -188,6 +188,7 @@ class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
         gevent.sleep(1)
 
     @attr('LOCOINT')
+    @unittest.skip('Coverage metadata is now stored in Postgres.  Recovery may no longer make sense.')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     @unittest.skipIf(not_have_h5stat, 'h5stat is not accessible in current PATH')
     @unittest.skipIf(not not_have_h5stat and not h5stat_correct_version, 'HDF is the incorrect version: %s' % version_str)
