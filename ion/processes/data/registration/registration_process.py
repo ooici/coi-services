@@ -3,6 +3,7 @@ from pyon.ion.process import StandaloneProcess
 from pyon.util.file_sys import FileSystem
 from pyon.util.log import log
 from pyon.public import PRED
+from pyon.core.object import walk
 from interface.objects import ParameterFunctionType as PFT
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
@@ -105,6 +106,14 @@ class RegistrationProcess(StandaloneProcess):
 
 
 
+    @classmethod
+    def xml_escape(cls, s):
+        if isinstance(s, basestring):
+            s = s.replace('&', '&amp;')
+            s = s.replace('<', '&lt;')
+            s = s.replace('>', '&gt;')
+        return s
+
     def map_data_product(self, data_product):
         ds = {} # Catalog Dataset
         ds['dataset_id'] = 'data' + data_product._id
@@ -197,6 +206,7 @@ class RegistrationProcess(StandaloneProcess):
                     attrs[k] = v
             ds['vars'].append(var)
 
+        ds = walk(ds, self.xml_escape)
         return ds
 
     def create_entry(self, data_product_id):
