@@ -1497,3 +1497,12 @@ def rotate_v(u,v,theta):
         with self.assertRaises(NotFound):
             self.data_product_management.read_catalog_entry(data_product_id)
 
+    @attr("INT")
+    def test_bad_xml(self):
+        with self.assertRaises(NotFound):
+            self.data_product_management.read_catalog_entry('fakeid1')
+        data_product_id = self.make_ctd_data_product()
+        dp = self.resource_registry.read(data_product_id)
+        dp.name = 'Pioneer CTDBP <Imaginary> & TEMPWAT L1'
+        self.data_product_management.update_data_product(dp)
+        
