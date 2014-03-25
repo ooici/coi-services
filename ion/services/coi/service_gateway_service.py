@@ -904,8 +904,6 @@ def resolve_org_negotiation():
     except Exception, e:
         return build_error_response(e)
 
-
-@service_gateway_app.route('/ion-service/upload/data/<dataproduct_id>', methods=['POST'])
 def upload_data(dataproduct_id):
     upload_folder = '/tmp/uploads'
     try:
@@ -924,7 +922,7 @@ def upload_data(dataproduct_id):
         filetype = _check_magic(upload)
         upload.seek(0) # return to beginning for save
 
-        if upload and filetype is not None:            
+        if upload and filetype is not None:
 
             # upload file - run filename through werkzeug.secure_filename
             filename = secure_filename(upload.filename)
@@ -935,13 +933,14 @@ def upload_data(dataproduct_id):
             # register upload
             file_upload_context = FileUploadContext(
                 # TODO add dataproduct_id
-                name='File Upload %s' % filename,
+                name='User uploaded file %s' % filename,
                 filename=filename,
                 filetype=filetype,
                 path=path,
-                upload_time=upload_time
+                upload_time=upload_time,
+                status='File uploaded to server'
             )
-            context_id, _ = rr_client.create(file_upload_context)
+            fuc_id, _ = rr_client.create(file_upload_context)
 
             # client to process dispatch
             #pd_client = BaseProcessDispatcherService(node=Container.instance.node, process=service_gateway_instance)
@@ -962,15 +961,13 @@ def upload_data(dataproduct_id):
             log.info(process_id)
             #schedule process
             config = DotDict()
-            config.process.fu_id = context_id
+            config.process.fuc_id = fuc_id
             config.process.dp_id = dataproduct_id
             log.info(config)
             pid = pd_client.schedule_process(process_definition_id, process_id=process_id, configuration=config)
-            log.info(pid)
-            print process_id
-
+            log.info('UploadDataProcessing process created %s' % pid)
             # response - only FileUploadContext ID and determined filetype for UX display
-            resp = {'context_id': context_id, 'filetype' : filetype}
+            resp = {'fuc_id': fuc_id}
             return gateway_json_response(resp)
 
         raise BadRequest('Invalid Upload')
@@ -978,21 +975,19 @@ def upload_data(dataproduct_id):
     except Exception as e:
         return build_error_response(e)
 
-@service_gateway_app.route('/ion-service/upload/<context_id>', methods=['GET'])
-def upload_status(context_id):
+@service_gateway_app.route('/ion-service/upload/<fuc_id>', methods=['GET'])
+def upload_status(fuc_id):
     try:
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        context = rr_client.read(str(context_id))
-        return gateway_json_response(context)
+        file_upload_context = rr_client.read(str(fuc_id))
+        return gateway_json_response(file_upload_context)
     except Exception as e:
         return build_error_response(e)
 
 def _check_magic(f):
-
     '''
     determines file type from leading bytes
     '''
-
     # CDF
     f.seek(0)
     CDF = f.read(3)
@@ -1003,7 +998,6 @@ def _check_magic(f):
         elif VERSION_BYTE == 2:
             return 'NetCDF 64-bit'
         return None
-    
     # HDF
     HDF_MAGIC = b"\x89HDF\r\n\x1a\n"
     f.seek(0)

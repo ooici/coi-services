@@ -37,10 +37,9 @@ class UploadDataProcessing(ImmediateProcess):
     def on_start(self):
 
         ImmediateProcess.on_start(self)
-        log.info("BM_on_start")
 
         # necessary arguments, passed in via configuration kwarg to schedule_process. process namespace to avoid collisions
-        fu_id = self.CFG.get_safe('process.fu_id',None) # FileUploadContext ID
+        fuc_id = self.CFG.get_safe('process.fuc_id',None) # FileUploadContext ID
         dp_id = self.CFG.get_safe('process.dp_id',None) # DataProduct ID
 
         # clients we'll need
@@ -49,8 +48,8 @@ class UploadDataProcessing(ImmediateProcess):
         data_product_management = DataProductManagementServiceClient()
 
         # get the FileUploadContext containing details of the uploaded file
-        fu = resource_registry.read(fu_id)
-        log.info(fu)
+        fuc = resource_registry.read(fuc_id)
+        log.info(fuc)
 
         # get the ParameterContexts associated with this DataProduct
         sd_id = resource_registry.find_objects(dp_id, PRED.hasStreamDefinition, id_only=True)[0][0] # TODO loop
@@ -58,7 +57,7 @@ class UploadDataProcessing(ImmediateProcess):
         pc_list, _ = resource_registry.find_objects(pd_id, PRED.hasParameterContext, id_only=False) # parameter contexts
 
         # NetCDF file open here
-        nc_filename = fu.path
+        nc_filename = fuc.path
         if nc_filename is None:
             raise BadRequest("uploaded file has no path")
         log.info(nc_filename)
@@ -70,22 +69,21 @@ class UploadDataProcessing(ImmediateProcess):
             for v in nc.variables:
                 variable = nc.variables[v]
                 nc_name = str(v) # name of variable should be the same as what was downloaded, we'll append the c here
-# commenting since need to add to test file
-#                # check for REQUIRED attributes
-#                author = variable.get('author', None)
-#                reason = variable.get('reason', None)
-#                if not all([author,reason]):
-#                    log.info('skipping parameter %s - no author or reason' % nc_name)
-#                    continue
+                # check for REQUIRED attributes
+                author = getattr(variable, 'author', None)
+                reason = getattr(variable, 'reason', None)
+                if not all([author,reason]):
+                    log.info('skipping parameter %s - no author or reason' % nc_name)
+                    continue
                 # get all ParameterContexts (from pc_list) with this 'name' (should be one at the moment)
-                pc_list = [c for c in pc_list if c.name == nc_name]
+                pc_matches_nc_name_list = [c for c in pc_list if c.name == nc_name]
                 # is variable already present?
-                if len(pc_list) < 1:
+                if len(pc_matches_nc_name_list) < 1:
                     log.info('skipping parameter %s - not found in ParameterContexts associated with DataProduct' % nc_name)
                     continue
 
                 # we are using this ParameterContext as a copy
-                pc = pc_list[0] # TODO should only have 1 context per 'name' but could be checked for completeness
+                pc = pc_matches_nc_name_list[0] # TODO should only have 1 context per 'name' but could be checked for completeness
                 # only allow L1/L2 paramters (check against ooi_short_name which should end with this)
                 m = re.compile('(_L[12])$').search(pc.ooi_short_name.upper()) # capture L1/L2 for use in new name
                 if not m: # if not _L1 or _L2 move on
@@ -93,16 +91,16 @@ class UploadDataProcessing(ImmediateProcess):
                     continue
                 processing_level = m.group(1)
                 # remove attributes we should not copy [_id,_rev,ts_created,ts_updated]
-                pc.pop("_id", None)
-                pc.pop("_rev", None)
-                pc.pop("ts_created", None)
-                pc.pop("ts_updated", None)
+                delattr(pc, '_id')
+                delattr(pc, '_rev')
+                delattr(pc, 'ts_created')
+                delattr(pc, 'ts_updated')
                 # append L[12]c to name attribute (new parameter name)
                 c_name = ''.join([pc['name'],processing_level,'c'])
                 pc['name'] = c_name
                 # copy attributes from NetCDF file
                 pc['units'] = variable.units
-                pc['value_encoding'] = variable.dtype
+                pc['value_encoding'] = str(variable.dtype)
                 #TODO ERDAP files don't have fill_value, but should probably get from there, leaving copy for now
                 # create ParameterContext
                 pc_id = dataset_management.create_parameter(pc)
@@ -120,9 +118,12 @@ class UploadDataProcessing(ImmediateProcess):
                             cov_time = cov._range_value['time'][:]
                             # subset nc_time (only where nc_time matches cov_time)
                             nc_indicies = [i for i,x in enumerate(nc_time) if x in cov_time]
-                            subset_nc_time = nc_time[nc_indicies]
+                            subset_nc_time = nc_time[nc_indicies] + 2208988800 # TODO REMOVE THIS? ERDAP 1970 vs NTP 1900
                             # don't forget to subset the data too
                             subset_nc_data = [nc_data[i] for i in nc_indicies]
                             # use indicies of where subset_nc_time exists in cov_time to update coverage
-                            cov_indicies = np.flatnonzero(np.in1d(cov_time, subset_nc_time)) # returns [] of indicies
-                            cov._range_value[c_name][cov_indicies] = subset_nc_data
+                            cov_indicies = np.flatnonzero(np.in1d(cov_time, subset_nc_time)) # returns numpy.ndarray of indicies
+                            cov_indicies = list(cov_indicies) # converts to list for coverage
+                            #cov._range_value[c_name][cov_indicies] = subset_nc_data # TODO this should eventually work
+                            for i,x in enumerate(cov_indicies):
+                                cov._range_value[c_name][x] = subset_nc_data[i]
