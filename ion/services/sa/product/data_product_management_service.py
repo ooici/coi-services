@@ -27,6 +27,9 @@ from coverage_model import QuantityType, ParameterContext, ParameterDictionary, 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
+from pyon.datastore.datastore import DataStore
+from pyon.datastore.datastore_query import DatastoreQueryBuilder, DQ
+
 from lxml import etree
 from datetime import datetime
 
@@ -288,7 +291,63 @@ class DataProductManagementService(BaseDataProductManagementService):
         # For a list of data products, retrieve events since the given timestamp. The return is a dict
         # of dp_id to a dict containing dataset_id, updated: boolean, current geospatial bounds, current temporal bounds.
 
-        return {}
+        event_objs = None
+        response_data = {}
+
+        # get the passed parameters. At least the data product id and start_time
+        # should be specified
+        if data_product_id_list == None or len(data_product_id_list) == 0:
+            raise  BadRequest("Please pass a valid data_product_id")
+
+        # Build query structure for fetching events for the data products passed
+        try:
+            dqb = DatastoreQueryBuilder(datastore=DataStore.DS_EVENTS, profile=DataStore.DS_PROFILE.EVENTS)
+
+            filter_origins = dqb.in_(DQ.EA_ORIGIN, *data_product_id_list)
+            filter_types = dqb.in_(DQ.ATT_TYPE, "ResourceModifiedEvent")
+            filter_mindate = dqb.gte(DQ.RA_TS_CREATED, since_timestamp)
+            where = dqb.and_(filter_origins, filter_types, filter_mindate)
+
+            order_by = dqb.order_by([["ts_created", "desc"]])  # Descending order by time
+            dqb.build_query(where=where, order_by=order_by, limit=10, skip=0, id_only=False)
+            query = dqb.get_query()
+
+            event_objs = self.container.event_repository.event_store.find_by_query(query)
+
+        except:
+            log.warning("Could not find events for specified data products")
+            event_objs = []
+
+        # Start populating the response structure
+        for data_product_id in data_product_id_list:
+            response_data[data_product_id] = {"dataset_id" : None,
+                                              "updated" : False,
+                                              "current_geospatial_bounds" : None,
+                                              "current_temporal_bounds" : None}
+
+            # Need dataset id in response data
+            ds_ids,_ = self.clients.resource_registry.find_objects(subject=data_product_id,
+                predicate=PRED.hasDataset,
+                id_only=True)
+            if (ds_ids and len(ds_ids) > 0):
+                response_data[data_product_id]["dataset_id"] = ds_ids[0]
+
+            # if we find any UPDATE event for this data_product_id. This type of dumb iteration
+            # is slow but since the returned events for all data_product_ids in the list are returned
+            # as one big list, there is no way to narrow down the search for UPDATE events
+            for event_obj in event_objs:
+                if event_obj.origin == data_product_id and event_obj.sub_type == "UPDATE":
+                    response_data[data_product_id]["updated"] = True
+                    continue
+
+            # Get information about the current geospatial and temporal bounds
+            dp_obj = self.clients.resource_registry.read(data_product_id)
+            if dp_obj:
+                response_data[data_product_id]["current_geospatial_bounds"] = dp_obj.geospatial_bounds
+                response_data[data_product_id]["current_temporal_bounds"] = dp_obj.nominal_datetime
+
+
+        return response_data
 
 
     def create_dataset_for_data_product(self, data_product_id=''):
