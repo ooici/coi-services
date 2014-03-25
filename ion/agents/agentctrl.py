@@ -62,6 +62,10 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+import os
+import shutil
+
 
 class AgentControl(ImmediateProcess):
     def on_start(self):
@@ -506,7 +510,13 @@ class AgentControl(ImmediateProcess):
             ds_objs, _ = self.rr.find_objects(dp_obj._id, PRED.hasDataset, RT.Dataset, id_only=False)
             for ds_obj in ds_objs:
                 # Delete coverage
-                # TODO: Luke, please add delete coverage code here
+                cov_path = DatasetManagementService._get_coverage_path(ds_obj._id)
+                if os.path.exists(cov_path):
+                    log.info("Removing coverage tree at %s", cov_path)
+                    shutil.rmtree(cov_path)
+                else:
+                    raise OSError("Coverage path does not exist %s" % cov_path)
+
 
                 # Delete Dataset and associations
                 self.rr.delete(ds_obj._id)
