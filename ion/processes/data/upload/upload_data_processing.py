@@ -44,12 +44,12 @@ class UploadDataProcessing(ImmediateProcess):
 
         # clients we'll need
         resource_registry = self.container.resource_registry
+        object_store = self.container.object_store
         dataset_management =  DatasetManagementServiceClient()
         data_product_management = DataProductManagementServiceClient()
 
-        # get the FileUploadContext containing details of the uploaded file
-        fuc = resource_registry.read(fuc_id)
-        log.info(fuc)
+        # get the Object (dict) containing details of the uploaded file
+        fuc = object_store.read(fuc_id)
 
         # get the ParameterContexts associated with this DataProduct
         sd_id = resource_registry.find_objects(dp_id, PRED.hasStreamDefinition, id_only=True)[0][0] # TODO loop
@@ -57,11 +57,11 @@ class UploadDataProcessing(ImmediateProcess):
         pc_list, _ = resource_registry.find_objects(pd_id, PRED.hasParameterContext, id_only=False) # parameter contexts
 
         # NetCDF file open here
-        nc_filename = fuc.path
+        nc_filename = fuc.get('path', None)
         if nc_filename is None:
             raise BadRequest("uploaded file has no path")
-        log.info(nc_filename)
 
+        # keep track of the number of fields we actually process
         nfields = 0
 
         with netCDF4.Dataset(nc_filename,'r') as nc:
@@ -132,5 +132,5 @@ class UploadDataProcessing(ImmediateProcess):
 
                 nfields = nfields + 1
 
-        fuc.status = 'UploadDataProcessing process complete - %d fields created/updated' % nfields
-        resource_registry.update(fuc)
+        fuc['status'] = 'UploadDataProcessing process complete - %d fields created/updated' % nfields
+        self.container.object_store.update_doc(fuc)

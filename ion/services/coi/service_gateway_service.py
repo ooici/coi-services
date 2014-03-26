@@ -18,6 +18,7 @@ from pyon.core.registry import getextends, is_ion_object_dict, issubtype
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
 from pyon.core.governance.negotiation import Negotiation
 from pyon.event.event import EventSubscriber, EventPublisher
+from pyon.ion.objstore import ObjectStore
 from pyon.ion.resource import get_object_schema
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -910,6 +911,7 @@ def upload_data(dataproduct_id):
     try:
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        object_store = ObjectStore()
 
         try:
             rr_client.read(str(dataproduct_id))
@@ -932,19 +934,18 @@ def upload_data(dataproduct_id):
             upload.save(path)
 
             # register upload
-            file_upload_context = FileUploadContext(
+            file_upload_context = {
                 # TODO add dataproduct_id
-                name='User uploaded file %s' % filename,
-                filename=filename,
-                filetype=filetype,
-                path=path,
-                upload_time=upload_time,
-                status='File uploaded to server'
-            )
-            fuc_id, _ = rr_client.create(file_upload_context)
+                'name':'User uploaded file %s' % filename,
+                'filename':filename,
+                'filetype':filetype,
+                'path':path,
+                'upload_time':upload_time,
+                'status':'File uploaded to server'
+            }
+            fuc_id, _ = object_store.create_doc(file_upload_context)
 
             # client to process dispatch
-            #pd_client = BaseProcessDispatcherService(node=Container.instance.node, process=service_gateway_instance)
             pd_client = ProcessDispatcherServiceClient()
 
             # create process definition
@@ -956,15 +957,12 @@ def upload_data(dataproduct_id):
                 }
             )
             process_definition_id = pd_client.create_process_definition(process_definition)
-            log.info(process_definition_id)
             # create process
             process_id = pd_client.create_process(process_definition_id)
-            log.info(process_id)
             #schedule process
             config = DotDict()
             config.process.fuc_id = fuc_id
             config.process.dp_id = dataproduct_id
-            log.info(config)
             pid = pd_client.schedule_process(process_definition_id, process_id=process_id, configuration=config)
             log.info('UploadDataProcessing process created %s' % pid)
             # response - only FileUploadContext ID and determined filetype for UX display
@@ -979,9 +977,9 @@ def upload_data(dataproduct_id):
 @service_gateway_app.route('/ion-service/upload/<fuc_id>', methods=['GET'])
 def upload_status(fuc_id):
     try:
-        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        file_upload_context = rr_client.read(str(fuc_id))
-        return gateway_json_response(file_upload_context)
+        object_store = ObjectStore()
+        fuc = object_store.read(str(fuc_id))
+        return gateway_json_response(fuc)
     except Exception as e:
         return build_error_response(e)
 
