@@ -904,6 +904,7 @@ def resolve_org_negotiation():
     except Exception, e:
         return build_error_response(e)
 
+@service_gateway_app.route('/ion-service/upload/data/<dataproduct_id>', methods=['POST'])
 def upload_data(dataproduct_id):
     upload_folder = '/tmp/uploads'
     try:

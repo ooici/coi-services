@@ -62,6 +62,8 @@ class UploadDataProcessing(ImmediateProcess):
             raise BadRequest("uploaded file has no path")
         log.info(nc_filename)
 
+        nfields = 0
+
         with netCDF4.Dataset(nc_filename,'r') as nc:
 
             nc_time = nc.variables['time'][:] # don't modify nc_time below, read once use many times
@@ -127,3 +129,8 @@ class UploadDataProcessing(ImmediateProcess):
                             #cov._range_value[c_name][cov_indicies] = subset_nc_data # TODO this should eventually work
                             for i,x in enumerate(cov_indicies):
                                 cov._range_value[c_name][x] = subset_nc_data[i]
+
+                nfields = nfields + 1
+
+        fuc.status = 'UploadDataProcessing process complete - %d fields created/updated' % nfields
+        resource_registry.update(fuc)
