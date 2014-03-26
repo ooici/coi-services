@@ -34,7 +34,7 @@ from pyon.util.containers import current_time_millis, DotDict
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
-from interface.objects import Attachment, FileUploadContext, ProcessDefinition
+from interface.objects import Attachment, ProcessDefinition
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
 
 #Initialize the flask app
