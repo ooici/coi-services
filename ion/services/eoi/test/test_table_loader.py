@@ -40,9 +40,9 @@ class DatasetLoadTest(IonIntegrationTestCase):
 
         self.username = CFG.get_safe('eoi.geoserver.user_name', 'admin')
         self.PASSWORD = CFG.get_safe('eoi.geoserver.password', 'geoserver')
-        GS_HOST = CFG.get_safe('eoi.geoserver.server', 'http://localhost:8080')
-        self.gs_rest_url = ''.join([GS_HOST, '/geoserver/rest'])
-        self.gs_ows_url = ''.join([GS_HOST, '/geoserver/ows'])
+        self.gs_host = CFG.get_safe('eoi.geoserver.server', 'http://localhost:8080')
+        self.gs_rest_url = ''.join([self.gs_host, '/geoserver/rest'])
+        self.gs_ows_url = ''.join([self.gs_host, '/geoserver/ows'])
         IMPORTER_SERVICE_SERVER = CFG.get_safe('eoi.importer_service.server', 'http://localhost')
         IMPORTER_SERVICE_PORT = str(CFG.get_safe('eoi.importer_service.port', 8844))
         self.importer_service_url = ''.join([IMPORTER_SERVICE_SERVER, ':', IMPORTER_SERVICE_PORT])
@@ -104,9 +104,9 @@ class ServiceTests(IonIntegrationTestCase):
 
         self.username = CFG.get_safe('eoi.geoserver.user_name', 'admin')
         self.PASSWORD = CFG.get_safe('eoi.geoserver.password', 'geoserver')
-        GS_HOST = CFG.get_safe('eoi.geoserver.server', 'http://localhost:8080')
-        self.gs_rest_url = ''.join([GS_HOST, '/geoserver/rest'])
-        self.gs_ows_url = ''.join([GS_HOST, '/geoserver/ows'])
+        self.gs_host = CFG.get_safe('eoi.geoserver.server', 'http://localhost:8080')
+        self.gs_rest_url = ''.join([self.gs_host, '/geoserver/rest'])
+        self.gs_ows_url = ''.join([self.gs_host, '/geoserver/ows'])
         IMPORTER_SERVICE_SERVER = CFG.get_safe('eoi.importer_service.server', 'http://localhost')
         IMPORTER_SERVICE_PORT = str(CFG.get_safe('eoi.importer_service.port', 8844))
         self.importer_service_url = ''.join([IMPORTER_SERVICE_SERVER, ':', IMPORTER_SERVICE_PORT])
@@ -214,7 +214,7 @@ class ServiceTests(IonIntegrationTestCase):
     @unittest.skipIf( (CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_verify_importer_service_online(self):
         try:
-            r = requests.get('http://localhost:8844')
+            r = requests.get(self.importer_service_url)
             self.assertTrue(r.status_code == 200)
         except Exception as e:
             #make it fail
@@ -347,7 +347,7 @@ class ServiceTests(IonIntegrationTestCase):
         # ... code ....
 
         # make a WMS/WFS request...somet like this (or both)
-        url = 'http://localhost:8080/geoserver/geonode/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=geonode:ooi_' + dataset_id + '_ooi&maxFeatures=1&outputFormat=csv'
+        url = self.gs_host+'/geoserver/geonode/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=geonode:ooi_' + dataset_id + '_ooi&maxFeatures=1&outputFormat=csv'
         r = requests.get(url)
         assertTrue(r.status_code == 200)
         #check r.text does not contain <ServiceException code="InvalidParameterValue" locator="typeName">
