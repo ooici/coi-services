@@ -54,7 +54,7 @@ class DatasetLoadTest(IonIntegrationTestCase):
         self.pubsub_management = PubsubManagementServiceClient()
         self.resource_registry = self.container.resource_registry
 
-    @unittest.skipIf((CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf(not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_create_dataset(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         pdict_id = ph.create_extended_parsed()
@@ -151,7 +151,7 @@ class ServiceTests(IonIntegrationTestCase):
 
         self.offering_id = dataset_id
 
-    @unittest.skipIf((CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf(not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_reset_store(self):
         # Makes sure store is empty 
         self.assertTrue(self.reset_store())
@@ -165,7 +165,7 @@ class ServiceTests(IonIntegrationTestCase):
         layers = json.loads(r.content)
         self.assertTrue(len(layers['layers']) == 0)
 
-    @unittest.skipIf( (CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf( not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_create_dataset_verify_geoserver_layer(self):
         #generate layer and check that the service created it in geoserver
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
@@ -211,7 +211,7 @@ class ServiceTests(IonIntegrationTestCase):
             log.error("check service and layer exist...%s", e)
             self.assertTrue(False)
 
-    @unittest.skipIf( (CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf( not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_verify_importer_service_online(self):
         try:
             r = requests.get(self.importer_service_url)
@@ -352,14 +352,14 @@ class ServiceTests(IonIntegrationTestCase):
         assertTrue(r.status_code == 200)
         #check r.text does not contain <ServiceException code="InvalidParameterValue" locator="typeName">
 
-    @unittest.skipIf((CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf(not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_sos_response(self):
         expected_content = 'SOS SERVICE IS UP.....Hello World!'
         url = self.gs_ows_url + '?request=echo&service=sos'
         r = requests.get(url)
         self.assertEqual(r.content, expected_content)
 
-    @unittest.skipIf((CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf(not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_sos_get_capabilities(self):
         # Validates reponse is not an exception, assues valid otherwise
         self.setup_resource()
@@ -369,7 +369,7 @@ class ServiceTests(IonIntegrationTestCase):
         self.assertEquals(r.status_code, 200)
         self.assertTrue(r.content.find('<sos:Capabilities') >= 0)
 
-    @unittest.skipIf((CFG.get_safe('eoi.meta.user_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
+    @unittest.skipIf(not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test in TABLE LOADER as services are not loaded')
     def test_sos_get_offering(self):
         # Validates reponse is not an exception, assues valid otherwise
         # TODO: Use deterministic <swe:values> for comparison
