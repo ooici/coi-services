@@ -632,8 +632,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
 
-
-        #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
+        if depl_obj.lcstate != LCS.DEPLOYED:
+            self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
+        else:
+            log.warn("Deployment %s was already DEPLOYED when activated", depl_obj._id)
 
 
     def deactivate_deployment(self, deployment_id=''):

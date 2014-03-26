@@ -1,14 +1,14 @@
 ===========================================================
 Ocean Observatories Initiative Cyberinfrastructure (OOI CI)
-Integrated Observatory Network (ION) - OOI Network
+Integrated Observatory Network (ION) - OOINet
 
-coi-services - ION Release 2 system and services
+coi-services - OOINet system and services
 
-(C) UC Regents, 2010-2013
+(C) UC Regents, 2010-2014
 ===========================================================
 
-This is the repository that defines the OOI Network with its services and agents.
-The OOI Network system is started from this repository.
+This is the repository that defines the OOINet with its services and agents.
+The OOINet system is started from this repository.
 Submodules provide additional required functionality, such as the Pyon
 Capability Container.
 
@@ -45,19 +45,15 @@ For Mac, use homebrew
     and try the install again)
     For any kind of installation trouble run 'brew doctor' and fix any issues.
 
-- Install Postgres with Homebrew (PostgreSQL is the default but CouchDB is possible)
+- Install Postgres with Homebrew
 
     > brew install postgres postgis
 
     If you have trouble with the installation, please see:
     https://confluence.oceanobservatories.org/display/CIDev/Postgres+Datastore
-    https://confluence.oceanobservatories.org/display/CIDev/M112+Geospatial+Search
 
     As user postgres:
     > createuser -s ion
-    > echo "create database ion;" | psql
-    > echo "grant all on database ion to ion;" | psql
-    > echo "alter user ion with password 'ion';" | psql
 
 - Install libgswteos-10 for marine science calculations
     > brew tap lukecampbell/homebrew-libgswteos
@@ -133,19 +129,14 @@ Generate service definition interfaces and abstract base classes files:
 RUN-TIME DEPENDENCIES
 =====================
 
-COUCHDB (DATA STORE):
+POSTGRESQL (DATABASE):
 
-Run couchdb in second terminal before starting the container or running tests:
-Note: See the New Developer Tutorial for automatic start using supervisord
-    > couchdb
+Run postgresql in second terminal before starting the container or running tests:
+    > /usr/local/bin/postgres -D /usr/local/var/postgres
 
 
 RABBITMQ (MESSAGE BROKER):
-
-Run RabbitMQ in second terminal before starting the container or running tests:
-Note: See the New Developer Tutorial for automatic start using supervisord
-    > cd rabbitmq_server-2.x.x
-    > sudo sbin/rabbitmq-server
+    > rabbitmq-server
 
 
 SOURCE PATH
@@ -200,6 +191,10 @@ might be corrupted.
     > rm and create the virtualenv again
     > re-run bootstrap.py and buildout
     > If you suspect an egg is bad, remove the suspected egg from the eggs/ dir. Re-run buildout.
+
+See also:
+  https://confluence.oceanobservatories.org/display/CIDev/Python+and+Virtualenv+Mac+Troubleshooting
+  https://confluence.oceanobservatories.org/display/CIDev/Troubleshooting+OOINet+and+the+developer+environment
 
 
 DEBUG
