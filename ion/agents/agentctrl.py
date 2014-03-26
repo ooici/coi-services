@@ -370,16 +370,16 @@ class AgentControl(ImmediateProcess):
         from ion.util.direct_coverage_utils import DirectCoverageAccess
         from coverage_model import SparseConstantType
 
-        log.debug(" Setting calibration for data product '%s'", dp_obj.name)
+        log.debug("Setting calibration for data product '%s'", dp_obj.name)
         dataset_ids, _ = self.rr.find_objects(dp_obj, PRED.hasDataset, id_only=True)
         publisher = EventPublisher(OT.InformationContentModifiedEvent)
         if not dataset_ids:
             data_product_management = DataProductManagementServiceProcessClient(process=self)
-            data_product_management.activate_data_product_persistence(dp_obj._id)
+            log.debug(" Creating dataset for data product %s", dp_obj.name)
+            data_product_management.create_dataset_for_data_product(dp_obj._id)
             dataset_ids, _ = self.rr.find_objects(dp_obj, PRED.hasDataset, id_only=True)
-            log.info("Activating data product %s", dp_obj.name)
             if not dataset_ids:
-                raise NotFound('No datasets were found for this data product, ensure that it is activated')
+                raise NotFound('No datasets were found for this data product, ensure that it was created')
         for dataset_id in dataset_ids:
             # Synchronize with ingestion
             with DirectCoverageAccess() as dca:
@@ -388,13 +388,13 @@ class AgentControl(ImmediateProcess):
                 for cal_name, contents in dev_cfg.iteritems():
                     if cal_name in cov.list_parameters() and isinstance(cov.get_parameter_context(cal_name).param_type, SparseConstantType):
                         value = float(contents['value'])
-                        log.info('Updating Calibrations for %s in %s', cal_name, dataset_id)
+                        log.info(' Updating Calibrations for %s in %s', cal_name, dataset_id)
                         cov.set_parameter_values(cal_name, value)
                     else:
-                        log.warn("Calibration %s not found in dataset", cal_name)
+                        log.warn(" Calibration %s not found in dataset", cal_name)
                 publisher.publish_event(origin=dataset_id, description="Calibrations Updated")
         publisher.close()
-        log.info(" Calibration set for data product '%s' in %s coverages", dp_obj.name, len(dataset_ids))
+        log.info("Calibration set for data product '%s' in %s coverages", dp_obj.name, len(dataset_ids))
 
     def activate_persistence(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
