@@ -671,8 +671,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             log.info("Adding geo and updating temporal attrs for device '%s'", device_id)
             self._update_device_add_geo_add_temporal(device_id, site_id, depl_obj)
 
-
-        #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
+        if depl_obj.lcstate != LCS.DEPLOYED:
+            self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
+        else:
+            log.warn("Deployment %s was already DEPLOYED when activated", depl_obj._id)
 
 
     def deactivate_deployment(self, deployment_id=''):
