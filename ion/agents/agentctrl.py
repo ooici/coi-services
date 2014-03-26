@@ -19,6 +19,10 @@ Supports the following ops:
 - create_dataset: create Dataset resource and coverage, but don't activate ingestion worker
 - delete_dataset: remove Dataset resource and coverage
 - delete_all_data: remove all device related DataProduct, StreamDefinition, Dataset, resources and coverages
+- delete_all_device: remove all device related resources and all from delete_all_data
+- delete_all_site: remove all device resources as in delete_all_device and matching site resources
+- activate_deployment: If device has Deployments, activate the current one
+- deactivate_deployment: If device has an active Deployment, deactivate it
 
 Supports the following arguments:
 - instrument, platform, device_name: name of device. Resource ids (uuid) can be used instead of names.
@@ -44,27 +48,29 @@ TODO:
 - Share agent definition or resource in facility
 - Change owner of resource
 - Change contact info, metadata of resource based on spreadsheet
+- Need to make service calls with system actor?
 """
 
 __author__ = 'Michael Meisinger, Ian Katz, Bill French, Luke Campbell'
 
 import csv
+import os
+import shutil
+import time
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
-from pyon.ion.event import EventPublisher
-from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound
+from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound, LCS, EventPublisher
 
 from ion.core.includes.mi import DriverEvent
 from ion.util.parse_utils import parse_dict
 
-from interface.objects import AgentCommand
+from interface.objects import AgentCommand, Site, TemporalBounds
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceProcessClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-import os
-import shutil
 
 
 class AgentControl(ImmediateProcess):
@@ -131,6 +137,7 @@ class AgentControl(ImmediateProcess):
         log.info("======================== ION AgentControl completed ========================")
 
     def _execute_op(self, agent_instance_id, resource_id):
+        child_devices = None  # Need to save this for the case the device is deleted during the op
         try:
             if resource_id is None and agent_instance_id:
                 resource_id = self.rr.read_subject(object=agent_instance_id,
@@ -138,36 +145,21 @@ class AgentControl(ImmediateProcess):
                                                    id_only=True)
 
             res_obj = self.rr.read(resource_id)
+            child_devices, _ = self.rr.find_objects(resource_id, PRED.hasDevice, id_only=False)
 
             if agent_instance_id is None:
                 agent_instance_id = self._get_agent_instance_id(resource_id)
 
             log.info("--- Executing %s on '%s' id=%s agent=%s ---", self.op, res_obj.name, resource_id, agent_instance_id)
 
-            if self.op == "start" or self.op == "load" or self.op == "start_agent":
+
+            if self.op == "start" or self.op == "load":
                 self.start_agent(agent_instance_id, resource_id)
-            elif self.op == "stop" or self.op == "stop_agent":
+            elif self.op == "stop":
                 self.stop_agent(agent_instance_id, resource_id)
-            elif self.op == "activate_persistence":
-                self.activate_persistence(agent_instance_id, resource_id)
-            elif self.op == "suspend_persistence":
-                self.suspend_persistence(agent_instance_id, resource_id)
-            elif self.op == "config_instance":
-                self.config_instance(agent_instance_id, resource_id)
-            elif self.op == "clear_saved_state":
-                self.clear_saved_state(agent_instance_id, resource_id)
-            elif self.op == "clear_status":
-                self.clear_status(agent_instance_id, resource_id)
-            elif self.op == "set_calibration":
-                self.set_calibration(agent_instance_id, resource_id)
-            elif self.op == "recover_data":
-                self.recover_data(agent_instance_id, resource_id)
-            elif self.op == "create_dataset":
-                self.create_dataset(agent_instance_id, resource_id)
-            elif self.op == "delete_dataset":
-                self.delete_dataset(agent_instance_id, resource_id)
-            elif self.op == "delete_all_data":
-                self.delete_all_data(agent_instance_id, resource_id)
+            elif hasattr(self, self.op):
+                opfunc = getattr(self, self.op)
+                opfunc(agent_instance_id, resource_id)
 
         except Exception:
             log.exception("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
@@ -175,7 +167,8 @@ class AgentControl(ImmediateProcess):
                 raise
 
         if self.recurse:
-            child_devices, _ = self.rr.find_objects(resource_id, PRED.hasDevice, id_only=False)
+            if child_devices is None:
+                child_devices, _ = self.rr.find_objects(resource_id, PRED.hasDevice, id_only=False)
             if child_devices:
                 log.debug("recurse==True. Executing %s on %s child devices", self.op, len(child_devices))
             for ch_obj in child_devices:
@@ -508,7 +501,15 @@ class AgentControl(ImmediateProcess):
     def create_dataset(self, agent_instance_id, resource_id):
         # Find hasOutputProduct DataProducts
         # Execute call to create Dataset and coverage
-        pass
+        res_obj = self.rr.read(resource_id)
+        dpms = DataProductManagementServiceProcessClient(process=self)
+
+        # Find data products from device id
+        dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
+        for dp_obj in dp_objs:
+            dpms.create_dataset_for_data_product(dp_obj._id)
+
+        log.info("Checked datasets for device %s '%s': %s", resource_id, res_obj.name, len(dp_objs))
 
     def delete_dataset(self, agent_instance_id, resource_id):
 
@@ -531,7 +532,6 @@ class AgentControl(ImmediateProcess):
                     shutil.rmtree(cov_path)
                 else:
                     raise OSError("Coverage path does not exist %s" % cov_path)
-
 
                 # Delete Dataset and associations
                 self.rr.delete(ds_obj._id)
@@ -567,6 +567,112 @@ class AgentControl(ImmediateProcess):
 
         log.info("Data resources deleted for device %s '%s': %s DataProduct, %s StreamDefinition, %s Stream",
                  resource_id, res_obj.name, count_dp, count_sd, count_st)
+
+    def delete_all_device(self, agent_instance_id, resource_id):
+        """Deletes all resources related to a device"""
+        try:
+            self.delete_all_data(agent_instance_id, resource_id)
+        except Exception:
+            log.exception("Delete all data")
+
+        res_obj = self.rr.read(resource_id)
+
+        # Find parsed data product from device id
+        count_dev, count_dp, count_dep, count_ai = 0, 0, 0, 0
+
+        # Delete DataProducers
+        dp_ids, _ = self.rr.find_objects(resource_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
+        if dp_ids:
+            self.rr.rr_store.delete_mult(dp_ids)
+            count_dp += len(dp_ids)
+
+        # Delete Deployment
+        dep_ids, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=True)
+        if dep_ids:
+            self.rr.rr_store.delete_mult(dep_ids)
+            count_dep += len(dep_ids)
+
+        # Delete ExternalDatasetAgentInstance, InstrumentAgentInstance, PlatformAgentInstance
+        ai_ids, _ = self.rr.find_objects(resource_id, PRED.hasAgentInstance, id_only=True)
+        if ai_ids:
+            self.rr.rr_store.delete_mult(ai_ids)
+            count_ai += len(ai_ids)
+
+        # Delete Device
+        self.rr.delete(resource_id)
+        count_dev += 1
+
+        log.info("Device resources deleted for device %s '%s': %s Device, %s DataProducer, %s Deployment, %s AgentInstance",
+                 resource_id, res_obj.name, count_dev, count_dp, count_dep, count_ai)
+
+
+    def delete_all_site(self, agent_instance_id, resource_id):
+        """Deletes all resources related to a device and its matching preload site"""
+        res_obj = self.rr.read(resource_id)
+
+        alt_ids = [aid[4:-3] for aid in res_obj.alt_ids if aid.startswith("PRE:") and aid.endswith("_ID")]
+        device_rd = alt_ids[0] if alt_ids else None
+
+        # Delete Site
+        if device_rd:
+            count_site = 0
+            site_objs, _ = self.rr.find_resources_ext(alt_id_ns="PRE", alt_id=device_rd)
+            if site_objs:
+                site_obj = site_objs[0]
+                if isinstance(site_obj, Site):
+                    self.rr.delete(site_obj._id)
+                    count_site += 1
+
+            log.info("Site resources deleted for device %s '%s': %s Site",
+                     resource_id, res_obj.name, count_site)
+
+        # Delete all device resources
+        self.delete_all_device(agent_instance_id, resource_id)
+
+
+    def activate_deployment(self, agent_instance_id, resource_id):
+        # For current device, find all deployments. Activate the one that
+        dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+        if dep_objs:
+            current_dep = self._get_current_deployment(dep_objs, for_activate=True)
+            if current_dep:
+                obs_ms = ObservatoryManagementServiceClient()
+                obs_ms.activate_deployment(current_dep._id)
+
+    def deactivate_deployment(self, agent_instance_id, resource_id):
+        dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+        if dep_objs:
+            current_dep = self._get_current_deployment(dep_objs, for_activate=False)
+            if current_dep:
+                obs_ms = ObservatoryManagementServiceClient()
+                obs_ms.deactivate_deployment(current_dep._id)
+
+    def _get_current_deployment(self, dep_objs, for_activate=True):
+        # TODO: How to find current deployment
+        # First pass: Eliminate all RETIRED and past deployments (end date before now)
+        now = time.time()
+        filtered_dep = []
+        for dep_obj in dep_objs:
+            if dep_obj.lcstate == LCS.RETIRED:
+                continue
+            temp_const = [c for c in dep_obj.constraint_list if isinstance(c, TemporalBounds)]
+            if not temp_const:
+                continue
+            temp_const = temp_const[0]
+            if not temp_const.start_datetime or not temp_const.end_datetime:
+                continue
+            start_time = int(temp_const.start_datetime)
+            end_time = int(temp_const.end_datetime)
+            if end_time > now:
+                filtered_dep.append((start_time, end_time, dep_obj))
+
+        if not filtered_dep:
+            return None
+        if len(filtered_dep) == 1:
+            return filtered_dep[0][2]
+
+        filtered_dep = sorted(filtered_dep, key=lambda x: x[0])
+        return filtered_dep[-1][2]
 
 
 ImportDataset = AgentControl
