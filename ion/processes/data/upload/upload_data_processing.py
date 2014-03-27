@@ -5,7 +5,6 @@
 @date Tue May  7 15:34:54 EDT 2013
 '''
 
-
 from pyon.core.exception import BadRequest
 from pyon.ion.process import ImmediateProcess, SimpleProcess
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
@@ -142,3 +141,4 @@ class UploadDataProcessing(ImmediateProcess):
             os.remove(nc_filename)
         except OSError:
             pass # TODO take action to get this removed
+
