@@ -21,6 +21,7 @@ from pyon.util.log import log
 import re
 import numpy as np
 import netCDF4
+import os
 
 class UploadDataProcessing(ImmediateProcess):
     '''
@@ -134,3 +135,10 @@ class UploadDataProcessing(ImmediateProcess):
 
         fuc['status'] = 'UploadDataProcessing process complete - %d fields created/updated' % nfields
         self.container.object_store.update_doc(fuc)
+
+        # remove uploaded file
+        try:
+            os.remove(nc_filename)
+        except OSError:
+            pass # TODO take action to get this removed
+

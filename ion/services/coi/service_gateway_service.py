@@ -31,6 +31,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from pyon.util.log import log
 from pyon.util.lru_cache import LRUCache
 from pyon.util.containers import current_time_millis, DotDict
+from pyon.util.file_sys import FileSystem, FS
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
@@ -907,7 +908,7 @@ def resolve_org_negotiation():
 
 @service_gateway_app.route('/ion-service/upload/data/<dataproduct_id>', methods=['POST'])
 def upload_data(dataproduct_id):
-    upload_folder = '/tmp/uploads'
+    upload_folder = FileSystem.get_url(FS.TEMP,'uploads')
     try:
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
