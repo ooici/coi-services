@@ -1964,11 +1964,6 @@ Reason: %s
                     'Trend Test (TRNDTST) QC'                                : 'trndtst_qc',
                     'Gradient Test (GRADTST) QC'                             : 'gradtst_qc',
                     'Local Range Test (LOCLRNG) QC'                          : 'loclrng_qc',
-                    'Modulus (MODULUS) QC'                                   : 'modulus_qc',
-                    'Evaluate Polynomial (POLYVAL) QC'                       : 'polyval_qc',
-                    'Solar Elevation (SOLAREL) QC'                           : 'solarel_qc',
-                    'Conductivity Compressibility Compensation (CONDCMP) QC' : 'condcmp_qc',
-                    '1-D Interpolation (INTERP1) QC'                         : 'interp1_qc',
                     'Combine QC Flags (CMBNFLG) QC'                          : 'cmbnflg_qc',
                     }
             
@@ -1978,14 +1973,14 @@ Reason: %s
                 dps = self.ooi_loader.get_type_assets('data_product')
                 if context.ooi_short_name in dps:
                     dp = dps[context.ooi_short_name]
-                    qc_fields = [v for k,v in qc_map.iteritems() if dp[k] == 'applicable']
+                    qc_fields = [v for k,v in qc_map.iteritems() if dp[k] and dp[k].lower().strip() == 'applicable']
                     if qc_fields and not qc: # If the column wasn't filled out but SAF says it should be there, just use the OOI Short Name
                         log.warning("Enabling QC for %s (%s) based on SAF requirement but QC-identifier wasn't specified.", name, row[COL_ID])
                         qc = sname
                     
 
 
-            if qc:
+            if qc and not context.ooi_short_name.endswith("L0"):
                 try:
                     if isinstance(context.param_type, (QuantityType, ParameterFunctionType)):
                         context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id, qc_fields)
@@ -3431,7 +3426,7 @@ Reason: %s
                 else:
                     if any([True for val in [newrow['dp/qc_cmbnflg'], newrow['dp/qc_glblrng'], newrow['dp/qc_gradtst'],
                                              newrow['dp/qc_loclrng'], newrow['dp/qc_spketest'], newrow['dp/qc_stuckvl'],
-                                             newrow['dp/qc_trndtst']] if val == "applicable"]):
+                                             newrow['dp/qc_trndtst']] if val and val.lower().strip() == "applicable"]):
                         newrow['dp/quality_control_level'] = "b"
                     else:
                         newrow['dp/quality_control_level'] = "a"
