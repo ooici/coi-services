@@ -1008,7 +1008,7 @@ class OOILoader(object):
                         if dp not in deploy_dataproducts:
                             deploy_dataproducts[dp] = []
                         deploy_dataproducts[dp].append(inst_id)
-                        dpt,_ = dp.split("_")
+                        dpt,_ = dp.rsplit("_", 1)
                         if dpt not in deploy_dataproducttypes:
                             deploy_dataproducttypes[dpt] = set()
                         deploy_dataproducttypes[dpt].add(inst_rd.series_rd)
