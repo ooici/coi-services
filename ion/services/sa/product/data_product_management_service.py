@@ -589,6 +589,23 @@ class DataProductManagementService(BaseDataProductManagementService):
 #        for dataset_id in dataset_ids:
 #            self.data_product.unlink_data_set(data_product_id, dataset_id)
 
+    def _get_reference_designator(self, data_product_id=''):
+        '''
+        Returns the reference designator for a data product if it has one
+        '''
+
+        device_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasSource, object_type=RT.InstrumentDevice, id_only=True)
+        if not device_ids: 
+            raise BadRequest("No instrument device associated with this data product")
+        device_id = device_ids[0]
+
+        sites, _ = self.clients.resource_registry.find_subjects(object=device_id, predicate=PRED.hasDevice, subject_type=RT.InstrumentSite, id_only=False)
+        if not sites:
+            raise BadRequest("No site is associated with this data product")
+        site = sites[0]
+        rd = site.reference_designator
+        return rd
+
 
     def get_data_product_stream_definition(self, data_product_id=''):
         self.read_data_product(data_product_id)
