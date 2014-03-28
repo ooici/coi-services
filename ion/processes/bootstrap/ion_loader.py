@@ -43,6 +43,7 @@
       ooiparams= if True (default is False) create links to OOI parameter definitions
       ooipartial= if True (default is False) creates resources (data products etc) even if not all inputs are there
       ooiactivate= if True (default is True) activate deployments/persistence for assets actually deployed in the past
+      ooiupdate= if True (default is False), supports in-place updates to OOI generated resources
 
       debug= if True, allows shortcuts to perform faster loads (where possible)
       bulk= if True, uses RR bulk insert operations to load, not service calls
@@ -73,11 +74,10 @@ import os
 from udunitspy.udunits2 import UdunitsError
 
 from pyon.core.bootstrap import get_service_registry
-from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DatastoreManager, DataStore
 from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
 from pyon.ion.resource import get_restype_lcsm
-from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT, LCS, AS
+from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT, LCS, AS, BadRequest, NotFound
 from pyon.util.containers import get_ion_ts, named_any, dict_merge
 from pyon.util.config import Config
 
@@ -334,6 +334,7 @@ class IONLoader(ImmediateProcess):
             self.ooipartial = bool(config.get("ooipartial", False))  # Load partially defined resources
             self.ooiactivate = bool(config.get("ooiactivate", True))  # Activate deployments and persistence
             self.parseooi = config.get("parseooi", False)
+            self.ooiupdate = config.get("ooiupdate", False)      # Support update to existing OOI generated resources
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
 
@@ -741,9 +742,9 @@ class IONLoader(ImmediateProcess):
     def _get_service_client(self, service):
         return get_service_registry().services[service].client(process=self.rpc_sender)
 
-    def _register_id(self, alias, resid, res_obj=None):
+    def _register_id(self, alias, resid, res_obj=None, is_update=False):
         """Keep preload resource in internal dict for later reference"""
-        if alias in self.resource_ids:
+        if not is_update and alias in self.resource_ids:
             raise iex.BadRequest("ID alias %s used twice" % alias)
         self.resource_ids[alias] = resid
         self.resource_objs[alias] = res_obj
@@ -801,6 +802,12 @@ class IONLoader(ImmediateProcess):
             log.debug("Resource/row %s/%s exists. Ignore with no update", self._category, row[COL_ID])
             return True
         return False
+
+    def _update_resource_obj(self, res_id):
+        """Updates an existing resource object"""
+        res_obj = self._get_resource_obj(res_id)
+        self.container.resource_registry.update(res_obj)
+        log.debug("Updating resource %s (pre=%s id=%s): '%s'", res_obj.type_, res_id, res_obj._id, res_obj.name)
 
     def _get_alt_id(self, res_obj, prefix):
         alt_ids = getattr(res_obj, 'alt_ids', [])
@@ -1957,11 +1964,6 @@ Reason: %s
                     'Trend Test (TRNDTST) QC'                                : 'trndtst_qc',
                     'Gradient Test (GRADTST) QC'                             : 'gradtst_qc',
                     'Local Range Test (LOCLRNG) QC'                          : 'loclrng_qc',
-                    'Modulus (MODULUS) QC'                                   : 'modulus_qc',
-                    'Evaluate Polynomial (POLYVAL) QC'                       : 'polyval_qc',
-                    'Solar Elevation (SOLAREL) QC'                           : 'solarel_qc',
-                    'Conductivity Compressibility Compensation (CONDCMP) QC' : 'condcmp_qc',
-                    '1-D Interpolation (INTERP1) QC'                         : 'interp1_qc',
                     'Combine QC Flags (CMBNFLG) QC'                          : 'cmbnflg_qc',
                     }
             
@@ -1971,14 +1973,14 @@ Reason: %s
                 dps = self.ooi_loader.get_type_assets('data_product')
                 if context.ooi_short_name in dps:
                     dp = dps[context.ooi_short_name]
-                    qc_fields = [v for k,v in qc_map.iteritems() if dp[k] == 'applicable']
+                    qc_fields = [v for k,v in qc_map.iteritems() if dp[k] and dp[k].lower().strip() == 'applicable']
                     if qc_fields and not qc: # If the column wasn't filled out but SAF says it should be there, just use the OOI Short Name
                         log.warning("Enabling QC for %s (%s) based on SAF requirement but QC-identifier wasn't specified.", name, row[COL_ID])
                         qc = sname
                     
 
 
-            if qc:
+            if qc and not context.ooi_short_name.endswith("L0"):
                 try:
                     if isinstance(context.param_type, (QuantityType, ParameterFunctionType)):
                         context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id, qc_fields)
@@ -2109,6 +2111,16 @@ Reason: %s
 
         self._register_id(row[COL_ID], pdict_id, pdict)
 
+    def _get_available_fields(self, fields):
+        available_fields = None
+        if fields:
+            available_fields = fields.split(',')
+            available_fields = [i.strip() for i in available_fields]
+            for i, field in enumerate(available_fields):
+                if field.startswith('PD') and field in self.resource_objs:
+                    available_fields[i] = self.resource_objs[field].name
+        return available_fields or None
+
     def _load_StreamDefinition(self, row):
         if self._row_exists(row):
             return
@@ -2121,14 +2133,8 @@ Reason: %s
 
         svc_client = self._get_service_client("dataset_management")
         reference_designator = row['reference_designator']
-        available_fields = row['available_fields']
-        if available_fields:
-            available_fields = available_fields.split(',')
-            available_fields = [i.strip() for i in available_fields]
-            for i,field in enumerate(available_fields):
-                if field.startswith('PD') and field in self.resource_objs:
-                    available_fields[i] = self.resource_objs[field].name
-        
+        available_fields = self._get_available_fields(row['available_fields'])
+
         parameter_dictionary_id = self.resource_ids[row['parameter_dictionary']]
         svc_client = self._get_service_client("pubsub_management")
         res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
@@ -2143,6 +2149,7 @@ Reason: %s
         sdef.alt_ids = ['PRE:'+row[COL_ID]]
         sdef.addl["stream_use"] = row.get("stream_use", "")
         self.container.resource_registry.update(sdef)
+        self._register_id(row[COL_ID], res_id, sdef, is_update=True)
 
     def _load_Parser(self, row):
         parser = self._create_object_from_row(RT.Parser, row, 'parser/')
@@ -3086,6 +3093,12 @@ Reason: %s
         newrow['reference_designator'] = rd
         if not self._resource_exists(sdef_id):
             self._load_StreamDefinition(newrow)
+        elif self.ooiupdate and fields:
+            available_fields = self._get_available_fields(fields)
+            res_obj = self._get_resource_obj(sdef_id)
+            if available_fields != res_obj.available_fields:
+                res_obj.available_fields = available_fields
+                self._update_resource_obj(sdef_id)
 
         return sdef_id
 
@@ -3235,7 +3248,7 @@ Reason: %s
             parsed_pdict_id, parsed_id = "", ""
             # (1) Generate stream DataProducts (raw, parsed, engineering)
             if iagent_res_obj or dagent_res_obj:
-                log.debug("Generating DataProducts for %s from instrument/data agent %s streams and SAF", inst_id,
+                log.debug("Checking DataProducts for %s from instrument/data agent %s streams and SAF", inst_id,
                           ia_code if iagent_res_obj else dart_code)
 
                 # There exists an agent with stream configurations. Create one DataProduct per stream
@@ -3294,7 +3307,7 @@ Reason: %s
                         create_dp_link(dp_id, inst_id, do_bulk=False)   # Site link (even without active deployment)
 
             elif self.ooipartial:
-                log.debug("Generating DataProducts for %s using SAF and defaults (no streams)", inst_id)
+                log.debug("Checking DataProducts for %s using SAF and defaults (no streams)", inst_id)
 
                 # There is no agent defined. Just create basic raw and parsed data products
                 # Raw instrument DataProduct
@@ -3352,8 +3365,6 @@ Reason: %s
             data_product_list = inst_obj.get('data_product_list', [])
             for dptype_id in data_product_list:
                 dp_id = inst_id + "_" + dptype_id + "_DPID"
-                if self._resource_exists(dp_id):
-                    continue
                 dp_obj = data_products[dptype_id]
 
                 newrow = {}
@@ -3415,7 +3426,7 @@ Reason: %s
                 else:
                     if any([True for val in [newrow['dp/qc_cmbnflg'], newrow['dp/qc_glblrng'], newrow['dp/qc_gradtst'],
                                              newrow['dp/qc_loclrng'], newrow['dp/qc_spketest'], newrow['dp/qc_stuckvl'],
-                                             newrow['dp/qc_trndtst']] if val == "applicable"]):
+                                             newrow['dp/qc_trndtst']] if val and val.lower().strip() == "applicable"]):
                         newrow['dp/quality_control_level'] = "b"
                     else:
                         newrow['dp/quality_control_level'] = "a"
@@ -3477,6 +3488,9 @@ Reason: %s
                     newrow['stream_def_id'] = strdef_id
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
+                    if self._resource_exists(dp_id):
+                        continue
+
                     self._load_DataProduct(newrow)
                     num_dp_generated += 1
 
@@ -3485,6 +3499,9 @@ Reason: %s
 
                 elif self.ooipartial:
                     newrow['stream_def_id'] = ''
+
+                    if self._resource_exists(dp_id):
+                        continue
 
                     self._load_DataProduct(newrow, do_bulk=self.bulk)
 
