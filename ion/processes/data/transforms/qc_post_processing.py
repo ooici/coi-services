@@ -15,7 +15,9 @@ from pyon.public import OT, RT,PRED
 from pyon.util.arg_check import validate_is_not_none
 from pyon.ion.event import EventSubscriber
 from pyon.util.log import log
+from gevent.event import Event
 import numpy as np
+import threading
 
 class QCPostProcessing(SimpleProcess):
     '''
@@ -109,5 +111,31 @@ class QCPostProcessing(SimpleProcess):
             yield (start_time, min(start_time+3600, end_time))
             start_time = min(start_time+3600, end_time)
         return
+
+class QCProcessor(SimpleProcess):
+    def __init__(self):
+        self.event = Event() # Synchronizes the thread
+        self.timeout = 10
+
+    def on_start(self):
+        self._thread = self._process.thread_manager.spawn(self.event_loop)
+        self.timeout = self.CFG.get_safe('endpoint.receive.timeout', 10)
+
+    def on_quit(self):
+        self.suspend()
+
+    def event_loop(self):
+        threading.current_thread().name = '%s-qc-processor' % self.id
+        while not self.event.wait(1):
+            data_products, _ = self.container.resource_registry.find_resources(restype=RT.DataProduct, id_only=False)
+            for data_product in data_products:
+                log.error("Looking at %s", data_product.name)
+                if self.event.is_set(): # Break early if we can
+                    break
+
+    def suspend(self):
+        self.event.set()
+        self._thread.join(self.timeout)
+        log.info("QC Thread Suspended")
 
 
