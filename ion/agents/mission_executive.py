@@ -12,14 +12,16 @@ from gevent.event import AsyncResult
 import time
 from time import gmtime
 
-from pyon.agent.agent import ResourceAgentClient, ResourceAgentState, ResourceAgentEvent
+from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.common import BaseEnum
 from pyon.event.event import EventSubscriber
 from pyon.public import log
 from pyon.util.breakpoint import breakpoint
 from pyon.util.config import Config
-from ion.agents.platform.platform_agent import PlatformAgentEvent, PlatformAgentState
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import FakeProcess
+from ion.agents.platform.platform_agent import PlatformAgentEvent
+from ion.agents.platform.platform_agent import PlatformAgentState
 
 from interface.objects import AgentCommand
 
@@ -75,32 +77,33 @@ class MissionLoader(object):
 
     mission_entries = []
 
-    def _add_entry(self, instrument_id='', start_time=0, duration=0,
-                   num_loops=0, loop_value=0, mission_cmds=[]):
+    def add_entry(self, instrument_id='', start_time=0, duration=0,
+                  num_loops=0, loop_value=0, event = {}, mission_cmds=[]):
 
         self.mission_entries.append({"instrument_id": instrument_id,
                                     "start_time": start_time,
                                     "duration": duration,
                                     "num_loops": num_loops,
                                     "loop_value": loop_value,
+                                    "event": event,
                                     "mission_cmds": mission_cmds})
 
-    def _count_entries(self):
+    def count_entries(self):
         return len(self.mission_entries)
 
-    def _sort_entries(self):
+    def sort_entries(self):
         self.mission_entries = sorted(self.mission_entries,  key=lambda k: k["start_time"])
 
-    def _get_entry_all(self, id_):
+    def get_entry_all(self, id_):
         return self.mission_entries[id_]
 
-    def _print_entry_all(self):
+    def print_entry_all(self):
         log.debug(self.mission_entries)
 
-    def _delete_entry(self, id_):
+    def delete_entry(self, id_):
         self.mission_entries.pop(id_)
 
-    def _calculate_next_interval(self, id_):
+    def calculate_next_interval(self, id_):
         current_time = time.time()
         start_time = self.mission_entries[id_]["start_time"]
         loop_duration = self.mission_entries[id_]["loop_duration"]
@@ -121,12 +124,12 @@ class MissionLoader(object):
             log.debug("Next start at: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time)))
             return (start_time - current_time) + loop_duration
 
-    def _check_start_time(self, schedule, loop_duration):
+    def check_start_time(self, schedule, loop_duration):
         """
         Check mission start time
         """
         start_time_string = schedule['startTime']
-        if start_time_string.lower() == 'none':
+        if not start_time_string or start_time_string.lower() == 'none':
             start_time = None
         else:
             try:
@@ -156,7 +159,7 @@ class MissionLoader(object):
 
         return start_time
 
-    def _check_intersections(self, indices):
+    def check_intersections(self, indices):
         """
         In the case of a single instrument with multiple missions,
         check missions for schedule intersections
@@ -201,7 +204,7 @@ class MissionLoader(object):
 
         return True
 
-    def _verify_command_and_params(self, cmd='', params={}):
+    def verify_command_and_params(self, cmd='', params={}):
         """
         Verify that specified command is defined.
         """
@@ -212,7 +215,7 @@ class MissionLoader(object):
             if param not in MissionCommands.all_cmds[cmd]:
                 raise Exception('Mission Error: %s Mission parameter not recognized' % param)
 
-    def _calculate_loop_duration(self, schedule):
+    def calculate_loop_duration(self, schedule):
         """
         Calculate loop duration if given.
         """
@@ -235,7 +238,7 @@ class MissionLoader(object):
 
         return loop_value, num_loops
 
-    def _calculate_mission_duration(self, mission_params={}):
+    def calculate_mission_duration(self, mission_params={}):
         """
         Check the mission commands and parameters for duration
         """
@@ -246,7 +249,7 @@ class MissionLoader(object):
             #Calculate mission duration
             command = items['command'].lower()
             params = items['params']
-            self._verify_command_and_params(command, params)
+            self.verify_command_and_params(command, params)
             if command == 'wait':
                     duration = params['duration']
                     units = params['units']
@@ -273,38 +276,63 @@ class MissionLoader(object):
 
         return mission_duration
 
-    def _validate_schedule(self, mission={}):
+    def check_event(self, schedule):
+        """
+        Verify the mission event
+        """
+        event = schedule['event']
+        event_id = event['eventID']
+        parent_id = event['parentID']
+
+        if not event_id:
+            log.error('Mission event not specified')
+            raise Exception('Mission event not specified')
+        elif not parent_id:
+            log.error('Mission event parentID not specified')
+            raise Exception('Mission event parentID not specified')
+
+        return event
+
+    def validate_schedule(self, mission={}):
         """
         Check the mission parameters for scheduling conflicts
         """
 
-        for current_mission_index in range(len(mission)):
+        for current_mission in mission:
 
-            # platform_id = mission[current_mission_index]['platformID']
+            # platform_id = current_mission['platformID']
+            schedule = current_mission['schedule']
+            mission_params = current_mission['missionParams']
 
-            schedule = mission[current_mission_index]['schedule']
-            mission_params = mission[current_mission_index]['missionParams']
-
-            # instrument_name.append(mission[current_mission_index]['name'])
-            instrument_id = mission[current_mission_index]['instrumentID']
+            # instrument_name.append(current_mission['name'])
+            instrument_id = current_mission['instrumentID']
 
             print instrument_id
 
-            mission_duration = self._calculate_mission_duration(mission_params)
-            loop_duration, num_loops = self._calculate_loop_duration(schedule)
+            mission_duration = self.calculate_mission_duration(mission_params)
+            loop_duration, num_loops = self.calculate_loop_duration(schedule)
 
             if (loop_duration and loop_duration < mission_duration):
                 log.error('Mission File Error: Mission duration > scheduled loop duration')
                 raise Exception('Mission Error: Mission duration greater than scheduled loop duration')
 
-            start_time = self._check_start_time(schedule, loop_duration)
+            start_time = self.check_start_time(schedule, loop_duration)
+
+            if start_time:
+                # Timed mission
+                event = None
+            else:
+                # Event Driven Mission
+                event = self.check_event(schedule)
 
             #Add mission entry
-            self._add_entry(instrument_id, start_time, mission_duration,
-                            num_loops, loop_duration, mission_params)
+            self.add_entry(instrument_id, start_time, mission_duration,
+                           num_loops, loop_duration, event, mission_params)
+
+        print self.mission_entries
 
         #Sort mission entries by start time
-        self._sort_entries()
+        self.sort_entries()
 
         instrument_id = []
         for instrument in self.mission_entries:
@@ -315,7 +343,7 @@ class MissionLoader(object):
 
         #Now check timing schedule of duplicate instruments
         if len(indices) > 1:
-            return self._check_intersections(indices)
+            return self.check_intersections(indices)
         else:
             return True
 
@@ -333,7 +361,7 @@ class MissionLoader(object):
 
         self.raw_mission = mission_dict['mission']
 
-        return self._validate_schedule(self.raw_mission)
+        return self.validate_schedule(self.raw_mission)
 
 
 class MissionScheduler(object):
@@ -349,6 +377,12 @@ class MissionScheduler(object):
 
         # Define max number of agent command retries
         self.max_attempts = 3
+
+        # Initialize error events
+        self._error_events_received = []
+
+        # Initialize list of error event subscribers
+        # self._error_event_subscriber = []
 
         # Start up the platform
         self._startup_platform()
@@ -366,6 +400,7 @@ class MissionScheduler(object):
         self.threads = []
         for mission in missions:
             start_time = mission['start_time']
+
             # There are two types of mission schedules: timed and event
             if start_time:
                 # Timed schedule
@@ -375,9 +410,9 @@ class MissionScheduler(object):
                 self.threads.append(gevent.spawn_later(start_in, self._run_timed_mission, mission))
             else:
                 # Event driven scheduler
-                mission_event = mission['loop_value']
-                log.debug('Event driven mission started. Waiting for ' + mission_event)
-                self.threads.append(gevent.spawn(self._run_event_driven_mission, mission))
+                event_id = mission['event']['eventID']
+                log.debug('Event driven mission started. Waiting for ' + event_id)
+                self.threads.append(gevent.spawn(self._run_event_driven_mission, mission, event_id))
 
         gevent.joinall(self.threads)
 
@@ -389,6 +424,7 @@ class MissionScheduler(object):
 
         command = cmd['command'].lower()
         params = cmd['params']
+
         if command == 'wait':
             print ('Waiting ' + str(params['duration']) + ' Seconds ' +
                    time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
@@ -406,7 +442,7 @@ class MissionScheduler(object):
             print 'Sample Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
             log.debug('Sample Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
 
-            self._send_command(ia_client, 'stop')
+            self._send_command(ia_client, 'calibrate')
 
         elif command == 'calibrate':
 
@@ -511,14 +547,16 @@ class MissionScheduler(object):
                 finally:
                     # Check for agent error events
                     if len(self._error_events_received) > 0:
+                        print 'Mission error dectected'
+                        # breakpoint(locals(), globals())
                         loop_running = False
                         break
 
-            # Commands have been executed - increment loop count
-            loop_count += 1
+            if loop_running:
+                # Commands have been executed - increment loop count
+                loop_count += 1
 
-            # Calculate next start time if on a synchronized loop
-            if start_time and loop_running:
+                # Calculate next start time
                 if (mission['num_loops']) > 0 and loop_count >= mission['num_loops']:
                     break
 
@@ -536,111 +574,73 @@ class MissionScheduler(object):
         # self._kill_mission()
         # self._shutdown_platform()
 
-    def _run_event_driven_mission(self, mission):
+    def _run_event_driven_mission(self, mission, event_id):
         """
         Run an event driven mission
         @param mission      Mission dictionary
         """
+        from mi.core.instrument.instrument_driver import DriverEvent
+
         instrument_id = mission['instrument_id']
         ia_client = self._instruments[instrument_id]
         self._check_preconditions(ia_client)
 
+        # Get the agent client for the device whos event needs monitoring
+        parent_id = mission['event']['parentID']
+        event_id = mission['event']['eventID']
+
+        # Map event ID to something meaningful
+        if event_id == 'stop':
+            capture_event = dict(event_type='ResourceAgentCommandEvent',
+                                 id=DriverEvent.STOP_AUTOSAMPLE)
+        elif event_id == 'ShallowProfilerStep':
+            capture_event = dict(event_type='ResourceAgentResourceStateEvent',
+                                 id=DriverEvent.STOP_AUTOSAMPLE)
+        elif event_id == 'ShallowProfilerAtCeiling':
+            capture_event = dict(event_type='ResourceAgentResourceStateEvent',
+                                 id=DriverEvent.STOP_AUTOSAMPLE)
+
+        if parent_id in self._instruments:
+            ia_event_client = self._instruments[parent_id]
+        else:
+            raise Exception('Parent id unavailable')
+
+        print "Event Driven Mission started"
+        log.debug("Event driven mission started")
+
         #-------------------------------------------------------------------------------------
         # Set up the subscriber to catch the mission event
         #-------------------------------------------------------------------------------------
-
         def callback_for_mission_events(event, *args, **kwargs):
-            print "Mission Event Captured"
-            log.debug('TestPlatformInstrument recieved ION event: args=%s, kwargs=%s, event=%s.',
-                      str(args), str(kwargs), str(args[0]))
-            log.debug('TestPlatformInstrument recieved ION event obj %s: ', event)
 
-            # Get a resource agent client to talk with the instrument agent.
-            _ia_client = self._create_resource_agent_client(event.origin)
-            instAggStatus = _ia_client.get_agent(['aggstatus'])['aggstatus']
-            log.debug('callback_for_alert consume_event aggStatus: %s', instAggStatus)
-            breakpoint(locals(), globals())
-            if event.name == "temperature_warning_interval" and event.sub_type == "WARNING":
-                log.debug('temperature_warning_interval WARNING: ')
+            # Check which type of event is being monitored
+            if capture_event['event_type'] == 'ResourceAgentCommandEvent':
+                # An event was captured. Check that it is the correct event
+                if event['execute_command'] == capture_event['id']:
+                    # Run the mission
+                    for cmd in mission['mission_cmds']:
+                        # Parse command and parameters
+                        try:
+                            self._parse_command(ia_client, cmd)
+                        finally:
+                            # Check for agent error events
+                            if len(self._error_events_received) > 0:
+                                # Check the error
+                                print 'Mission error dectected'
+                                log.error('Mission error detected')
+                                break
 
-            # if event.name == "temperature_warning_interval" and event.sub_type == "WARNING":
-            #     log.debug('temperature_warning_interval WARNING: ')
-            #     self.assertEqual(instAggStatus[2], 3)
+        self.mission_event_subscriber = EventSubscriber(event_type=capture_event['event_type'],
+                                                        origin=ia_event_client.resource_id,
+                                                        callback=callback_for_mission_events)
 
-            # if event.name == "late_data_warning" and event.sub_type == "WARNING":
-            #     log.debug('LATE DATA WARNING: ')
-            #     #check for WARNING or OK becuase the ALL Clear event comes too quicky..
-            #     self.assertTrue(instAggStatus[1] >= 2 )
-
-            #
-            #            extended_instrument = self.imsclient.get_instrument_device_extension(i_obj.instrument_device_id)
-            #            log.debug(' callback_for_alert   communications_status_roll_up: %s', extended_instrument.computed.communications_status_roll_up)
-            #            log.debug(' callback_for_alert   data_status_roll_up: %s', extended_instrument.computed.data_status_roll_up)
-
-            self.catch_alert.put(event)
-
-        def callback_for_agg_alert(event, *args, **kwargs):
-            #log.debug("caught an alert: %s", event)
-            log.debug('TestPlatformInstrument recieved AggStatus event: args=%s, kwargs=%s, event=%s.',
-                      str(args), str(kwargs), str(args[0]))
-            log.debug('TestPlatformInstrument recieved AggStatus event obj %s: ', event)
-
-            log.debug('TestPlatformInstrument recieved AggStatus event origin_type: %s ', event.origin_type)
-            log.debug('TestPlatformInstrument recieved AggStatus event origin: %s: ', event.origin)
-
-            # Get a resource agent client to talk with the instrument agent.
-            _ia_client = self._create_resource_agent_client(event.origin)
-            aggstatus = _ia_client.get_agent(['aggstatus'])['aggstatus']
-            log.debug('callback_for_agg_alert  aggStatus: %s', aggstatus)
-            agg_status_comms = aggstatus[1]
-            agg_status_data = aggstatus[2]
-
-            #platform status lags so check that instrument device status is at least known
-            if event.origin_type == "InstrumentDevice":
-                self.assertTrue(agg_status_comms >= 2)
-
-            if event.origin_type == "PlatformDevice":
-                log.debug('PlatformDevice AggStatus ')
-                rollup_status = _ia_client.get_agent(['rollup_status'])['rollup_status']
-                log.debug('callback_for_agg_alert  rollup_status: %s', rollup_status)
-                rollup_status_comms = rollup_status[1]
-                rollup_status_data = rollup_status[2]
-                self.assertTrue(rollup_status_comms >= agg_status_comms )
-                self.assertTrue(rollup_status_data >= agg_status_data )
-
-                child_agg_status = _ia_client.get_agent(['child_agg_status'])['child_agg_status']
-                log.debug('callback_for_agg_alert  child_agg_status: %s', child_agg_status)
-                #only one child instrument
-                child1_agg_status = child_agg_status[instrument_id]
-                child1_agg_status_data = child1_agg_status[2]
-                self.assertTrue(rollup_status_data >= child1_agg_status_data )
-
-            self.catch_alert.put(event)
-
-        # #create a subscriber for the DeviceStatusAlertEvent from the instrument
-        # self.event_subscriber = EventSubscriber(event_type='DeviceStatusAlertEvent',
-        #                                         origin=instrument_id,
-        #                                         callback=callback_for_mission_events)
-        breakpoint(locals(), globals())
-        #create a subscriber for the 'ResourceAgentResourceStateEvent' from the instrument
-        self.event_subscriber = EventSubscriber(event_type='ResourceAgentResourceStateEvent',
-                                                origin=instrument_id,
-                                                callback=callback_for_mission_events)
-        self.event_subscriber.start()
-        # self.addCleanup(self.event_subscriber.stop)
-
-        # #create a subscriber for the DeviceAggregateStatusEvent from the instrument and platform
-        # self.event_subscriber = EventSubscriber(event_type='DeviceAggregateStatusEvent',
-        #                                         callback=callback_for_agg_alert)
-        # self.event_subscriber.start()
-        # self.addCleanup(self.event_subscriber.stop)
+        self.mission_event_subscriber.start()
 
     def _check_preconditions(self, _ia_client):
         """
         Set up a subscriber to collect error events.
         """
-
-        self._start_event_subscriber(_ia_client, 'ResourceAgentErrorEvent', 1)
+        self._start_error_event_subscriber(_ia_client)
 
     def _startup_platform(self):
         """
@@ -658,7 +658,7 @@ class MissionScheduler(object):
                 attempt = 0
                 while (attempt < self.max_attempts and state != PlatformAgentState.INACTIVE):
                     attempt += 1
-                    self._platform_initialize()
+                    self._platform_inactive_state()
                     state = self._pa_client.get_agent_state()
 
             # Go active
@@ -666,7 +666,7 @@ class MissionScheduler(object):
                 attempt = 0
                 while (attempt < self.max_attempts and state != PlatformAgentState.IDLE):
                     attempt += 1
-                    self._platform_active()
+                    self._platform_idle_state()
                     state = self._pa_client.get_agent_state()
 
             # Run
@@ -674,30 +674,30 @@ class MissionScheduler(object):
                 attempt = 0
                 while (attempt < self.max_attempts and state != PlatformAgentState.COMMAND):
                     attempt += 1
-                    self._platform_run()
+                    self._platform_command_state()
                     state = self._pa_client.get_agent_state()
 
-            # Run Mission
-            if state == PlatformAgentState.IDLE:
-                attempt = 0
-                while (attempt < self.max_attempts and state != PlatformAgentState.MISSION_COMMAND):
-                    attempt += 1
-                    self._platform_run_mission()
-                    state = self._pa_client.get_agent_state()
+            # # Run Mission
+            # if state == PlatformAgentState.COMMAND:
+            #     attempt = 0
+            #     while (attempt < self.max_attempts and state != PlatformAgentState.MISSION_COMMAND):
+            #         attempt += 1
+            #         self._platform_mission_running_state()
+            #         state = self._pa_client.get_agent_state()
 
     #-------------------------------------------------------------------------------------
     # Platform commands
     #-------------------------------------------------------------------------------------
 
-    def _platform_initialize(self):
+    def _platform_inactive_state(self):
         """
-        Put platform in the INITIALIZE state
+        Put platform in the INACTIVE state
         """
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
         self._pa_client.execute_agent(cmd, timeout=self._receive_timeout)
 
-    def _platform_active(self):
+    def _platform_idle_state(self):
         """
         Put platform in the IDLE state
         """
@@ -705,7 +705,7 @@ class MissionScheduler(object):
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE, kwargs=kwargs)
         self._pa_client.execute_agent(cmd)
 
-    def _platform_run(self):
+    def _platform_command_state(self):
         """
         Put platform in the COMMAND state
         """
@@ -713,7 +713,15 @@ class MissionScheduler(object):
         cmd = AgentCommand(command=PlatformAgentEvent.RUN, kwargs=kwargs)
         self._pa_client.execute_agent(cmd)
 
-    def _platform_inactive(self):
+    def _platform_mission_running_state(self):
+        """
+        Put platform in the MISSION_COMMAND state
+        """
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.RUN_MISSION, kwargs=kwargs)
+        self._pa_client.execute_agent(cmd)
+
+    def _platform_go_inactive(self):
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
         self._pa_client.execute_agent(cmd)
@@ -742,56 +750,57 @@ class MissionScheduler(object):
 
     def _shutdown_platform(self):
         try:
-            self._platform_inactive()
+            self._platform_go_inactive()
             self._platform_reset()
         finally:  # attempt shutdown anyway
             self._shutdown()
-            self._stop_event_subscriber
+            self._stop_error_event_subscriber
 
     #------------------------------------------------------------------------------
     # Event helpers. Taken from ion/agents/instrument/test/test_instrument_agent.py
     #------------------------------------------------------------------------------
-    def _start_event_subscriber(self, _ia_client, type='ResourceAgentEvent', count=0):
+    def _start_error_event_subscriber(self, _ia_client):
         """
-        Start a subscriber to the instrument agent events.
-        @param type The type of event to catch.
-        @count Trigger the async event result when events received reaches this.
+        Start a subscriber to the instrument agent error events.
+        @_ia_client Instrument agent client to subsribe to
         """
 
-        def consume_event(*args, **kwargs):
-            print "Event captured motherfucker"
-            log.info('Test recieved ION event: args=%s, kwargs=%s, event=%s.',
+        def get_error_event(*args, **kwargs):
+            log.info('Mission recieved ION event: args=%s, kwargs=%s, event=%s.',
                      str(args), str(kwargs), str(args[0]))
             self._error_events_received.append(args[0])
-            if self._event_count > 0 and \
-                    self._event_count == len(self._error_events_received):
-                self._async_event_result.set()
+            self._async_event_result.set()
+
+            # if self._error_event_count > 0 and \
+            #         self._error_event_count == len(self._error_events_received):
+            #     self._async_event_result.set()
 
         # Event array and async event result.
-        self._event_count = count
-        self._error_events_received = []
-        self._async_event_result = AsyncResult()
+        # self._error_events_received = []
+        self._async_error_event_result = AsyncResult()
 
-        self._event_subscriber = EventSubscriber(
-            event_type=type, callback=consume_event,
+        self._error_event_subscriber = EventSubscriber(
+            event_type='ResourceAgentErrorEvent', 
+            callback=get_error_event,
             origin=_ia_client.resource_id)
-        self._event_subscriber.start()
-        self._event_subscriber._ready_event.wait(timeout=5)
 
-    def _stop_event_subscriber(self):
+        # self._error_event_subscriber.append()
+
+        self._error_event_subscriber.start()
+        self._error_event_subscriber._ready_event.wait(timeout=5)
+
+    def _stop_error_event_subscriber(self):
         """
         Stop event subscribers on cleanup.
         """
-        self._event_subscriber.stop()
-        self._event_subscriber = None
+        self._error_event_subscriber.stop()
+        self._error_event_subscriber = None
 
 if __name__ == "__main__":  # pragma: no cover
     """
     Stand alone to check the mission loading/parsing capabilities
     """
     filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
-    # filename = '/Users/bobfratantonio/Desktop/mission_HDCamera.yml'
-    # filename = '/Users/bobfratantonio/Desktop/mission_MASSP.yml'
-    # filename = '/Users/bobfratantonio/Desktop/mission_ShallowProfiler.yml'
+
     mission = MissionLoader()
     mission.load_mission_file(filename)

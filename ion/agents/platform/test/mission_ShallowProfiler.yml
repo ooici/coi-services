@@ -1,0 +1,61 @@
+name: Shallow Profiler
+version: 0
+description: Shallow Profiler Mission
+
+platform:
+  platformID: ShallowProfiler
+
+mission:
+    - instrument: 
+      instrumentID: SBE37_SIM_02
+
+      schedule:
+        startTime: 03/01/2014 00:00:00
+        loop:
+          quantity: 1
+          value: 0
+          units: None
+        event:
+          parentID:
+          eventID: 
+
+      missionParams:
+        - command: LoadMission  
+          params: {'missionIndex': 2}     # Mission index to mission XML file
+        - command: RunMission  
+          params: {'missionIndex': 2}    # Mission index to mission XML file
+
+    - instrument: 
+      instrumentID: SBE37_SIM_03
+
+      schedule:
+        startTime: None
+        loop:
+          quantity: 
+          value: 
+          units: 
+        event:
+          parentID: ShallowProfiler
+          eventID: ShallowProfilerStep
+
+      missionParams:
+        - command: Sample  
+          params: {'duration': 55, 'units': 'secs', 'interval': 1}   #[duration, duration units, time between samples]
+
+    - instrument: 
+      instrumentID: SBE37_SIM_04
+
+      schedule:
+        startTime: None
+        loop:
+          quantity:
+          value:
+          units:
+        event:
+          parentID: ShallowProfiler
+          eventID: ShallowProfilerAtCeiling
+
+      missionParams:
+        - command: Sample  
+          params: {'duration': 55, 'units': 'secs', 'interval': 1}   #[duration, duration units, time between samples]
+

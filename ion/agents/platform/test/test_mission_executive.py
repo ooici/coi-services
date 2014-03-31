@@ -149,7 +149,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         self.mission = MissionLoader()
         self.mission.load_mission_file(yaml_filename)
 
-    @skip("Work in progress...")
+    # @skip("Work in progress...")
     def test_simple_simulator_mission(self):
         """
         Test the RSN OMS platform simulator with the SBE37_SIM instruments
@@ -159,13 +159,10 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
 
         self.setup_platform_simulator_and_instruments()
 
-        # breakpoint(locals(),globals())
-        retval = self.OMS.instr.get_connected_instruments('LJ01D', 1)
-
         # Start Mission Scheduer
         self.missionSchedule = MissionScheduler(self._pa_client, self._instruments, self.mission.mission_entries)
 
-    @skip("Work in progress...")
+    # @skip("Work in progress...")
     def test_shallow_profiler_mission(self):
         """
         Test the Shallow Water Profiler mission
