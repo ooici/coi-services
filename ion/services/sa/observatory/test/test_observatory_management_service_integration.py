@@ -2,6 +2,7 @@
 
 import unittest
 from nose.plugins.attrib import attr
+import os
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.containers import DotDict, get_ion_ts
@@ -550,6 +551,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
 
     @attr('EXT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode as it depends on modifying CFG on service side')
     def test_observatory_extensions(self):
         self.patch_cfg(CFG["container"], {"extended_resources": {"strip_results": False}})
 
@@ -592,6 +594,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
     #@unittest.skip("in development...")
     @attr('EXT')
     @attr('EXT1')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode as it depends on modifying CFG on service side')
     def test_observatory_org_extended(self):
         self.patch_cfg(CFG["container"], {"extended_resources": {"strip_results": False}})
 

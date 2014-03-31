@@ -2,6 +2,7 @@
 
 from nose.plugins.attrib import attr
 import unittest
+import os
 
 from ooi.logging import log
 
@@ -58,6 +59,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 #        return
 
     @attr('EXT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode as it depends on modifying CFG on service side')
     def test_resources_associations_extensions(self):
         """
         create one of each resource and association used by IMS
