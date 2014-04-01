@@ -5,7 +5,7 @@
 @date Tue May  7 15:34:54 EDT 2013
 '''
 
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.process import ImmediateProcess, SimpleProcess
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
 from ion.services.dm.utility.granule import RecordDictionaryTool
@@ -118,42 +118,54 @@ class QCProcessor(SimpleProcess):
         self.timeout = 10
 
     def on_start(self):
+        '''
+        Process initialization
+        '''
         self._thread = self._process.thread_manager.spawn(self.event_loop)
         self.timeout = self.CFG.get_safe('endpoint.receive.timeout', 10)
         self.resource_registry = self.container.resource_registry
-        self.qc_evals = [
-            self.global_range,
-            self.gradient_test,
-            self.local_range_test,
-            self.spike_test,
-            self.stuck_value_test,
-            self.trend_test ]
 
     def on_quit(self):
+        '''
+        Stop and cleanup the thread
+        '''
         self.suspend()
 
     def event_loop(self):
+        '''
+        Asynchronous event-loop
+        '''
         threading.current_thread().name = '%s-qc-processor' % self.id
         while not self.event.wait(1):
-            data_products, _ = self.container.resource_registry.find_resources(restype=RT.DataProduct, id_only=False)
-            for data_product in data_products:
-                log.error("Looking at %s", data_product.name)
-                # Get the reference designator
-                try:
-                    rd = self._get_reference_designator(data_product._id)
-                except BadRequest:
-                    continue
-                for p in self.get_parameters(data_product):
-                    log.error(p.name)
-                log.error("Data Product RD: %s", rd)
-                for qc_eval in self.qc_evals:
-                    qc_eval(data_product, rd)
+            self.main_loop()
 
-                # Break early if we can
-                if self.event.is_set(): 
-                    break
+    def main_loop(self):
+        '''
+        Iterates through available data products and evaluates QC
+        '''
+        data_products, _ = self.container.resource_registry.find_resources(restype=RT.DataProduct, id_only=False)
+        for data_product in data_products:
+            log.error("Looking at %s", data_product.name)
+            # Get the reference designator
+            try:
+                rd = self._get_reference_designator(data_product._id)
+            except BadRequest:
+                continue
+            for p in self.get_parameters(data_product):
+                # for each parameter, if the name ends in _qc run the qc
+                if p.name.endswith('_qc'):
+                    self.run_qc(data_product,rd, p)
+            log.error("Data Product RD: %s", rd)
+
+            # Break early if we can
+            if self.event.is_set(): 
+                break
+
 
     def suspend(self):
+        '''
+        Stops the event loop
+        '''
         self.event.set()
         self._thread.join(self.timeout)
         log.info("QC Thread Suspended")
@@ -163,6 +175,11 @@ class QCProcessor(SimpleProcess):
         '''
         Returns the reference designator for a data product if it has one
         '''
+        # First try to get the parent data product
+        data_product_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
+        if data_product_ids:
+            log.error("Derived data product")
+            return self._get_reference_designator(data_product_ids[0])
 
         device_ids, _ = self.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasOutputProduct, subject_type=RT.InstrumentDevice, id_only=True)
         if not device_ids: 
@@ -176,48 +193,22 @@ class QCProcessor(SimpleProcess):
         rd = site.reference_designator
         return rd
 
-    def global_range(self, data_product, rd):
-        if data_product.qc_glblrng != 'applicable':
-            log.error("Global Range not enabled")
-            return
-        log.error("Global Range enabled")
+    def run_qc(self, data_product, reference_designator, parameter):
+        log.error("Running QC %s (%s)", data_product.name, parameter.name)
+        dp_ident, alg, qc = parameter.ooi_short_name.split('_')
+        log.error("Identifier: %s", dp_ident)
+        log.error("Test: %s", alg)
+        try:
+            doc = self.container.object_store.read_doc(reference_designator)
+        except NotFound:
+            return # NO QC lookups found
+        #log.error(repr(doc))
 
-    def gradient_test(self, data_product, rd):
-        if data_product.qc_gradtst != 'applicable':
-            log.error("Gradient Test not enabled")
-            return
-        log.error("Gradient Test enabled")
-            
-    def local_range_test(self, data_product, rd):
-        if data_product.qc_loclrng != 'applicable':
-            log.error("Local Range Test not enabled")
-            return
-        log.error("Local Range Test enabled")
-    
-    def spike_test(self, data_product, rd):
-        if data_product.qc_spketest != 'applicable':
-            log.error("Spike Test not enabled")
-            return
-        log.error("Spike Test enabled")
-    
-    def stuck_value_test(self, data_product, rd):
-        if data_product.qc_stuckvl != 'applicable':
-            log.error("Stuck Value Test not enabled")
-            return
-        log.error("Stuck Value Test enabled")
-
-    def trend_test(self, data_product, rd):
-        if data_product.qc_trndtst != 'applicable':
-            log.error("Trend Test not enabled")
-            return
-        log.error("Trend Test enabled")
-
-    def fetch_lookup(self, data_product, rd, qc):
-        # TODO: Object store stuff
-
-        pass
 
     def get_parameters(self, data_product):
+        '''
+        Returns the relevant parameter contexts of the data product
+        '''
 
         # DataProduct -> StreamDefinition
         stream_defs, _ = self.resource_registry.find_objects(data_product._id, PRED.hasStreamDefinition, id_only=False)
