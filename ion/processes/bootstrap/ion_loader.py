@@ -73,7 +73,7 @@ from pyon.core.bootstrap import get_service_registry
 from pyon.datastore.datastore import DatastoreManager, DataStore
 from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
 from pyon.ion.resource import get_restype_lcsm
-from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT, LCS, AS, BadRequest, NotFound, Conflict
+from pyon.public import log, ImmediateProcess, IonObject, RT, PRED, OT, LCS, AS, BadRequest, NotFound, Conflict, Inconsistent
 from pyon.util.containers import get_ion_ts, named_any, dict_merge
 from pyon.util.config import Config
 
@@ -296,7 +296,7 @@ class IONLoader(ImmediateProcess):
 
         log.info("IONLoader: {op=%s, path=%s}", op, self.path)
         if not op:
-            raise iex.BadRequest("No operation specified")
+            raise BadRequest("No operation specified")
 
         # Perform operations
         if op == "load":
@@ -361,7 +361,7 @@ class IONLoader(ImmediateProcess):
             if self.debug:
                 self.ooi_loader.delete_ooi_assets()
             else:
-                raise iex.BadRequest("deleteooi not allowed if debug==False")
+                raise BadRequest("deleteooi not allowed if debug==False")
 
         elif op == "loadui":
             specs_path = 'interface/ui_specs.json' if self.exportui else None
@@ -371,7 +371,7 @@ class IONLoader(ImmediateProcess):
             self.ui_loader.delete_ui()
 
         else:
-            raise iex.BadRequest("Operation unknown: %s" % op)
+            raise BadRequest("Operation unknown: %s" % op)
 
     def on_quit(self):
         pass
@@ -429,7 +429,7 @@ class IONLoader(ImmediateProcess):
             except Exception:
                 log.warn("Failed to parse preload document (read %d bytes)", length, exc_info=True)
         if not self.object_definitions:
-            raise iex.BadRequest("failed to read and parse URL %d times" % HTTP_RETRIES)
+            raise BadRequest("failed to read and parse URL %d times" % HTTP_RETRIES)
         log.debug("Read and parsed URL (%d bytes)", length)
 
     def _read_xls_file(self, scenarios):
@@ -480,7 +480,7 @@ class IONLoader(ImmediateProcess):
         """Read some system objects for later reference"""
         org_objs,_ = self.container.resource_registry.find_resources(name="ION", restype=RT.Org, id_only=False)
         if not org_objs:
-            raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
+            raise BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
         ion_org_id = org_objs[0]._id
         self._register_id(ID_ORG_ION, ion_org_id, org_objs[0])
 
@@ -515,7 +515,7 @@ class IONLoader(ImmediateProcess):
         existing_resources = dict(zip(res_preload_ids, res_objs))
 
         if len(existing_resources) != len(res_objs):
-            raise iex.BadRequest("Stored preload IDs are NOT UNIQUE!!! Cannot link to old resources")
+            raise BadRequest("Stored preload IDs are NOT UNIQUE!!! Cannot link to old resources")
 
         res_id_mapping = dict(zip(res_preload_ids, res_ids))
         self.resource_ids.update(res_id_mapping)
@@ -701,7 +701,7 @@ class IONLoader(ImmediateProcess):
         if existing_obj:
             # Edit attributes
             if existing_obj.type_ != objtype:
-                raise iex.Inconsistent("Cannot edit resource. Type mismatch old=%s, new=%s" % (existing_obj.type_, objtype))
+                raise Inconsistent("Cannot edit resource. Type mismatch old=%s, new=%s" % (existing_obj.type_, objtype))
             # TODO: Don't edit empty nested attributes
             for attr in list(obj_fields.keys()):
                 if not obj_fields[attr]:
@@ -739,7 +739,7 @@ class IONLoader(ImmediateProcess):
     def _register_id(self, alias, resid, res_obj=None, is_update=False):
         """Keep preload resource in internal dict for later reference"""
         if not is_update and alias in self.resource_ids:
-            raise iex.BadRequest("ID alias %s used twice" % alias)
+            raise BadRequest("ID alias %s used twice" % alias)
         self.resource_ids[alias] = resid
         self.resource_objs[alias] = res_obj
         log.trace("Added resource alias=%s to id=%s", alias, resid)
@@ -1009,7 +1009,7 @@ class IONLoader(ImmediateProcess):
                             msg = 'id ' + row[COL_ID] + ' refers to an ' + msg
                         if obj_type:
                             msg = obj_type + ' ' + msg
-                        raise iex.BadRequest(msg)
+                        raise BadRequest(msg)
                     value = value_map[name]
                     values.append(value)
         return values
@@ -1021,14 +1021,14 @@ class IONLoader(ImmediateProcess):
         """
         if self.bulk:
             if not subject or not predicate or not obj:
-                raise iex.BadRequest("Association must have all elements set: %s/%s/%s" % (subject, predicate, obj))
+                raise BadRequest("Association must have all elements set: %s/%s/%s" % (subject, predicate, obj))
             if "_id" not in subject:
-                raise iex.BadRequest("Subject id not available")
+                raise BadRequest("Subject id not available")
             subject_id = subject._id
             st = subject.type_
 
             if "_id" not in obj:
-                raise iex.BadRequest("Object id not available")
+                raise BadRequest("Object id not available")
             object_id = obj._id
             ot = obj.type_
 
@@ -1071,7 +1071,7 @@ class IONLoader(ImmediateProcess):
         cont_id = row[COL_ID]
         log.trace('creating contact: ' + cont_id)
         if cont_id in self.contact_defs:
-            raise iex.BadRequest('contact with ID already exists: ' + cont_id)
+            raise BadRequest('contact with ID already exists: ' + cont_id)
 
         roles = get_typed_value(row['c/roles'], targettype='simplelist')
         del row['c/roles']
@@ -1110,7 +1110,7 @@ class IONLoader(ImmediateProcess):
         # Prepare contact and UserInfo attributes
         contacts = self._get_contacts(row, field='contact_id', type='User')
         if len(contacts) > 1:
-            raise iex.BadRequest('User %s defined with too many contacts (should be 1)' % alias)
+            raise BadRequest('User %s defined with too many contacts (should be 1)' % alias)
         contact = contacts[0] if len(contacts)==1 else None
         user_attrs = dict(name=name, description=description)
         if contact:
@@ -1196,7 +1196,7 @@ class IONLoader(ImmediateProcess):
             svc_client = self._get_service_client("observatory_management")
             res_id = svc_client.create_virtual_observatory(res_obj, headers=headers)
         else:
-            raise iex.BadRequest("Unknown Org type: %s" % org_type)
+            raise BadRequest("Unknown Org type: %s" % org_type)
 
         res_obj._id = res_id
         self._register_id(row[COL_ID], res_id, res_obj)
@@ -1343,13 +1343,13 @@ class IONLoader(ImmediateProcess):
         series_objs = self.ooi_loader.get_type_assets("series")
 
         if model_id not in series_objs:
-            raise iex.BadRequest("Unknown series/model_id: %s" % model_id)
+            raise BadRequest("Unknown series/model_id: %s" % model_id)
 
         if model_id in modelmap_objs:
             mmap_series = modelmap_objs[model_id]
             primary_series = mmap_series["primary_series"]
             if primary_series not in series_objs:
-                raise iex.BadRequest("Unknown primary series: %s" % primary_series)
+                raise BadRequest("Unknown primary series: %s" % primary_series)
             return primary_series
 
         return model_id
@@ -1454,7 +1454,7 @@ class IONLoader(ImmediateProcess):
             vmin = float(row['bottom'])
             vmax = float(row['top'])
         else:
-            raise iex.BadRequest('vertical_direction must be "depth" or "elevation", not ' + z)
+            raise BadRequest('vertical_direction must be "depth" or "elevation", not ' + z)
         constraint = IonObject("GeospatialBounds",
                                geospatial_latitude_limit_north=float(row['north']),
                                geospatial_latitude_limit_south=float(row['south']),
@@ -1480,14 +1480,14 @@ class IONLoader(ImmediateProcess):
         self.row_count += 1
         const_id = row[COL_ID]
         if const_id in self.constraint_defs:
-            raise iex.BadRequest('constraint with ID already exists: ' + const_id)
+            raise BadRequest('constraint with ID already exists: ' + const_id)
         const_type = row['type']
         if const_type == 'geospatial' or const_type == 'geo' or const_type == 'space':
             self.constraint_defs[const_id] = self._create_geospatial_constraint(row)
         elif const_type == 'temporal' or const_type == 'temp' or const_type == 'time':
             self.constraint_defs[const_id] = self._create_temporal_constraint(row)
         else:
-            raise iex.BadRequest('constraint type must be either geospatial or temporal, not ' + const_type)
+            raise BadRequest('constraint type must be either geospatial or temporal, not ' + const_type)
 
     def _load_CoordinateSystem(self, row):
         """
@@ -2574,7 +2574,7 @@ Reason: %s
             nodetype_obj = nodetype_objs[ooi_rd.node_type]
             agent_map = nodetype_obj.get("agentmap", [])
         else:
-            raise iex.BadRequest("Must provide instrument or node RD: %s" % ooi_rd.rd)
+            raise BadRequest("Must provide instrument or node RD: %s" % ooi_rd.rd)
 
         # Try to see if agentmap provides a match by RD prefix
         if agent_map:
@@ -2883,7 +2883,7 @@ Reason: %s
     def _load_ExternalDataProvider(self, row):
         contacts = self._get_contacts(row, field='contact_id')
         if len(contacts) > 1:
-            raise iex.BadRequest('ExternalDataProvider %s has too many contacts (should be 1)' % row[COL_ID])
+            raise BadRequest('ExternalDataProvider %s has too many contacts (should be 1)' % row[COL_ID])
         contact = contacts[0] if len(contacts) == 1 else None
         institution = self._create_object_from_row("Institution", row, "i/")
 
@@ -2900,7 +2900,7 @@ Reason: %s
     def _load_ExternalDataset(self, row):
         contacts = self._get_contacts(row, field='contact_id')
         if len(contacts) > 1:
-            raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
+            raise BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
         contact = contacts[0] if len(contacts) == 1 else None
 
         model_id = self._get_resource_id(row['model_id'])
@@ -3637,7 +3637,7 @@ Reason: %s
         if row['parser'] and row['parser'] in self.resource_ids:
             att_obj.context = objects.ReferenceAttachmentContext(parser_id=self.resource_ids[row['parser']])
         if not filename:
-            raise iex.BadRequest('attachment did not include a filename: ' + row[COL_ID])
+            raise BadRequest('attachment did not include a filename: ' + row[COL_ID])
 
         try:
             path = "%s/%s" % (self.attachment_path, filename)
