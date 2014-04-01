@@ -1,5 +1,5 @@
 name: Shallow Profiler
-version: 0
+version: 0.1
 description: Shallow Profiler Mission
 
 platform:
@@ -7,8 +7,7 @@ platform:
 
 mission:
     - instrument: 
-      instrumentID: SBE37_SIM_02
-
+      instrumentID: ShallowProfiler
       schedule:
         startTime: 03/01/2014 00:00:00
         loop:
@@ -18,16 +17,14 @@ mission:
         event:
           parentID:
           eventID: 
-
       missionParams:
         - command: LoadMission  
-          params: {'missionIndex': 2}     # Mission index to mission XML file
+          params: {'missionIndex': 0}     # Mission index to mission XML file
         - command: RunMission  
-          params: {'missionIndex': 2}    # Mission index to mission XML file
+          params: {'missionIndex': 0, 'missionparams': {}}    # Mission index to mission XML file
 
     - instrument: 
-      instrumentID: SBE37_SIM_03
-
+      instrumentID: OPTAA
       schedule:
         startTime: None
         loop:
@@ -37,14 +34,12 @@ mission:
         event:
           parentID: ShallowProfiler
           eventID: ShallowProfilerStep
-
       missionParams:
         - command: Sample  
           params: {'duration': 55, 'units': 'secs', 'interval': 1}   #[duration, duration units, time between samples]
 
     - instrument: 
-      instrumentID: SBE37_SIM_04
-
+      instrumentID: OPTAA
       schedule:
         startTime: None
         loop:
@@ -54,8 +49,6 @@ mission:
         event:
           parentID: ShallowProfiler
           eventID: ShallowProfilerAtCeiling
-
       missionParams:
         - command: Sample  
           params: {'duration': 55, 'units': 'secs', 'interval': 1}   #[duration, duration units, time between samples]
-

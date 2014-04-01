@@ -8,7 +8,6 @@ platform:
 mission:
     - instrument: 
       instrumentID: MASSP
-
       schedule:
         startTime: 02/25/2014 21:03:00
         loop:
@@ -18,11 +17,8 @@ mission:
         event:
           parentID:
           eventID: 
-
-
       missionParams:
         # - command: Calibrate       # Start the warm up or "Calibrate" routine   
         #   params: {}               # No input parameters here
         - command: Sample          # Start autosample routine
-          params: {'duration': 15, 'units': 'mins',
-                  'interval': 5}  # Enter all params here including RGA scan params
+          params: {'duration': 15, 'units': 'mins', 'interval': 5}  # Enter all params here including RGA scan params

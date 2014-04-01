@@ -15,17 +15,15 @@ platform:
 mission:
     - instrument: 
       instrumentID: SBE37_SIM_02
-
       schedule:
         startTime: 03/27/2014 00:00:00
         loop:
-          quantity: -1  # No. of loops (-1 for infinite)
-          value: 5     # Repeat missionParams every 'xx' 'units'
-          units: mins   # mins, hrs, days
+          quantity: -1   # No. of loops (-1 for infinite)
+          value: 30      # Repeat missionParams every 'xx' 'units'
+          units: mins    # mins, hrs, days
         event:
           parentID:
           eventID: 
-
       missionParams:
         - command: Wait
           params: {'duration': 5, 'units': 'secs'}      #[duration, duration units]
@@ -34,7 +32,6 @@ mission:
 
     - instrument: 
       instrumentID: SBE37_SIM_03
-
       schedule:
         startTime: 03/27/2014 00:00:00
         loop:
@@ -44,7 +41,6 @@ mission:
         event:
           parentID:
           eventID:
-
       missionParams:
         - command: Wait
           params: {'duration': 5, 'units': 'secs'}      #[duration, duration units]

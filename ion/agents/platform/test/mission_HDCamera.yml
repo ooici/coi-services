@@ -8,7 +8,6 @@ platform:
 mission:
     - instrument: 
       instrumentID: HDCamera
-
       schedule:
         startTime: 02/01/2014 00:00:00
         loop:
@@ -18,7 +17,6 @@ mission:
         event:
           parentID:
           eventID: 
-
       missionParams:
         # - command: Connect
         #   params: {}
@@ -55,7 +53,6 @@ mission:
 
     - instrument: 
       instrumentID: HDCamera
-
       schedule:
         startTime: 02/01/2014 02:00:00
         loop:
@@ -65,7 +62,6 @@ mission:
         event:
           parentID:
           eventID: 
-
       missionParams:
         # - command: Connect
         #   params: {}

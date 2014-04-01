@@ -31,8 +31,15 @@ class MissionEvents(BaseEnum):
     Acceptable mission events.
     TODO: Define all possible events that a mission can respond to
     """
-    PROFILER_AT_CEILING = 'ShallowProfilerAtCeiling'
-    PROFILER_STEP = 'ShallowProfilerStep'
+    #Shallow Profiler Events
+    PROFILER_AT_CEILING = 'atceiling'
+    PROFILER_AT_FLOOR = 'atfloor'
+    PROFILER_AT_STEP = 'atstep'
+    PROFILER_AT_DEPTH = 'atdepth'
+    PROFILER_GO_TO_COMPLETE = 'gotocomplete'
+    PROFILER_IDLE_TIMEOUT = 'idletimeout'
+    PROFILER_SYSTEM_ERROR = 'systemerror'
+    PROFILER_MISSION_COMPLETE = 'missioncomplete'
 
 
 class MissionCommands(BaseEnum):
@@ -54,6 +61,12 @@ class MissionCommands(BaseEnum):
     # Shallow Profiler
     LOAD = 'loadmission'
     RUN = 'runmission'
+    SET_ASCENT_SPEED = 'setascentspeed'
+    SET_DESCENT_SPEED = 'setdescentspeed'
+    SET_DEPTH_ALARM = 'setdepthalarm'
+    GO_TO_DEPTH = 'gotodepth'
+    GET_STATUS = 'getstatus'
+    GET_LIMITS = 'getlimits'
 
     # Create dict of associations
     all_cmds = {
@@ -66,7 +79,14 @@ class MissionCommands(BaseEnum):
         SAMPLE: ['duration', 'units', 'interval'],
         TILT: ['angle', 'rate'],
         WAIT: ['duration', 'units'],
-        ZOOM: ['level']}
+        ZOOM: ['level'],
+        GO_TO_DEPTH: ['depth'],
+        SET_ASCENT_SPEED: ['speed'],
+        SET_DESCENT_SPEED: ['speed'],
+        SET_DEPTH_ALARM: ['depth'],
+        GET_LIMITS: [],
+        GET_STATUS: [],
+        }
 
 
 class MissionLoader(object):
@@ -299,7 +319,6 @@ class MissionLoader(object):
         """
 
         for current_mission in mission:
-
             # platform_id = current_mission['platformID']
             schedule = current_mission['schedule']
             mission_params = current_mission['missionParams']
@@ -442,7 +461,7 @@ class MissionScheduler(object):
             print 'Sample Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
             log.debug('Sample Over ' + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
 
-            self._send_command(ia_client, 'calibrate')
+            self._send_command(ia_client, 'stop')
 
         elif command == 'calibrate':
 
@@ -636,9 +655,15 @@ class MissionScheduler(object):
 
         self.mission_event_subscriber.start()
 
-    def _check_preconditions(self, _ia_client):
+    def _check_pre_conditions(self, _ia_client):
         """
-        Set up a subscriber to collect error events.
+        Mission precondition checks
+        """
+        self._start_error_event_subscriber(_ia_client)
+
+    def _check_post_conditions(self):
+        """
+        Mission postcondition checks
         """
         self._start_error_event_subscriber(_ia_client)
 
@@ -756,6 +781,21 @@ class MissionScheduler(object):
             self._shutdown()
             self._stop_error_event_subscriber
 
+    #-------------------------------------------------------------------------------------
+    # Error handling
+    #-------------------------------------------------------------------------------------
+    def _check_error(self, error_event):
+        """
+        Error handling
+        """
+        print 'Checking error...'
+        if error_event['error_code'] == 409:
+            # Instrument State exception - do something
+            for k, v in self._instruments.items():
+                if error_event['origin'] == v.resource_id:
+                    ia_client = v
+            print error_event['error_code']
+
     #------------------------------------------------------------------------------
     # Event helpers. Taken from ion/agents/instrument/test/test_instrument_agent.py
     #------------------------------------------------------------------------------
@@ -768,8 +808,12 @@ class MissionScheduler(object):
         def get_error_event(*args, **kwargs):
             log.info('Mission recieved ION event: args=%s, kwargs=%s, event=%s.',
                      str(args), str(kwargs), str(args[0]))
+            print('Mission recieved ION event: args=%s, kwargs=%s, event=%s.',
+                  str(args), str(kwargs), str(args[0]))
+
             self._error_events_received.append(args[0])
-            self._async_event_result.set()
+            self._async_error_event_result.set()
+            self._check_error(args[0])
 
             # if self._error_event_count > 0 and \
             #         self._error_event_count == len(self._error_events_received):
@@ -780,7 +824,7 @@ class MissionScheduler(object):
         self._async_error_event_result = AsyncResult()
 
         self._error_event_subscriber = EventSubscriber(
-            event_type='ResourceAgentErrorEvent', 
+            event_type='ResourceAgentErrorEvent',
             callback=get_error_event,
             origin=_ia_client.resource_id)
 
