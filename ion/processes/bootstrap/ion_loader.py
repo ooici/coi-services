@@ -3399,11 +3399,6 @@ Reason: %s
                 newrow['dp/qc_spketest'] = dp_obj.get('Spike Test (SPKETST) QC', "")
                 newrow['dp/qc_stuckvl'] = dp_obj.get('Stuck Value Test (STUCKVL) QC', "")
                 newrow['dp/qc_trndtst'] = dp_obj.get('Trend Test (TRNDTST) QC', "")
-                #newrow['dp/qc_condcmp'] = dp_obj.get('Conductivity Compressibility Compensation (CONDCMP) QC', "")
-                #newrow['dp/qc_interp1'] = dp_obj.get('1-D Interpolation (INTERP1) QC', "")
-                #newrow['dp/qc_modulus'] = dp_obj.get('Modulus (MODULUS) QC', "")
-                #newrow['dp/qc_polyval'] = dp_obj.get('Evaluate Polynomial (POLYVAL) QC', "")
-                #newrow['dp/qc_solarel'] = dp_obj.get('Solar Elevation (SOLAREL) QC', "")
                 if dp_obj['level'] == "L0":
                     newrow['dp/quality_control_level'] = "N/A"
                 else:
@@ -3566,15 +3561,8 @@ Reason: %s
         self._register_id(row[COL_ID], att_id, att_obj)
 
 
-    def _load_Deployment(self, row):
-        constraints = self._get_constraints(row, type='Deployment')
-        coordinate_name = row['coordinate_system']
-        context_type = row['context_type']
-        context = IonObject(context_type)
-
-        platform_port = None
+    def _get_port_assignments(self, raw_port_assigment):
         assignments = {}
-        raw_port_assigment = row.get('port_assignment', None)
         if raw_port_assigment:
             port_assigments = parse_dict(raw_port_assigment)
 
@@ -3585,6 +3573,14 @@ Reason: %s
                                          ip_address=str(port_asgn_info.get("ip_address", "") ))
                 device_resrc_id = self.resource_ids[dev_id]
                 assignments[device_resrc_id] = platform_port
+        return assignments
+
+    def _load_Deployment(self, row):
+        constraints = self._get_constraints(row, type='Deployment')
+        coordinate_name = row['coordinate_system']
+        context_type = row['context_type']
+        context = IonObject(context_type)
+        assignments = self._get_port_assignments(row.get('port_assignment', None))
 
         deployment_id = self._basic_resource_create(row, "Deployment", "d/",
                                              "observatory_management", "create_deployment",
@@ -3659,8 +3655,6 @@ Reason: %s
                 continue
             if not node_obj.get('is_platform', False):
                 continue
-            if self._resource_exists(node_id + "_DEP"):
-                continue
 
             ooi_rd = OOIReferenceDesignator(node_id)
 
@@ -3674,8 +3668,9 @@ Reason: %s
             constrow['end'] = "2054-01-01T0:00:00"
             self._load_Constraint(constrow)
 
+            dep_id = node_id + "_DEP"
             newrow = {}
-            newrow[COL_ID] = node_id + "_DEP"
+            newrow[COL_ID] = dep_id
             newrow['site_id'] = node_id
             newrow['device_id'] = node_id + "_PD"
             if self._is_deployed(node_obj) and self.ooiactivate:
@@ -3699,8 +3694,15 @@ Reason: %s
                 newrow['context_type'] = 'RemotePlatformDeploymentContext'
                 newrow['port_assignment'] = self._create_port_assignments(node_id, recurse=True)
 
-            log.debug("Create activate=%s Deployment for PD %s", newrow['activate'], node_id)
-            self._load_Deployment(newrow)
+            if not self._resource_exists(dep_id):
+                log.debug("Create Deployment for PD %s. Activate: %s", node_id, newrow['activate'])
+                self._load_Deployment(newrow)
+            elif self.ooiupdate:
+                res_obj = self._get_resource_obj(dep_id)
+                new_assignments = self._get_port_assignments(newrow['port_assignment'])
+                if set(res_obj.port_assignments.keys()) != set(new_assignments.keys()):
+                    res_obj.port_assignments = new_assignments
+                    self._update_resource_obj(dep_id)
 
         # II. Instrument deployments (RSN and cabled EA only)
         for inst_id, inst_obj in inst_objs.iteritems():
@@ -3711,8 +3713,6 @@ Reason: %s
             if not self._match_filter(inst_id[:2]):
                 continue
             if not self._is_cabled(ooi_rd):
-                continue
-            if self._resource_exists(inst_id + "_DEP"):
                 continue
 
             # Create a TemporalBounds constraint
@@ -3725,8 +3725,9 @@ Reason: %s
             constrow['end'] = "2054-01-01T0:00:00"
             self._load_Constraint(constrow)
 
+            dep_id = inst_id + "_DEP"
             newrow = {}
-            newrow[COL_ID] = inst_id + "_DEP"
+            newrow[COL_ID] = dep_id
             newrow['site_id'] = inst_id
             newrow['device_id'] = inst_id + "_ID"
             if self._is_deployed(inst_obj) and self.ooiactivate:
@@ -3739,11 +3740,18 @@ Reason: %s
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['context_type'] = 'CabledInstrumentDeploymentContext'
-            newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+            newrow['lcstate'] = "INTEGRATED_AVAILABLE"
             newrow['port_assignment'] = self._create_port_assignments(inst_id, recurse=False)
 
-            log.debug("Create activate=%s Deployment for ID %s", newrow['activate'], inst_id)
-            self._load_Deployment(newrow)
+            if not self._resource_exists(dep_id):
+                log.debug("Create Deployment for ID %s. Activate: %s", inst_id, newrow['activate'])
+                self._load_Deployment(newrow)
+            elif self.ooiupdate:
+                res_obj = self._get_resource_obj(dep_id)
+                new_assignments = self._get_port_assignments(newrow['port_assignment'])
+                if set(res_obj.port_assignments.keys()) != set(new_assignments.keys()):
+                    res_obj.port_assignments = new_assignments
+                    self._update_resource_obj(dep_id)
 
     def _load_Scheduler(self, row):
         self.row_count += 1
