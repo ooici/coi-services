@@ -18,6 +18,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceClient
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.services.ans.ivisualization_service import VisualizationServiceClient
 from ion.processes.data.registration.registration_process import RegistrationProcess
 
@@ -65,6 +66,7 @@ class DMTestCase(IonIntegrationTestCase):
         self.dataset_management = DatasetManagementServiceClient()
         self.user_notification = UserNotificationServiceClient()
         self.workflow_management = WorkflowManagementServiceClient()
+        self.observatory_management = ObservatoryManagementServiceClient()
         self.visualization = VisualizationServiceClient()
         self.ph = ParameterHelper(self.dataset_management, self.addCleanup)
         self.ctd_count = 0

@@ -120,6 +120,14 @@ class QCProcessor(SimpleProcess):
     def on_start(self):
         self._thread = self._process.thread_manager.spawn(self.event_loop)
         self.timeout = self.CFG.get_safe('endpoint.receive.timeout', 10)
+        self.resource_registry = self.container.resource_registry
+        self.qc_evals = [
+            self.global_range,
+            self.gradient_test,
+            self.local_range_test,
+            self.spike_test,
+            self.stuck_value_test,
+            self.trend_test ]
 
     def on_quit(self):
         self.suspend()
@@ -130,7 +138,19 @@ class QCProcessor(SimpleProcess):
             data_products, _ = self.container.resource_registry.find_resources(restype=RT.DataProduct, id_only=False)
             for data_product in data_products:
                 log.error("Looking at %s", data_product.name)
-                if self.event.is_set(): # Break early if we can
+                # Get the reference designator
+                try:
+                    rd = self._get_reference_designator(data_product._id)
+                except BadRequest:
+                    continue
+                for p in self.get_parameters(data_product):
+                    log.error(p.name)
+                log.error("Data Product RD: %s", rd)
+                for qc_eval in self.qc_evals:
+                    qc_eval(data_product, rd)
+
+                # Break early if we can
+                if self.event.is_set(): 
                     break
 
     def suspend(self):
@@ -138,4 +158,77 @@ class QCProcessor(SimpleProcess):
         self._thread.join(self.timeout)
         log.info("QC Thread Suspended")
 
+
+    def _get_reference_designator(self, data_product_id=''):
+        '''
+        Returns the reference designator for a data product if it has one
+        '''
+
+        device_ids, _ = self.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasOutputProduct, subject_type=RT.InstrumentDevice, id_only=True)
+        if not device_ids: 
+            raise BadRequest("No instrument device associated with this data product")
+        device_id = device_ids[0]
+
+        sites, _ = self.resource_registry.find_subjects(object=device_id, predicate=PRED.hasDevice, subject_type=RT.InstrumentSite, id_only=False)
+        if not sites:
+            raise BadRequest("No site is associated with this data product")
+        site = sites[0]
+        rd = site.reference_designator
+        return rd
+
+    def global_range(self, data_product, rd):
+        if data_product.qc_glblrng != 'applicable':
+            log.error("Global Range not enabled")
+            return
+        log.error("Global Range enabled")
+
+    def gradient_test(self, data_product, rd):
+        if data_product.qc_gradtst != 'applicable':
+            log.error("Gradient Test not enabled")
+            return
+        log.error("Gradient Test enabled")
+            
+    def local_range_test(self, data_product, rd):
+        if data_product.qc_loclrng != 'applicable':
+            log.error("Local Range Test not enabled")
+            return
+        log.error("Local Range Test enabled")
+    
+    def spike_test(self, data_product, rd):
+        if data_product.qc_spketest != 'applicable':
+            log.error("Spike Test not enabled")
+            return
+        log.error("Spike Test enabled")
+    
+    def stuck_value_test(self, data_product, rd):
+        if data_product.qc_stuckvl != 'applicable':
+            log.error("Stuck Value Test not enabled")
+            return
+        log.error("Stuck Value Test enabled")
+
+    def trend_test(self, data_product, rd):
+        if data_product.qc_trndtst != 'applicable':
+            log.error("Trend Test not enabled")
+            return
+        log.error("Trend Test enabled")
+
+    def fetch_lookup(self, data_product, rd, qc):
+        # TODO: Object store stuff
+
+        pass
+
+    def get_parameters(self, data_product):
+
+        # DataProduct -> StreamDefinition
+        stream_defs, _ = self.resource_registry.find_objects(data_product._id, PRED.hasStreamDefinition, id_only=False)
+        stream_def = stream_defs[0]
+
+        # StreamDefinition -> ParameterDictionary
+        pdict_ids, _ = self.resource_registry.find_objects(stream_def._id, PRED.hasParameterDictionary, id_only=True)
+        pdict_id = pdict_ids[0]
+
+        # ParameterDictionary -> ParameterContext
+        pctxts, _ = self.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=False)
+        relevant = [ctx for ctx in pctxts if not stream_def.available_fields or (stream_def.available_fields and ctx.name in stream_def.available_fields)]
+        return relevant
 

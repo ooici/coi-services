@@ -1939,35 +1939,6 @@ Reason: %s
                         context.lookup_value = name
                         context.document_key = lookup_value
             
-            qc_map = {
-                    'Global Range Test (GLBLRNG) QC'                         : 'glblrng_qc',
-                    'Stuck Value Test (STUCKVL) QC'                          : 'stuckvl_qc',
-                    'Spike Test (SPKETST) QC'                                : 'spketst_qc',
-                    'Trend Test (TRNDTST) QC'                                : 'trndtst_qc',
-                    'Gradient Test (GRADTST) QC'                             : 'gradtst_qc',
-                    'Local Range Test (LOCLRNG) QC'                          : 'loclrng_qc',
-                    'Combine QC Flags (CMBNFLG) QC'                          : 'cmbnflg_qc',
-                    }
-            
-            qc_fields = None
-            if self.ooi_loader._extracted:
-                # Yes, OOI Assets were parsed
-                dps = self.ooi_loader.get_type_assets('data_product')
-                if context.ooi_short_name in dps:
-                    dp = dps[context.ooi_short_name]
-                    qc_fields = [v for k,v in qc_map.iteritems() if dp[k] and dp[k].lower().strip() == 'applicable']
-                    if qc_fields and not qc: # If the column wasn't filled out but SAF says it should be there, just use the OOI Short Name
-                        log.warning("Enabling QC for %s (%s) based on SAF requirement but QC-identifier wasn't specified.", name, row[COL_ID])
-                        qc = sname
-                    
-
-
-            if qc and not context.ooi_short_name.endswith("L0"):
-                try:
-                    if isinstance(context.param_type, (QuantityType, ParameterFunctionType)):
-                        context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id, qc_fields)
-                except KeyError:
-                    pass
 
         except TypeError as e:
             log.exception(e.message)

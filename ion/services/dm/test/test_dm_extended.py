@@ -1506,3 +1506,86 @@ def rotate_v(u,v,theta):
         dp.name = 'Pioneer CTDBP <Imaginary> & TEMPWAT L1'
         self.data_product_management.update_data_product(dp)
         
+    @attr("UTIL")
+    def test_qc_stuff(self):
+        from interface.objects import *
+        data_product_id = self.make_ctd_data_product()
+        data_product = self.resource_registry.read(data_product_id)
+        data_product.qc_glblrng = 'applicable'
+        self.resource_registry.update(data_product)
+        site = InstrumentSite(name='example site', reference_designator='CP01CNSM-MFD37-03-CTDBPD000')
+        site_id, _ = self.resource_registry.create(site)
+        device = InstrumentDevice(name='a deployable device')
+        device_id = self.instrument_management.create_instrument_device(device)
+        model = InstrumentModel(name='SBE37')
+        model_id = self.instrument_management.create_instrument_model(model)
+        self.instrument_management.assign_instrument_model_to_instrument_device(model_id, device_id)
+        # for some reason this isn't a service method
+
+        self.resource_registry.create_association(site_id, 'hasModel', model_id)
+        #self.instrument_management.assign_instrument_model_to_instrument_site(model_id, site_id)
+
+        deployment = Deployment(name='Operation Malabar', type="Cabled", context=CabledInstrumentDeploymentContext())
+        deployment_id = self.observatory_management.create_deployment(deployment, site_id, device_id)
+        self.observatory_management.activate_deployment(deployment_id)
+        
+        self.data_acquisition_management.register_instrument(device_id)
+        self.data_acquisition_management.assign_data_product(device_id, data_product_id)
+
+        self.container.spawn_process('qc', 'ion.processes.data.transforms.qc_post_processing', 'QCProcessor', {})
+
+
+
+
+        doc = { "CP01CNSM-MFD37-03-CTDBPD000":{
+                  "TEMPWAT":{
+                     "stuck_value":[
+                        {
+                           "units":"C",
+                           "consecutive_values":10,
+                           "ts_created":1396371094.658699,
+                           "resolution":0.005,
+                           "author":"BM"
+                        }
+                     ],
+                     "global_range":[
+                        {
+                           "author":"BM",
+                           "max_value":1,
+                           "min_value":-1,
+                           "units":"m/s",
+                           "ts_created":1396371094.658695
+                        },
+                        {
+                           "author":"BM",
+                           "max_value":1,
+                           "min_value":-1,
+                           "units":"m/s",
+                           "ts_created":1396371094.658695
+                        }
+                     ],
+                     "trend_test":[
+                        {
+                           "sample_length":25,
+                           "author":"BM",
+                           "units":"K",
+                           "standard_deviation":4.5,
+                           "ts_created":1396371094.658704,
+                           "polynomial_order":4
+                        }
+                     ],
+                     "spike_test":[
+                        {
+                           "window_length":15,
+                           "author":"BM",
+                           "units":"degrees",
+                           "range_multiplier":4,
+                           "ts_created":1396371094.658708,
+                           "accuracy":0.0001
+                        }
+                     ]
+                  }
+               }
+            }
+        self.container.object_store.create_doc(doc, 'CP01CNSM-MFD37-03-CTDBPD000')
+        breakpoint(locals(), globals())
