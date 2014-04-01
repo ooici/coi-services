@@ -19,6 +19,7 @@ eggs/
 parts/
 develop-eggs/
 downloads/
+deployment
 bin/
 .installed.cfg
 .idea

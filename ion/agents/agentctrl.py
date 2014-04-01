@@ -66,6 +66,7 @@ from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound, LCS, EventPublisher
 
 from ion.core.includes.mi import DriverEvent
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.util.parse_utils import parse_dict
 
 from interface.objects import AgentCommand, Site, TemporalBounds, AgentInstance, Device
@@ -73,8 +74,6 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceProcessClient
-
-from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
 
 class AgentControl(ImmediateProcess):
@@ -95,6 +94,7 @@ class AgentControl(ImmediateProcess):
         self.fail_fast = self.CFG.get("fail_fast", False)
         self.force = self.CFG.get("force", False)
         self.verbose = self.CFG.get("verbose", False)
+        self.timeout = self.CFG.get("timeout", 120)
         self.cfg_mappings = {}
         self.system_actor = None
         self.errors = []
@@ -185,7 +185,6 @@ class AgentControl(ImmediateProcess):
 
             log.info("--- Executing %s on '%s' id=%s agent=%s ---", self.op, res_obj.name, resource_id, agent_instance_id)
 
-
             if self.op == "start" or self.op == "load":
                 self.start_agent(agent_instance_id, resource_id)
             elif self.op == "stop":
@@ -230,7 +229,7 @@ class AgentControl(ImmediateProcess):
             log.debug("Found agent instance ID: %s", aids[0])
             return aids[0]
 
-        log.warn("Agent instance not found for device=%s", resource_id)
+        log.debug("Agent instance not found for device=%s", resource_id)
         return None
 
     def _get_system_actor_headers(self):
@@ -259,13 +258,16 @@ class AgentControl(ImmediateProcess):
         log.info('Starting agent...')
         if res_obj.type_ == RT.ExternalDatasetAgentInstance or res_obj == RT.ExternalDataset:
             dams = DataAcquisitionManagementServiceProcessClient(process=self)
-            dams.start_external_dataset_agent_instance(agent_instance_id, headers=self._get_system_actor_headers())
+            dams.start_external_dataset_agent_instance(agent_instance_id, headers=self._get_system_actor_headers(),
+                                                       timeout=self.timeout)
         elif res_obj.type_ == RT.InstrumentDevice:
             ims = InstrumentManagementServiceProcessClient(process=self)
-            ims.start_instrument_agent_instance(agent_instance_id, headers=self._get_system_actor_headers())
+            ims.start_instrument_agent_instance(agent_instance_id, headers=self._get_system_actor_headers(),
+                                                timeout=self.timeout)
         elif res_obj.type_ == RT.PlatformDevice:
             ims = InstrumentManagementServiceProcessClient(process=self)
-            ims.start_platform_agent_instance(agent_instance_id, headers=self._get_system_actor_headers())
+            ims.start_platform_agent_instance(agent_instance_id, headers=self._get_system_actor_headers(),
+                                              timeout=self.timeout)
         else:
             BadRequest("Attempt to start unsupported agent type: %s", res_obj.type_)
         log.info('Agent started!')
@@ -274,10 +276,14 @@ class AgentControl(ImmediateProcess):
         if activate:
             log.info('Activating agent...')
             client = ResourceAgentClient(resource_id, process=self)
-            client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE), headers=self._get_system_actor_headers())
-            client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE), headers=self._get_system_actor_headers())
-            client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN), headers=self._get_system_actor_headers())
-            client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE), headers=self._get_system_actor_headers())
+            client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE),
+                                 headers=self._get_system_actor_headers(), timeout=self.timeout)
+            client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE),
+                                 headers=self._get_system_actor_headers(), timeout=self.timeout)
+            client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN),
+                                 headers=self._get_system_actor_headers(), timeout=self.timeout)
+            client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE),
+                                    headers=self._get_system_actor_headers(), timeout=self.timeout)
 
             log.info('Agent active!')
 
@@ -298,19 +304,22 @@ class AgentControl(ImmediateProcess):
         if res_obj.type_ == RT.ExternalDatasetAgentInstance or res_obj == RT.ExternalDataset:
             dams = DataAcquisitionManagementServiceProcessClient(process=self)
             try:
-                dams.stop_external_dataset_agent_instance(agent_instance_id, headers=self._get_system_actor_headers())
+                dams.stop_external_dataset_agent_instance(agent_instance_id,
+                                                          headers=self._get_system_actor_headers(), timeout=self.timeout)
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
         elif res_obj.type_ == RT.InstrumentDevice:
             ims = InstrumentManagementServiceProcessClient(process=self)
             try:
-                ims.stop_instrument_agent_instance(agent_instance_id, headers=self._get_system_actor_headers())
+                ims.stop_instrument_agent_instance(agent_instance_id,
+                                                   headers=self._get_system_actor_headers(), timeout=self.timeout)
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
         elif res_obj.type_ == RT.PlatformDevice:
             ims = InstrumentManagementServiceProcessClient(process=self)
             try:
-                ims.stop_platform_agent_instance(agent_instance_id, headers=self._get_system_actor_headers())
+                ims.stop_platform_agent_instance(agent_instance_id,
+                                                 headers=self._get_system_actor_headers(), timeout=self.timeout)
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
         else:
@@ -362,6 +371,10 @@ class AgentControl(ImmediateProcess):
             log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
 
+        res_obj = self.rr.read(resource_id)
+        if res_obj.type_ != RT.InstrumentDevice:
+            return
+
         cfg_file = self.CFG.get("cfg", None)
         if not cfg_file:
             raise BadRequest("No cfg argument provided")
@@ -377,8 +390,6 @@ class AgentControl(ImmediateProcess):
                     self.cfg_mappings.setdefault(device_id, {})[param_name] = {k:v for k, v in row.iteritems() if k not in {"ID", "Name", "Value"}}
                     self.cfg_mappings[device_id][param_name]["value"] = row["Value"]  # Make sure it exists
 
-        res_obj = self.rr.read(resource_id)
-
         # Device has no reference designator - but use preload ID as reference designator
         alt_ids = []
         for aid in res_obj.alt_ids:
@@ -391,6 +402,7 @@ class AgentControl(ImmediateProcess):
 
         dev_cfg = self.cfg_mappings.get(resource_id, None) or self.cfg_mappings.get(device_rd, None)
         if not dev_cfg:
+            log.warn("Reference designator %s not found in calibrations file" % device_rd)
             return
         log.info("Setting calibration for device %s (RD %s) '%s': %s", resource_id, device_rd, res_obj.name, dev_cfg)
 
@@ -442,7 +454,7 @@ class AgentControl(ImmediateProcess):
         for dp in dp_objs:
             try:
                 log.info("Activating persistence for '%s'", dp.name)
-                dpms.activate_data_product_persistence(dp._id, headers=self._get_system_actor_headers())
+                dpms.activate_data_product_persistence(dp._id, headers=self._get_system_actor_headers(), timeout=self.timeout)
             except Exception:
                 self._log_error(agent_instance_id, resource_id, logexc=True,
                                 msg="Could not activate persistence for dp_id=%s" % (dp._id))
@@ -457,7 +469,7 @@ class AgentControl(ImmediateProcess):
         for dp in dp_objs:
             try:
                 log.info("Suspending persistence for '%s'", dp.name)
-                dpms.suspend_data_product_persistence(dp._id, headers=self._get_system_actor_headers())
+                dpms.suspend_data_product_persistence(dp._id, headers=self._get_system_actor_headers(), timeout=self.timeout)
             except Exception:
                 self._log_error(agent_instance_id, resource_id, logexc=True,
                                 msg="Could not suspend persistence for dp_id=%s" % (dp._id))
@@ -498,9 +510,6 @@ class AgentControl(ImmediateProcess):
                     for sub_obj in sub_objs:
                         if self.rr.find_associations(subject=sub_obj._id, object=st_obj._id):
                             # TODO: Could attempt Exchange _unbind cleanup. Not needed for now
-
-                            # Association between IngestionConfiguration and Subscription deleted with Subscription
-                            # Association between Subscription and Stream deleted with Subscription
 
                             xn_ids, _ = self.rr.find_subjects(object=sub_obj._id, predicate=PRED.hasSubscription,
                                                                subject_type=RT.ExchangeName, id_only=True)

@@ -3140,7 +3140,7 @@ Reason: %s
                 pagent_res_obj = self._get_resource_obj(pa_code, True)
 
             if pagent_res_obj:
-                log.debug("Generating DataProducts for %s from platform agent %s streams and SAF", node_id, pa_code)
+                log.debug("Checking DataProducts for %s from platform agent %s streams and SAF", node_id, pa_code)
                 pastream_configs = pagent_res_obj.stream_configurations if pagent_res_obj else pagent_res_obj.stream_configurations
                 for index, scfg in enumerate(pastream_configs):
                     if scfg.stream_type == StreamConfigurationType.PARSED:
