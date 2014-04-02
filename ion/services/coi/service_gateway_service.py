@@ -983,11 +983,10 @@ def upload_qc():
     upload_folder = FileSystem.get_url(FS.TEMP,'uploads')
     try:
 
+        object_store = ObjectStore()
+
         # required fields
         upload = request.files['file'] # <input type=file name="file">
-
-        # determine filetype
-        upload.seek(0) # return to beginning for save
 
         if upload:
 
@@ -1001,7 +1000,7 @@ def upload_qc():
             file_upload_context = {
                 'name':'User uploaded QC file %s' % filename,
                 'filename':filename,
-                'filetype':filetype,
+                #'filetype':filetype, # only CSV, no detection necessary
                 'path':path,
                 'upload_time':upload_time,
                 'status':'File uploaded to server'
@@ -1013,7 +1012,7 @@ def upload_qc():
 
             # create process definition
             process_definition = ProcessDefinition(
-                name='upload_data_processor',
+                name='upload_qc_processor',
                 executable={
                     'module':'ion.processes.data.upload.upload_qc_processing',
                     'class':'UploadQcProcessing'
