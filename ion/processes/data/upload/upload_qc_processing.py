@@ -1,22 +1,15 @@
 #!/usr/bin/env python
 '''
-@author Luke Campbell <My email is around here somewhere>
+@author Brian McKenna <bmckenna@asascience.com>
 @file ion/processes/data/transforms/qc_post_processing.py
-@date Tue May  7 15:34:54 EDT 2013
+@date Wed Apr  2 11:49:10 EDT 2014
 '''
 
 from pyon.core.exception import BadRequest
-from pyon.ion.process import ImmediateProcess, SimpleProcess
-from ion.services.dm.utility.granule import RecordDictionaryTool
-from ion.util.direct_coverage_utils import DirectCoverageAccess
-import time
-from pyon.ion.event import EventPublisher
-from pyon.public import OT,RT,PRED
-from pyon.util.arg_check import validate_is_not_none
-from pyon.ion.event import EventSubscriber
+from pyon.ion.process import ImmediateProcess
 from pyon.util.log import log
+import time
 import re
-import numpy as np
 import os
 import csv
 
