@@ -2766,10 +2766,10 @@ Reason: %s
                 newrow['instrument_agent_id'] = "IA_" + ia_code
                 newrow['instrument_device_id'] = idev_id
                 newrow['comms_device_address'] = ""
-                newrow['comms_device_port'] = ""
+                newrow['comms_device_port'] = "0"
                 newrow['comms_server_address'] = ""
-                newrow['comms_server_port'] = ""
-                newrow['comms_server_cmd_port'] = ""
+                newrow['comms_server_port'] = "0"
+                newrow['comms_server_cmd_port'] = "0"
                 newrow['alerts'] = ""
                 newrow['startup_config'] = ""
                 newrow['agent_config'] = ""
