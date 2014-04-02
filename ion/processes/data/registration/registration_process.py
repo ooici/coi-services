@@ -201,7 +201,7 @@ class RegistrationProcess(StandaloneProcess):
                     attrs['function_name'] = parameter_function.name
                     attrs['expression'] = parameter_function.function
 
-            for k,v in param.additional_metadata:
+            for k,v in param.additional_metadata.iteritems():
                 if re.match(r'[a-z][a-zA-Z0-9_]+', k):
                     attrs[k] = v
             ds['vars'].append(var)

@@ -1521,6 +1521,7 @@ def rotate_v(u,v,theta):
                                       value_encoding='int8',
                                       units='1',
                                       ooi_short_name='TEMPWAT_GLBLRNG_QC',
+                                      additional_metadata={'input':'temp'},
                                       fill_value=-99)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
@@ -1573,10 +1574,10 @@ def rotate_v(u,v,theta):
                      "global_range":[
                         {
                            "author":"BM",
-                           "max_value":1,
+                           "max_value":2,
                            "min_value":-1,
                            "units":"m/s",
-                           "ts_created":1396371094.658695
+                           "ts_created":1396372094.658695
                         },
                         {
                            "author":"BM",

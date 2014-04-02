@@ -202,7 +202,49 @@ class QCProcessor(SimpleProcess):
             doc = self.container.object_store.read_doc(reference_designator)
         except NotFound:
             return # NO QC lookups found
-        #log.error(repr(doc))
+        if dp_ident not in doc[reference_designator]:
+            log.critical("Data product %s not in doc", dp_ident)
+            return # No data product of this listing in the RD's entry
+        # Lookup table has the rows for the QC inputs
+        lookup_table = doc[reference_designator][dp_ident]
+        log.error("lookup table found")
+
+        if alg.lower() == 'glblrng':
+            log.error("alg found")
+            #
+            row = self.recent_row(lookup_table['global_range'])
+            min_value = row['min_value']
+            max_value = row['max_value']
+            self.process_glblrng(data_product, reference_designator, parameter, min_value, max_value)
+            log.error("Most recent row")
+            log.error(row)
+
+    def process_glblrng(self, data_product, reference_designator, parameter, min_value, max_value):
+        dataset_id = self.get_dataset(data_product)
+        coverage = self.get_coverage(dataset_id)
+        input_name = parameter.additional_metadata['input']
+        log.error("input name: %s", input_name)
+
+        #value_array = coverage.get_parameter_values(input_name)
+        #indexes = np.where( value_array == -88 )[0]
+        #dat = value_array[indexes]
+        #from ion_functions.qc.qc_functions import dataqc_globalrangetest
+        #qc = dataqc_globalrangetest(dat, [min_value, max_value])
+
+    def get_dataset(self, data_product):
+        return 
+
+    def get_coverage(self, dataset_id):
+        return 
+
+    def recent_row(self, rows):
+        most_recent = None
+        ts = 0
+        for row in rows:
+            if row['ts_created'] > ts:
+                most_recent = row
+                ts = row['ts_created']
+        return most_recent
 
 
     def get_parameters(self, data_product):
