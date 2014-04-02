@@ -18,7 +18,6 @@ from pyon.core.registry import getextends, is_ion_object_dict, issubtype
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
 from pyon.core.governance.negotiation import Negotiation
 from pyon.event.event import EventSubscriber, EventPublisher
-from pyon.ion.objstore import ObjectStore
 from pyon.ion.resource import get_object_schema
 from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -912,7 +911,7 @@ def upload_data(dataproduct_id):
     try:
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        object_store = ObjectStore()
+        object_store = Container.instance.object_store
 
         try:
             rr_client.read(str(dataproduct_id))
@@ -983,8 +982,8 @@ def upload_qc():
     upload_folder = FileSystem.get_url(FS.TEMP,'uploads')
     try:
 
-        object_store = ObjectStore()
-
+        object_store = Container.instance.object_store
+        
         # required fields
         upload = request.files['file'] # <input type=file name="file">
 
@@ -1038,7 +1037,7 @@ def upload_qc():
 @service_gateway_app.route('/ion-service/upload/<fuc_id>', methods=['GET'])
 def upload_status(fuc_id):
     try:
-        object_store = ObjectStore()
+        object_store = Container.instance.object_store
         fuc = object_store.read(str(fuc_id))
         return gateway_json_response(fuc)
     except Exception as e:
