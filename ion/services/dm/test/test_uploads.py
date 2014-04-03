@@ -80,7 +80,7 @@ spike_test,REFDES01,RD04DP01,degrees,Otter,0.0001,4'''
         # check the QC table stored in object_store
         REFDES01 = self.object_store.read('REFDES01')
         RD01DP01 = REFDES01.get('RD01DP01', None)
-        assert RD01DP01 == {
+        self.assertEquals(RD01DP01, {
            'stuck_value':[
               {
                  'units':'C',
@@ -126,4 +126,4 @@ spike_test,REFDES01,RD04DP01,degrees,Otter,0.0001,4'''
                  'accuracy':'0.0001'
               }
            ]
-        }
+        })
