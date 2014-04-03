@@ -1230,7 +1230,10 @@ class TestDeviceActivation(IonIntegrationTestCase):
         self.oms.deploy_instrument_site(site_id, new_dep_id)
         self.ims.deploy_instrument_device(new_dev_id, new_dep_id)
         self.oms.activate_deployment(new_dep_id)
-        self.rms.execute_lifecycle_transition(new_dep_id, LCE.DEPLOY)
+
+        # Deployments no longer need this due to recent michael changes
+        # 4/3/14
+        #self.rms.execute_lifecycle_transition(new_dep_id, LCE.DEPLOY)
         self.rms.execute_lifecycle_transition(new_dev_id, LCE.DEPLOY)
         self.rms.execute_lifecycle_transition(new_dev_id, LCE.ENABLE)
 
