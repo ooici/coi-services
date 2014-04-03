@@ -34,6 +34,7 @@ Supports the following arguments:
 - fail_fast: if True, exit after the first exception. Otherwise log errors only
 - recover_start, recover_end: floating point strings representing seconds since 1900-01-01 00:00:00 (NTP64 Epoch)
 - force: if True, ignore some warning conditions and move on or clear up
+- autoclean: if True, try to clean up resources directly after failed operations
 - verbose: if True, log more messages for detailed steps
 
 Invoke via command line like this:
@@ -84,6 +85,7 @@ class AgentControl(ImmediateProcess):
         self.op = self.CFG.get("op", "start")
         if not self.op or self.op.startswith("_") or (not hasattr(self, self.op) and self.op not in {"start", "stop", "load"}):
             raise BadRequest("Operation %s unknown", self.op)
+        log.info("OPERATION: %s", self.op)
 
         dataset_name = self.CFG.get("dataset", None)
         device_name = self.CFG.get("device_name", None) or self.CFG.get("instrument", None) or self.CFG.get("platform", None)
@@ -93,6 +95,7 @@ class AgentControl(ImmediateProcess):
         self.recurse = self.CFG.get("recurse", False)
         self.fail_fast = self.CFG.get("fail_fast", False)
         self.force = self.CFG.get("force", False)
+        self.autoclean = self.CFG.get("autoclean", False)
         self.verbose = self.CFG.get("verbose", False)
         self.timeout = self.CFG.get("timeout", 120)
         self.cfg_mappings = {}
@@ -265,6 +268,18 @@ class AgentControl(ImmediateProcess):
         res_obj = self.rr.read(resource_id)
         ai_obj = self.rr.read(agent_instance_id)
 
+        try:
+            client = ResourceAgentClient(resource_id, process=self)
+            if self.force:
+                log.warn("Agent for resource %s seems running - continuing", resource_id)
+                if self.autoclean:
+                    self.cleanup_agent(agent_instance_id, resource_id)
+            else:
+                log.warn("Agent for resource %s seems running", resource_id)
+                return
+        except NotFound:
+            pass  # This is expected
+
         log.info('Starting agent...')
         if ai_obj.type_ == RT.ExternalDatasetAgentInstance:
             dams = DataAcquisitionManagementServiceProcessClient(process=self)
@@ -299,7 +314,6 @@ class AgentControl(ImmediateProcess):
 
     def stop_agent(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
-            log.warn("Could not op=%s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
 
         res_obj = self.rr.read(resource_id)
@@ -311,7 +325,7 @@ class AgentControl(ImmediateProcess):
             if self.force:
                 log.warn("Agent for resource %s seems not running - continuing", resource_id)
             else:
-                log.warn("Agent for resource %s seems not running", resource_id)
+                log.info("Agent for resource %s seems not running", resource_id)
                 return
 
         log.info('Stopping agent...')
@@ -321,30 +335,48 @@ class AgentControl(ImmediateProcess):
             try:
                 dams.stop_external_dataset_agent_instance(agent_instance_id,
                                                           headers=self._get_system_actor_headers(), timeout=self.timeout)
+                log.info('Agent stopped!')
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
+                if self.autoclean:
+                    self.cleanup_agent(agent_instance_id, resource_id)
+            except Exception:
+                if self.autoclean:
+                    self.cleanup_agent(agent_instance_id, resource_id)
+                raise
         elif ai_obj.type_ == RT.InstrumentAgentInstance:
             ims = InstrumentManagementServiceProcessClient(process=self)
             try:
                 ims.stop_instrument_agent_instance(agent_instance_id,
                                                    headers=self._get_system_actor_headers(), timeout=self.timeout)
+                log.info('Agent stopped!')
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
+                if self.autoclean:
+                    self.cleanup_agent(agent_instance_id, resource_id)
+            except Exception:
+                if self.autoclean:
+                    self.cleanup_agent(agent_instance_id, resource_id)
+                raise
         elif ai_obj.type_ == RT.PlatformAgentInstance:
             ims = InstrumentManagementServiceProcessClient(process=self)
             try:
                 ims.stop_platform_agent_instance(agent_instance_id,
                                                  headers=self._get_system_actor_headers(), timeout=self.timeout)
+                log.info('Agent stopped!')
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
+                if self.autoclean:
+                    self.cleanup_agent(agent_instance_id, resource_id)
+            except Exception:
+                if self.autoclean:
+                    self.cleanup_agent(agent_instance_id, resource_id)
+                raise
         else:
             BadRequest("Attempt to stop unsupported agent type: %s", ai_obj.type_)
 
-        log.info('Agent stopped!')
-
     def config_instance(self, agent_instance_id, resource_id):
         if not agent_instance_id:
-            log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
             return
 
         cfg_file = self.CFG.get("cfg", None)
@@ -382,10 +414,6 @@ class AgentControl(ImmediateProcess):
         self.rr.update(edai)
 
     def set_calibration(self, agent_instance_id, resource_id):
-        if not agent_instance_id:
-            log.warn("Could not %s agent %s for device %s", self.op, agent_instance_id, resource_id)
-            return
-
         res_obj = self.rr.read(resource_id)
         if res_obj.type_ != RT.InstrumentDevice:
             return
@@ -427,8 +455,6 @@ class AgentControl(ImmediateProcess):
         for dp_obj in dp_objs_filtered:
             self._set_calibration_for_data_product(dp_obj, dev_cfg)
 
-        log.info("Calibration set for device %s (RD %s) '%s'", resource_id, device_rd, res_obj.name)
-
     def _set_calibration_for_data_product(self, dp_obj, dev_cfg):
         from ion.util.direct_coverage_utils import DirectCoverageAccess
         from coverage_model import SparseConstantType
@@ -460,14 +486,16 @@ class AgentControl(ImmediateProcess):
         log.info("Calibration set for data product '%s' in %s coverages", dp_obj.name, len(dataset_ids))
 
     def activate_persistence(self, agent_instance_id, resource_id):
-        if not resource_id:
-            log.warn("Could not %s for device %s", self.op, resource_id)
-            return
-
         dpms = DataProductManagementServiceProcessClient(process=self)
         dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, id_only=False)
         for dp in dp_objs:
             try:
+                if dpms.is_persisted(dp._id, headers=self._get_system_actor_headers()):
+                    if self.force:
+                        log.warn("DataProduct %s '%s' is currently persisted - continuing", dp._id, dp.name)
+                    else:
+                        log.warn("DataProduct %s '%s' is currently persisted", dp._id, dp.name)
+                        continue
                 log.info("Activating persistence for '%s'", dp.name)
                 dpms.activate_data_product_persistence(dp._id, headers=self._get_system_actor_headers(), timeout=self.timeout)
             except Exception:
@@ -475,10 +503,6 @@ class AgentControl(ImmediateProcess):
                                 msg="Could not activate persistence for dp_id=%s" % (dp._id))
 
     def suspend_persistence(self, agent_instance_id, resource_id):
-        if not resource_id:
-            log.warn("Could not op=%s for device %s", self.op, resource_id)
-            return
-
         dpms = DataProductManagementServiceProcessClient(process=self)
         dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, id_only=False)
         for dp in dp_objs:
@@ -488,14 +512,10 @@ class AgentControl(ImmediateProcess):
             except Exception:
                 self._log_error(agent_instance_id, resource_id, logexc=True,
                                 msg="Could not suspend persistence for dp_id=%s" % (dp._id))
-                if self.force:
+                if self.autoclean:
                     self._cleanup_persistence(dp)
 
     def cleanup_persistence(self, agent_instance_id, resource_id):
-        if not resource_id:
-            log.warn("Could not op=%s for device %s", self.op, resource_id)
-            return
-
         dpms = DataProductManagementServiceProcessClient(process=self)
         dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, id_only=False)
         for dp in dp_objs:
@@ -545,15 +565,13 @@ class AgentControl(ImmediateProcess):
 
     def cleanup_agent(self, agent_instance_id, resource_id):
         """Deletes remnant persistent records about running agents in the system"""
-        if not resource_id:
-            log.warn("Could not op=%s for device %s", self.op, resource_id)
-            return
-
         # Cleanup directory entry
         agent_procs = self.container.directory.find_by_value('/Agents', 'resource_id', resource_id)
         if agent_procs:
             for ap in agent_procs:
                 self.container.directory.unregister_safe("/Agents", ap.key)
+        if agent_procs:
+            log.debug("Cleaned up agent directory for device %s", resource_id)
 
     def recover_data(self, agent_instance_id, resource_id):
         res_obj = self.rr.read(resource_id)
