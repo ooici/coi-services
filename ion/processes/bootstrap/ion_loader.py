@@ -3193,6 +3193,8 @@ Reason: %s
                         create_dp_link(dp_id, node_id + "_PD", 'PlatformDevice', do_bulk=False)
                         create_dp_link(dp_id, node_id, do_bulk=False)   # Site link (even without active deployment)
 
+                        log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
+
             elif self.ooipartial:
                 newrow = {}
                 newrow[COL_ID] = node_id + "_DPP1"
@@ -3216,8 +3218,7 @@ Reason: %s
                     create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
                     create_dp_link(node_id + "_DPP1", node_id)
 
-            if num_dp_generated:
-                log.debug(" ...generated %s data products", num_dp_generated)
+                    log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
 
         # II. Instrument data products (raw, parsed, engineering, derived science L0, L1, L2)
         for inst_id, inst_obj in inst_objs.iteritems():
@@ -3306,6 +3307,8 @@ Reason: %s
                         create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice', do_bulk=False)
                         create_dp_link(dp_id, inst_id, do_bulk=False)   # Site link (even without active deployment)
 
+                        log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
+
             elif self.ooipartial:
                 log.debug("Checking DataProducts for %s using SAF and defaults (no streams)", inst_id)
 
@@ -3355,6 +3358,7 @@ Reason: %s
                     create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice')
                     create_dp_link(dp_id, inst_id)
 
+                    log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
             else:
                 # There is no agent defined. Defer generating DataProducts to incremental run
                 #log.debug("Not generating DataProducts for %s - no agent/streams defined", inst_id)
@@ -3492,6 +3496,8 @@ Reason: %s
                     create_dp_link(dp_id, inst_id + "_ID", do_bulk=False)
                     create_dp_link(dp_id, inst_id, do_bulk=False)   # Site link
 
+                    log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
+
                 elif self.ooipartial:
                     newrow['stream_def_id'] = ''
 
@@ -3503,12 +3509,12 @@ Reason: %s
                     create_dp_link(dp_id, inst_id + "_ID")
                     create_dp_link(dp_id, inst_id)
 
+                    log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
                 else:
                     pass  # Ignore this derived data product because we don't have parsed param dict
 
-            if num_dp_generated:
-                log.debug(" ...generated %s data products%s", num_dp_generated,
-                          " (skipped %s - not found in parsed PDICT)" % ",".join(skip_list) if skip_list else "")
+            if num_dp_generated and skip_list:
+                log.debug(" ...skipped %s data products - not found in parsed PDICT: %s", len(skip_list), ",".join(skip_list))
 
     def _load_DataProductLink(self, row, do_bulk=False):
         self.row_count += 1
