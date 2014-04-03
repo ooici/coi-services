@@ -1522,9 +1522,23 @@ def rotate_v(u,v,theta):
                                       units='1',
                                       ooi_short_name='TEMPWAT_GLBLRNG_QC',
                                       additional_metadata={'input':'temp'},
-                                      fill_value=-99)
+                                      fill_value=-88)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+
+    @attr("UTIL")
+    def test_multi_deployment_qc(self):
+        data_product_id = self.make_ctd_data_product()
+        instrument_device = InstrumentDevice(name='Test CTDBP')
+        instrument_device_id, _ = self.resource_registry.create(instrument_device)
+
+        site_1 = InstrumentSite(name='Site 1')
+        site_1_id, _ = self.resource_registry.create(site_1)
+
+        site_2 = InstrumentSite(name='Site 2')
+        site_2_id, _ = self.resource_registry.create(site_2)
+
+
 
         
     @attr("UTIL")
@@ -1574,8 +1588,8 @@ def rotate_v(u,v,theta):
                      "global_range":[
                         {
                            "author":"BM",
-                           "max_value":2,
-                           "min_value":-1,
+                           "max_value":11.0,
+                           "min_value":10.5,
                            "units":"m/s",
                            "ts_created":1396372094.658695
                         },
@@ -1611,4 +1625,6 @@ def rotate_v(u,v,theta):
                }
             }
         self.container.object_store.create_doc(doc, 'CP01CNSM-MFD37-03-CTDBPD000')
+        streamer = Streamer(data_product_id)
+        self.addCleanup(streamer.stop)
         breakpoint(locals(), globals())

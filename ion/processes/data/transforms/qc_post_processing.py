@@ -9,6 +9,7 @@ from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.process import ImmediateProcess, SimpleProcess
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
 from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 import time
 from pyon.ion.event import EventPublisher
 from pyon.public import OT, RT,PRED
@@ -148,7 +149,7 @@ class QCProcessor(SimpleProcess):
             log.error("Looking at %s", data_product.name)
             # Get the reference designator
             try:
-                rd = self._get_reference_designator(data_product._id)
+                rd = self.get_reference_designator(data_product._id)
             except BadRequest:
                 continue
             for p in self.get_parameters(data_product):
@@ -171,7 +172,7 @@ class QCProcessor(SimpleProcess):
         log.info("QC Thread Suspended")
 
 
-    def _get_reference_designator(self, data_product_id=''):
+    def get_reference_designator(self, data_product_id=''):
         '''
         Returns the reference designator for a data product if it has one
         '''
@@ -179,7 +180,7 @@ class QCProcessor(SimpleProcess):
         data_product_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
         if data_product_ids:
             log.error("Derived data product")
-            return self._get_reference_designator(data_product_ids[0])
+            return self.get_reference_designator(data_product_ids[0])
 
         device_ids, _ = self.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasOutputProduct, subject_type=RT.InstrumentDevice, id_only=True)
         if not device_ids: 
@@ -220,22 +221,39 @@ class QCProcessor(SimpleProcess):
             log.error(row)
 
     def process_glblrng(self, data_product, reference_designator, parameter, min_value, max_value):
-        dataset_id = self.get_dataset(data_product)
+        try:
+            dataset_id = self.get_dataset(data_product)
+        except BadRequest:
+            log.info("No dataset available for data product %s (%s)", data_product._id, data_product.name)
         coverage = self.get_coverage(dataset_id)
         input_name = parameter.additional_metadata['input']
         log.error("input name: %s", input_name)
+        log.info("Num timesteps: %s", coverage.num_timesteps)
 
-        #value_array = coverage.get_parameter_values(input_name)
-        #indexes = np.where( value_array == -88 )[0]
-        #dat = value_array[indexes]
-        #from ion_functions.qc.qc_functions import dataqc_globalrangetest
-        #qc = dataqc_globalrangetest(dat, [min_value, max_value])
+        value_array = coverage.get_parameter_values(input_name)
+        qc_array = coverage.get_parameter_values(parameter.name)
+        log.error("QC Array: \n%s", repr(qc_array))
+        log.info("Value array: \n%s", repr(value_array))
+        indexes = np.where( qc_array == -88 )[0]
+        dat = value_array[indexes]
+        from ion_functions.qc.qc_functions import dataqc_globalrangetest
+        qc = dataqc_globalrangetest(dat, [min_value, max_value])
+        log.error("\n%s", repr(qc))
+        for i,indx in enumerate(indexes):
+            coverage.set_parameter_values(parameter.name, qc[i], indx)
+
+        coverage.close()
 
     def get_dataset(self, data_product):
-        return 
+        dataset_ids, _ = self.resource_registry.find_objects(data_product, PRED.hasDataset, id_only=True)
+        if not dataset_ids:
+            raise BadRequest("No Dataset")
+        dataset_id = dataset_ids[0]
+        return dataset_id
 
     def get_coverage(self, dataset_id):
-        return 
+        cov = DatasetManagementService._get_coverage(dataset_id, mode='r+')
+        return cov
 
     def recent_row(self, rows):
         most_recent = None
