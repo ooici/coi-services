@@ -4,51 +4,85 @@ description: Shallow Profiler Mission
 
 platform:
   platformID: ShallowProfiler
-
 mission:
     - instrument: 
-      instrumentID: ShallowProfiler
+      instrumentID: SBE37_SIM_02
       schedule:
-        startTime: 03/01/2014 00:00:00
+        startTime: 03/27/2014 00:00:00
         loop:
-          quantity: 1
-          value: 0
-          units: None
+          quantity: -1   # No. of loops (-1 for infinite)
+          value: 10      # Repeat missionParams every 'xx' 'units'
+          units: mins    # mins, hrs, days
         event:
           parentID:
           eventID: 
       missionParams:
-        - command: LoadMission  
-          params: {'missionIndex': 0}     # Mission index to mission XML file
-        - command: RunMission  
-          params: {'missionIndex': 0, 'missionparams': {}}    # Mission index to mission XML file
+        - command: Wait
+          params: {'duration': 5, 'units': 'secs'}      #[duration, duration units]
+        - command: Sample
+          params: {'duration': 55, 'units': 'secs', 'interval': 5}  #[duration, duration units, time between samples]
 
     - instrument: 
-      instrumentID: OPTAA
+      instrumentID: SBE37_SIM_03
       schedule:
-        startTime: None
+        startTime:
         loop:
-          quantity: 
-          value: 
-          units: 
+          quantity: -1  # No. of loops (-1 for infinite)
+          value: 24     # Start mission on SBE37_SIM_02 stop command
+          units: hrs    # mins, hrs, days
         event:
-          parentID: ShallowProfiler
+          parentID: SBE37_SIM_02
           eventID: ShallowProfilerStep
       missionParams:
-        - command: Sample  
-          params: {'duration': 55, 'units': 'secs', 'interval': 1}   #[duration, duration units, time between samples]
+        - command: Wait
+          params: {'duration': 5, 'units': 'secs'}      #[duration, duration units]
+        - command: Sample
+          params: {'duration': 55, 'units': 'secs', 'interval': 5}
 
-    - instrument: 
-      instrumentID: OPTAA
-      schedule:
-        startTime: None
-        loop:
-          quantity:
-          value:
-          units:
-        event:
-          parentID: ShallowProfiler
-          eventID: ShallowProfilerAtCeiling
-      missionParams:
-        - command: Sample  
-          params: {'duration': 55, 'units': 'secs', 'interval': 1}   #[duration, duration units, time between samples]
+# mission:
+#     - instrument: 
+#       instrumentID: ShallowProfiler
+#       schedule:
+#         startTime: 03/01/2014 00:00:00
+#         loop:
+#           quantity: 1
+#           value: 0
+#           units: None
+#         event:
+#           parentID:
+#           eventID: 
+#       missionParams:
+#         - command: LoadMission  
+#           params: {'missionIndex': 0}     # Mission index to mission XML file
+#         - command: RunMission  
+#           params: {'missionIndex': 0, 'missionparams': {}}    # Mission index to mission XML file
+
+#     - instrument: 
+#       instrumentID: OPTAA
+#       schedule:
+#         startTime: None
+#         loop:
+#           quantity: 
+#           value: 
+#           units: 
+#         event:
+#           parentID: ShallowProfiler
+#           eventID: ShallowProfilerStep
+#       missionParams:
+#         - command: Sample  
+#           params: {'duration': 55, 'units': 'secs', 'interval': 1}   #[duration, duration units, time between samples]
+
+#     - instrument: 
+#       instrumentID: OPTAA
+#       schedule:
+#         startTime: None
+#         loop:
+#           quantity:
+#           value:
+#           units:
+#         event:
+#           parentID: ShallowProfiler
+#           eventID: ShallowProfilerAtCeiling
+#       missionParams:
+#         - command: Sample  
+#           params: {'duration': 55, 'units': 'secs', 'interval': 1}   #[duration, duration units, time between samples]

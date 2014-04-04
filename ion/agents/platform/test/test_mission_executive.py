@@ -15,12 +15,14 @@ import os
 import unittest
 from unittest import skip
 from nose.plugins.attrib import attr
+import gevent
 
 # Pyon imports.
+from pyon.agent.agent import ResourceAgentClient
+from pyon.event.event import EventPublisher
 from pyon.public import log
 from pyon.public import IonObject
 from pyon.public import RT, PRED
-from pyon.agent.agent import ResourceAgentClient
 from pyon.util.context import LocalContextMixin
 from pyon.util.breakpoint import breakpoint
 
@@ -33,7 +35,7 @@ from ion.agents.mission_executive import MissionLoader, MissionScheduler
 from interface.objects import AttachmentType
 
 # Mock imports.
-from mock import Mock, patch
+# from mock import Mock, patch
 
 
 class FakeProcess(LocalContextMixin):
@@ -43,6 +45,57 @@ class FakeProcess(LocalContextMixin):
     name = ''
     id = ''
     process_type = ''
+
+
+class SimulateShallowWaterProfilerEvents(object):
+    """
+    A fake event generator for RSN Shallow Water Profiler
+    """
+    def __init__(self):
+        self.profiler_resource_id = 'FakeID'
+        self.seconds_between_steps = 120
+        self.num_steps = 10
+        self.num_profiles = 2
+
+        self.simulate_profiler_events()
+
+    def profiler_event_state_change(self, state, sleep_duration):
+        """
+        Publish the state change event
+
+        @param state            the state entered by the driver.
+        @param sleep_duration   seconds to sleep for after event
+        """
+        # Create event publisher.
+        event_data = {'state': state}
+        self._event_publisher.publish_event(event_type='ResourceAgentResourceStateEvent',
+                                            origin=self.profiler_resource_id,
+                                            **event_data)
+        gevent.sleep(sleep_duration)
+
+    def simulate_profiler_events(self):
+        """
+        Simulate the Shallow Water profiler stair step mission
+        """
+        self._event_publisher = EventPublisher(event_type="ResourceAgentResourceStateEvent")
+
+        # Let's simulate a profiler stair step scenario
+        for x in range(self.num_profiles):
+            # Going up
+            for up in range(self.num_steps):
+                state = 'atStep'
+                self.profiler_event_state_change(state, self.seconds_between_steps)
+
+            state = 'atCeiling'
+            self.profiler_event_state_change(state, self.seconds_between_steps)
+
+            # Going down
+            for up in range(self.num_steps):
+                state = 'atStep'
+                self.profiler_event_state_change(state, self.seconds_between_steps)
+
+            state = 'atFloor'
+            self.profiler_event_state_change(state, self.seconds_between_steps)
 
 
 @attr('UNIT')
@@ -142,6 +195,49 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
 
         return p_root
 
+    def simulate_profiler_events(self):
+        """
+        Simulate the Shallow Water profiler stair step mission
+        """
+        event_publisher = EventPublisher(event_type="ResourceAgentResourceStateEvent")
+
+        profiler_resource_id = 'FakeID'
+        seconds_between_steps = 120
+        num_steps = 10
+        num_profiles = 2
+
+        def profiler_event_state_change(state, sleep_duration):
+            """
+            Publish the state change event
+
+            @param state            the state entered by the driver.
+            @param sleep_duration   seconds to sleep for after event
+            """
+            # Create event publisher.
+            event_data = {'state': state}
+            event_publisher.publish_event(event_type='ResourceAgentResourceStateEvent',
+                                          origin=profiler_resource_id,
+                                          **event_data)
+            gevent.sleep(sleep_duration)
+
+        # Let's simulate a profiler stair step scenario
+        for x in range(num_profiles):
+            # Going up
+            state = 'atStep'
+            for up in range(num_steps):
+                profiler_event_state_change(state, seconds_between_steps)
+
+            state = 'atCeiling'
+            profiler_event_state_change(state, seconds_between_steps)
+
+            # Going down
+            state = 'atStep'
+            for down in range(num_steps):
+                profiler_event_state_change(state, seconds_between_steps)
+
+            state = 'atFloor'
+            profiler_event_state_change(state, seconds_between_steps)
+
     def load_mission(self, yaml_filename='ion/agents/platform/test/mission_RSN_simulator1.yml'):
         """
         Load and parse the mission file
@@ -167,14 +263,20 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         """
         Test the Shallow Water Profiler mission
         """
-        mock = Mock(name='shallow_profiler')
-
-        # Dump mission file contents to IonObject
         filename = 'ion/agents/platform/test/mission_ShallowProfiler.yml'
         self.load_mission(yaml_filename=filename)
 
-        #Setup the platform and instruments
+        # Setup the platform and instruments
         self.setup_platform_simulator_and_instruments()
 
+        # Start profiler event simulator and mission scheduler
+        self.threads = []
+        self.threads.append(gevent.spawn(
+            MissionScheduler, self._pa_client, self._instruments, self.mission.mission_entries))
+        # self.threads.append(gevent.spawn_later(30, SimulateShallowWaterProfilerEvents()))
+        self.threads.append(gevent.spawn_later(60, self.simulate_profiler_events()))
+
+        gevent.joinall(self.threads)
+
         # Start Mission Scheduer
-        self.missionSchedule = MissionScheduler(self._pa_client, self._instruments, self.mission.mission_entries)
+        # self.missionSchedule = MissionScheduler(self._pa_client, self._instruments, self.mission.mission_entries)

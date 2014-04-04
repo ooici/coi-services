@@ -19,7 +19,7 @@ mission:
         startTime: 03/27/2014 00:00:00
         loop:
           quantity: -1   # No. of loops (-1 for infinite)
-          value: 30      # Repeat missionParams every 'xx' 'units'
+          value: 5      # Repeat missionParams every 'xx' 'units'
           units: mins    # mins, hrs, days
         event:
           parentID:
@@ -33,14 +33,14 @@ mission:
     - instrument: 
       instrumentID: SBE37_SIM_03
       schedule:
-        startTime: 03/27/2014 00:00:00
+        startTime: 
         loop:
           quantity: -1  # No. of loops (-1 for infinite)
           value: 24     # Start mission on SBE37_SIM_02 stop command
           units: hrs    # mins, hrs, days
         event:
-          parentID:
-          eventID:
+          parentID: SBE37_SIM_02
+          eventID: stop
       missionParams:
         - command: Wait
           params: {'duration': 5, 'units': 'secs'}      #[duration, duration units]
