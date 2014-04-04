@@ -18,9 +18,9 @@ from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.provenance import graph
 from ion.processes.data.registration.registration_process import RegistrationProcess
-from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext
+from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext as CovParameterContext
 from ion.processes.data.transforms.transform_worker import TransformWorker
-from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT 
+from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT, ParameterContext
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.core.exception import NotFound
@@ -1396,7 +1396,7 @@ def rotate_v(u,v,theta):
         self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
         expr = DatasetManagementService.get_coverage_function(pf)
         expr.param_map = {'x':'temp'}
-        failure_ctx = ParameterContext('failure', param_type=ParameterFunctionType(expr))
+        failure_ctx = CovParameterContext('failure', param_type=ParameterFunctionType(expr))
         failure_ctx.uom = '1'
         failure_ctxt_id = self.dataset_management.create_parameter_context(name='failure', parameter_context=failure_ctx.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, failure_ctxt_id)
@@ -1505,4 +1505,163 @@ def rotate_v(u,v,theta):
         dp = self.resource_registry.read(data_product_id)
         dp.name = 'Pioneer CTDBP <Imaginary> & TEMPWAT L1'
         self.data_product_management.update_data_product(dp)
+
+    def make_tempwat(self, data_product_id):
+        from interface.objects import DataProduct
+        stream_def_id = self.resource_registry.find_objects(data_product_id,PRED.hasStreamDefinition,id_only=True)[0][0]
+        pdict_id = self.resource_registry.find_objects(stream_def_id,PRED.hasParameterDictionary,id_only=True)[0][0]
+        stream_def_id = self.pubsub_management.create_stream_definition(name='tempwat l0', parameter_dictionary_id=pdict_id, available_fields=['temp','time'])
+        dp = DataProduct(name='TEMPWAT L0', qc_trndtst='applicable')
+        data_product_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, parent_data_product_id=data_product_id)
+        return data_product_id
+
+    def add_tempwat_qc(self, data_product_id):
+        tempwat_qc = ParameterContext(name='tempwat_glblrng_qc', 
+                                      parameter_type='quantity',
+                                      value_encoding='int8',
+                                      units='1',
+                                      ooi_short_name='TEMPWAT_GLBLRNG_QC',
+                                      fill_value=-88)
+        tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
+        self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        tempwat_qc = ParameterContext(name='tempwat_trndtst_qc', 
+                                      parameter_type='quantity',
+                                      value_encoding='int8',
+                                      units='1',
+                                      ooi_short_name='TEMPWAT_TRNDTST_QC',
+                                      fill_value=-88)
+        tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
+        self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        tempwat_qc = ParameterContext(name='tempwat_spketst_qc', 
+                                      parameter_type='quantity',
+                                      value_encoding='int8',
+                                      units='1',
+                                      ooi_short_name='TEMPWAT_SPKETST_QC',
+                                      fill_value=-88)
+        tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
+        self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        preswat_qc = ParameterContext(name='preswat_stuckvl_qc', 
+                                      parameter_type='quantity',
+                                      value_encoding='int8',
+                                      units='1',
+                                      ooi_short_name='PRESWAT_STUCKVL_QC',
+                                      fill_value=-88)
+        preswat_qc_id = self.dataset_management.create_parameter(preswat_qc)
+        self.data_product_management.add_parameter_to_data_product(preswat_qc_id, data_product_id)
+
+    @attr("UTIL")
+    def test_multi_deployment_qc(self):
+        data_product_id = self.make_ctd_data_product()
+        instrument_device = InstrumentDevice(name='Test CTDBP')
+        instrument_device_id, _ = self.resource_registry.create(instrument_device)
+
+        site_1 = InstrumentSite(name='Site 1')
+        site_1_id, _ = self.resource_registry.create(site_1)
+
+        site_2 = InstrumentSite(name='Site 2')
+        site_2_id, _ = self.resource_registry.create(site_2)
+
+
+
         
+    @attr("UTIL")
+    def test_qc_stuff(self):
+        from interface.objects import *
+        data_product_id = self.make_ctd_data_product()
+        self.add_tempwat_qc(data_product_id)
+        data_product = self.resource_registry.read(data_product_id)
+        data_product.qc_glblrng = 'applicable'
+        self.resource_registry.update(data_product)
+        site = InstrumentSite(name='example site', reference_designator='CP01CNSM-MFD37-03-CTDBPD000')
+        site_id, _ = self.resource_registry.create(site)
+        device = InstrumentDevice(name='a deployable device')
+        device_id = self.instrument_management.create_instrument_device(device)
+        model = InstrumentModel(name='SBE37')
+        model_id = self.instrument_management.create_instrument_model(model)
+        self.instrument_management.assign_instrument_model_to_instrument_device(model_id, device_id)
+        # for some reason this isn't a service method
+
+        self.resource_registry.create_association(site_id, 'hasModel', model_id)
+        #self.instrument_management.assign_instrument_model_to_instrument_site(model_id, site_id)
+
+        deployment = Deployment(name='Operation Malabar', type="Cabled", context=CabledInstrumentDeploymentContext())
+        deployment_id = self.observatory_management.create_deployment(deployment, site_id, device_id)
+        self.observatory_management.activate_deployment(deployment_id)
+        
+        self.data_acquisition_management.register_instrument(device_id)
+        self.data_acquisition_management.assign_data_product(device_id, data_product_id)
+        tempwat_id = self.make_tempwat(data_product_id)
+
+        # Now lets make a derived data product for tempwat
+
+        self.container.spawn_process('qc', 'ion.processes.data.transforms.qc_post_processing', 'QCProcessor', {})
+
+
+        doc = { "CP01CNSM-MFD37-03-CTDBPD000":{
+                  "TEMPWAT":{
+                     "stuck_value":[
+                        {
+                           "units":"C",
+                           "consecutive_values":10,
+                           "ts_created":1396371094.658699,
+                           "resolution":0.005,
+                           "author":"BM"
+                        }
+                     ],
+                     "global_range":[
+                        {
+                           "author":"BM",
+                           "max_value":11.0,
+                           "min_value":10.5,
+                           "units":"m/s",
+                           "ts_created":1396372094.658695
+                        },
+                        {
+                           "author":"BM",
+                           "max_value":1,
+                           "min_value":-1,
+                           "units":"m/s",
+                           "ts_created":1396371094.658695
+                        }
+                     ],
+                     "trend_test":[
+                        {
+                           "sample_length":25,
+                           "author":"BM",
+                           "units":"K",
+                           "standard_deviation":4.5,
+                           "ts_created":1396371094.658704,
+                           "polynomial_order":4
+                        }
+                     ],
+                     "spike_test":[
+                        {
+                           "window_length":15,
+                           "author":"BM",
+                           "units":"degrees",
+                           "range_multiplier":4,
+                           "ts_created":1396371094.658708,
+                           "accuracy":0.0001
+                        }
+                     ]
+                  },
+                  "PRESWAT":{
+                     "stuck_value":[
+                        {
+                           "units":"C",
+                           "consecutive_values":10,
+                           "ts_created":1396371094.658699,
+                           "resolution":0.005,
+                           "author":"BM"
+                        }
+                     ],
+                     "global_range":[],
+                     "trend_test":[],
+                     "spike_test":[]
+                  }
+               }
+            }
+        self.container.object_store.create_doc(doc, 'CP01CNSM-MFD37-03-CTDBPD000')
+        streamer = Streamer(data_product_id)
+        self.addCleanup(streamer.stop)
+        breakpoint(locals(), globals())

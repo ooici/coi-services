@@ -154,7 +154,11 @@ class DataProductManagementService(BaseDataProductManagementService):
             self.clients.resource_registry.create_association(dpd._id, PRED.hasDataProcess, dp_id)
             self.clients.resource_registry.create_association(dp_id, PRED.hasOutputProduct, data_product._id)
 
-
+    def check_qc(self, data_product):
+        '''
+        Determine the relevant parameters that need QC applied and create parameters for the evaluations
+        '''
+        pass
 
     def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
 
@@ -594,7 +598,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         Returns the reference designator for a data product if it has one
         '''
 
-        device_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasSource, object_type=RT.InstrumentDevice, id_only=True)
+        device_ids, _ = self.clients.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasOutputProduct, subject_type=RT.InstrumentDevice, id_only=True)
         if not device_ids: 
             raise BadRequest("No instrument device associated with this data product")
         device_id = device_ids[0]

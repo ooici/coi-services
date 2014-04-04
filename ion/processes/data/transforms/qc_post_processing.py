@@ -5,17 +5,21 @@
 @date Tue May  7 15:34:54 EDT 2013
 '''
 
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.process import ImmediateProcess, SimpleProcess
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
 from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 import time
 from pyon.ion.event import EventPublisher
 from pyon.public import OT, RT,PRED
 from pyon.util.arg_check import validate_is_not_none
 from pyon.ion.event import EventSubscriber
 from pyon.util.log import log
+from gevent.event import Event
 import numpy as np
+import re
+import threading
 
 class QCPostProcessing(SimpleProcess):
     '''
@@ -110,4 +114,290 @@ class QCPostProcessing(SimpleProcess):
             start_time = min(start_time+3600, end_time)
         return
 
+class QCProcessor(SimpleProcess):
+    def __init__(self):
+        self.event = Event() # Synchronizes the thread
+        self.timeout = 10
+
+    def on_start(self):
+        '''
+        Process initialization
+        '''
+        self._thread = self._process.thread_manager.spawn(self.event_loop)
+        self.timeout = self.CFG.get_safe('endpoint.receive.timeout', 10)
+        self.resource_registry = self.container.resource_registry
+
+    def on_quit(self):
+        '''
+        Stop and cleanup the thread
+        '''
+        self.suspend()
+
+    def event_loop(self):
+        '''
+        Asynchronous event-loop
+        '''
+        threading.current_thread().name = '%s-qc-processor' % self.id
+        while not self.event.wait(1):
+            self.main_loop()
+
+    def main_loop(self):
+        '''
+        Iterates through available data products and evaluates QC
+        '''
+        data_products, _ = self.container.resource_registry.find_resources(restype=RT.DataProduct, id_only=False)
+        for data_product in data_products:
+            log.error("Looking at %s", data_product.name)
+            # Get the reference designator
+            try:
+                rd = self.get_reference_designator(data_product._id)
+            except BadRequest:
+                continue
+            parameters = self.get_parameters(data_product)
+            # Create a mapping of inputs to QC
+            qc_mapping = {}
+
+            # Creates a dictionary { data_product_name : parameter_name }
+            for p in parameters:
+                if p.ooi_short_name:
+                    sname = p.ooi_short_name
+                    g = re.match(r'([a-zA-Z-_]+)(_L[0-9])', sname)
+                    if g:
+                        sname = g.groups()[0]
+                    qc_mapping[sname] = p.name
+            log.error(qc_mapping)
+
+            for p in parameters:
+                # for each parameter, if the name ends in _qc run the qc
+                if p.name.endswith('_qc'):
+                    self.run_qc(data_product,rd, p, qc_mapping)
+            log.error("Data Product RD: %s", rd)
+
+            # Break early if we can
+            if self.event.is_set(): 
+                break
+
+
+    def suspend(self):
+        '''
+        Stops the event loop
+        '''
+        self.event.set()
+        self._thread.join(self.timeout)
+        log.info("QC Thread Suspended")
+
+
+    def get_reference_designator(self, data_product_id=''):
+        '''
+        Returns the reference designator for a data product if it has one
+        '''
+        # First try to get the parent data product
+        data_product_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
+        if data_product_ids:
+            log.error("Derived data product")
+            return self.get_reference_designator(data_product_ids[0])
+
+        device_ids, _ = self.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasOutputProduct, subject_type=RT.InstrumentDevice, id_only=True)
+        if not device_ids: 
+            raise BadRequest("No instrument device associated with this data product")
+        device_id = device_ids[0]
+
+        sites, _ = self.resource_registry.find_subjects(object=device_id, predicate=PRED.hasDevice, subject_type=RT.InstrumentSite, id_only=False)
+        if not sites:
+            raise BadRequest("No site is associated with this data product")
+        site = sites[0]
+        rd = site.reference_designator
+        return rd
+
+    def run_qc(self, data_product, reference_designator, parameter, qc_mapping):
+        '''
+        Determines which algorithm the parameter should run, then evaluates the QC
+        '''
+
+        # We key off of the OOI Short Name
+        # DATAPRD_ALGRTHM_QC
+        log.error("Running QC %s (%s)", data_product.name, parameter.name)
+        dp_ident, alg, qc = parameter.ooi_short_name.split('_')
+        log.error("Identifier: %s", dp_ident)
+        log.error("Test: %s", alg)
+        if dp_ident not in qc_mapping:
+            return # No input!
+        input_name = qc_mapping[dp_ident]
+
+        try:
+            doc = self.container.object_store.read_doc(reference_designator)
+        except NotFound:
+            return # NO QC lookups found
+        if dp_ident not in doc[reference_designator]:
+            log.critical("Data product %s not in doc", dp_ident)
+            return # No data product of this listing in the RD's entry
+        # Lookup table has the rows for the QC inputs
+        lookup_table = doc[reference_designator][dp_ident]
+        log.error("lookup table found")
+
+        # An instance of the coverage is loaded if we need to run an algorithm
+        dataset_id = self.get_dataset(data_product)
+        coverage = self.get_coverage(dataset_id)
+        if not coverage.num_timesteps: # No data = no qc
+            coverage.close()
+            return
+
+        try:
+            # Get the lookup table info then run
+            if alg.lower() == 'glblrng':
+                row = self.recent_row(lookup_table['global_range'])
+                min_value = row['min_value']
+                max_value = row['max_value']
+                self.process_glblrng(coverage, parameter, input_name, min_value, max_value)
+
+            elif alg.lower() == 'stuckvl':
+                log.error("Running Stuck Value")
+                row = self.recent_row(lookup_table['stuck_value'])
+                resolution = row['resolution']
+                N = row['consecutive_values']
+                self.process_stuck_value(coverage, parameter,input_name, resolution, N)
+
+            elif alg.lower() == 'trndtst':
+                log.error("Running Trend Test")
+                row = self.recent_row(lookup_table['trend_test'])
+                ord_n = row['polynomial_order']
+                nstd = row['standard_deviation']
+                self.process_trend_test(coverage, parameter, input_name, ord_n, nstd)
+
+            elif alg.lower() == 'spketst':
+                log.error("Runnign Spike Test")
+                row = self.recent_row(lookup_table['spike_test'])
+                acc = row['accuracy']
+                N = row['range_multiplier']
+                L = row['window_length']
+                self.process_spike_test(coverage, parameter, input_name, acc, N, L)
+        finally:
+            coverage.close()
+
+    def process_glblrng(self, coverage, parameter, input_name, min_value, max_value):
+        '''
+        Evaluates the QC for global range for all data values that equal -88 (not yet evaluated)
+        '''
+        log.error("input name: %s", input_name)
+        log.info("Num timesteps: %s", coverage.num_timesteps)
+
+        # Get all of the QC values, and find where -88 is set (uninitialized)
+        qc_array = coverage.get_parameter_values(parameter.name)
+        indexes = np.where( qc_array == -88 )[0]
+
+        # Now build a variable, but I need to keep track of the time where the data goes
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
+        value_array = coverage.get_parameter_values(input_name)[indexes]
+
+        from ion_functions.qc.qc_functions import dataqc_globalrangetest
+        qc = dataqc_globalrangetest(value_array, [min_value, max_value])
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array,
+                parameter.name : qc
+        }
+
+    def process_stuck_value(self, coverage, parameter, input_name, resolution, N):
+        '''
+        Evaluates the QC for stuck value for all data values that equal -88 (not yet evaluated)
+        '''
+        # Get al of the QC values and find out where -88 is set
+        qc_array = coverage.get_parameter_values(parameter.name)
+        indexes = np.where(qc_array == -88)[0]
+
+        # Horribly inefficient...
+        from ion_functions.qc.qc_functions import dataqc_stuckvaluetest_wrapper
+        value_array = coverage.get_parameter_values(input_name)
+        qc_array = dataqc_stuckvaluetest_wrapper(value_array, resolution, N)
+        qc_array = qc_array[indexes]
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
+
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array,
+                parameter.name : qc_array
+        }
+
+
+    def process_trend_test(self, coverage, parameter, input_name, ord_n, nstd):
+        '''
+        Evaluates the QC for trend test for all data values that equal -88 (not yet evaluated)
+        '''
+        # Get al of the QC values and find out where -88 is set
+        qc_array = coverage.get_parameter_values(parameter.name)
+        indexes = np.where(qc_array == -88)[0]
+
+        from ion_functions.qc.qc_functions import dataqc_polytrendtest_wrapper
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)
+        value_array = coverage.get_parameter_values(input_name)
+
+        qc_array = dataqc_polytrendtest_wrapper(value_array, time_array, ord_n, nstd)
+        qc_array = qc_array[indexes]
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array,
+                parameter.name : qc_array
+        }
+
+    def process_spike_test(self, coverage, parameter, input_name, acc, N, L):
+        '''
+        Evaluates the QC for spike test for all data values that equal -88 (not yet evaluated)
+        '''
+        # Get al of the QC values and find out where -88 is set
+        qc_array = coverage.get_parameter_values(parameter.name)
+        indexes = np.where(qc_array == -88)[0]
+
+        from ion_functions.qc.qc_functions import dataqc_spiketest_wrapper
+        value_array = coverage.get_parameter_values(input_name)
+        qc_array = dataqc_spiketest_wrapper(value_array, acc, N, L)
+        qc_array = qc_array[indexes]
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array,
+                parameter.name : qc_array
+        }
+        log.error("Normally I'd set these in the coverage model...")
+        log.error(return_dictionary)
+
+
+
+
+    def get_dataset(self, data_product):
+        dataset_ids, _ = self.resource_registry.find_objects(data_product, PRED.hasDataset, id_only=True)
+        if not dataset_ids:
+            raise BadRequest("No Dataset")
+        dataset_id = dataset_ids[0]
+        return dataset_id
+
+    def get_coverage(self, dataset_id):
+        cov = DatasetManagementService._get_coverage(dataset_id, mode='r+')
+        return cov
+
+    def recent_row(self, rows):
+        '''
+        Determines the most recent data based on the timestamp
+        '''
+        most_recent = None
+        ts = 0
+        for row in rows:
+            if row['ts_created'] > ts:
+                most_recent = row
+                ts = row['ts_created']
+        return most_recent
+
+
+    def get_parameters(self, data_product):
+        '''
+        Returns the relevant parameter contexts of the data product
+        '''
+
+        # DataProduct -> StreamDefinition
+        stream_defs, _ = self.resource_registry.find_objects(data_product._id, PRED.hasStreamDefinition, id_only=False)
+        stream_def = stream_defs[0]
+
+        # StreamDefinition -> ParameterDictionary
+        pdict_ids, _ = self.resource_registry.find_objects(stream_def._id, PRED.hasParameterDictionary, id_only=True)
+        pdict_id = pdict_ids[0]
+
+        # ParameterDictionary -> ParameterContext
+        pctxts, _ = self.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=False)
+        relevant = [ctx for ctx in pctxts if not stream_def.available_fields or (stream_def.available_fields and ctx.name in stream_def.available_fields)]
+        return relevant
 
