@@ -33,9 +33,6 @@ class TestUploadInt(DMTestCase):
         # create a TestApp instance against the ServiceGatewayService
         self.testapp = TestApp(service_gateway_app)
 
-    def tearDown(self):
-        self._stop_container()
-
     def test_upload_data(self):
 
         # create CTD data_product
