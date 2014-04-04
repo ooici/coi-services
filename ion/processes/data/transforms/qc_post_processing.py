@@ -243,6 +243,14 @@ class QCProcessor(SimpleProcess):
             nstd = row['standard_deviation']
             self.process_trend_test(coverage, parameter, ord_n, nstd)
 
+        elif alg.lower() == 'spketst':
+            log.error("Runnign Spike Test")
+            row = self.recent_row(lookup_table['spike_test'])
+            acc = row['accuracy']
+            N = row['range_multiplier']
+            L = row['window_length']
+            self.process_spike_test(coverage, parameter, acc, N, L)
+
 
         if coverage:
             coverage.close()
@@ -298,6 +306,22 @@ class QCProcessor(SimpleProcess):
 
         qc_array = dataqc_polytrendtest_wrapper(value_array, time_array, ord_n, nstd)
         qc_array = qc_array[indexes]
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array,
+                parameter.name : qc_array
+        }
+
+    def process_spike_test(self, coverage, parameter, acc, N, L):
+        input_name = parameter.additional_metadata['input']
+        # Get al of the QC values and find out where -88 is set
+        qc_array = coverage.get_parameter_values(parameter.name)
+        indexes = np.where(qc_array == -88)[0]
+
+        from ion_functions.qc.qc_functions import dataqc_spiketest_wrapper
+        value_array = coverage.get_parameter_values(input_name)
+        qc_array = dataqc_spiketest_wrapper(value_array, acc, N, L)
+        qc_array = qc_array[indexes]
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
         return_dictionary = {
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
