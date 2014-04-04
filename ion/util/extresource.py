@@ -126,11 +126,7 @@ def matcher_DataProduct(obj, matchers=None):
 def matcher_DeviceModel(obj, matchers=None):
     if not obj or not isinstance(obj, Resource) or (obj.type_ != RT.InstrumentModel and obj.type_ != RT.PlatformModel):
         return
-    res_attr = {k: v for k, v in obj.__dict__.iteritems() if k in CORE_RES_ATTRIBUTES or k in {
-        "baud_rate_default", "hotel_current", "manufacturer", "manufacturer_url", "power_source",
-        "family_name", "instrument_family", "platform_family"}}
-    res_attr["__noion__"] = True
-    return res_attr
+    return obj
 
 def matcher_Device(obj, matchers=None):
     if not obj or not isinstance(obj, Resource) or (obj.type_ != RT.InstrumentDevice and obj.type_ != RT.PlatformDevice):
