@@ -195,6 +195,12 @@ class QCProcessor(SimpleProcess):
         return rd
 
     def run_qc(self, data_product, reference_designator, parameter):
+        '''
+        Determines which algorithm the parameter should run, then evaluates the QC
+        '''
+
+        # We key off of the OOI Short Name
+        # DATAPRD_ALGRTHM_QC
         log.error("Running QC %s (%s)", data_product.name, parameter.name)
         dp_ident, alg, qc = parameter.ooi_short_name.split('_')
         log.error("Identifier: %s", dp_ident)
@@ -210,39 +216,71 @@ class QCProcessor(SimpleProcess):
         lookup_table = doc[reference_designator][dp_ident]
         log.error("lookup table found")
 
+        # An instance of the coverage is loaded if we need to run an algorithm
+        dataset_id = self.get_dataset(data_product)
+        coverage = self.get_coverage(dataset_id)
+
         if alg.lower() == 'glblrng':
-            log.error("alg found")
-            #
             row = self.recent_row(lookup_table['global_range'])
             min_value = row['min_value']
             max_value = row['max_value']
-            self.process_glblrng(data_product, reference_designator, parameter, min_value, max_value)
-            log.error("Most recent row")
-            log.error(row)
+            self.process_glblrng(coverage, parameter, min_value, max_value)
 
-    def process_glblrng(self, data_product, reference_designator, parameter, min_value, max_value):
-        try:
-            dataset_id = self.get_dataset(data_product)
-        except BadRequest:
-            log.info("No dataset available for data product %s (%s)", data_product._id, data_product.name)
-        coverage = self.get_coverage(dataset_id)
+        elif alg.lower() == 'stuckvl':
+            log.error("Running Stuck Value")
+            row = self.recent_row(lookup_table['stuck_value'])
+            resolution = row['resolution']
+            N = row['consecutive_values']
+            self.process_stuck_value(coverage, parameter, resolution, N)
+
+
+        if coverage:
+            coverage.close()
+
+    def process_glblrng(self, coverage, parameter, min_value, max_value):
         input_name = parameter.additional_metadata['input']
         log.error("input name: %s", input_name)
         log.info("Num timesteps: %s", coverage.num_timesteps)
 
-        value_array = coverage.get_parameter_values(input_name)
+        # Get all of the QC values, and find where -88 is set (uninitialized)
         qc_array = coverage.get_parameter_values(parameter.name)
-        log.error("QC Array: \n%s", repr(qc_array))
-        log.info("Value array: \n%s", repr(value_array))
         indexes = np.where( qc_array == -88 )[0]
-        dat = value_array[indexes]
-        from ion_functions.qc.qc_functions import dataqc_globalrangetest
-        qc = dataqc_globalrangetest(dat, [min_value, max_value])
-        log.error("\n%s", repr(qc))
-        for i,indx in enumerate(indexes):
-            coverage.set_parameter_values(parameter.name, qc[i], indx)
 
-        coverage.close()
+        # Now build a variable, but I need to keep track of the time where the data goes
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
+        value_array = coverage.get_parameter_values(input_name)[indexes]
+
+        from ion_functions.qc.qc_functions import dataqc_globalrangetest
+        qc = dataqc_globalrangetest(value_array, [min_value, max_value])
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array,
+                parameter.name : qc
+                }
+
+    def process_stuck_value(self, coverage, parameter, resolution, N):
+        input_name = parameter.additional_metadata['input']
+        # Get al of the QC values and find out where -88 is set
+        qc_array = coverage.get_parameter_values(parameter.name)
+        indexes = np.where(qc_array == -88)[0]
+
+        # Horribly inefficient...
+        from ion_functions.qc.qc_functions import dataqc_stuckvaluetest_wrapper
+        value_array = coverage.get_parameter_values(input_name)
+        qc_array = dataqc_stuckvaluetest_wrapper(value_array, resolution, N)
+        log.error("Calling stuck value with\nvalue_array: %s\nresolution: %s\nN: %s", repr(value_array), resolution, N)
+        qc_array = qc_array[indexes]
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
+
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array,
+                parameter.name : qc_array
+                }
+
+        log.error("Normally I'd set these in the coverage model...")
+        log.error(return_dictionary)
+
+
+
 
     def get_dataset(self, data_product):
         dataset_ids, _ = self.resource_registry.find_objects(data_product, PRED.hasDataset, id_only=True)

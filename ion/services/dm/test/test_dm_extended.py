@@ -1525,6 +1525,15 @@ def rotate_v(u,v,theta):
                                       fill_value=-88)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        preswat_qc = ParameterContext(name='preswat_stuckvl_qc', 
+                                      parameter_type='quantity',
+                                      value_encoding='int8',
+                                      units='1',
+                                      ooi_short_name='PRESWAT_STUCKVL_QC',
+                                      additional_metadata={'input':'pressure'},
+                                      fill_value=-88)
+        preswat_qc_id = self.dataset_management.create_parameter(preswat_qc)
+        self.data_product_management.add_parameter_to_data_product(preswat_qc_id, data_product_id)
 
     @attr("UTIL")
     def test_multi_deployment_qc(self):
@@ -1621,6 +1630,20 @@ def rotate_v(u,v,theta):
                            "accuracy":0.0001
                         }
                      ]
+                  },
+                  "PRESWAT":{
+                     "stuck_value":[
+                        {
+                           "units":"C",
+                           "consecutive_values":10,
+                           "ts_created":1396371094.658699,
+                           "resolution":0.005,
+                           "author":"BM"
+                        }
+                     ],
+                     "global_range":[],
+                     "trend_test":[],
+                     "spike_test":[]
                   }
                }
             }
