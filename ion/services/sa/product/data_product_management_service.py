@@ -154,7 +154,11 @@ class DataProductManagementService(BaseDataProductManagementService):
             self.clients.resource_registry.create_association(dpd._id, PRED.hasDataProcess, dp_id)
             self.clients.resource_registry.create_association(dp_id, PRED.hasOutputProduct, data_product._id)
 
-
+    def check_qc(self, data_product):
+        '''
+        Determine the relevant parameters that need QC applied and create parameters for the evaluations
+        '''
+        pass
 
     def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
 

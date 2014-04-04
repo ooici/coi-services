@@ -157,6 +157,7 @@ class QCProcessor(SimpleProcess):
             # Create a mapping of inputs to QC
             qc_mapping = {}
 
+            # Creates a dictionary { data_product_name : parameter_name }
             for p in parameters:
                 if p.ooi_short_name:
                     sname = p.ooi_short_name
@@ -237,43 +238,46 @@ class QCProcessor(SimpleProcess):
         # An instance of the coverage is loaded if we need to run an algorithm
         dataset_id = self.get_dataset(data_product)
         coverage = self.get_coverage(dataset_id)
-        if not coverage.num_timesteps:
+        if not coverage.num_timesteps: # No data = no qc
             coverage.close()
             return
 
-        if alg.lower() == 'glblrng':
-            row = self.recent_row(lookup_table['global_range'])
-            min_value = row['min_value']
-            max_value = row['max_value']
-            self.process_glblrng(coverage, parameter, input_name, min_value, max_value)
+        try:
+            # Get the lookup table info then run
+            if alg.lower() == 'glblrng':
+                row = self.recent_row(lookup_table['global_range'])
+                min_value = row['min_value']
+                max_value = row['max_value']
+                self.process_glblrng(coverage, parameter, input_name, min_value, max_value)
 
-        elif alg.lower() == 'stuckvl':
-            log.error("Running Stuck Value")
-            row = self.recent_row(lookup_table['stuck_value'])
-            resolution = row['resolution']
-            N = row['consecutive_values']
-            self.process_stuck_value(coverage, parameter,input_name, resolution, N)
+            elif alg.lower() == 'stuckvl':
+                log.error("Running Stuck Value")
+                row = self.recent_row(lookup_table['stuck_value'])
+                resolution = row['resolution']
+                N = row['consecutive_values']
+                self.process_stuck_value(coverage, parameter,input_name, resolution, N)
 
-        elif alg.lower() == 'trndtst':
-            log.error("Running Trend Test")
-            row = self.recent_row(lookup_table['trend_test'])
-            ord_n = row['polynomial_order']
-            nstd = row['standard_deviation']
-            self.process_trend_test(coverage, parameter, input_name, ord_n, nstd)
+            elif alg.lower() == 'trndtst':
+                log.error("Running Trend Test")
+                row = self.recent_row(lookup_table['trend_test'])
+                ord_n = row['polynomial_order']
+                nstd = row['standard_deviation']
+                self.process_trend_test(coverage, parameter, input_name, ord_n, nstd)
 
-        elif alg.lower() == 'spketst':
-            log.error("Runnign Spike Test")
-            row = self.recent_row(lookup_table['spike_test'])
-            acc = row['accuracy']
-            N = row['range_multiplier']
-            L = row['window_length']
-            self.process_spike_test(coverage, parameter, input_name, acc, N, L)
-
-
-        if coverage:
+            elif alg.lower() == 'spketst':
+                log.error("Runnign Spike Test")
+                row = self.recent_row(lookup_table['spike_test'])
+                acc = row['accuracy']
+                N = row['range_multiplier']
+                L = row['window_length']
+                self.process_spike_test(coverage, parameter, input_name, acc, N, L)
+        finally:
             coverage.close()
 
     def process_glblrng(self, coverage, parameter, input_name, min_value, max_value):
+        '''
+        Evaluates the QC for global range for all data values that equal -88 (not yet evaluated)
+        '''
         log.error("input name: %s", input_name)
         log.info("Num timesteps: %s", coverage.num_timesteps)
 
@@ -293,6 +297,9 @@ class QCProcessor(SimpleProcess):
         }
 
     def process_stuck_value(self, coverage, parameter, input_name, resolution, N):
+        '''
+        Evaluates the QC for stuck value for all data values that equal -88 (not yet evaluated)
+        '''
         # Get al of the QC values and find out where -88 is set
         qc_array = coverage.get_parameter_values(parameter.name)
         indexes = np.where(qc_array == -88)[0]
@@ -311,6 +318,9 @@ class QCProcessor(SimpleProcess):
 
 
     def process_trend_test(self, coverage, parameter, input_name, ord_n, nstd):
+        '''
+        Evaluates the QC for trend test for all data values that equal -88 (not yet evaluated)
+        '''
         # Get al of the QC values and find out where -88 is set
         qc_array = coverage.get_parameter_values(parameter.name)
         indexes = np.where(qc_array == -88)[0]
@@ -327,6 +337,9 @@ class QCProcessor(SimpleProcess):
         }
 
     def process_spike_test(self, coverage, parameter, input_name, acc, N, L):
+        '''
+        Evaluates the QC for spike test for all data values that equal -88 (not yet evaluated)
+        '''
         # Get al of the QC values and find out where -88 is set
         qc_array = coverage.get_parameter_values(parameter.name)
         indexes = np.where(qc_array == -88)[0]
@@ -358,6 +371,9 @@ class QCProcessor(SimpleProcess):
         return cov
 
     def recent_row(self, rows):
+        '''
+        Determines the most recent data based on the timestamp
+        '''
         most_recent = None
         ts = 0
         for row in rows:
