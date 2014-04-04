@@ -1521,7 +1521,6 @@ def rotate_v(u,v,theta):
                                       value_encoding='int8',
                                       units='1',
                                       ooi_short_name='TEMPWAT_GLBLRNG_QC',
-                                      additional_metadata={'input':'temp'},
                                       fill_value=-88)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
@@ -1530,7 +1529,6 @@ def rotate_v(u,v,theta):
                                       value_encoding='int8',
                                       units='1',
                                       ooi_short_name='TEMPWAT_TRNDTST_QC',
-                                      additional_metadata={'input':'temp'},
                                       fill_value=-88)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
@@ -1539,7 +1537,6 @@ def rotate_v(u,v,theta):
                                       value_encoding='int8',
                                       units='1',
                                       ooi_short_name='TEMPWAT_SPKETST_QC',
-                                      additional_metadata={'input':'temp'},
                                       fill_value=-88)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
@@ -1548,7 +1545,6 @@ def rotate_v(u,v,theta):
                                       value_encoding='int8',
                                       units='1',
                                       ooi_short_name='PRESWAT_STUCKVL_QC',
-                                      additional_metadata={'input':'pressure'},
                                       fill_value=-88)
         preswat_qc_id = self.dataset_management.create_parameter(preswat_qc)
         self.data_product_management.add_parameter_to_data_product(preswat_qc_id, data_product_id)

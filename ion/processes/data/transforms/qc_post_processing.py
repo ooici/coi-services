@@ -18,6 +18,7 @@ from pyon.ion.event import EventSubscriber
 from pyon.util.log import log
 from gevent.event import Event
 import numpy as np
+import re
 import threading
 
 class QCPostProcessing(SimpleProcess):
@@ -152,10 +153,23 @@ class QCProcessor(SimpleProcess):
                 rd = self.get_reference_designator(data_product._id)
             except BadRequest:
                 continue
-            for p in self.get_parameters(data_product):
+            parameters = self.get_parameters(data_product)
+            # Create a mapping of inputs to QC
+            qc_mapping = {}
+
+            for p in parameters:
+                if p.ooi_short_name:
+                    sname = p.ooi_short_name
+                    g = re.match(r'([a-zA-Z-_]+)(_L[0-9])', sname)
+                    if g:
+                        sname = g.groups()[0]
+                    qc_mapping[sname] = p.name
+            log.error(qc_mapping)
+
+            for p in parameters:
                 # for each parameter, if the name ends in _qc run the qc
                 if p.name.endswith('_qc'):
-                    self.run_qc(data_product,rd, p)
+                    self.run_qc(data_product,rd, p, qc_mapping)
             log.error("Data Product RD: %s", rd)
 
             # Break early if we can
@@ -194,7 +208,7 @@ class QCProcessor(SimpleProcess):
         rd = site.reference_designator
         return rd
 
-    def run_qc(self, data_product, reference_designator, parameter):
+    def run_qc(self, data_product, reference_designator, parameter, qc_mapping):
         '''
         Determines which algorithm the parameter should run, then evaluates the QC
         '''
@@ -205,6 +219,10 @@ class QCProcessor(SimpleProcess):
         dp_ident, alg, qc = parameter.ooi_short_name.split('_')
         log.error("Identifier: %s", dp_ident)
         log.error("Test: %s", alg)
+        if dp_ident not in qc_mapping:
+            return # No input!
+        input_name = qc_mapping[dp_ident]
+
         try:
             doc = self.container.object_store.read_doc(reference_designator)
         except NotFound:
@@ -227,21 +245,21 @@ class QCProcessor(SimpleProcess):
             row = self.recent_row(lookup_table['global_range'])
             min_value = row['min_value']
             max_value = row['max_value']
-            self.process_glblrng(coverage, parameter, min_value, max_value)
+            self.process_glblrng(coverage, parameter, input_name, min_value, max_value)
 
         elif alg.lower() == 'stuckvl':
             log.error("Running Stuck Value")
             row = self.recent_row(lookup_table['stuck_value'])
             resolution = row['resolution']
             N = row['consecutive_values']
-            self.process_stuck_value(coverage, parameter, resolution, N)
+            self.process_stuck_value(coverage, parameter,input_name, resolution, N)
 
         elif alg.lower() == 'trndtst':
             log.error("Running Trend Test")
             row = self.recent_row(lookup_table['trend_test'])
             ord_n = row['polynomial_order']
             nstd = row['standard_deviation']
-            self.process_trend_test(coverage, parameter, ord_n, nstd)
+            self.process_trend_test(coverage, parameter, input_name, ord_n, nstd)
 
         elif alg.lower() == 'spketst':
             log.error("Runnign Spike Test")
@@ -249,14 +267,13 @@ class QCProcessor(SimpleProcess):
             acc = row['accuracy']
             N = row['range_multiplier']
             L = row['window_length']
-            self.process_spike_test(coverage, parameter, acc, N, L)
+            self.process_spike_test(coverage, parameter, input_name, acc, N, L)
 
 
         if coverage:
             coverage.close()
 
-    def process_glblrng(self, coverage, parameter, min_value, max_value):
-        input_name = parameter.additional_metadata['input']
+    def process_glblrng(self, coverage, parameter, input_name, min_value, max_value):
         log.error("input name: %s", input_name)
         log.info("Num timesteps: %s", coverage.num_timesteps)
 
@@ -275,8 +292,7 @@ class QCProcessor(SimpleProcess):
                 parameter.name : qc
         }
 
-    def process_stuck_value(self, coverage, parameter, resolution, N):
-        input_name = parameter.additional_metadata['input']
+    def process_stuck_value(self, coverage, parameter, input_name, resolution, N):
         # Get al of the QC values and find out where -88 is set
         qc_array = coverage.get_parameter_values(parameter.name)
         indexes = np.where(qc_array == -88)[0]
@@ -294,8 +310,7 @@ class QCProcessor(SimpleProcess):
         }
 
 
-    def process_trend_test(self, coverage, parameter, ord_n, nstd):
-        input_name = parameter.additional_metadata['input']
+    def process_trend_test(self, coverage, parameter, input_name, ord_n, nstd):
         # Get al of the QC values and find out where -88 is set
         qc_array = coverage.get_parameter_values(parameter.name)
         indexes = np.where(qc_array == -88)[0]
@@ -311,8 +326,7 @@ class QCProcessor(SimpleProcess):
                 parameter.name : qc_array
         }
 
-    def process_spike_test(self, coverage, parameter, acc, N, L):
-        input_name = parameter.additional_metadata['input']
+    def process_spike_test(self, coverage, parameter, input_name, acc, N, L):
         # Get al of the QC values and find out where -88 is set
         qc_array = coverage.get_parameter_values(parameter.name)
         indexes = np.where(qc_array == -88)[0]
