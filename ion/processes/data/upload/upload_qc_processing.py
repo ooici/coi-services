@@ -54,12 +54,12 @@ class UploadQcProcessing(ImmediateProcess):
         updates = {} # keys are reference_designators, use to update object store after parsing CSV
 
         with open(csv_filename, 'rb') as csvfile:
-            '''
-            This filter loads entire file into memory before ignoring commented lines
-            It's intended that the QC won't stress the memory here, however, 
-            if they do, try generator expression eg. (row for row in fp if not row.startswith('#'))
-            '''
-            csv_reader = csv.reader(filter(lambda row: row[0]!='#', csvfile), delimiter=',') # skip commented lines
+            # eliminate blank lines
+            csvfile = (row for row in csvfile if len(row.strip()) > 0)
+            # eliminate commented lines
+            csvfile = (row for row in csvfile if not row.startswith('#'))
+            # open CSV reader
+            csv_reader = csv.reader(csvfile, delimiter=',') # skip commented lines
             # iterate the rows returned by csv.reader
             for row in csv_reader:
                 qc_type = row[0]
