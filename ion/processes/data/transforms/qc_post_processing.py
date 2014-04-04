@@ -219,6 +219,9 @@ class QCProcessor(SimpleProcess):
         # An instance of the coverage is loaded if we need to run an algorithm
         dataset_id = self.get_dataset(data_product)
         coverage = self.get_coverage(dataset_id)
+        if not coverage.num_timesteps:
+            coverage.close()
+            return
 
         if alg.lower() == 'glblrng':
             row = self.recent_row(lookup_table['global_range'])
@@ -232,6 +235,13 @@ class QCProcessor(SimpleProcess):
             resolution = row['resolution']
             N = row['consecutive_values']
             self.process_stuck_value(coverage, parameter, resolution, N)
+
+        elif alg.lower() == 'trndtst':
+            log.error("Running Trend Test")
+            row = self.recent_row(lookup_table['trend_test'])
+            ord_n = row['polynomial_order']
+            nstd = row['standard_deviation']
+            self.process_trend_test(coverage, parameter, ord_n, nstd)
 
 
         if coverage:
@@ -255,7 +265,7 @@ class QCProcessor(SimpleProcess):
         return_dictionary = {
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc
-                }
+        }
 
     def process_stuck_value(self, coverage, parameter, resolution, N):
         input_name = parameter.additional_metadata['input']
@@ -267,15 +277,31 @@ class QCProcessor(SimpleProcess):
         from ion_functions.qc.qc_functions import dataqc_stuckvaluetest_wrapper
         value_array = coverage.get_parameter_values(input_name)
         qc_array = dataqc_stuckvaluetest_wrapper(value_array, resolution, N)
-        log.error("Calling stuck value with\nvalue_array: %s\nresolution: %s\nN: %s", repr(value_array), resolution, N)
         qc_array = qc_array[indexes]
         time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
 
         return_dictionary = {
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
-                }
+        }
 
+
+    def process_trend_test(self, coverage, parameter, ord_n, nstd):
+        input_name = parameter.additional_metadata['input']
+        # Get al of the QC values and find out where -88 is set
+        qc_array = coverage.get_parameter_values(parameter.name)
+        indexes = np.where(qc_array == -88)[0]
+
+        from ion_functions.qc.qc_functions import dataqc_polytrendtest_wrapper
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)
+        value_array = coverage.get_parameter_values(input_name)
+
+        qc_array = dataqc_polytrendtest_wrapper(value_array, time_array, ord_n, nstd)
+        qc_array = qc_array[indexes]
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array,
+                parameter.name : qc_array
+        }
         log.error("Normally I'd set these in the coverage model...")
         log.error(return_dictionary)
 

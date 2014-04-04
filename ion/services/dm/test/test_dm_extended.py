@@ -1525,6 +1525,15 @@ def rotate_v(u,v,theta):
                                       fill_value=-88)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        tempwat_qc = ParameterContext(name='tempwat_trndtst_qc', 
+                                      parameter_type='quantity',
+                                      value_encoding='int8',
+                                      units='1',
+                                      ooi_short_name='TEMPWAT_TRNDTST_QC',
+                                      additional_metadata={'input':'temp'},
+                                      fill_value=-88)
+        tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
+        self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
         preswat_qc = ParameterContext(name='preswat_stuckvl_qc', 
                                       parameter_type='quantity',
                                       value_encoding='int8',
