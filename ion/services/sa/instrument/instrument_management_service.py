@@ -549,30 +549,49 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected a InstrumentAgentInstance for the resource %s, but received type %s" %
                             (instrument_agent_instance_id, instrument_agent_instance_obj.type_))
 
+        agent_process_id = None
         try:
-            instance_obj, device_id = self._stop_agent_instance(instrument_agent_instance_id,
-                                                                RT.InstrumentDevice, instrument_agent_instance_obj)
+            try:
+                instance_obj, device_id, agent_process_id = self._stop_agent_instance(
+                    instrument_agent_instance_id, RT.InstrumentDevice, instrument_agent_instance_obj)
 
-        except BadRequest as e:
-            #
-            # stopping the instrument agent instance failed, but try at least
-            # to stop the port agent:
-            #
-            log.error("Exception in _stop_agent_instance: %s", e)
-            log.debug("Trying to stop the port agent anyway ...")
-            instance_obj = self.RR2.read(instrument_agent_instance_id)
+            except BadRequest as e:
+                # Note: Stopping the instrument agent instance failed, but try at least
+                # to stop the port agent:
+                log.error("Exception in _stop_agent_instance: %s", e)
+                log.debug("Trying to stop the port agent anyway ...")
+                instance_obj = self.RR2.read(instrument_agent_instance_id)
+                self._stop_port_agent(instance_obj.port_agent_config)
+
+                # raise the exception anyway:
+                raise e
+
             self._stop_port_agent(instance_obj.port_agent_config)
 
-            # raise the exception anyway:
-            raise e
+            #update the producer context for provenance
+            producer_obj = self._get_instrument_producer(device_id)
+            if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
+                producer_obj.producer_context.deactivation_time =  IonTime().to_string()
+                self.RR2.update(producer_obj)
 
-        self._stop_port_agent(instance_obj.port_agent_config)
+        finally:
+            if agent_process_id:
+                # Save the process state
+                agent_instance_res = self.clients.resource_registry.read(instrument_agent_instance_id)
+                old_state = None
+                try:
+                    old_state,_ = self.container.state_repository.get_state(agent_process_id)
+                    old_state["_prior_agent_process_id"] = agent_process_id
+                except NotFound:
+                    log.warn("Could not find process state for agent instance %s", instrument_agent_instance_id)
 
-        #update the producer context for provenance
-        producer_obj = self._get_instrument_producer(device_id)
-        if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
-            producer_obj.producer_context.deactivation_time =  IonTime().to_string()
-            self.RR2.update(producer_obj)
+                if old_state and isinstance(old_state, dict):
+                    agent_instance_res.saved_agent_state = old_state
+                else:
+                    agent_instance_res.saved_agent_state = {}
+
+                agent_instance_res.saved_agent_state = old_state
+                self.clients.resource_registry.update(agent_instance_res)
 
 
     def _stop_agent_instance(self, agent_instance_id, device_type, agent_instance_obj=None):
@@ -607,7 +626,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             agent_instance_obj.driver_config['pagent_pid'] = None
         self.RR2.update(agent_instance_obj)
 
-        return agent_instance_obj, device_id
+        return agent_instance_obj, device_id, agent_process_id
 
 
 
@@ -1011,7 +1030,29 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Expected a InstrumentAgentInstance for the resource %s, but received type %s" %
                             (platform_agent_instance_id, platform_agent_instance_obj.type_))
 
-        self._stop_agent_instance(platform_agent_instance_id, RT.PlatformDevice, platform_agent_instance_obj)
+        agent_process_id = None
+        try:
+            instance_obj, device_id, agent_process_id = self._stop_agent_instance(
+                platform_agent_instance_id, RT.PlatformDevice, platform_agent_instance_obj)
+        finally:
+            if agent_process_id:
+                # Save the process state
+                agent_instance_res = self.clients.resource_registry.read(platform_agent_instance_id)
+                old_state = None
+                try:
+                    old_state,_ = self.container.state_repository.get_state(agent_process_id)
+                    old_state["_prior_agent_process_id"] = agent_process_id
+                except NotFound:
+                    log.warn("Could not find process state for agent instance %s", platform_agent_instance_id)
+
+                if old_state and isinstance(old_state, dict):
+                    agent_instance_res.saved_agent_state = old_state
+                else:
+                    agent_instance_res.saved_agent_state = {}
+
+                agent_instance_res.saved_agent_state = old_state
+                self.clients.resource_registry.update(agent_instance_res)
+
 
 
 
