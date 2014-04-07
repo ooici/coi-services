@@ -32,16 +32,26 @@ class UploadQcProcessing(ImmediateProcess):
         # necessary arguments, passed in via configuration kwarg to schedule_process. process namespace to avoid collisions
         fuc_id = self.CFG.get_safe('process.fuc_id',None) # FileUploadContext ID
 
+        # Clients
+        self.object_store = self.container.object_store
+
         # run process
         self.process(fuc_id)
 
     def process(self,fuc_id):
 
-        # clients we'll need
-        object_store = self.container.object_store
-
         # get the Object (dict) containing details of the uploaded file
-        fuc = object_store.read(fuc_id)
+        fuc = self.object_store.read(fuc_id)
+
+        if fuc['filetype'] == 'ZIP':
+            self.process_zip(fuc)
+        else:
+            self.process_csv(fuc)
+
+    def process_zip(self, fuc):
+        pass
+
+    def process_csv(self, fuc):
 
         # CSV file open here
         csv_filename = fuc.get('path', None)
@@ -110,10 +120,10 @@ class UploadQcProcessing(ImmediateProcess):
         # insert the updates into object store
         for r in updates: # loops the reference_designators in the updates object
             try: # if reference_designator exists in object_store, read it                           
-                rd = object_store.read(r)
+                rd = self.object_store.read(r)
             except: # if does not yet exist in object_store, create it (can't use update_doc because need to set id)
-                rd = object_store.create_doc({},r) # CAUTION: this returns a tuple, not a dict like read() returns
-                rd = object_store.read(r) # read so we have a dict like we expect
+                rd = self.object_store.create_doc({},r) # CAUTION: this returns a tuple, not a dict like read() returns
+                rd = self.object_store.read(r) # read so we have a dict like we expect
             # merge all from updates[r] into dict destined for the object_store (rd)
             for dp in updates[r]: # loops the dataproducts under each reference_designator in updates
                 if dp not in rd: # if dp doesn't exist, we can just add the entire object (dict of lists)
@@ -124,10 +134,10 @@ class UploadQcProcessing(ImmediateProcess):
                             rd[dp][qc] = [] # initialize (these should always be initialized, but to be safe)
                         rd[dp][qc].append(updates[r][dp][qc]) # append the list from updates
             # store updated reference_designator keyed object in object_store (should overwrite full object)
-            object_store.update_doc(rd)
+            self.object_store.update_doc(rd)
 
         fuc['status'] = 'UploadQcProcessing process complete - %d updates added to object store' % nupdates
-        object_store.update_doc(fuc)
+        self.object_store.update_doc(fuc)
 
         # remove uploaded file
         try:
