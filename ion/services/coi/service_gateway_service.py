@@ -1063,4 +1063,11 @@ def _check_magic(f):
     HDF = f.read(8)
     if HDF == HDF_MAGIC:
         return 'HDF'
+
+    # PKZIP
+    ZIP_MAGIC = b"\x50\x4b\x03\x04"
+    f.seek(0)
+    ZIP = f.read(4)
+    if ZIP == ZIP_MAGIC:
+        return 'ZIP'
     return None
