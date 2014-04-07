@@ -994,12 +994,13 @@ def upload_qc():
             path = os.path.join(upload_folder, filename)
             upload_time = time.time()
             upload.save(path)
+            filetype = _check_magic(upload) or 'CSV' # Either going to be ZIP or CSV, probably
 
             # register upload
             file_upload_context = {
                 'name':'User uploaded QC file %s' % filename,
                 'filename':filename,
-                #'filetype':filetype, # only CSV, no detection necessary
+                'filetype':filetype, # only CSV, no detection necessary
                 'path':path,
                 'upload_time':upload_time,
                 'status':'File uploaded to server'
