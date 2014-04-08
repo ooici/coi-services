@@ -20,9 +20,9 @@ Prepare for start:
 Start the services container with Container UI:
 > bin/pycc -fc -r res/deploy/r2deploy.yml --mx
 
-Preload ALPHA setup (with UI, OOI assets, demo resources); this can take many minutes to complete. Add path=master
-to run against the master Google spreadsheet:
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_alpha.yml
+Preload BETA setup (with UI, OOI assets, demo resources); this can take many minutes to complete. Remove path=master
+to run against the last known good Google spreadsheet (may be outdated though):
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_beta.yml path=master
 
 Start the UI (in ion-ux, virtualenv prepared as documented):
 > python main.py
@@ -83,9 +83,6 @@ or in the shell:
 Load OOI assets using preload scripts:
 ======================================
 
-Beta system preload using master GoogleDoc:
-> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_beta.yml path=master
-
 Development OOI load (parse OOI assets, save and print assets report)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/dev_ooi_parse.yml
 
@@ -97,6 +94,9 @@ Development OOI reload (deleteooi, debug mode, bulk load)
 
 Production OOI load:
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_load_config.yml
+
+Incremental, idempotent OOI load:
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load loadooi=True path=master ooiuntil="6/30/2014" ooiparams=True ooiupdate=True
 
 
 Loading Instrument specific resources (requires BETA):

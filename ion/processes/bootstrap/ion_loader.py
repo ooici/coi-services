@@ -37,7 +37,6 @@
       ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       ooiparams= if True (default is False) create links to OOI parameter definitions
-      ooipartial= if True (default is False) creates resources (data products etc) even if not all inputs are there
       ooiactivate= if True (default is True) activate deployments/persistence for assets actually deployed in the past
       ooiupdate= if True (default is False), supports in-place updates to OOI generated resources
 
@@ -325,7 +324,6 @@ class IONLoader(ImmediateProcess):
             self.clearcols = config.get("clearcols", None)          # Clear given columns in rows
             self.idmap = bool(config.get("idmap", False))           # Substitute column values in rows
             self.ooiparams = bool(config.get("ooiparams", False))   # Hook up with loaded OOI params
-            self.ooipartial = bool(config.get("ooipartial", False))  # Load partially defined resources
             self.ooiactivate = bool(config.get("ooiactivate", True))  # Activate deployments and persistence
             self.parseooi = config.get("parseooi", False)
             self.ooiupdate = config.get("ooiupdate", False)      # Support update to existing OOI generated resources
@@ -3169,6 +3167,48 @@ Reason: %s
 
         return sdef_id
 
+    def _get_unique_instrument_extension(self, ooi_rd):
+        """For given instrument RD, return a user readable unique name extension composed of platform and site
+        name plus sequence numbers if not yet unique.
+        Using platform+site is not unique in cases with more instruments of the same type on the platform."""
+        inst_id = ooi_rd.rd
+        node_objs = self.ooi_loader.get_type_assets("node")
+        inst_objs = self.ooi_loader.get_type_assets("instrument")
+        inst_obj = inst_objs[inst_id]
+        node_obj = node_objs[ooi_rd.node_rd]
+
+        platform_obj = node_objs[node_obj['platform_id']]
+        found_num_onnode = 0   # Number of instruments of same class on same node
+        for iid in inst_objs.keys():
+            ooi_rd1 = OOIReferenceDesignator(iid)
+            if ooi_rd.node_rd == ooi_rd1.node_rd and ooi_rd1.inst_class == inst_obj['Class']:
+                found_num_onnode += 1
+                if found_num_onnode > 1:
+                    break
+        found_num_onplatform = 0   # Number of instruments of same class on same platform
+        for iid, iobj in inst_objs.iteritems():
+            ooi_rd1 = OOIReferenceDesignator(iid)
+            iplatform = node_objs[node_objs[ooi_rd1.node_rd]["platform_id"]]
+            if found_num_onnode > 1:
+                if platform_obj["id"] == iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class'] and \
+                        inst_obj.get("depth_port_min", None) == iobj.get("depth_port_min", None):
+                    found_num_onplatform += 1
+            else:
+                if platform_obj["id"] == iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class']:
+                    found_num_onplatform += 1
+            if found_num_onplatform > 1:
+                break
+
+        if found_num_onnode > 1:
+            # More than 1 instrument of same class on node. Use port depth in name
+            inst_unique = "%s %sm" % (inst_obj['Class'], inst_obj.get("depth_port_min", None) or ooi_rd.inst_seriesseq)
+        else:
+            inst_unique = inst_obj['Class']
+        if found_num_onplatform > 1:
+            inst_unique += " (node %s%s)" % (ooi_rd.node_type, ooi_rd.node_seq)
+
+        return inst_unique
+
     def _load_DataProduct_OOI(self):
         """DataProducts and DataProductLink"""
         node_objs = self.ooi_loader.get_type_assets("node")
@@ -3199,7 +3239,7 @@ Reason: %s
 
         pdict_map = self._get_paramdict_param_map()
 
-        # I. Platform data products (parsed)
+        # I. Platform data products as defined by agents
         for node_id, node_obj in node_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(node_id)
             num_dp_generated = 0
@@ -3213,19 +3253,11 @@ Reason: %s
             else:
                 log.warn("Could not determine geospatial constraint for %s", node_id)
 
-            nodetype_obj = nodetype_objs.get(ooi_rd.node_type, None)
-            pa_code = nodetype_obj.get("pa_code", None) if nodetype_obj else None
-            pagent_res_obj = self._get_resource_obj(pa_code, True) if pa_code else None  # This could be an EDA
-            if pagent_res_obj is None:
-                pa_code = "PA_"+ooi_rd.node_type
-                pagent_res_obj = self._get_resource_obj(pa_code, True)
-            if pagent_res_obj is None:
-                pa_code = "DART_"+ooi_rd.node_type
-                pagent_res_obj = self._get_resource_obj(pa_code, True)
+            agent_id, agent_obj = self._get_agent_definition(ooi_rd)
 
-            if pagent_res_obj:
-                log.debug("Checking DataProducts for %s from platform agent %s streams and SAF", node_id, pa_code)
-                pastream_configs = pagent_res_obj.stream_configurations if pagent_res_obj else pagent_res_obj.stream_configurations
+            if agent_obj:
+                log.debug("Checking DataProducts for %s from platform agent %s streams and SAF", node_id, agent_id)
+                pastream_configs = agent_obj.stream_configurations if agent_obj else agent_obj.stream_configurations
                 for index, scfg in enumerate(pastream_configs):
                     if scfg.stream_type == StreamConfigurationType.PARSED:
                         log.warn("Platform %s should not have PARSED stream: %s/%s",
@@ -3262,37 +3294,13 @@ Reason: %s
 
                         log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
 
-            elif self.ooipartial:
-                newrow = {}
-                newrow[COL_ID] = node_id + "_DPP1"
-                newrow['dp/name'] = "Parsed - platform " + node_id
-                newrow['dp/description'] = "Platform %s data product" % node_id
-                newrow['dp/ooi_product_name'] = ""
-                newrow['dp/processing_level_code'] = "N/A"
-                newrow['dp/quality_control_level'] = "N/A"
-                newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
-                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
-                newrow['geo_constraint_id'] = const_id1
-                newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                newrow['stream_def_id'] = ''
-                newrow['parent'] = ''
-                newrow['persist_data'] = 'False'
-                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
-                if not self._resource_exists(newrow[COL_ID]):
-                    self._load_DataProduct(newrow, do_bulk=self.bulk)
-                    num_dp_generated += 1
-
-                    create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
-                    create_dp_link(node_id + "_DPP1", node_id)
-
-                    log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
-
         # II. Instrument data products (raw, parsed, engineering, derived science L0, L1, L2)
         for inst_id, inst_obj in inst_objs.iteritems():
             num_dp_generated = 0
             ooi_rd = OOIReferenceDesignator(inst_id)
             node_obj = node_objs[ooi_rd.node_rd]
             series_obj = series_objs[ooi_rd.series_rd]
+            platform_obj = node_objs[node_obj['platform_id']]
 
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
@@ -3306,21 +3314,17 @@ Reason: %s
             else:
                 log.warn("Could not determine geospatial constraint for %s", inst_id)
 
-            ia_code = series_obj["ia_code"]
-            iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
-            dart_code = series_obj["dart_code"]
-            dagent_res_obj = self._get_resource_obj(dart_code, True) if dart_code else None
-            ia_enabled = iagent_res_obj and series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
-            dart_enabled = dagent_res_obj and series_obj.get("dart_exists", False)
+            inst_unique = self._get_unique_instrument_extension(ooi_rd)
+
+            agent_id, agent_obj = self._get_agent_definition(ooi_rd)
 
             parsed_pdict_id, parsed_id = "", ""
             # (1) Generate stream DataProducts (raw, parsed, engineering)
-            if iagent_res_obj or dagent_res_obj:
-                log.debug("Checking DataProducts for %s from instrument/data agent %s streams and SAF", inst_id,
-                          ia_code if iagent_res_obj else dart_code)
+            if agent_obj:
+                log.debug("Checking DataProducts for %s from instrument/data agent %s streams and SAF", inst_id, agent_id)
 
                 # There exists an agent with stream configurations. Create one DataProduct per stream
-                iastream_configs = iagent_res_obj.stream_configurations if iagent_res_obj else dagent_res_obj.stream_configurations
+                iastream_configs = agent_obj.stream_configurations
                 for index, scfg in enumerate(iastream_configs):
                     dp_id = inst_id + "_DPI" + str(index)
                     newrow = {}
@@ -3342,7 +3346,7 @@ Reason: %s
                     else:
                         if scfg.stream_type == StreamConfigurationType.PARSED:
                             log.warn("Instrument %s (agent %s) has more than one PARSED stream: %s (first pdict id=%s)",
-                                     inst_id, ia_code or dart_code, scfg.stream_name, parsed_pdict_id)
+                                     inst_id, agent_id, scfg.stream_name, parsed_pdict_id)
                         newrow['dp/description'] = "Instrument %s data product: engineering data" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "N/A"
@@ -3363,9 +3367,14 @@ Reason: %s
                     strdef_id = self._create_dp_stream_def(inst_id, pdict_id, scfg.stream_name)
                     newrow['stream_def_id'] = strdef_id
 
-                    if not (ia_enabled or dart_enabled):
-                        log.debug("No data product for %s:%s - agent not enabled", inst_id, scfg.stream_name)
-                        continue
+                    if agent_obj.type_ == RT.ExternalDatasetAgent:
+                        if not series_obj.get("dart_exists", False):
+                            log.debug("No data product for %s:%s - dataset agent not enabled", inst_id, scfg.stream_name)
+                            continue
+                    else:
+                        if not series_obj.get("ia_exists", False) or not agent_id in instagent_objs or not instagent_objs[agent_id]["active"]:
+                            log.debug("No data product for %s:%s - instrument agent not enabled", inst_id, scfg.stream_name)
+                            continue
 
                     if not self._resource_exists(dp_id):
                         self._load_DataProduct(newrow)
@@ -3376,62 +3385,12 @@ Reason: %s
 
                         log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
 
-            elif self.ooipartial:
-                log.debug("Checking DataProducts for %s using SAF and defaults (no streams)", inst_id)
-
-                # There is no agent defined. Just create basic raw and parsed data products
-                # Raw instrument DataProduct
-                newrow = {}
-                dp_id = inst_id + "_DPI0"
-                newrow[COL_ID] = dp_id
-                newrow['dp/name'] = "Raw - instrument " + inst_id
-                newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
-                newrow['dp/ooi_product_name'] = ""
-                newrow['dp/processing_level_code'] = "Parsed"
-                newrow['dp/quality_control_level'] = "a"
-                newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
-                newrow['geo_constraint_id'] = const_id1
-                newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                newrow['stream_def_id'] = 'StreamDef23'        # Hardcoded to preload row value!!
-                newrow['parent'] = ''
-                newrow['persist_data'] = 'False'
-                if not self._resource_exists(dp_id):
-                    self._load_DataProduct(newrow, do_bulk=self.bulk)
-
-                    create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice')
-                    create_dp_link(dp_id, inst_id)
-
-                # Parsed instrument DataProduct
-                newrow = {}
-                dp_id = inst_id + "_DPI1"
-                newrow[COL_ID] = dp_id
-                newrow['dp/name'] = "Parsed - instrument " + inst_id
-                newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
-                newrow['dp/ooi_product_name'] = ""
-                newrow['dp/processing_level_code'] = "Raw"
-                newrow['dp/quality_control_level'] = "N/A"
-                newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-                newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
-                newrow['geo_constraint_id'] = const_id1
-                newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                newrow['stream_def_id'] = ''
-                newrow['parent'] = ''
-                newrow['persist_data'] = 'False'
-                if not self._resource_exists(dp_id):
-                    self._load_DataProduct(newrow, do_bulk=self.bulk)
-                    num_dp_generated += 1
-
-                    create_dp_link(dp_id, inst_id + "_ID", 'InstrumentDevice')
-                    create_dp_link(dp_id, inst_id)
-
-                    log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
             else:
                 # There is no agent defined. Defer generating DataProducts to incremental run
                 #log.debug("Not generating DataProducts for %s - no agent/streams defined", inst_id)
                 pass
 
-            # (2) Generate derived DataProducts for L0/L1/L2 based on SAF DPS - Level (per site)
+            # (2) Generate derived DataProducts for L0/L1/L2 based on SAF DPS - Level (per site) AND param dict
             skip_list = []
             data_product_list = inst_obj.get('data_product_list', [])
             for dptype_id in data_product_list:
@@ -3440,37 +3399,6 @@ Reason: %s
 
                 newrow = {}
                 newrow[COL_ID] = dp_id
-                platform_obj = node_objs[node_obj['platform_id']]
-                # Create a unique DataProduct name. It must be unique (a stream is named after it)
-                # Warning: Using the platform name (not node name) is ambiguous!!
-                found_num_onnode = 0   # Number of instruments of same class on same node
-                for iid in inst_objs.keys():
-                    ooi_rd1 = OOIReferenceDesignator(iid)
-                    if ooi_rd.node_rd == ooi_rd1.node_rd and ooi_rd1.inst_class == inst_obj['Class']:
-                        found_num_onnode += 1
-                        if found_num_onnode > 1:
-                            break
-                found_num_onplatform = 0   # Number of instruments of same class on same platform
-                for iid, iobj in inst_objs.iteritems():
-                    ooi_rd1 = OOIReferenceDesignator(iid)
-                    iplatform = node_objs[node_objs[ooi_rd1.node_rd]["platform_id"]]
-                    if found_num_onnode > 1:
-                        if platform_obj["id"] == iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class'] and \
-                                inst_obj.get("depth_port_min", None) == iobj.get("depth_port_min", None):
-                            found_num_onplatform += 1
-                    else:
-                        if platform_obj["id"] == iplatform["id"] and ooi_rd1.inst_class == inst_obj['Class']:
-                            found_num_onplatform += 1
-                    if found_num_onplatform > 1:
-                        break
-
-                if found_num_onnode > 1:
-                    # More than 1 instrument of same class on node. Use port depth in name
-                    inst_unique = "%s %sm" % (inst_obj['Class'], inst_obj.get("depth_port_min", None) or ooi_rd.inst_seriesseq)
-                else:
-                    inst_unique = inst_obj['Class']
-                if found_num_onplatform > 1:
-                    inst_unique += " (node %s%s)" % (ooi_rd.node_type, ooi_rd.node_seq)
 
                 dp_name = "%s %s %s %s" % (dp_obj['name'], dp_obj['level'], inst_unique, platform_obj['name'])
 
@@ -3565,18 +3493,6 @@ Reason: %s
 
                     log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
 
-                elif self.ooipartial:
-                    newrow['stream_def_id'] = ''
-
-                    if self._resource_exists(dp_id):
-                        continue
-
-                    self._load_DataProduct(newrow, do_bulk=self.bulk)
-
-                    create_dp_link(dp_id, inst_id + "_ID")
-                    create_dp_link(dp_id, inst_id)
-
-                    log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
                 else:
                     pass  # Ignore this derived data product because we don't have parsed param dict
 
