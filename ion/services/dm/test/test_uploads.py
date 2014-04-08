@@ -161,7 +161,8 @@ stuck_value,REFDES01,RD01DP01,C,Otter,0.005,10
 trend_test,REFDES01,RD01DP01,K,Pinto,25,4,4.5
 spike_test,REFDES01,RD01DP01,degrees,Flounder,0.0001,4,15
 # the following should not work (not enough values for spike_test)
-spike_test,REFDES01,RD04DP01,degrees,Otter,0.0001,4'''
+spike_test,REFDES01,RD04DP01,degrees,Otter,0.0001,4
+gradient_test,REFDES01,RD01DP01,C,Boon,s,[-0.01 0.01],30,,0.1'''
         (QC_HANDLE,QC_FILENAME) = tempfile.mkstemp()
         os.write(QC_HANDLE, QC_CSV)
         os.close(QC_HANDLE)
@@ -203,6 +204,18 @@ spike_test,REFDES01,RD04DP01,degrees,Otter,0.0001,4'''
                  'ts_created':CONSTANT_TIME,
                  'resolution':'0.005',
                  'author':'Otter'
+              }
+           ],
+           'gradient_test':[
+              {
+                 'toldat':'0.1',
+                 'xunits':'s',
+                 'mindx':'30',
+                 'author':'Boon',
+                 'startdat':u'',
+                 'ddatdx':'[-0.01 0.01]',
+                 'units':'C',
+                 'ts_created':CONSTANT_TIME
               }
            ],
            'global_range':[

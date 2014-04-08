@@ -83,10 +83,11 @@ class UploadQcProcessing(ImmediateProcess):
                         'global_range':[],
                         'stuck_value':[],
                         'trend_test':[],
-                        'spike_test':[]
+                        'spike_test':[],
+                        'gradient_test':[]
                     }
                 # updates[rd][dp] object is now available to have QC 'tables' added (in dict form)
-                # actually process the row (global|stuck|trend|spike)
+                # actually process the row (global|stuck|trend|spike|gradient)
                 if qc_type == 'global_range':
                     if len(row) != 7:
                         log.warn("invalid global_range line %s" % ','.join(row))
@@ -111,6 +112,12 @@ class UploadQcProcessing(ImmediateProcess):
                         continue
                     d = self.parse_spike_test(row)
                     updates[rd][dp]['spike_test'].append(d)
+                elif qc_type == "gradient_test":
+                    if len(row) != 10:
+                        log.warn("invalid gradient_test line %s" % ','.join(row))
+                        continue
+                    d = self.parse_gradient_test(row)
+                    updates[rd][dp]['gradient_test'].append(d)
                 else:
                     log.warn("unknown QC type %s" % qc_type)
                     continue
@@ -194,5 +201,18 @@ class UploadQcProcessing(ImmediateProcess):
             'accuracy':row[5],
             'range_multiplier':row[6],
             'window_length':row[7]
+        })
+        return d
+
+    def parse_gradient_test(self, row, d=None):
+        if not d:
+            d={}
+        d = self.parse_common(row,d)
+        d.update({
+            'xunits':row[5],
+            'ddatdx':row[6],
+            'mindx':row[7],
+            'startdat':row[8],
+            'toldat':row[9]
         })
         return d
