@@ -7,36 +7,67 @@ import logging
 import argparse
 
 
-# to run this script with a delay interval of 5 seconds:
+#################################
+# Setup, configuration and script execution
+#################################
+
+# This script is tested on Python 2.7.3, only standard packages are used. This version or more
+# recent versions can be installed with brew.
+
+
+# Review the configuration parameters section below and refine as required.
+
+# The command line can include the polling interval and the full path to the file which contains
+# the list of data product id that you wish to monitor. If not specified then the script will use
+# the default values in the configuration section below.
+
+# To find the data product id, please go to the facepage of that data product and retrieve the
+# uuid provided. This is the internal OOICI id, erddap requires ids to start with a non-numeric
+# character so erddap_id_prefix, as defined in the configuration section below, is prepended to
+# the id when the erddap request is made.
+
+# The polling delay is recommended to be no less than sixty seconds as this reduces the number
+# of files created on your drive as well as limits the load on the erddap server.
+
+# to run this script with a delay interval of 5 seconds for testing:
 # python data_product_monitor.py -i 5
+
 
 
 #################################
 # Configuration Parameters
 #################################
 
+# This places the file, named data_products_to_monitor.txt, in the same folder as the script. If
+# the file is located elsewhere then a full path is required. Edit this file to identify the uuids
+# of data products for which you want to receive updates in near-real time.
 dataproducts_to_monitor_file = 'data_products_to_monitor.txt'
 
-# gateway address is the url of the ion-ux web server
+# url of the ion-ux web server and the monitor op to call
 data_product_monitor_url = "http://localhost:3000/get_data_product_updates/"
 
 # frequency to check for data product updates. recommended to not be less than 60 seconds
 polling_delay = 60.0 # In seconds
 
+# this is used for reading then writing the data update received.
 chunk_size = 4096
 
-# this folder will contain a set of subfolders, one for each data product that is being monitored
-# the subfolders are named with the data product ids
+# this folder will contain a set of subfolders, one for each data product that is being monitored.
+# the subfolders are named with the data product ids. Inside the data product folders are the set
+# of files which contain the data updates, those files are named with the timestamp (GMT) when the
+# update was received.
 data_folder = '/Users/mauricemanning/Documents/Dev/data'
 
-# temporal_axis_param_name is the name of the parameter in the data product to use for subsetting update slices
+# temporal_axis_param_name is the name of the parameter in the data product to use for subsetting
+# update slices.
 temporal_axis_param_name = 'time'
 
+# url of the OOI CI ERDDAP server
 # erddap_url = 'http://erddap-test.oceanobservatories.org:8080/erddap/tabledap/'
 erddap_url = 'http://localhost:8181/erddap/tabledap/'
 
 # download format
-# may be any valid erddap type, default is NetCDF
+# may be any valid ERDDAP format code, default is NetCDF format which is specified with '.nc'
 # see download format descriptions here: http://erddap-test.oceanobservatories.org:8080/erddap/tabledap/documentation.html#fileType
 download_format = '.nc'
 #download_format = '.csv'
@@ -52,10 +83,12 @@ erddap_id_prefix = 'data'
 def monitor_logger(file_level, console_level = None):
     function_name = inspect.stack()[1][3]
     logger = logging.getLogger(function_name)
-    logger.setLevel(logging.DEBUG) #By default, logs all messages
+    # By default, logs all messages
+    logger.setLevel(logging.DEBUG)
 
+    # StreamHandler logs to console
     if console_level != None:
-        ch = logging.StreamHandler() #StreamHandler logs to console
+        ch = logging.StreamHandler()
         ch.setLevel(console_level)
         ch_format = logging.Formatter('%(asctime)s - %(message)s')
         ch.setFormatter(ch_format)
@@ -70,18 +103,18 @@ def monitor_logger(file_level, console_level = None):
     return logger
 
 def _verify_data_folder():
-    #verify that the data folder exists
+    # verify that the data folder exists
     valid = os.path.isdir(data_folder)
     if not valid:
-        logger.warning('Data folder does not exist: ' + data_folder + '. Set this path in the config section of this script')
+        logger.error('Data folder does not exist: ' + data_folder + '. Set this path in the configuration section of this script')
         sys.exit(2)
     return
 
 def _verify_data_product_folder(data_product_id):
-    #verify that the data folder for this data product if exists
+    # verify that the data folder for this data product if exists
     data_product_folder = data_folder + "/" + data_product_id
     if not (os.path.exists(data_product_folder)  and os.path.isdir(data_product_folder)):
-        logger.warning('Data product folder does not exist: ' + data_folder )
+        logger.warning('Data product folder does not exist: ' + data_folder + ' Attempting to create folder. ' )
         try:
             os.makedirs(data_product_folder)
         except OSError:
@@ -104,7 +137,7 @@ def _construct_data_request(data_product_id, since_timestamp, current_timestamp)
     # http://erddap-test.oceanobservatories.org:8080/erddap/tabledap/data0ce03ea9472e4b619e55c0e3bdec1974.nc?&orderBy%28%22time%22%29&time%3E2013-07-19T18:36:46&time%3C=2013-07-19T22:52:03
     order_by_tag = download_format + '?&orderBy%28%22time%22%29'
 
-    #  time bounds is: > since_timestamp and <= current_timestamp
+    # time bounds is: > since_timestamp and <= current_timestamp
     time_bounds_tag = ''.join( ['&', temporal_axis_param_name, '%3E',  since_timestamp,  '&', temporal_axis_param_name, '%3C=', current_timestamp] )
     request = ''.join( [erddap_url, erddap_id_prefix, data_product_id, order_by_tag, time_bounds_tag] )
     return request
@@ -116,6 +149,7 @@ def get_file(data_product_id, current_timestamp):
     return filename
 
 def write_data(filename, result):
+    # write the received data update into a new file in the data product folder
     with open(filename, 'wb') as fd:
         for chunk in result.read(chunk_size):
             fd.write(chunk)
@@ -146,9 +180,6 @@ def data_product_monitor():
 
     if args.file:
         dataproducts_to_monitor_file = args.file
-
-    print 'dataproducts_to_monitor_file  ', dataproducts_to_monitor_file
-    print 'polling_delay  ', polling_delay
 
     # check if the file exists
     if not os.path.isfile(dataproducts_to_monitor_file):
@@ -192,15 +223,12 @@ def data_product_monitor():
             else:
                 since_timestamp = int(last_since_timestamp)
 
-        logger.debug('since_timestamp : ' + str(since_timestamp))
-        logger.debug('current_timestamp : ' + str(current_timestamp))
-
         last_since_timestamp = current_timestamp
 
         parameters = {"data_product_id_list" : data_product_ids_string,
                       "since_timestamp" : str(since_timestamp)}
+        logger.debug('parameters: ' + str(parameters) )
 
-        print "parameters:  ", str(parameters)
         try:
             data = urllib.urlencode(parameters)
             # call ion-ux web server to request information on data products
@@ -210,7 +238,7 @@ def data_product_monitor():
             logger.debug('request result:  : ' + str(response))
 
         except urllib2.URLError as e:
-            print "Error fetching event information for data products : ", e.reason
+            logger.warning( "Error fetching event information for data products : "+ e.reason )
             time.sleep(polling_delay)
             continue
 
@@ -221,15 +249,15 @@ def data_product_monitor():
         # every X seconds with the information for every data product id's events.
 
         logger.debug('events_data : ' + str(events_data))
+        # check if new data has arrived for each data product id listed
         for data_product_id, value in events_data.iteritems():
             update_flag = value.get('updated', False)
             logger.debug('data_product_id : ' + data_product_id + '   update_flag : ' + str(update_flag))
 
-            #new data has arrived
-
-            #verify that we have a folder for this data
+            # verify that we have a folder for this data
             _verify_data_product_folder(data_product_id)
 
+            # if updated then construct the request to get the data which has arrived since the last check
             if update_flag:
                 start_time_tag, stop_time_tag = _compute_since_timestamp(since_timestamp, current_timestamp)
                 logger.debug('start_time_tag : ' + str(start_time_tag) +   '   stop_time_tag : ' + str(stop_time_tag)  )
@@ -238,11 +266,11 @@ def data_product_monitor():
                 logger.debug('Request for data update : ' + str(request))
 
                 try:
-                    #call ooici erddap service with request for data update
+                    # call ooici erddap service with request for data update
                     result = urllib2.urlopen(request)
                     logger.debug('request result:  : ' + str(result))
 
-                    #construct a file for this update based on the current timestamp
+                    # construct a file for this update based on the current timestamp
                     filename = get_file(data_product_id, current_timestamp)
                     logger.debug('Placing data update in this file : ' + str(filename))
                     write_data(filename, result)
