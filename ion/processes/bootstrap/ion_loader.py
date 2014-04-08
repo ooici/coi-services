@@ -1707,6 +1707,16 @@ class IONLoader(ImmediateProcess):
                 ss_mod = ssite_objs[ss['ssite']]
                 const_id1 = ss_mod['rd'] + "_const1"
 
+            constrow = {}
+            const_id2 = ooi_id + "_const2"
+            constrow[COL_ID] = const_id2
+            constrow['type'] = 'temporal'
+            constrow['time_format'] = ''
+            constrow['start'] = ooi_obj['deploy_date'].strftime(DEFAULT_TIME_FORMAT)
+            constrow['end'] = "2054-01-01T0:00:00"
+            self._load_Constraint(constrow)
+            const_ids = (const_id1 + "," + const_id2) if const_id1 else const_id2
+
             # We generate all top level platforms
             if not ooi_obj.get('is_platform', False) and not self._before_cutoff(ooi_obj):
                 return
@@ -1719,7 +1729,7 @@ class IONLoader(ImmediateProcess):
             newrow['ps/alt_ids'] = "['OOI:" + ooi_id + "']"
             newrow['ps/local_name'] = ooi_obj['local_name']
             newrow['ps/reference_designator'] = ooi_id
-            newrow['constraint_ids'] = const_id1
+            newrow['constraint_ids'] = const_ids
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             if ooi_obj.get('is_platform', False):
                 # This is a top level platform (for a station)
@@ -1837,6 +1847,16 @@ class IONLoader(ImmediateProcess):
             if not all([constrow['south'], constrow['north'], constrow['west'], constrow['east']]):
                 log.warn("Instrument %s invalid geospatial constraint: %s", inst_id, constrow)
 
+            constrow = {}
+            const_id2 = inst_id + "_const2"
+            constrow[COL_ID] = const_id2
+            constrow['type'] = 'temporal'
+            constrow['time_format'] = ''
+            constrow['start'] = inst_obj['deploy_date'].strftime(DEFAULT_TIME_FORMAT)
+            constrow['end'] = "2054-01-01T0:00:00"
+            self._load_Constraint(constrow)
+            const_ids = (const_id1 + "," + const_id2) if const_id1 else const_id2
+
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
 
@@ -1853,7 +1873,7 @@ class IONLoader(ImmediateProcess):
             newrow['is/planned_uplink_port/port_type'] = "PAYLOAD"
             newrow['is/planned_uplink_port/reference_designator'] = ooi_rd.port_rd
             newrow['is/reference_designator'] = inst_id
-            newrow['constraint_ids'] = const_id1
+            newrow['constraint_ids'] = const_ids
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
             newrow['instrument_model_ids'] = self._get_primary_model(inst_obj['instrument_model'])
@@ -2265,8 +2285,28 @@ Reason: %s
                 oms_client.assign_device_to_network_parent(self.resource_ids[network_parent_id], res_id,
                                                            headers=headers)
 
+    def _update_device(self, device_id, newrow, instrument=True):
+        res_obj = self._get_resource_obj(device_id)
+        needupdate = False
+        # Update name if different
+        prefix = "id" if instrument else "pd"
+        if res_obj.name != newrow[prefix+'/name']:
+            res_obj.name = newrow[prefix+'/name']
+            needupdate = True
+        # Update description if different
+        if res_obj.description != newrow[prefix+'/description']:
+            res_obj.description = newrow[prefix+'/description']
+            needupdate = True
+        # Set serial if different
+        if res_obj.serial_number != newrow[prefix+'/serial_number'] and "changeme" in res_obj.serial_number:
+            res_obj.serial_number = newrow[prefix+'/serial_number']
+            needupdate = True
+        if needupdate:
+            self._update_resource_obj(device_id)
+
     def _load_PlatformDevice_OOI(self):
         node_objs = self.ooi_loader.get_type_assets("node")
+        nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
 
         new_node_ids = set()
 
@@ -2280,8 +2320,11 @@ Reason: %s
             newrow = {}
             platform_id = node_id + "_PD"
             newrow[COL_ID] = platform_id
-            newrow['pd/name'] = "%s" % node_obj.get('name', '')
+            serial = "changeme_%s.001" % (node_id)
+            serial = serial.lower()
+            newrow['pd/name'] = "%s serial# %s" % (nodetype_objs[ooi_rd.node_type]["name"], serial)
             newrow['pd/description'] = "Platform %s device #01" % node_id
+            newrow['pd/serial_number'] = serial
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
             newrow['platform_model_id'] = ooi_rd.node_type + "_PM"
             newrow['contact_ids'] = "%s_DEV_1,%s_DEV_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
@@ -2295,6 +2338,8 @@ Reason: %s
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_PlatformDevice(newrow)
                 new_node_ids.add(node_id)
+            elif self.ooiupdate:
+                self._update_device(platform_id, newrow, instrument=False)
 
         for node_id, node_obj in node_objs.iteritems():
             if node_id not in new_node_ids:
@@ -2375,19 +2420,15 @@ Reason: %s
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
 
-            # Question: This pointed to the platform instead of the most immediate node. Why?
-            #node_id = ooi_rd.node_rd
-            #if not node_obj.get('is_platform', False):
-            #    node_id = node_obj.get('platform_id')
-            #    node_obj = node_objs[node_id]
-            #    if not node_obj.get('is_platform', False):
-            #        log.warn("Node %s is not a platform!!" % node_id)
-
             ooi_rd = OOIReferenceDesignator(ooi_id)
             newrow = {}
             newrow[COL_ID] = ooi_id + "_ID"
-            newrow['id/name'] = "%s on %s" % (class_objs[ooi_rd.inst_class]['alt_name'], node_objs[ooi_rd.node_rd]['name'])
+            serial = "changeme_%s.001" % (ooi_id)
+            serial = serial.lower()
+            #newrow['id/name'] = "%s on %s" % (class_objs[ooi_rd.inst_class]['alt_name'], node_objs[ooi_rd.node_rd]['name'])
+            newrow['id/name'] = "%s serial# %s" % (class_objs[ooi_rd.inst_class]['alt_name'], serial)
             newrow['id/description'] = "Instrument %s device #01" % ooi_id
+            newrow['id/serial_number'] = serial
             newrow['id/reference_urls'] = ''
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
             newrow['instrument_model_id'] = self._get_primary_model(ooi_rd.series_rd)
@@ -2408,6 +2449,8 @@ Reason: %s
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentDevice(newrow)
+            elif self.ooiupdate:
+                self._update_device(newrow[COL_ID], newrow)
 
     # -------------------------------------------------------------------------
     # Agents
@@ -2647,6 +2690,7 @@ Reason: %s
         """Creates PlatformAgentInstance and ExternalDatasetAgentInstance resources for platforms
         to load if agent definitions exists. Supports increments."""
         node_objs = self.ooi_loader.get_type_assets("node")
+        nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
 
         for node_id, node_obj in node_objs.iteritems():
             if not self._before_cutoff(node_obj):
@@ -2664,8 +2708,10 @@ Reason: %s
                 newrow = {}
                 pai_id = node_id + "_PAI"
                 newrow[COL_ID] = pai_id
-                newrow['pai/name'] = "Platform agent instance for %s" % (node_obj['name'])
-                newrow['pai/description'] = "Platform agent instance %s device #01" % node_id
+                device_obj = self._get_resource_obj(platform_id)
+                newrow['pai/name'] = "Platform agent instance for %s serial# %s" % (
+                    nodetype_objs[ooi_rd.node_type]["name"], device_obj.serial_number)
+                newrow['pai/description'] = ""
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
                 newrow['platform_agent_id'] = agent_id
                 newrow['platform_device_id'] = platform_id
@@ -2678,13 +2724,17 @@ Reason: %s
 
                 if not self._resource_exists(newrow[COL_ID]):
                     self._load_PlatformAgentInstance(newrow)
+                elif self.ooiupdate:
+                    self._update_agent_instance(newrow[COL_ID], newrow, "pai")
 
             elif agent_obj.type_ == RT.ExternalDatasetAgent:
                 newrow = {}
                 edai_id = node_id + "_EDAI"
                 newrow[COL_ID] = edai_id
-                newrow['ai/name'] = "Data platform agent instance for %s" % (node_obj['name'])
-                newrow['ai/description'] = "Data agent instance %s device #01" % node_id
+                device_obj = self._get_resource_obj(platform_id)
+                newrow['ai/name'] = "Dataset agent instance for %s serial# %s" % (
+                    nodetype_objs[ooi_rd.node_type]["name"], device_obj.serial_number)
+                newrow['ai/description'] = ""
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
                 newrow['agent_id'] = agent_id
                 newrow['device_id'] = platform_id
@@ -2696,6 +2746,8 @@ Reason: %s
 
                 if not self._resource_exists(newrow[COL_ID]):
                     self._load_ExternalDatasetAgentInstance(newrow)
+                elif self.ooiupdate:
+                    self._update_agent_instance(newrow[COL_ID], newrow, "ai")
 
     def _load_InstrumentAgent(self, row):
         stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
@@ -2828,6 +2880,20 @@ Reason: %s
         client.assign_instrument_agent_to_instrument_agent_instance(agent_id, res_id)
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
 
+    def _update_agent_instance(self, ai_id, newrow, prefix):
+        res_obj = self._get_resource_obj(ai_id)
+        needupdate = False
+        # Update name if different
+        if res_obj.name != newrow[prefix+'/name']:
+            res_obj.name = newrow[prefix+'/name']
+            needupdate = True
+        # Update description if different
+        if res_obj.description != newrow[prefix+'/description']:
+            res_obj.description = newrow[prefix+'/description']
+            needupdate = True
+        if needupdate:
+            self._update_resource_obj(ai_id)
+
     def _load_InstrumentAgentInstance_OOI(self):
         """Create InstrumentAgentInstance and ExternalDatasetAgentInstance (!!) resources
         for instruments with agents present.
@@ -2863,8 +2929,10 @@ Reason: %s
                 newrow = {}
                 iai_id = ooi_id + "_IAI"
                 newrow[COL_ID] = iai_id
-                newrow['iai/name'] = "Instrument agent instance for %s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
-                newrow['iai/description'] = "Instrument agent instance %s device #01" % ooi_id
+                device_obj = self._get_resource_obj(idev_id)
+                newrow['iai/name'] = "Instrument agent instance for %s serial# %s" % (
+                    class_objs[ooi_rd.inst_class]['alt_name'], device_obj.serial_number)
+                newrow['iai/description'] = ""
                 newrow['iai/reference_urls'] = ''
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
                 newrow['instrument_agent_id'] = agent_id
@@ -2880,13 +2948,17 @@ Reason: %s
 
                 if not self._resource_exists(newrow[COL_ID]):
                     self._load_InstrumentAgentInstance(newrow)
+                elif self.ooiupdate:
+                    self._update_agent_instance(newrow[COL_ID], newrow, "iai")
 
             elif agent_obj.type_ == RT.ExternalDatasetAgent:
                 newrow = {}
                 edai_id = ooi_id + "_EDAI"
                 newrow[COL_ID] = edai_id
-                newrow['ai/name'] = "Data agent instance for %s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
-                newrow['ai/description'] = "Data agent instance %s device #01" % ooi_id
+                device_obj = self._get_resource_obj(idev_id)
+                newrow['ai/name'] = "Dataset agent instance for %s serial# %s" % (
+                    class_objs[ooi_rd.inst_class]['alt_name'], device_obj.serial_number)
+                newrow['ai/description'] = ""
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
                 newrow['agent_id'] = agent_id
                 newrow['device_id'] = idev_id
@@ -2898,6 +2970,8 @@ Reason: %s
 
                 if not self._resource_exists(newrow[COL_ID]):
                     self._load_ExternalDatasetAgentInstance(newrow)
+                elif self.ooiupdate:
+                    self._update_agent_instance(newrow[COL_ID], newrow, "ai")
 
 
     def _load_ExternalDataProvider(self, row):
@@ -3089,6 +3163,9 @@ Reason: %s
         constraint_id = row['geo_constraint_id']
         if constraint_id:
             res_obj.geospatial_bounds = self.constraint_defs[constraint_id]
+        temp_constraint_id = row.get('temp_constraint_id', None)
+        if temp_constraint_id:
+            res_obj.nominal_datetime = self.constraint_defs[temp_constraint_id]
         gcrs_id = row['coordinate_system_id']
         if gcrs_id:
             res_obj.geospatial_coordinate_reference_system = self.resource_ids[gcrs_id]
@@ -3247,6 +3324,24 @@ Reason: %s
             newrow['source_resource_id'] = source_id
             self._load_DataProductLink(newrow, do_bulk=do_bulk)
 
+        def update_data_product(dp_id, newrow, const_id1, const_id2):
+            res_obj = self._get_resource_obj(dp_id)
+            needupdate = False
+            # Update name if different
+            if res_obj.name != newrow['dp/name']:
+                res_obj.name = newrow['dp/name']
+                needupdate = True
+            # Update geospatial bounds if not yet set
+            if const_id1 and (not res_obj.geospatial_bounds or not res_obj.geospatial_bounds.geospatial_latitude_limit_north):
+                res_obj.geospatial_bounds = self.constraint_defs[const_id1]
+                needupdate = True
+            # Update temporal constraint if not yet set
+            if const_id2 and (not res_obj.nominal_datetime or not res_obj.nominal_datetime.start_datetime):
+                res_obj.nominal_datetime = self.constraint_defs[const_id2]
+                needupdate = True
+            if needupdate:
+                self._update_resource_obj(dp_id)
+
         # Create a mapping of ParamDict name to preload ID. Create a mapping of data product DPS id to parameter
         pdict_by_name = {}
         for obj in self.resource_objs.values():
@@ -3261,18 +3356,23 @@ Reason: %s
         pdict_map = self._get_paramdict_param_map()
 
         # I. Platform data products as defined by agents
-        for node_id, node_obj in node_objs.iteritems():
+        for node_id in sorted(node_objs.keys()):
+            node_obj = node_objs[node_id]
             ooi_rd = OOIReferenceDesignator(node_id)
             num_dp_generated = 0
 
             if not self._before_cutoff(node_obj):
                 continue
 
-            const_id1 = ''
+            const_id1, const_id2 = '', ''
             if node_id + "_const1" in self.constraint_defs:
                 const_id1 = node_id + "_const1"
             else:
                 log.warn("Could not determine geospatial constraint for %s", node_id)
+            if node_id + "_const2" in self.constraint_defs:
+                const_id2 = node_id + "_const2"
+            else:
+                log.warn("Could not determine temporal constraint for %s", node_id)
 
             agent_id, agent_obj = self._get_agent_definition(ooi_rd)
 
@@ -3294,6 +3394,7 @@ Reason: %s
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
                     newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                     newrow['geo_constraint_id'] = const_id1
+                    newrow['temp_constraint_id'] = const_id2
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                     newrow['parent'] = ''
                     if self._is_deployed(node_obj) and self.ooiactivate:
@@ -3306,7 +3407,7 @@ Reason: %s
                     strdef_id = self._create_dp_stream_def(node_id, pdict_id, scfg.stream_name)
                     newrow['stream_def_id'] = strdef_id
 
-                    if not self._resource_exists(newrow[COL_ID]):
+                    if not self._resource_exists(dp_id):
                         self._load_DataProduct(newrow, do_bulk=self.bulk)
                         num_dp_generated += 1
 
@@ -3314,9 +3415,12 @@ Reason: %s
                         create_dp_link(dp_id, node_id, do_bulk=False)   # Site link (even without active deployment)
 
                         log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
+                    elif self.ooiupdate:
+                        update_data_product(dp_id, newrow, const_id1, const_id2)
 
         # II. Instrument data products (raw, parsed, engineering, derived science L0, L1, L2)
-        for inst_id, inst_obj in inst_objs.iteritems():
+        for inst_id in sorted(inst_objs.keys()):
+            inst_obj= inst_objs[inst_id]
             num_dp_generated = 0
             ooi_rd = OOIReferenceDesignator(inst_id)
             node_obj = node_objs[ooi_rd.node_rd]
@@ -3328,12 +3432,15 @@ Reason: %s
             if not self._match_filter(inst_id[:2]):
                 continue
 
-            const_id1 = ''
+            const_id1, const_id2 = '', ''
             if inst_id + "_const1" in self.constraint_defs:
-                # At this point, the constraint was already added with the InstrumentSite
                 const_id1 = inst_id + "_const1"
             else:
                 log.warn("Could not determine geospatial constraint for %s", inst_id)
+            if inst_id + "_const2" in self.constraint_defs:
+                const_id2 = inst_id + "_const2"
+            else:
+                log.warn("Could not determine temporal constraint for %s", node_id)
 
             inst_unique = self._get_unique_instrument_extension(ooi_rd)
 
@@ -3357,7 +3464,7 @@ Reason: %s
                         newrow['dp/processing_level_code'] = "Raw"
                         newrow['dp/quality_control_level'] = "N/A"
                     elif scfg.stream_type == StreamConfigurationType.PARSED and not parsed_pdict_id:
-                        newrow['dp/name'] = "Combined science variables for %s" % (inst_id)
+                        newrow['dp/name'] = "Combined science variables for %s %s" % (inst_unique, platform_obj['name'])
                         newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
@@ -3376,6 +3483,7 @@ Reason: %s
                     newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
                     newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                     newrow['geo_constraint_id'] = const_id1
+                    newrow['temp_constraint_id'] = const_id2
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                     if self._is_deployed(inst_obj) and self.ooiactivate:
                         newrow['persist_data'] = 'True'
@@ -3405,6 +3513,9 @@ Reason: %s
                         create_dp_link(dp_id, inst_id, do_bulk=False)   # Site link (even without active deployment)
 
                         log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
+
+                    elif self.ooiupdate:
+                        update_data_product(dp_id, newrow, const_id1, const_id2)
 
             else:
                 # There is no agent defined. Defer generating DataProducts to incremental run
@@ -3452,6 +3563,7 @@ Reason: %s
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
                 newrow['contact_ids'] = "%s_DP_1,%s_DP_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
                 newrow['geo_constraint_id'] = const_id1
+                newrow['temp_constraint_id'] = const_id2
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['parent'] = parsed_id
                 newrow['persist_data'] = 'False'
@@ -3503,16 +3615,17 @@ Reason: %s
                     newrow['stream_def_id'] = strdef_id
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
-                    if self._resource_exists(dp_id):
-                        continue
+                    if not self._resource_exists(dp_id):
+                        self._load_DataProduct(newrow)
+                        num_dp_generated += 1
 
-                    self._load_DataProduct(newrow)
-                    num_dp_generated += 1
+                        create_dp_link(dp_id, inst_id + "_ID", do_bulk=False)
+                        create_dp_link(dp_id, inst_id, do_bulk=False)   # Site link
 
-                    create_dp_link(dp_id, inst_id + "_ID", do_bulk=False)
-                    create_dp_link(dp_id, inst_id, do_bulk=False)   # Site link
+                        log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
 
-                    log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
+                    elif self.ooiupdate:
+                        update_data_product(dp_id, newrow, const_id1, const_id2)
 
                 else:
                     pass  # Ignore this derived data product because we don't have parsed param dict
@@ -3717,10 +3830,36 @@ Reason: %s
 
     def _load_Deployment_OOI(self):
         node_objs = self.ooi_loader.get_type_assets("node")
+        nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
         inst_objs = self.ooi_loader.get_type_assets("instrument")
+        class_objs = self.ooi_loader.get_type_assets("class")
+
+        def update_deployment(dep_id, newrow, const_id1, const_id2):
+            res_obj = self._get_resource_obj(dep_id)
+            needupdate = False
+            # Update name if different
+            if res_obj.name != newrow['d/name']:
+                res_obj.name = newrow['d/name']
+                needupdate = True
+            # Check port_assignments
+            new_assignments = self._get_port_assignments(newrow['port_assignment'])
+            if set(res_obj.port_assignments.keys()) != set(new_assignments.keys()):
+                res_obj.port_assignments = new_assignments
+                needupdate = True
+            # Update geospatial bounds if not yet set
+            if const_id1 and not any([cst for cst in res_obj.constraint_list if cst.type_ == OT.GeospatialBounds]):
+                res_obj.constraint_list.append(self.constraint_defs[const_id1])
+                needupdate = True
+            # Update temporal constraint if not yet set
+            if const_id2 and not any([cst for cst in res_obj.constraint_list if cst.type_ == OT.TemporalBounds]):
+                res_obj.constraint_list.append(self.constraint_defs[const_id2])
+                needupdate = True
+            if needupdate:
+                self._update_resource_obj(dep_id)
 
         # I. Platform deployments (parsed)
-        for node_id, node_obj in node_objs.iteritems():
+        for node_id in sorted(node_objs.keys()):
+            node_obj = node_objs[node_id]
             if not self._before_cutoff(node_obj):
                 continue
             if not self._match_filter(node_id[:2]):
@@ -3730,15 +3869,22 @@ Reason: %s
 
             ooi_rd = OOIReferenceDesignator(node_id)
 
-            # Create a TemporalBounds constraint
-            constrow = {}
-            const_id1 = node_id + "_constd"
-            constrow[COL_ID] = const_id1
-            constrow['type'] = 'temporal'
-            constrow['time_format'] = ''
-            constrow['start'] = node_obj['deploy_date'].strftime(DEFAULT_TIME_FORMAT)
-            constrow['end'] = "2054-01-01T0:00:00"
-            self._load_Constraint(constrow)
+            const_id1, const_id2 = '', ''
+            if node_id + "_const1" in self.constraint_defs:
+                const_id1 = node_id + "_const1"
+            if node_id + "_const2" in self.constraint_defs:
+                const_id2 = node_id + "_const2"
+            else:
+                # Create a TemporalBounds constraint
+                constrow = {}
+                const_id2 = node_id + "_constd"
+                constrow[COL_ID] = const_id2
+                constrow['type'] = 'temporal'
+                constrow['time_format'] = ''
+                constrow['start'] = node_obj['deploy_date'].strftime(DEFAULT_TIME_FORMAT)
+                constrow['end'] = "2054-01-01T0:00:00"
+                self._load_Constraint(constrow)
+            const_ids = (const_id2 + "," + const_id1) if const_id1 else const_id2
 
             dep_id = node_id + "_DEP"
             newrow = {}
@@ -3749,10 +3895,12 @@ Reason: %s
                 newrow['activate'] = "TRUE"
             else:
                 newrow['activate'] = "FALSE"
-            newrow['d/name'] = "Deployment of platform " + node_id
+            device_obj = self._get_resource_obj(newrow['device_id'])
+            newrow['d/name'] = "Deployment 00001 of %s serial# %s to site %s" % (
+                nodetype_objs[ooi_rd.node_type]["name"], device_obj.serial_number, node_id)
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
-            newrow['constraint_ids'] = const_id1
+            newrow['constraint_ids'] = const_ids
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['lcstate'] = "INTEGRATED_AVAILABLE"
 
@@ -3770,14 +3918,11 @@ Reason: %s
                 log.debug("Create Deployment for PD %s. Activate: %s", node_id, newrow['activate'])
                 self._load_Deployment(newrow)
             elif self.ooiupdate:
-                res_obj = self._get_resource_obj(dep_id)
-                new_assignments = self._get_port_assignments(newrow['port_assignment'])
-                if set(res_obj.port_assignments.keys()) != set(new_assignments.keys()):
-                    res_obj.port_assignments = new_assignments
-                    self._update_resource_obj(dep_id)
+                update_deployment(dep_id, newrow, const_id1, const_id2)
 
         # II. Instrument deployments (RSN and cabled EA only)
-        for inst_id, inst_obj in inst_objs.iteritems():
+        for inst_id in sorted(inst_objs.keys()):
+            inst_obj = inst_objs[inst_id]
             ooi_rd = OOIReferenceDesignator(inst_id)
             node_obj = node_objs[ooi_rd.node_rd]
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
@@ -3787,15 +3932,22 @@ Reason: %s
             if not self._is_cabled(ooi_rd):
                 continue
 
-            # Create a TemporalBounds constraint
-            constrow = {}
-            const_id1 = inst_id + "_constd"
-            constrow[COL_ID] = const_id1
-            constrow['type'] = 'temporal'
-            constrow['time_format'] = ''
-            constrow['start'] = inst_obj['deploy_date'].strftime(DEFAULT_TIME_FORMAT)
-            constrow['end'] = "2054-01-01T0:00:00"
-            self._load_Constraint(constrow)
+            const_id1, const_id2 = '', ''
+            if inst_id + "_const1" in self.constraint_defs:
+                const_id1 = inst_id + "_const1"
+            if inst_id + "_const2" in self.constraint_defs:
+                const_id2 = inst_id + "_const2"
+            else:
+                # Create a TemporalBounds constraint
+                constrow = {}
+                const_id2 = inst_id + "_constd"
+                constrow[COL_ID] = const_id2
+                constrow['type'] = 'temporal'
+                constrow['time_format'] = ''
+                constrow['start'] = inst_obj['deploy_date'].strftime(DEFAULT_TIME_FORMAT)
+                constrow['end'] = "2054-01-01T0:00:00"
+                self._load_Constraint(constrow)
+            const_ids = (const_id2 + "," + const_id1) if const_id1 else const_id2
 
             dep_id = inst_id + "_DEP"
             newrow = {}
@@ -3806,10 +3958,12 @@ Reason: %s
                 newrow['activate'] = "TRUE"
             else:
                 newrow['activate'] = "FALSE"
-            newrow['d/name'] = "Deployment of instrument " + inst_id
+            device_obj = self._get_resource_obj(newrow['device_id'])
+            newrow['d/name'] = "Deployment 00001 of %s serial# %s to site %s" % (
+                class_objs[ooi_rd.inst_class]['alt_name'], device_obj.serial_number, inst_id)
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
-            newrow['constraint_ids'] = const_id1
+            newrow['constraint_ids'] = const_ids
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['context_type'] = 'CabledInstrumentDeploymentContext'
             newrow['lcstate'] = "INTEGRATED_AVAILABLE"
@@ -3819,11 +3973,7 @@ Reason: %s
                 log.debug("Create Deployment for ID %s. Activate: %s", inst_id, newrow['activate'])
                 self._load_Deployment(newrow)
             elif self.ooiupdate:
-                res_obj = self._get_resource_obj(dep_id)
-                new_assignments = self._get_port_assignments(newrow['port_assignment'])
-                if set(res_obj.port_assignments.keys()) != set(new_assignments.keys()):
-                    res_obj.port_assignments = new_assignments
-                    self._update_resource_obj(dep_id)
+                update_deployment(dep_id, newrow, const_id1, const_id2)
 
     def _load_Scheduler(self, row):
         self.row_count += 1
