@@ -987,6 +987,10 @@ def upload_qc():
         # required fields
         upload = request.files['file'] # <input type=file name="file">
 
+        # determine filetype
+        filetype = _check_magic(upload) # NOTE: CSV will return None
+        upload.seek(0) # return to beginning for save
+
         if upload:
 
             # upload file - run filename through werkzeug.secure_filename
@@ -1005,6 +1009,7 @@ def upload_qc():
                 'upload_time':upload_time,
                 'status':'File uploaded to server'
             }
+
             fuc_id, _ = object_store.create_doc(file_upload_context)
 
             # client to process dispatch
@@ -1037,6 +1042,7 @@ def upload_qc():
 
 @service_gateway_app.route('/ion-service/upload/<fuc_id>', methods=['GET'])
 def upload_status(fuc_id):
+    pass
     try:
         object_store = Container.instance.object_store
         fuc = object_store.read(str(fuc_id))

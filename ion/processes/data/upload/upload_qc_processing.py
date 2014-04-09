@@ -12,6 +12,7 @@ import time
 import re
 import os
 import csv
+from zipfile import ZipFile
 
 class UploadQcProcessing(ImmediateProcess):
     '''
@@ -48,9 +49,6 @@ class UploadQcProcessing(ImmediateProcess):
         else:
             self.process_csv(fuc)
 
-    def process_zip(self, fuc):
-        pass
-
     def process_csv(self, fuc):
 
         # CSV file open here
@@ -79,13 +77,7 @@ class UploadQcProcessing(ImmediateProcess):
                 if rd not in updates:
                     updates[rd] = {} # initialize empty reference_designator dict (to contain data_products)
                 if dp not in updates[rd]:
-                    updates[rd][dp] = { # initialize the supported tests, each with empty lists
-                        'global_range':[],
-                        'stuck_value':[],
-                        'trend_test':[],
-                        'spike_test':[],
-                        'gradient_test':[]
-                    }
+                    updates[rd][dp] = {}
                 # updates[rd][dp] object is now available to have QC 'tables' added (in dict form)
                 # actually process the row (global|stuck|trend|spike|gradient)
                 if qc_type == 'global_range':
@@ -93,30 +85,40 @@ class UploadQcProcessing(ImmediateProcess):
                         log.warn("invalid global_range line %s" % ','.join(row))
                         continue
                     d = self.parse_global_range(row)
+                    if 'global_range' not in updates[rd][dp]:
+                        updates[rd][dp]['global_range'] = []
                     updates[rd][dp]['global_range'].append(d)
                 elif qc_type == "stuck_value":
                     if len(row) != 7:
                         log.warn("invalid stuck_value line %s" % ','.join(row))
                         continue
                     d = self.parse_stuck_value(row)
+                    if 'stuck_value' not in updates[rd][dp]:
+                        updates[rd][dp]['stuck_value'] = []
                     updates[rd][dp]['stuck_value'].append(d)
                 elif qc_type == "trend_test":
                     if len(row) != 8:
                         log.warn("invalid trend_test line %s" % ','.join(row))
                         continue
                     d = self.parse_trend_test(row)
+                    if 'trend_test' not in updates[rd][dp]:
+                        updates[rd][dp]['trend_test'] = []
                     updates[rd][dp]['trend_test'].append(d)
                 elif qc_type == "spike_test":
                     if len(row) != 8:
                         log.warn("invalid spike_test line %s" % ','.join(row))
                         continue
                     d = self.parse_spike_test(row)
+                    if 'spike_test' not in updates[rd][dp]:
+                        updates[rd][dp]['spike_test'] = []
                     updates[rd][dp]['spike_test'].append(d)
                 elif qc_type == "gradient_test":
                     if len(row) != 10:
                         log.warn("invalid gradient_test line %s" % ','.join(row))
                         continue
                     d = self.parse_gradient_test(row)
+                    if 'gradient_test' not in updates[rd][dp]:
+                        updates[rd][dp]['gradient_test'] = []
                     updates[rd][dp]['gradient_test'].append(d)
                 else:
                     log.warn("unknown QC type %s" % qc_type)
@@ -125,6 +127,92 @@ class UploadQcProcessing(ImmediateProcess):
                 nupdates = nupdates + 1
 
         # insert the updates into object store
+        self.update_object_store(updates)
+
+        fuc['status'] = 'UploadQcProcessing process complete - %d updates added to object store' % nupdates
+        self.object_store.update_doc(fuc)
+
+        # remove uploaded file
+        try:
+            os.remove(csv_filename)
+        except OSError:
+            pass # TODO take action to get this removed
+
+    def process_zip(self,fuc):
+
+        # ZIP file open here
+        zip_filename = fuc.get('path', None)
+        if zip_filename is None:
+            raise BadRequest("uploaded file has no path")
+
+        # keep track of the number of updates we actually process
+        nupdates = 0
+
+        updates = {} # keys are reference_designators, use to update object store after parsing CSV
+
+        with ZipFile(zip_filename) as zipfile:
+            files = zipfile.namelist()
+            t = {} # dict to store tables, keyed by filename
+            # first, we extract out all the tables (not master.csv)
+            for tablefile in files:
+                if tablefile.lower() == 'master.csv':
+                    continue # skip here, we'll process after we've read the rest of the files
+                with zipfile.open(tablefile) as csvfile:
+                    csvfile = (row for row in csvfile if len(row.strip()) > 0)
+                    csvfile = (row for row in csvfile if not row.startswith('#'))
+                    d = [row for row in csv.DictReader(csvfile, delimiter=',')]
+                    t[tablefile] = self.transpose_list_of_dicts(d)
+            with zipfile.open('master.csv') as csvfile:
+                csvfile = (row for row in csvfile if len(row.strip()) > 0)
+                csvfile = (row for row in csvfile if not row.startswith('#'))
+                csv_reader = csv.reader(csvfile, delimiter=',') # skip commented lines
+                # iterate the rows returned by csv.reader
+                csv_reader.next() # skip the header line (specified in ZIP format)
+                for row in csv_reader:
+                    if len(row) != 5:
+                        log.warn("invalid local_range line %s" % ','.join(row))
+                        continue
+                    # we need to add a value to the front of list to use parse_common
+                    row.insert(0,'local_range') # ignored below but corrects indexes used in parse_common
+                    rd = row[1]
+                    dp = row[2]
+                    d = self.parse_common(row)
+                    # get table specified by row
+                    table = t.get(row[5], None)
+                    if table is None:
+                        log.warn("no tablefile found for local_range %s" % ','.join(row))
+                        continue
+                    # check table keys all have same len
+                    n = [len(filter(None, table[key])) for key in table.keys()] # counts non-empty elements in columns
+                    if not len(n) > 0 and all(n[0] == x for x in n): # more than zero columns and all same length
+                        log.warn("invalid tablefile found for local_range %s" % ','.join(row))
+                        continue
+                    d['table'] = table
+                    # get rd key
+                    if rd not in updates:
+                        updates[rd] = {} # initialize empty reference_designator dict (to contain data_products)
+                    if dp not in updates[rd]:
+                        updates[rd][dp] = {}
+                    if 'local_range' not in updates[rd][dp]:
+                        updates[rd][dp]['local_range'] = []
+                    updates[rd][dp]['local_range'].append(d)
+
+                    nupdates = nupdates + 1
+
+        # insert the updates into object store
+        self.update_object_store(updates)
+
+        fuc['status'] = 'UploadQcProcessing process complete - %d updates added to object store' % nupdates
+        self.object_store.update_doc(fuc)
+
+        # remove uploaded file
+        try:
+            os.remove(zip_filename)
+        except OSError:
+            pass # TODO take action to get this removed
+
+    def update_object_store(self, updates):
+        '''inserts the updates into object store'''
         for r in updates: # loops the reference_designators in the updates object
             try: # if reference_designator exists in object_store, read it                           
                 rd = self.object_store.read(r)
@@ -142,15 +230,6 @@ class UploadQcProcessing(ImmediateProcess):
                         rd[dp][qc].append(updates[r][dp][qc]) # append the list from updates
             # store updated reference_designator keyed object in object_store (should overwrite full object)
             self.object_store.update_doc(rd)
-
-        fuc['status'] = 'UploadQcProcessing process complete - %d updates added to object store' % nupdates
-        self.object_store.update_doc(fuc)
-
-        # remove uploaded file
-        try:
-            os.remove(csv_filename)
-        except OSError:
-            pass # TODO take action to get this removed
 
     def parse_common(self, row, d=None):
         if not d:
@@ -216,3 +295,8 @@ class UploadQcProcessing(ImmediateProcess):
             'toldat':row[9]
         })
         return d
+
+    def transpose_list_of_dicts(self, list_of_dicts):
+        '''assumes all dicts in the list have the same keys'''
+        keys = list_of_dicts[0].iterkeys()
+        return {key: [d[key] for d in list_of_dicts] for key in keys}
