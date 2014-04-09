@@ -2,17 +2,20 @@
 
 __author__ = 'Michael Meisinger'
 
+from mock import Mock
 from nose.plugins.attrib import attr
-from pyon.public import RT, PRED, OT, log
+
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.unit_test import PyonTestCase
-import math
+from pyon.util.unit_test import IonUnitTestCase
+from pyon.public import RT, PRED, OT, log, IonObject
+from ion.core.ooiref import OOIReferenceDesignator
+from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader, OOI_MAPPING_DOC
+from ion.processes.bootstrap.ooi_loader import OOILoader
+
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-import unittest
-from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader
 
 
-class TestLoaderAlgo(PyonTestCase):
+class TestLoaderAlgo(IonUnitTestCase):
 
     @attr('UNIT', group='loader')
     def test_parse_alert_ranges(self):
@@ -68,6 +71,43 @@ class TestLoaderAlgo(PyonTestCase):
         self.assertEqual(10, out['upper_bound'])
         self.assertEqual('temp', out['value_id'])
         self.assertEqual(3, len(out))
+
+
+    def test_get_agent_definition(self):
+        loader = IONLoader()
+        ooi_loader = OOILoader(None, asset_path='res/preload/r2_ioc/ooi_assets', mapping_path=OOI_MAPPING_DOC)
+        loader.ooi_loader = ooi_loader
+        loader.ooi_loader.extract_ooi_assets()
+
+        inst_objs = ooi_loader.get_type_assets("instrument")
+        node_objs = ooi_loader.get_type_assets("node")
+        loader._get_resource_obj = Mock(return_value=IonObject(RT.ExternalDatasetAgent))
+
+        # for ooi_id in sorted(inst_objs):
+        #     ooi_rd = OOIReferenceDesignator(ooi_id)
+        #     agent_id, agent_obj = loader._get_agent_definition(ooi_rd)
+        #     log.info("RD: %s, agent_id: %s", ooi_id, agent_id)
+
+        checks = [
+            # Check some mapping override cases
+            ("CP01CNSM-MF004-03-DOSTAD999", "DART_DOSTA_D_CSTL"),
+            ("CP01CNSM-RI003-05-FLORTD999", "DART_FLORT_D_CSTL"),
+            ("CP02PMUO-RI001-01-ADCPSL999", "DART_ADCPS_L_CSTL"),
+
+            # Check some default cases
+            ("GA03FLMB-RI001-03-DOSTAD999", "DART_DOSTA_D"),
+            ("GA03FLMB-RI001-01-FLORTD999", "DART_FLORT_D"),
+            ("GA03FLMB-RI001-04-ADCPSL999", "DART_ADCPS_L"),
+
+            # Check some cases without mapping (using default)
+            ("GI05MOAS-GL001-01-FLORDM999", "DART_FLORD_M"),
+        ]
+
+        for ooi_id, expected_agent_id in checks:
+            ooi_rd = OOIReferenceDesignator(ooi_id)
+            agent_id, agent_obj = loader._get_agent_definition(ooi_rd)
+            self.assertEquals(agent_id, expected_agent_id)
+
 
 TEST_PATH = TESTED_DOC
 
