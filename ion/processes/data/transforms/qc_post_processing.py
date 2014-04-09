@@ -265,12 +265,29 @@ class QCProcessor(SimpleProcess):
                 self.process_trend_test(coverage, parameter, input_name, ord_n, nstd)
 
             elif alg.lower() == 'spketst':
-                log.error("Runnign Spike Test")
+                log.error("Running Spike Test")
                 row = self.recent_row(lookup_table['spike_test'])
                 acc = row['accuracy']
                 N = row['range_multiplier']
                 L = row['window_length']
                 self.process_spike_test(coverage, parameter, input_name, acc, N, L)
+
+            elif alg.lower() == "gradtst":
+                log.error("Running Gradient Test")
+                row = self.recent_row(lookup_table["gradient_test"])
+                ddatdx = row["ddatdx"]
+                mindx = row["mindx"]
+                startdat = row["startdat"]
+                if isinstance(startdat, basestring) and not startdat:
+                    startdat = np.nan
+                if isinstance(mindx, basestring) and not mindx:
+                    mindx = np.nan
+                toldat = row["toldat"]
+                self.process_gradient_test(coverage, parameter, input_name, ddatdx, mindx, startdat, toldat)
+
+            elif alg.lower() == 'loclrng':
+                log.error("Coming soon!")
+
         finally:
             coverage.close()
 
@@ -353,8 +370,45 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
         }
+
+    def process_gradient_test(self, coverage, parameter, input_name, ddatdx, mindx, startdat, toldat):
+        qc_array = coverage.get_parameter_values(parameter.name)
+        indexes = np.where(qc_array == -88)[0]
+
+        from ion_functions.qc.qc_functions import dataqc_gradienttest_wrapper
+        value_array = coverage.get_parameter_values(input_name)
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)
+        
+        qc_array = dataqc_gradienttest_wrapper(value_array, time_array, ddatdx, mindx, startdat, toldat)
+
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array[indexes],
+                parameter.name : qc_array[indexes]
+        }
+
         log.error("Normally I'd set these in the coverage model...")
         log.error(return_dictionary)
+
+    def process_local_range_test(self, coverage, parameter, input_name, datlim, datlimz):
+        qc_array = coverage.get_parameter_values(parameter.name)
+        indexes = np.where(qc_array == -88)[0]
+
+        from ion_functions.qc.qc_functions import dataqc_localrangetest
+        value_array = coverage.get_parameter_values(input_name)
+        # z_parameter_name needs to come from, I guess the column headings... 
+        # I also need to deal with the case where there are multiple axes... 
+        # I don't have a good feeling about this.
+        z_parameter_name = None
+        z_array = coverage.get_parameter_values(z_parameter_name)
+
+        qc_array = dataqc_localrangetest(value_array, z_array, datlim, datlimz)
+        return_dictionary = {
+                coverage.temporal_parameter_name : time_array[indexes],
+                parameter.name : qc_array[indexes]
+        }
+        log.error("Normally I'd set these in the coverage model...")
+        log.error(return_dictionary)
+
 
 
 

@@ -1516,6 +1516,9 @@ def rotate_v(u,v,theta):
         return data_product_id
 
     def add_tempwat_qc(self, data_product_id):
+        #--------------------------------------------------------------------------------
+        # Global Range
+        #--------------------------------------------------------------------------------
         tempwat_qc = ParameterContext(name='tempwat_glblrng_qc', 
                                       parameter_type='quantity',
                                       value_encoding='int8',
@@ -1524,6 +1527,9 @@ def rotate_v(u,v,theta):
                                       fill_value=-88)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        #--------------------------------------------------------------------------------
+        # Trend Test
+        #--------------------------------------------------------------------------------
         tempwat_qc = ParameterContext(name='tempwat_trndtst_qc', 
                                       parameter_type='quantity',
                                       value_encoding='int8',
@@ -1532,6 +1538,9 @@ def rotate_v(u,v,theta):
                                       fill_value=-88)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        #--------------------------------------------------------------------------------
+        # Spike Test
+        #--------------------------------------------------------------------------------
         tempwat_qc = ParameterContext(name='tempwat_spketst_qc', 
                                       parameter_type='quantity',
                                       value_encoding='int8',
@@ -1540,6 +1549,31 @@ def rotate_v(u,v,theta):
                                       fill_value=-88)
         tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
         self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        #--------------------------------------------------------------------------------
+        # Gradient Test
+        #--------------------------------------------------------------------------------
+        tempwat_qc = ParameterContext(name='tempwat_gradtst_qc', 
+                                      parameter_type='quantity',
+                                      value_encoding='int8',
+                                      units='1',
+                                      ooi_short_name='TEMPWAT_GRADTST_QC',
+                                      fill_value=-88)
+        tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
+        self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        #--------------------------------------------------------------------------------
+        # Local Range Test
+        #--------------------------------------------------------------------------------
+        tempwat_qc = ParameterContext(name='tempwat_loclrng_qc', 
+                                      parameter_type='quantity',
+                                      value_encoding='int8',
+                                      units='1',
+                                      ooi_short_name='TEMPWAT_LOCLRNG_QC',
+                                      fill_value=-88)
+        tempwat_qc_id = self.dataset_management.create_parameter(tempwat_qc)
+        self.data_product_management.add_parameter_to_data_product(tempwat_qc_id, data_product_id)
+        #--------------------------------------------------------------------------------
+        # Stuck Value
+        #--------------------------------------------------------------------------------
         preswat_qc = ParameterContext(name='preswat_stuckvl_qc', 
                                       parameter_type='quantity',
                                       value_encoding='int8',
@@ -1643,8 +1677,20 @@ def rotate_v(u,v,theta):
                            "ts_created":1396371094.658708,
                            "accuracy":0.0001
                         }
-                     ]
-                  },
+                     ],
+                     "gradient_test" : [
+                        {
+                           "toldat": 0.1,
+                           "xunits" : "s",
+                           "mindx" : 10,
+                           "author" : "Boon",
+                           "startdat" : "",
+                           "ddatdx" : [-50.0, 50.0],
+                           "units" : "deg_C",
+                           "ts_created" : 1396371094.658695
+                        }
+                     ]                  
+                 },
                   "PRESWAT":{
                      "stuck_value":[
                         {
