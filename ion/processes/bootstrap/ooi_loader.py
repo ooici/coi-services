@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""Parses OOI SAF Instrument Application assets from CSV reports."""
+"""Parses OOI SAF Instrument Application assets from CSV reports and a mapping spreadsheet."""
 
 __author__ = 'Michael Meisinger'
 
@@ -21,7 +21,7 @@ DEFAULT_MAX_DATE = datetime.datetime(2020, 1, 1)
 class OOILoader(object):
     def __init__(self, process, container=None, asset_path=None, mapping_path=None):
         self.process = process
-        self.container = container or self.process.container
+        self.container = container or (self.process.container if process else None)
         self.asset_path = asset_path
         self.mapping_path = mapping_path or self.asset_path + "/OOIResourceMappings.xlsx"
         self._extracted = False
@@ -72,6 +72,8 @@ class OOILoader(object):
                        'MAP:Series',
                        'MAP:InstAgents',
                        'MAP:DataAgents',
+                       'MAP:AgentMap',
+                       'MAP:ModelMap',
         ]
 
         # Holds the object representations of parsed OOI assets by type
@@ -151,6 +153,8 @@ class OOILoader(object):
         """
         Add a single attribute to an identified object of given type. Create object/type on first occurrence.
         The kwargs are static attributes"""
+        if not objid:
+            raise Exception("Empty ID")
         if objtype not in self.ooi_objects:
             self.ooi_objects[objtype] = {}
         ot_objects = self.ooi_objects[objtype]
@@ -576,19 +580,40 @@ class OOILoader(object):
 
     def _parse_InstAgents(self, row):
         agent_code = row['Agent Code']
-        self._add_object_attribute('instagent',
-                                   agent_code, None, None,
-                                   active=row['Active'] == "Yes",
-                                   present=row['Present'] == "Yes",
-                                   parsed_sc=row['Parsed SC'])
+        if agent_code:
+            self._add_object_attribute('instagent',
+                                       agent_code, None, None,
+                                       active=row['Active'] == "Yes",
+                                       present=row['Present'] == "Yes",
+                                       parsed_sc=row['Parsed SC'])
 
     def _parse_DataAgents(self, row):
         agent_code = row['Agent Code']
-        self._add_object_attribute('dataagent',
-                                   agent_code, None, None,
-                                   active=row['Active'] == "Yes",
-                                   present=row['Present'] == "Yes",
-                                   parsed_sc=row['Parsed SC'])
+        if agent_code:
+            self._add_object_attribute('dataagent',
+                                       agent_code, None, None,
+                                       active=row['Active'] == "Yes",
+                                       present=row['Present'] == "Yes",
+                                       parsed_sc=row['Parsed SC'])
+
+    def _parse_AgentMap(self, row):
+        series = row['Instrument Series']
+        node_type = row['Node Type']
+
+        mapping = [row['Agent Code'], row['RD Prefix']]
+
+        if series and series in self.get_type_assets("series"):
+            self._add_object_attribute('series',
+                series, 'agentmap', mapping, value_is_list=True)
+        if node_type and node_type in self.get_type_assets("nodetype"):
+            self._add_object_attribute('nodetype',
+                node_type, 'agentmap', mapping, value_is_list=True)
+
+    def _parse_ModelMap(self, row):
+        series = row['Instrument Series']
+        self._add_object_attribute('modelmap',
+                                   series, None, None,
+                                   primary_series=row['Primary Series'])
 
     # ---- Post-processing and validation ----
 
