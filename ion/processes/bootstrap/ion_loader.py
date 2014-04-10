@@ -2863,7 +2863,7 @@ Reason: %s
                 newrow['iai/description'] = "Instrument agent instance %s device #01" % ooi_id
                 newrow['iai/reference_urls'] = ''
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
-                newrow['instrument_agent_id'] = "IA_" + agent_id
+                newrow['instrument_agent_id'] = agent_id
                 newrow['instrument_device_id'] = idev_id
                 newrow['comms_device_address'] = ""
                 newrow['comms_device_port'] = "0"
