@@ -137,11 +137,14 @@ data:
 
         # wait for status to be complete from upload_data_processing
         status = ''
-        while not "process complete" in status:
+        limit = 12
+        while not "process complete" in status and limit > 0:
             status_result = self.testapp.get('/ion-service/upload/%s' % fuc_id, status=200)
             status_result_json = json.loads(status_result.body)
             status_result_data = status_result_json.get('data', {}) # dict
             status = status_result_data.get('GatewayResponse', {}).get('status', '')
+            limit = limit-1
+            time.sleep(5) # pause for 5 seconds, will timeout at 1 minute
 
         # check ParameterContext
         self.assertItemsEqual(self.getUploadedParameterContexts(dp_id), ['temp_L1c', 'conductivity_L1c'])
@@ -252,6 +255,138 @@ gradient_test,REFDES01,RD01DP01,C,Boon,s,[-0.01 0.01],30,,0.1'''
                  'units':'degrees',
                  'ts_created':CONSTANT_TIME,
                  'accuracy':'0.0001'
+              }
+           ]
+        })
+
+    def test_upload_qc_zip(self):
+
+        # verify target object [REFDES01] do not exist in object_store
+        self.assertRaises(NotFound, self.object_store.read, 'REFDES02')
+
+        # check ZIP (local_range)
+        ZIP_FILENAME = 'test_data/test_local_range.zip'
+        '''$ unzip -l local_range_test.zip 
+Archive:  local_range_test.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+       55  04-09-2014 13:45   01.csv
+      537  04-09-2014 13:53   02.csv
+      133  04-09-2014 13:51   master.csv
+---------                     -------
+      725                     3 files'''
+
+        # MONKEY PATCH time.time() for volatile ts_updated values in dict (set in POST below)
+        CONSTANT_TIME = time.time() # time value we'll use in assert tests
+        def new_time():
+            return CONSTANT_TIME
+        old_time = time.time
+        time.time = new_time
+
+        upload_files = [('file', ZIP_FILENAME)]
+        upload_result = self.testapp.post('/ion-service/upload/qc', upload_files=upload_files, status=200)
+        upload_result_json = json.loads(upload_result.body) # reponse JSON data
+        upload_result_data = upload_result_json.get('data', {}) # dict
+
+        # restore MONKEY PATCHed time
+        time.time = old_time
+
+        # read the FileUploadContext (async) return
+        #gateway_response = data.get('GatewayResponse', None)
+        fuc_id = upload_result_data.get('GatewayResponse', {}).get('fuc_id', None) # CAUTION this is unicode
+        #fuc = self.object_store.read(str(fuc_id))
+
+        # wait for status to be complete from upload_data_processing
+        status = ''
+        limit = 12
+        while not "process complete" in status and limit > 0:
+            status_result = self.testapp.get('/ion-service/upload/%s' % fuc_id, status=200)
+            status_result_json = json.loads(status_result.body)
+            status_result_data = status_result_json.get('data', {}) # dict
+            status = status_result_data.get('GatewayResponse', {}).get('status', '')
+            limit = limit-1
+            time.sleep(5) # pause for 5 seconds, will timeout at 1 minute
+
+        # reponse JSON data
+        json_data = json.loads(upload_result.body)
+        data = json_data.get('data', None) # dict
+
+        # read the FileUploadContext (async) return
+        #gateway_response = data.get('GatewayResponse', None)
+        #fuc_id = gateway_response.get('fuc_id', None) # CAUTION this is unicode
+        #fuc = self.object_store.read(str(fuc_id))
+
+        # check the QC table stored in object_store
+        REFDES02 = self.object_store.read('REFDES02')
+        RD02DP01 = REFDES02.get('RD02DP01', None)
+        self.assertEquals(RD02DP01, {
+           'local_range':[
+              {
+                 'units':'C',
+                 'table':{
+                    'datlim2':[
+                       '10',
+                       '20',
+                       '30',
+                       '40'
+                    ],
+                    'datlim1':[
+                       '0',
+                       '10',
+                       '20',
+                       '30'
+                    ],
+                    'temp':[
+                       '0',
+                       '20',
+                       '40',
+                       '60'
+                    ]
+                 },
+                 'ts_created':CONSTANT_TIME,
+                 'author':'Bodhi'
+              }
+           ]
+        })
+        RD02DP02 = REFDES02.get('RD02DP02', None)
+        self.assertEquals(RD02DP02, {
+           'local_range':[
+              {
+                 'units':'dbar',
+                 'table':{
+                    'lat':[
+                       '4.643692599999999970e+01',
+                       '4.643692599999999970e+01',
+                       '4.643692599999999970e+01',
+                       '4.643692599999999970e+01'
+                    ],
+                    'pressure':[
+                       '0.000000000000000000e+00',
+                       '3.750000000000000000e+01',
+                       '0.000000000000000000e+00',
+                       '3.750000000000000000e+01'
+                    ],
+                    'datlim1':[
+                       '0.000000000000000000e+00',
+                       '1.000000000000000000e+01',
+                       '1.000000000000000000e+01',
+                       '2.000000000000000000e+01'
+                    ],
+                    'lon':[
+                       '-1.248321789999999964e+02',
+                       '-1.248321789999999964e+02',
+                       '-1.253596542500000055e+02',
+                       '-1.253596542500000055e+02'
+                    ],
+                    'datlim2':[
+                       '3.000000000000000000e+01',
+                       '4.000000000000000000e+01',
+                       '4.000000000000000000e+01',
+                       '5.000000000000000000e+01'
+                    ]
+                 },
+                 'ts_created':CONSTANT_TIME,
+                 'author':'Johnny Utah'
               }
            ]
         })
