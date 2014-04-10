@@ -203,20 +203,20 @@ gradient_test,REFDES01,RD01DP01,C,Boon,s,[-0.01 0.01],30,,0.1'''
            'stuck_value':[
               {
                  'units':'C',
-                 'consecutive_values':'10',
+                 'consecutive_values':10,
                  'ts_created':CONSTANT_TIME,
-                 'resolution':'0.005',
+                 'resolution':0.005,
                  'author':'Otter'
               }
            ],
            'gradient_test':[
               {
-                 'toldat':'0.1',
+                 'toldat':0.1,
                  'xunits':'s',
-                 'mindx':'30',
+                 'mindx':30,
                  'author':'Boon',
-                 'startdat':u'',
-                 'ddatdx':'[-0.01 0.01]',
+                 'startdat':None,
+                 'ddatdx':[-0.01, 0.01],
                  'units':'C',
                  'ts_created':CONSTANT_TIME
               }
@@ -224,15 +224,15 @@ gradient_test,REFDES01,RD01DP01,C,Boon,s,[-0.01 0.01],30,,0.1'''
            'global_range':[
               {
                  'units':'m/s',
-                 'max_value':'1',
-                 'min_value':'-1',
+                 'max_value':1,
+                 'min_value':-1,
                  'ts_created':CONSTANT_TIME,
                  'author':'Douglas C. Neidermeyer'
               },
               {
                  'units':'m/s',
-                 'max_value':'10',
-                 'min_value':'-10',
+                 'max_value':10,
+                 'min_value':-10,
                  'ts_created':CONSTANT_TIME,
                  'author':'Bluto'
               }
@@ -240,9 +240,9 @@ gradient_test,REFDES01,RD01DP01,C,Boon,s,[-0.01 0.01],30,,0.1'''
            'trend_test':[
               {
                  'author':'Pinto',
-                 'standard_deviation':'4.5',
-                 'polynomial_order':'4',
-                 'sample_length':'25',
+                 'standard_deviation':4.5,
+                 'polynomial_order':4,
+                 'sample_length':25,
                  'units':'K',
                  'ts_created':CONSTANT_TIME
               }
@@ -250,11 +250,11 @@ gradient_test,REFDES01,RD01DP01,C,Boon,s,[-0.01 0.01],30,,0.1'''
            'spike_test':[
               {
                  'author':'Flounder',
-                 'range_multiplier':'4',
-                 'window_length':'15',
+                 'range_multiplier':4,
+                 'window_length':15,
                  'units':'degrees',
                  'ts_created':CONSTANT_TIME,
-                 'accuracy':'0.0001'
+                 'accuracy':0.0001
               }
            ]
         })
@@ -325,22 +325,22 @@ Archive:  local_range_test.zip
                  'units':'C',
                  'table':{
                     'datlim2':[
-                       '10',
-                       '20',
-                       '30',
-                       '40'
+                        10.0,
+                        20.0,
+                        30.0,
+                        40.0
                     ],
                     'datlim1':[
-                       '0',
-                       '10',
-                       '20',
-                       '30'
+                        0.0,
+                        10.0,
+                        20.0,
+                        30.0
                     ],
                     'temp':[
-                       '0',
-                       '20',
-                       '40',
-                       '60'
+                        0.0,
+                        20.0,
+                        40.0,
+                        60.0
                     ]
                  },
                  'ts_created':CONSTANT_TIME,
@@ -355,34 +355,34 @@ Archive:  local_range_test.zip
                  'units':'dbar',
                  'table':{
                     'lat':[
-                       '4.643692599999999970e+01',
-                       '4.643692599999999970e+01',
-                       '4.643692599999999970e+01',
-                       '4.643692599999999970e+01'
+                        4.643692599999999970e+01,
+                        4.643692599999999970e+01,
+                        4.643692599999999970e+01,
+                        4.643692599999999970e+01
                     ],
                     'pressure':[
-                       '0.000000000000000000e+00',
-                       '3.750000000000000000e+01',
-                       '0.000000000000000000e+00',
-                       '3.750000000000000000e+01'
+                        0.000000000000000000e+00,
+                        3.750000000000000000e+01,
+                        0.000000000000000000e+00,
+                        3.750000000000000000e+01
                     ],
                     'datlim1':[
-                       '0.000000000000000000e+00',
-                       '1.000000000000000000e+01',
-                       '1.000000000000000000e+01',
-                       '2.000000000000000000e+01'
+                        0.000000000000000000e+00,
+                        1.000000000000000000e+01,
+                        1.000000000000000000e+01,
+                        2.000000000000000000e+01
                     ],
                     'lon':[
-                       '-1.248321789999999964e+02',
-                       '-1.248321789999999964e+02',
-                       '-1.253596542500000055e+02',
-                       '-1.253596542500000055e+02'
+                        -1.248321789999999964e+02,
+                        -1.248321789999999964e+02,
+                        -1.253596542500000055e+02,
+                        -1.253596542500000055e+02
                     ],
                     'datlim2':[
-                       '3.000000000000000000e+01',
-                       '4.000000000000000000e+01',
-                       '4.000000000000000000e+01',
-                       '5.000000000000000000e+01'
+                        3.000000000000000000e+01,
+                        4.000000000000000000e+01,
+                        4.000000000000000000e+01,
+                        5.000000000000000000e+01
                     ]
                  },
                  'ts_created':CONSTANT_TIME,

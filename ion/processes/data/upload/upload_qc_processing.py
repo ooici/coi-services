@@ -85,6 +85,9 @@ class UploadQcProcessing(ImmediateProcess):
                         log.warn("invalid global_range line %s" % ','.join(row))
                         continue
                     d = self.parse_global_range(row)
+                    if d is None:
+                        log.warn("parse global_range line failed %s" % ','.join(row))
+                        continue
                     if 'global_range' not in updates[rd][dp]:
                         updates[rd][dp]['global_range'] = []
                     updates[rd][dp]['global_range'].append(d)
@@ -93,6 +96,9 @@ class UploadQcProcessing(ImmediateProcess):
                         log.warn("invalid stuck_value line %s" % ','.join(row))
                         continue
                     d = self.parse_stuck_value(row)
+                    if d is None:
+                        log.warn("parse stuck_value line failed %s" % ','.join(row))
+                        continue
                     if 'stuck_value' not in updates[rd][dp]:
                         updates[rd][dp]['stuck_value'] = []
                     updates[rd][dp]['stuck_value'].append(d)
@@ -101,6 +107,9 @@ class UploadQcProcessing(ImmediateProcess):
                         log.warn("invalid trend_test line %s" % ','.join(row))
                         continue
                     d = self.parse_trend_test(row)
+                    if d is None:
+                        log.warn("parse trend_test line failed %s" % ','.join(row))
+                        continue
                     if 'trend_test' not in updates[rd][dp]:
                         updates[rd][dp]['trend_test'] = []
                     updates[rd][dp]['trend_test'].append(d)
@@ -109,6 +118,9 @@ class UploadQcProcessing(ImmediateProcess):
                         log.warn("invalid spike_test line %s" % ','.join(row))
                         continue
                     d = self.parse_spike_test(row)
+                    if d is None:
+                        log.warn("parse spike_test line failed %s" % ','.join(row))
+                        continue
                     if 'spike_test' not in updates[rd][dp]:
                         updates[rd][dp]['spike_test'] = []
                     updates[rd][dp]['spike_test'].append(d)
@@ -117,6 +129,9 @@ class UploadQcProcessing(ImmediateProcess):
                         log.warn("invalid gradient_test line %s" % ','.join(row))
                         continue
                     d = self.parse_gradient_test(row)
+                    if d is None:
+                        log.warn("parse gradient_test line failed %s" % ','.join(row))
+                        continue
                     if 'gradient_test' not in updates[rd][dp]:
                         updates[rd][dp]['gradient_test'] = []
                     updates[rd][dp]['gradient_test'].append(d)
@@ -129,6 +144,7 @@ class UploadQcProcessing(ImmediateProcess):
         # insert the updates into object store
         self.update_object_store(updates)
 
+        # update FileUploadContext object (change status to complete)
         fuc['status'] = 'UploadQcProcessing process complete - %d updates added to object store' % nupdates
         self.object_store.update_doc(fuc)
 
@@ -202,6 +218,7 @@ class UploadQcProcessing(ImmediateProcess):
         # insert the updates into object store
         self.update_object_store(updates)
 
+        # update FileUploadContext object (change status to complete)
         fuc['status'] = 'UploadQcProcessing process complete - %d updates added to object store' % nupdates
         self.object_store.update_doc(fuc)
 
@@ -235,68 +252,104 @@ class UploadQcProcessing(ImmediateProcess):
         if not d:
             d={}
         d.update({
-            'units':row[3],
-            'author':row[4],
-            'ts_created':time.time()
+            'units':row[3], #str
+            'author':row[4], #str
+            'ts_created':time.time() #float
         })
         return d
 
     def parse_global_range(self, row, d=None):
+        try:
+            min_value = float(row[5])
+            max_value = float(row[6])
+        except ValueError as e:
+            return None
         if not d:
             d={}
         d = self.parse_common(row,d)
         d.update({
-            'min_value':row[5],
-            'max_value':row[6]
+            'min_value':min_value, #float
+            'max_value':max_value #float
         })
         return d
 
     def parse_stuck_value(self, row, d=None):
+        try:
+            resolution = float(row[5])
+            consecutive_values = int(row[6])
+        except ValueError as e:
+            return None
         if not d:
             d={}
         d = self.parse_common(row,d)
         d.update({
-            'resolution':row[5],
-            'consecutive_values':row[6]
+            'resolution':resolution, #float
+            'consecutive_values':consecutive_values #int
         })
         return d
 
     def parse_trend_test(self, row, d=None):
+        try:
+            sample_length = int(row[5])
+            polynomial_order = int(row[6])
+            standard_deviation = float(row[7])
+        except ValueError as e:
+            return None
         if not d:
             d={}
         d = self.parse_common(row,d)
         d.update({
-            'sample_length':row[5],
-            'polynomial_order':row[6],
-            'standard_deviation':row[7]
+            'sample_length':sample_length, #int
+            'polynomial_order':polynomial_order, #int
+            'standard_deviation':standard_deviation #float
         })
         return d
 
     def parse_spike_test(self, row, d=None):
+        try:
+            accuracy = float(row[5])
+            range_multiplier = int(row[6])
+            window_length = int(row[7])
+        except ValueError as e:
+            return None
         if not d:
             d={}
         d = self.parse_common(row,d)
         d.update({
-            'accuracy':row[5],
-            'range_multiplier':row[6],
-            'window_length':row[7]
+            'accuracy':accuracy,
+            'range_multiplier':range_multiplier,
+            'window_length':window_length
         })
         return d
 
     def parse_gradient_test(self, row, d=None):
+        try:
+            xunits = row[5]
+            ddatdx = [float(x) for x in row[6].strip('[]').split()]
+            mindx = float(row[7])
+            try:
+                startdat = float(row[8])
+            except:
+                startdat = None # can be blank
+            toldat = float(row[9])
+        except ValueError as e:
+            return None
         if not d:
             d={}
         d = self.parse_common(row,d)
         d.update({
-            'xunits':row[5],
-            'ddatdx':row[6],
-            'mindx':row[7],
-            'startdat':row[8],
-            'toldat':row[9]
+            'xunits':xunits,
+            'ddatdx':ddatdx,
+            'mindx':mindx,
+            'startdat':startdat,
+            'toldat':toldat
         })
         return d
 
     def transpose_list_of_dicts(self, list_of_dicts):
         '''assumes all dicts in the list have the same keys'''
         keys = list_of_dicts[0].iterkeys()
-        return {key: [d[key] for d in list_of_dicts] for key in keys}
+        try:
+            return {key: [float(d[key]) for d in list_of_dicts] for key in keys}
+        except:
+            return None
