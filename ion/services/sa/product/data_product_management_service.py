@@ -85,6 +85,23 @@ class DataProductManagementService(BaseDataProductManagementService):
       # Return the id of the new data product
         return data_product_id
 
+    def clone_pdict(self, data_product, stream_definition_id=''):
+        pdicts, assocs = self.clients.resource_registry.find_objects(stream_definition_id, PRED.hasParameterDictionary, id_only=False)
+        if not pdicts:
+            raise BadRequest("No parameter dictionary associated with the stream definition %s" % stream_definition_id)
+        pdict = pdicts[0]
+        assoc = assocs[0] # I've never had to use this before
+
+        parameter_ids, _ = self.clients.resource_registry.find_objects(pdict._id, PRED.hasParameterContext, id_only=True)
+        pdict_id = self.clients.dataset_management.create_parameter_dictionary(
+                    name="%s-%s" % (data_product.name, data_product._id),
+                    parameter_context_ids=parameter_ids,
+                    temporal_context=pdict.temporal_context, 
+                    description=pdict.description)
+        self.clients.resource_registry.delete_association(assoc)
+        self.clients.resource_registry.create_association(subject=stream_definition_id, predicate=PRED.hasParameterDictionary, object=pdict_id)
+
+
     def create_data_product_(self, data_product=None):
 
         validate_is_not_none(data_product, 'A data product (ion object) must be passed to register a data product')
