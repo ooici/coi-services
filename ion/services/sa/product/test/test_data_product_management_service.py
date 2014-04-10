@@ -49,38 +49,6 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.data_source.description = 'data source desc'
 
 
-    def test_createDataProduct_and_DataProducer_success(self):
-        # setup
-        self.clients.resource_registry.find_resources.return_value = ([], 'do not care')
-        self.clients.resource_registry.find_associations.return_value = []
-        self.clients.resource_registry.create.return_value = ('SOME_RR_ID1', 'Version_1')
-        self.clients.data_acquisition_management.assign_data_product.return_value = None
-        self.clients.pubsub_management.create_stream.return_value = "stream_id", "route_id"
-
-
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
-
-        dp_obj = IonObject(RT.DataProduct,
-            name='DP1',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        # test call
-        dp_id = self.data_product_management_service.create_data_product(data_product=dp_obj,
-                stream_definition_id='a stream def id')
-
-
 
     @unittest.skip('not working')
     def test_createDataProduct_and_DataProducer_with_id_NotFound(self):
