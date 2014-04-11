@@ -3129,6 +3129,11 @@ Reason: %s
 
         for assoc in assocs_filtered:
             pdict = self._get_resource_obj(assoc.s)
+            # If the parameter dictionary was created by the service logic then it won't be cached in the loader
+            # In this case, we need to pull it from the resource registry
+            # TODO: Update the preload logic to mimic the service way
+            if pdict is None:
+                pdict = self.container.resource_registry.read(assoc.s)
             pdef = self._get_resource_obj(assoc.o, True)
             if pdef is None:
                 log.warn("Ignoring ParameterContext %s - not found", assoc.o)

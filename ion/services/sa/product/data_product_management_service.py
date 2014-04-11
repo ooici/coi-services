@@ -159,6 +159,24 @@ class DataProductManagementService(BaseDataProductManagementService):
         Determine the relevant parameters that need QC applied and create parameters for the evaluations
         '''
         pass
+    
+    def clone_pdict(self, data_product, stream_definition_id=''):
+        pdicts, assocs = self.clients.resource_registry.find_objects(stream_definition_id, PRED.hasParameterDictionary, id_only=False)
+        if not pdicts:
+            raise BadRequest("No parameter dictionary associated with the stream definition %s" % stream_definition_id)
+        pdict = pdicts[0]
+        assoc = assocs[0] # I've never had to use this before
+
+        parameter_ids, _ = self.clients.resource_registry.find_objects(pdict._id, PRED.hasParameterContext, id_only=True)
+        pdict_id = self.clients.dataset_management.create_parameter_dictionary(
+                    name="%s-%s" % (data_product.name, data_product._id),
+                    parameter_context_ids=parameter_ids,
+                    temporal_context=pdict.temporal_context, 
+                    description=pdict.description)
+        self.clients.resource_registry.delete_association(assoc)
+        self.clients.resource_registry.create_association(subject=stream_definition_id, predicate=PRED.hasParameterDictionary, object=pdict_id)
+
+
 
     def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
 
@@ -171,6 +189,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         exchange_point = exchange_point or 'science_data'
 
         data_product = self.RR2.read(data_product_id)
+
+        self.clone_pdict(data_product, stream_definition_id)
 
         #if stream_definition_id:
         #@todo: What about topics?
