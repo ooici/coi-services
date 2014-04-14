@@ -8,7 +8,7 @@ from pyon.core.object import IonObjectBase
 from pyon.public import OT, RT, log, CFG
 
 from interface.objects import Resource, Event, ResourceContainer, ComputedValue, EventComputedAttributes, \
-    ServiceRequest, Attachment, NegotiationRequest, NotificationRequest, UserInfo, Org, ComputedEventListValue
+    ServiceRequest, Attachment, NegotiationRequest, NotificationRequest, UserRole, Org, ComputedEventListValue
 
 IGNORE_EXT_FIELDS = {"type_", "_id", "ts_created", "resource", "computed",
                      "availability_transitions", "lcstate_transitions", "ext_associations"}
@@ -97,6 +97,8 @@ def matcher_special(obj, matchers=None):
         return obj
     elif isinstance(obj, Org):
         return obj
+    elif isinstance(obj, UserRole):
+        return obj
 
 
 def matcher_resource(obj, matchers=None):
@@ -132,14 +134,6 @@ def matcher_Device(obj, matchers=None):
     if not obj or not isinstance(obj, Resource) or (obj.type_ != RT.InstrumentDevice and obj.type_ != RT.PlatformDevice):
         return
     res_attr = {k: v for k, v in obj.__dict__.iteritems() if k in CORE_RES_ATTRIBUTES}
-    res_attr["__noion__"] = True
-    return res_attr
-
-def matcher_UserRole(obj, matchers=None):
-    if not obj or not isinstance(obj, Resource) or obj.type_ != RT.UserRole:
-        return
-    res_attr = {k: v for k, v in obj.__dict__.iteritems() if k in CORE_RES_ATTRIBUTES or k in {
-        "org_governance_name"}}
     res_attr["__noion__"] = True
     return res_attr
 
