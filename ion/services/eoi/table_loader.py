@@ -13,6 +13,8 @@ import requests
 import os
 from pyon.public import CFG
 from pyon.util.log import log
+from pyon.ion.process import SimpleProcess
+from pyon.util.breakpoint import breakpoint
 
 DEBUG = False
 
@@ -21,58 +23,70 @@ INT = "int"
 TIMEDATE = "timestamp"
 
 
-class ResourceParser():
+class ResourceParser(SimpleProcess):
     """
     Processes the Resource Registry CRUD requests into PostgreSQL and ImporterService calls
     """
-    def __init__(self):
+    def on_start(self):
+
+        SimpleProcess.on_start(self)
+
         self.using_eoi_services = CFG.get_safe('eoi.meta.use_eoi_services', False)
+        if not self.using_eoi_services:
+            # place holder
+            raise BadRequest("well deal with it later...")
 
-        if self.using_eoi_services:
-            self.latitude = CFG.get_safe('eoi.meta.lat_field', 'lat')
-            self.longitude = CFG.get_safe('eoi.meta.lon_field', 'lon')
+        self.latitude = CFG.get_safe('eoi.meta.lat_field', 'lat')
+        self.longitude = CFG.get_safe('eoi.meta.lon_field', 'lon')
 
-            self.resetstore = CFG.get_safe('eoi.importer_service.reset_store', 'resetstore')
-            self.removelayer = CFG.get_safe('eoi.importer_service.remove_layer', 'removelayer')
-            self.addlayer = CFG.get_safe('eoi.importer_service.add_layer', 'addlayer')
-            #add default varaibles
-            self.server = CFG.get_safe('eoi.importer_service.server', "localhost")+":"+str(CFG.get_safe('eoi.importer_service.port', 8844))
-            self.database = CFG.get_safe('eoi.postgres.database', 'postgres')
-            self.db_user = CFG.get_safe('eoi.postgres.user_name', 'postgres')
-            self.db_pass = CFG.get_safe('eoi.postgres.password', '')
+        self.resetstore = CFG.get_safe('eoi.importer_service.reset_store', 'resetstore')
+        self.removelayer = CFG.get_safe('eoi.importer_service.remove_layer', 'removelayer')
+        self.addlayer = CFG.get_safe('eoi.importer_service.add_layer', 'addlayer')
+        #add default varaibles
+        self.server = CFG.get_safe('eoi.importer_service.server', "localhost")+":"+str(CFG.get_safe('eoi.importer_service.port', 8844))
+        self.database = CFG.get_safe('eoi.postgres.database', 'postgres')
+        self.db_user = CFG.get_safe('eoi.postgres.user_name', 'postgres')
+        self.db_pass = CFG.get_safe('eoi.postgres.password', '')
 
-            self.table_prefix = CFG.get_safe('eoi.postgres.table_prefix', '_')
-            self.view_suffix = CFG.get_safe('eoi.postgres.table_suffix', '_view')
+        self.table_prefix = CFG.get_safe('eoi.postgres.table_prefix', '_')
+        self.view_suffix = CFG.get_safe('eoi.postgres.table_suffix', '_view')
 
-            self.coverage_fdw_sever = CFG.get_safe('eoi.fdw.server', 'cov_srv')
+        self.coverage_fdw_sever = CFG.get_safe('eoi.fdw.server', 'cov_srv')
 
         self.con = None
         self.postgres_db_available = False
         self.importer_service_available = False
         self.use_geo_services = False
 
-        if self.using_eoi_services:
-            try:
-                self.con = psycopg2.connect(database=self.database, user=self.db_user, password=self.db_pass)
-                self.cur = self.con.cursor()
-                #checks the connection
-                self.cur.execute('SELECT version()')
-                ver = self.cur.fetchone()
-                self.postgres_db_available = True
-                self.importer_service_available = self.check_for_importer_service()
-                log.debug(str(ver))
+        try:
+            self.con = psycopg2.connect(database=self.database, user=self.db_user, password=self.db_pass)
+            self.cur = self.con.cursor()
+            #checks the connection
+            self.cur.execute('SELECT version()')
+            ver = self.cur.fetchone()
+            self.postgres_db_available = True
+            self.importer_service_available = self.check_for_importer_service()
+            log.debug(str(ver))
 
-            except psycopg2.databaseError as e:
-                #error setting up connection
-                log.debug('Error %s', e)
+        except psycopg2.databaseError as e:
+            #error setting up connection
+            log.debug('Error %s', e)
+        
+        if self.postgres_db_available and self.importer_service_available:
+            self.use_geo_services = True
+            log.debug("TableLoader:Using geoservices...")
+            self.reset()
+        else:
+            log.debug("TableLoader:NOT using geoservices...")
 
-            
-            if self.postgres_db_available and self.importer_service_available:
-                self.use_geo_services = True
-                log.debug("TableLoader:Using geoservices...")
-            else:
-                log.debug("TableLoader:NOT using geoservices...")
+        #generate rpc server after everything has been setup
+        self._rpc_server = self.container.proc_manager._create_listening_endpoint(from_name=self.id, process=self)
+        self.add_endpoint(self._rpc_server)   
+        print "------------add end point---> " +str(self._rpc_server)
+        print self.id
 
+    def get_eoi_service_available(self):
+        return self.use_geo_services
 
     def check_for_importer_service(self):
         try:
