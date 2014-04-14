@@ -47,57 +47,6 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-class SimulateShallowWaterProfilerEvents(object):
-    """
-    A fake event generator for RSN Shallow Water Profiler
-    """
-    def __init__(self):
-        self.profiler_resource_id = 'FakeID'
-        self.seconds_between_steps = 120
-        self.num_steps = 10
-        self.num_profiles = 2
-
-        self.simulate_profiler_events()
-
-    def profiler_event_state_change(self, state, sleep_duration):
-        """
-        Publish the state change event
-
-        @param state            the state entered by the driver.
-        @param sleep_duration   seconds to sleep for after event
-        """
-        # Create event publisher.
-        event_data = {'state': state}
-        self._event_publisher.publish_event(event_type='ResourceAgentResourceStateEvent',
-                                            origin=self.profiler_resource_id,
-                                            **event_data)
-        gevent.sleep(sleep_duration)
-
-    def simulate_profiler_events(self):
-        """
-        Simulate the Shallow Water profiler stair step mission
-        """
-        self._event_publisher = EventPublisher(event_type="ResourceAgentResourceStateEvent")
-
-        # Let's simulate a profiler stair step scenario
-        for x in range(self.num_profiles):
-            # Going up
-            for up in range(self.num_steps):
-                state = 'atStep'
-                self.profiler_event_state_change(state, self.seconds_between_steps)
-
-            state = 'atCeiling'
-            self.profiler_event_state_change(state, self.seconds_between_steps)
-
-            # Going down
-            for up in range(self.num_steps):
-                state = 'atStep'
-                self.profiler_event_state_change(state, self.seconds_between_steps)
-
-            state = 'atFloor'
-            self.profiler_event_state_change(state, self.seconds_between_steps)
-
-
 @attr('UNIT')
 class TestParseMission(PyonTestCase):
     """
@@ -132,29 +81,29 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         p_root = self._create_single_platform()
         # Create instruments and assign to platform
         for mission in self.mission.mission_entries:
-            instrument_id = mission['instrument_id']
-            # create only if not already created:
-            if instrument_id in self._setup_instruments:
-                i_obj = self._setup_instruments[instrument_id]
-            else:
-                i_obj = self._create_instrument(instrument_id, start_port_agent=True)
-            self._assign_instrument_to_platform(i_obj, p_root)
+            for instrument_id in mission['instrument_id']:
+                # create only if not already created:
+                if instrument_id in self._setup_instruments:
+                    i_obj = self._setup_instruments[instrument_id]
+                else:
+                    i_obj = self._create_instrument(instrument_id, start_port_agent=True)
+                self._assign_instrument_to_platform(i_obj, p_root)
 
         # Start the platform
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
-        self.addCleanup(self._run_shutdown_commands)
+        # self.addCleanup(self._run_shutdown_commands)
 
         self._instruments = {}
         # Now get instrument clients for each instrument
         for mission in self.mission.mission_entries:
-            instrument_id = mission['instrument_id']
-            instrument_device_id = self._setup_instruments[instrument_id]['instrument_device_id']
+            for instrument_id in mission['instrument_id']:
+                instrument_device_id = self._setup_instruments[instrument_id]['instrument_device_id']
 
-            # Start a resource agent client to talk with each instrument agent.
-            ia_client = ResourceAgentClient(instrument_device_id, process=FakeProcess())
-            # make a dictionary storing the instrument ids and client objects
-            self._instruments.update({instrument_id: ia_client})
+                # Start a resource agent client to talk with each instrument agent.
+                ia_client = ResourceAgentClient(instrument_device_id, process=FakeProcess())
+                # make a dictionary storing the instrument ids and client objects
+                self._instruments.update({instrument_id: ia_client})
 
     def get_mission_attachment(self, filename):
         """
@@ -203,7 +152,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
 
         profiler_resource_id = 'FakeID'
         seconds_between_steps = 120
-        num_steps = 10
+        num_steps = 2
         num_profiles = 2
 
         def profiler_event_state_change(state, sleep_duration):
@@ -251,6 +200,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         Test the RSN OMS platform simulator with the SBE37_SIM instruments
         """
         filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
+
         self.load_mission(yaml_filename=filename)
 
         self.setup_platform_simulator_and_instruments()
