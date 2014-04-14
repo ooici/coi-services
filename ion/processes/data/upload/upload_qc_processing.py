@@ -234,7 +234,7 @@ class UploadQcProcessing(ImmediateProcess):
             try: # if reference_designator exists in object_store, read it                           
                 rd = self.object_store.read(r)
             except: # if does not yet exist in object_store, create it (can't use update_doc because need to set id)
-                rd = self.object_store.create_doc({},r) # CAUTION: this returns a tuple, not a dict like read() returns
+                rd = self.object_store.create_doc({'_type':'QC'},r) # CAUTION: this returns a tuple, not a dict like read() returns
                 rd = self.object_store.read(r) # read so we have a dict like we expect
             # merge all from updates[r] into dict destined for the object_store (rd)
             for dp in updates[r]: # loops the dataproducts under each reference_designator in updates

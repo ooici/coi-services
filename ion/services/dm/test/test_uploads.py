@@ -398,7 +398,7 @@ Archive:  local_range_test.zip
         dataset_management = DatasetManagementServiceClient()
 
         # verify target object [REFDES01] do not exist in object_store
-        self.assertRaises(NotFound, dataset_management.read_object, 'REFDES01')
+        self.assertRaises(NotFound, dataset_management.read_qc_table, 'REFDES01')
 
         # NOTE: time is again monkey patched in 'test_upload_qc' but should be static for that
         # MONKEY PATCH time.time() for volatile ts_updated values in dict (set in POST below)
@@ -414,7 +414,7 @@ Archive:  local_range_test.zip
         # restore MONKEY PATCHed time
         time.time = old_time
 
-        REFDES01 = dataset_management.read_object('REFDES01')
+        REFDES01 = dataset_management.read_qc_table('REFDES01')
         RD01DP01 = REFDES01.get('RD01DP01', None)
         self.assertEquals(RD01DP01, {
            'stuck_value':[
