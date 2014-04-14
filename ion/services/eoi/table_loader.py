@@ -82,8 +82,6 @@ class ResourceParser(SimpleProcess):
         #generate rpc server after everything has been setup
         self._rpc_server = self.container.proc_manager._create_listening_endpoint(from_name=self.id, process=self)
         self.add_endpoint(self._rpc_server)   
-        print "------------add end point---> " +str(self._rpc_server)
-        print self.id
 
     def get_eoi_service_available(self):
         return self.use_geo_services
