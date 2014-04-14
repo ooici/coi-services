@@ -754,3 +754,5 @@ class DatasetManagementService(BaseDatasetManagementService):
                 pdict.add_context(context)
         return pdict
 
+    def read_object(self, obj_id):
+        return self.container.object_store.read(obj_id)
