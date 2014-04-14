@@ -13,6 +13,8 @@ import requests
 import os
 from pyon.public import CFG
 from pyon.util.log import log
+from pyon.util.breakpoint import breakpoint
+from pyon.container.cc import Container
 
 DEBUG = False
 
@@ -21,58 +23,72 @@ INT = "int"
 TIMEDATE = "timestamp"
 
 
-class ResourceParser():
+class ResourceParser(object):
     """
     Processes the Resource Registry CRUD requests into PostgreSQL and ImporterService calls
     """
     def __init__(self):
+        self.container = Container.instance
+
+    def init(self):
+        """
+        initalizes the resource configuration 
+        """
+
         self.using_eoi_services = CFG.get_safe('eoi.meta.use_eoi_services', False)
+        print "using eoi:",self.using_eoi_services
 
-        if self.using_eoi_services:
-            self.latitude = CFG.get_safe('eoi.meta.lat_field', 'lat')
-            self.longitude = CFG.get_safe('eoi.meta.lon_field', 'lon')
+        if not self.using_eoi_services:
+            raise BadRequest("Eoi services not enabled")
 
-            self.resetstore = CFG.get_safe('eoi.importer_service.reset_store', 'resetstore')
-            self.removelayer = CFG.get_safe('eoi.importer_service.remove_layer', 'removelayer')
-            self.addlayer = CFG.get_safe('eoi.importer_service.add_layer', 'addlayer')
-            #add default varaibles
-            self.server = CFG.get_safe('eoi.importer_service.server', "localhost")+":"+str(CFG.get_safe('eoi.importer_service.port', 8844))
-            self.database = CFG.get_safe('eoi.postgres.database', 'postgres')
-            self.db_user = CFG.get_safe('eoi.postgres.user_name', 'postgres')
-            self.db_pass = CFG.get_safe('eoi.postgres.password', '')
+        self.latitude = CFG.get_safe('eoi.meta.lat_field', 'lat')
+        self.longitude = CFG.get_safe('eoi.meta.lon_field', 'lon')
 
-            self.table_prefix = CFG.get_safe('eoi.postgres.table_prefix', '_')
-            self.view_suffix = CFG.get_safe('eoi.postgres.table_suffix', '_view')
+        self.resetstore = CFG.get_safe('eoi.importer_service.reset_store', 'resetstore')
+        self.removelayer = CFG.get_safe('eoi.importer_service.remove_layer', 'removelayer')
+        self.addlayer = CFG.get_safe('eoi.importer_service.add_layer', 'addlayer')
+        
+        #add default varaibles
+        self.server = CFG.get_safe('eoi.importer_service.server', "localhost")+":"+str(CFG.get_safe('eoi.importer_service.port', 8844))
+        self.database = CFG.get_safe('eoi.postgres.database', 'postgres')
+        self.db_user = CFG.get_safe('eoi.postgres.user_name', 'postgres')
+        self.db_pass = CFG.get_safe('eoi.postgres.password', '')
 
-            self.coverage_fdw_sever = CFG.get_safe('eoi.fdw.server', 'cov_srv')
+        self.table_prefix = CFG.get_safe('eoi.postgres.table_prefix', '_')
+        self.view_suffix = CFG.get_safe('eoi.postgres.table_suffix', '_view')
+
+        self.coverage_fdw_sever = CFG.get_safe('eoi.fdw.server', 'cov_srv')
 
         self.con = None
         self.postgres_db_available = False
         self.importer_service_available = False
         self.use_geo_services = False
 
-        if self.using_eoi_services:
-            try:
-                self.con = psycopg2.connect(database=self.database, user=self.db_user, password=self.db_pass)
-                self.cur = self.con.cursor()
-                #checks the connection
-                self.cur.execute('SELECT version()')
-                ver = self.cur.fetchone()
-                self.postgres_db_available = True
-                self.importer_service_available = self.check_for_importer_service()
-                log.debug(str(ver))
+        try:
+            self.con = psycopg2.connect(database=self.database, user=self.db_user, password=self.db_pass)
+            self.cur = self.con.cursor()
+            #checks the connection
+            self.cur.execute('SELECT version()')
+            ver = self.cur.fetchone()
+            self.postgres_db_available = True
+            self.importer_service_available = self.check_for_importer_service()
+            log.debug(str(ver))
 
-            except psycopg2.databaseError as e:
-                #error setting up connection
-                log.debug('Error %s', e)
+        except psycopg2.databaseError as e:
+            #error setting up connection
+            log.debug('Error %s', e)
+        
+        if self.postgres_db_available and self.importer_service_available:
+            self.use_geo_services = True
+            log.debug("TableLoader:Using geoservices...")
+        else:
+            log.debug("TableLoader:NOT using geoservices...") 
 
-            
-            if self.postgres_db_available and self.importer_service_available:
-                self.use_geo_services = True
-                log.debug("TableLoader:Using geoservices...")
-            else:
-                log.debug("TableLoader:NOT using geoservices...")
-
+    def get_eoi_service_available(self):
+        """
+        returns the current status of the eoi services
+        """
+        return self.use_geo_services
 
     def check_for_importer_service(self):
         try:
@@ -108,15 +124,18 @@ class ResourceParser():
         """
         Reset all data and rows, and layers
         """
-        #remove all FDT from the DB
-        self.cur.execute(self.drop_all_fdt())    
-        self.con.commit()
-        list_rows = self.cur.fetchall()
-        for row in list_rows:
-            self.drop_existing_table(row[0], use_cascade=True)    
+        if self.get_eoi_service_available():
+            #remove all FDT from the DB
+            self.cur.execute(self.drop_all_fdt())    
+            self.con.commit()
+            list_rows = self.cur.fetchall()
+            for row in list_rows:
+                self.drop_existing_table(row[0], use_cascade=True)    
 
-        #reset the layer information on geoserver
-        self.send_geonode_request(self.resetstore, "ooi") 
+            #reset the layer information on geoserver
+            self.send_geonode_request(self.resetstore, "ooi") 
+        else:
+            log.debug("services not available...")    
 
     def process_status_code(self, status_code):        
         if status_code == 200:
