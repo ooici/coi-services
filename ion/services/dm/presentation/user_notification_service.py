@@ -826,10 +826,14 @@ class UserNotificationService(BaseUserNotificationService):
                 actor_ids = {evt.actor_id for evt in events if evt.actor_id}
                 log.debug("Looking up UserInfo for actors: %s" % actor_ids)
                 if actor_ids:
-                    userinfo_list, assoc_list = self.clients.resource_registry.find_objects_mult(actor_ids,
-                                                                                                 predicate=PRED.hasInfo,
-                                                                                                 id_only=False)
-                    actor_map = {assoc.s: uinfo for uinfo, assoc in zip(userinfo_list, assoc_list)}
+                    #userinfo_list, assoc_list = self.clients.resource_registry.find_objects_mult(actor_ids, id_only=False)
+                    actor_map = {}
+                    for actor_id in actor_ids:
+                        # NOTE: This is an O(n) algorithm. Cannot use find_subjects_mult because it does not support
+                        # filter by predicate. Would get too many results
+                        uinfo_list, _ = self.clients.resource_registry.find_objects(actor_id, predicate=PRED.hasInfo, id_only=False)
+                        if uinfo_list:
+                            actor_map[actor_id] = uinfo_list[0]
 
                     for evt, evt_cmp in zip(events, ret.computed_list):
                         ui = actor_map.get(evt.actor_id, None)
