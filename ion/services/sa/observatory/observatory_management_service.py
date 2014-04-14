@@ -998,8 +998,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("Unknown site type '%s' for site %s" % (site_type, site_id))
 
         from ion.util.extresource import strip_resource_extension, get_matchers, matcher_DataProduct, matcher_DeviceModel, \
-            matcher_Device, matcher_UserRole, matcher_UserInfo
-        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Device, matcher_UserRole, matcher_UserInfo])
+            matcher_Device, matcher_UserInfo
+        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Device, matcher_UserInfo])
         strip_resource_extension(site_extension, matchers=matchers)
 
         return site_extension
@@ -1376,8 +1376,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #platform_status: !ComputedListValue
 
         from ion.util.extresource import strip_resource_extension, get_matchers, matcher_DataProduct, matcher_DeviceModel, \
-            matcher_Device, matcher_UserRole, matcher_UserInfo
-        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Device, matcher_UserRole, matcher_UserInfo])
+            matcher_Device, matcher_UserInfo
+        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Device, matcher_UserInfo])
         strip_resource_extension(extended_deployment, matchers=matchers)
 
         return extended_deployment
@@ -1538,8 +1538,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.deployment_info = describe_deployments(extended_org.deployments, self.clients, instruments=extended_org.instruments, instrument_status=extended_org.computed.instrument_status.value)
 
         from ion.util.extresource import strip_resource_extension, get_matchers, matcher_DataProduct, matcher_DeviceModel, \
-            matcher_Device, matcher_UserRole, matcher_UserInfo
-        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Device, matcher_UserRole, matcher_UserInfo])
+            matcher_Device, matcher_UserInfo
+        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Device, matcher_UserInfo])
         strip_resource_extension(extended_org, matchers=matchers)
 
         return extended_org
