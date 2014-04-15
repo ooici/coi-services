@@ -201,8 +201,6 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEquals(len(deploy_list), 2)
 
         for dply_obj in deploy_list:
-            # CabledNode should have just one item in the assignments list
-            self.assertEquals(len(dply_obj.port_assignments), 1)
 
             for dev_id, platform_port in dply_obj.port_assignments.iteritems():
                 # all values in the port assignments dict should be PlatformPort objects
