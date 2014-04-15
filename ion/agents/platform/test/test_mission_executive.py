@@ -144,15 +144,13 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
 
         return p_root
 
-    def simulate_profiler_events(self):
+    def simulate_profiler_events(self, profile_type):
         """
         Simulate the Shallow Water profiler stair step mission
         """
         event_publisher = EventPublisher(event_type="ResourceAgentResourceStateEvent")
 
         profiler_resource_id = 'FakeID'
-        seconds_between_steps = 120
-        num_steps = 2
         num_profiles = 2
 
         def profiler_event_state_change(state, sleep_duration):
@@ -169,23 +167,46 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
                                           **event_data)
             gevent.sleep(sleep_duration)
 
-        # Let's simulate a profiler stair step scenario
-        for x in range(num_profiles):
-            # Going up
-            state = 'atStep'
-            for up in range(num_steps):
+        def stair_step_simulator():
+            # Let's simulate a profiler stair step scenario
+
+            seconds_between_steps = 120
+            num_steps = 2
+
+            for x in range(num_profiles):
+                # Going up
+                # state = 'atStep'
+                # for up in range(num_steps):
+                #     profiler_event_state_change(state, seconds_between_steps)
+
+                state = 'atCeiling'
                 profiler_event_state_change(state, seconds_between_steps)
 
-            state = 'atCeiling'
-            profiler_event_state_change(state, seconds_between_steps)
+                # Step down
+                state = 'atStep'
+                for down in range(num_steps):
+                    profiler_event_state_change(state, seconds_between_steps)
 
-            # Going down
-            state = 'atStep'
-            for down in range(num_steps):
+                state = 'atFloor'
                 profiler_event_state_change(state, seconds_between_steps)
 
-            state = 'atFloor'
-            profiler_event_state_change(state, seconds_between_steps)
+        def up_down_simulator():
+            # Let's simulate a profiler up-down scenario
+            seconds_between_steps = 5 * 60
+
+            for x in range(num_profiles):
+                # start at bottom
+                state = 'atFloor'
+                profiler_event_state_change(state, seconds_between_steps)
+
+                # ascend to ceiling depth
+                state = 'atCeiling'
+                profiler_event_state_change(state, seconds_between_steps)
+
+        if profile_type == 'stair_step':
+            stair_step_simulator()
+        else:
+            up_down_simulator()
 
     def load_mission(self, yaml_filename='ion/agents/platform/test/mission_RSN_simulator1.yml'):
         """
@@ -194,7 +215,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         self.mission = MissionLoader()
         self.mission.load_mission_file(yaml_filename)
 
-    # @skip("Work in progress...")
+    @skip("Work in progress...")
     def test_simple_simulator_mission(self):
         """
         Test the RSN OMS platform simulator with the SBE37_SIM instruments
@@ -208,7 +229,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         # Start Mission Scheduer
         self.missionSchedule = MissionScheduler(self._pa_client, self._instruments, self.mission.mission_entries)
 
-    # @skip("Work in progress...")
+    @skip("Work in progress...")
     def test_shallow_profiler_mission(self):
         """
         Test the Shallow Water Profiler mission
@@ -224,7 +245,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         self.threads.append(gevent.spawn(
             MissionScheduler, self._pa_client, self._instruments, self.mission.mission_entries))
         # self.threads.append(gevent.spawn_later(30, SimulateShallowWaterProfilerEvents()))
-        self.threads.append(gevent.spawn_later(60, self.simulate_profiler_events()))
+        self.threads.append(gevent.spawn_later(120, self.simulate_profiler_events, 'stair_step'))
 
         gevent.joinall(self.threads)
 
