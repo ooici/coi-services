@@ -161,7 +161,7 @@ DEFAULT_CATEGORIES = [
     'InstrumentAgentInstance',
     'DataProduct',
     'TransformFunction',
-    #'DataProcessDefinition',           # Temporarily unsupported
+    'DataProcessDefinition',
     'DataProcess',
     'Parser',
     'Attachment',
