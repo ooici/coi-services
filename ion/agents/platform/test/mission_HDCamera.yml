@@ -1,0 +1,85 @@
+name: HDCamera Mission
+version: 0.1
+description: Sample HDCamera Mission
+
+platform:
+  platformID: HDCamera03A
+
+mission:
+    - instrument: 
+      instrumentID: HDCamera
+      schedule:
+        startTime: 02/01/2014 00:00:00
+        loop:
+          quantity: -1
+          value: 24
+          units: hrs
+        event:
+          parentID:
+          eventID: 
+      missionParams:
+        # - command: Connect
+        #   params: {}
+        - command: Pan
+          params: {'angle': 0, 'rate': 10}
+        - command: Tilt
+          params: {'angle': 0, 'rate': 10}
+        - command: Zoom
+          params: {'level': 200}
+        - command: Lights
+          params: {'power': 0.5}
+        - command: Lasers
+          params: {'power': 1}
+        - command: Wait
+          params: {'duration': 5, 'units': 'mins'}
+        - command: Zoom
+          params: {'level': 100}
+        - command: Wait
+          params: {'duration': 5, 'units': 'mins'}
+        - command: Pan
+          params: {'angle': -90, 'rate': 1}
+        - command: Pan
+          params: {'angle': 90, 'rate': 1}
+        - command: Pan
+          params: {'angle': 0, 'rate': 10}
+        - command: Tilt
+          params: {'angle': 0, 'rate': 10}
+        - command: Zoom
+          params: {'level': 100}
+        - command: Lights
+          params: {'power': 0}
+        # - command: Disconnect
+        #   params: {}
+
+    - instrument: 
+      instrumentID: HDCamera
+      schedule:
+        startTime: 02/01/2014 02:00:00
+        loop:
+          quantity: -1
+          value: 4
+          units: hrs
+        event:
+          parentID:
+          eventID: 
+      missionParams:
+        # - command: Connect
+        #   params: {}
+        - command: Pan
+          params: {'angle': 0, 'rate': 10}
+        - command: Tilt
+          params: {'angle': 0, 'rate': 10}
+        - command: Zoom
+          params: {'level': 50}
+        - command: Lights
+          params: {'power': 0.30}
+        - command: Lasers
+          params: {'power': 1}
+        - command: Wait
+          params: {'duration': 10, 'units': 'mins'}
+        - command: Lights
+          params: {'power': 0}
+        - command: Lasers
+          params: {'power': 0}
+        # - command: Disconnect
+        #   params: {}

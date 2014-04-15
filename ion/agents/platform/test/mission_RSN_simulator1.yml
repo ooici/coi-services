@@ -1,46 +1,63 @@
 name: OMS Simulator Mission
-version: 0.1
-description: Sample OMS Simulator Mission 1
+version: 0.4
+description: Sample OMS Simulator Mission
 
 platform:
   platformID: LJ01D
 
 # This sets up a mission for 2 CTD simulators (SBE37_SIM_02 and SBE37_SIM_03) 
 # on LJ01D from the RSN OMS simulator
-# SBE37_SIM_02 mission will start at 00:00:00, wait, sample, and idle
-# This mission will loop every 30 mins until an operator intervenes
-# SBE37_SIM_03 mission will start at 00:00:00, wait, sample, and idle
-# This mission will loop every day until an operator intervenes
+# SBE37_SIM_02 mission will start at 00:00:00 and sample for 15 minutes @ 1 Hz
+# SBE37_SIM_03 will perform the same mission after SBE37_SIM_02
+# This mission will loop every hour until an operator intervenes
 
 mission:
-    - instrument: 
-      instrumentID: SBE37_SIM_02
+  - instrument: 
+    instrumentID: [SBE37_SIM_02, SBE37_SIM_03]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:
+      startTime: 03/27/2014 00:00:00
+      loop:
+        quantity: -1   # No. of loops (-1 for infinite)
+        value: 10      # Repeat missionParams every 'xx' 'units'
+        units: mins    # mins, hrs, days
+      event:
+        parentID:
+        eventID: 
+    preMissionSequence:
+      # - command: SBE37_SIM_02, execute_agent(RUN)
+      #   onError:
+      # - command: SBE37_SIM_03, execute_agent(RUN)
+      #   onError:
+    missionSequence:
+      - command: SBE37_SIM_02, set_resource(INTERVAL{1})
+        onError: retry
+      - command: SBE37_SIM_02, execute_resource(START_AUTOSAMPLE)
+        onError: retry
+      - command: wait(1)
+        onError:
+      - command: SBE37_SIM_02, execute_resource(STOP_AUTOSAMPLE)
+        onError: retry
+      - command: SBE37_SIM_03, set_resource(INTERVAL{1})
+        onError: retry
+      - command: SBE37_SIM_03, execute_resource(START_AUTOSAMPLE)
+        onError: retry
+      - command: wait(1)
+        onError:
+      - command: SBE37_SIM_03, execute_resource(STOP_AUTOSAMPLE)
+        onError: retry
+    postMissionSequence:
+      - command: SBE37_SIM_02, execute_agent(RESET)
+        onError: retry
+      - command: SBE37_SIM_03, execute_agent(RESET)
+        onError: retry
 
-      schedule:
-        startTime: 03/04/2014 00:00:00
-        loop:
-          quantity: -1  # No. of loops (-1 for infinite)
-          value: 30     # Repeat missionParams every 'xx' 'units'
-          units: mins   # mins, hrs, days
 
-      missionParams:
-        - command: Wait
-          params: {'duration': 5, 'units': 'secs'}      #[duration, duration units]
-        - command: Sample
-          params: {'duration': 55, 'units': 'secs', 'interval': 5}  #[duration, duration units, time between samples]
 
-    - instrument: 
-      instrumentID: SBE37_SIM_03
 
-      schedule:
-        startTime: 03/04/2014 00:00:00
-        loop:
-          quantity: -1  # No. of loops (-1 for infinite)
-          value: 24     # Repeat missionParams every 'xx' 'units'
-          units: hrs   # mins, hrs, days
 
-      missionParams:
-        - command: Wait
-          params: {'duration': 5, 'units': 'secs'}      #[duration, duration units]
-        - command: Sample
-          params: {'duration': 55, 'units': 'secs', 'interval': 5}   #[duration, duration units, time between samples]
+
+
+
