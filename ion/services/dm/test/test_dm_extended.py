@@ -1618,7 +1618,10 @@ def rotate_v(u,v,theta):
         self.resource_registry.create_association(site_id, 'hasModel', model_id)
         #self.instrument_management.assign_instrument_model_to_instrument_site(model_id, site_id)
 
-        deployment = Deployment(name='Operation Malabar', type="Cabled", context=CabledInstrumentDeploymentContext())
+        pp_obj = IonObject(OT.PlatformPort, reference_designator='CP01CNSM-MFD37-03-CTDBPD000', port_type= PortTypeEnum.PAYLOAD, ip_address='1' )
+        port_assignments = {device_id : pp_obj}
+
+        deployment = Deployment(name='Operation Malabar', type="Cabled", context=CabledInstrumentDeploymentContext(), port_assignments=port_assignments)
         deployment_id = self.observatory_management.create_deployment(deployment, site_id, device_id)
         self.observatory_management.activate_deployment(deployment_id)
         

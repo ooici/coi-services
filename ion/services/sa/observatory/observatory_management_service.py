@@ -16,7 +16,7 @@ from pyon.ion.resource import ExtendedResourceContainer
 
 from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
-from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
+from ion.services.sa.observatory.deployment_activator import DeploymentPlanner, DeploymentResourceCollector
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.processes.event.device_state import DeviceStateManager
@@ -650,31 +650,29 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         Make the devices on this deployment the primary devices for the sites
         """
         #Verify that the deployment exists
-        depl_obj = self.RR2.read(deployment_id)
-        log.debug("Activating deployment '%s' (%s)", depl_obj.name, deployment_id)
+        deployment_obj = self.RR2.read(deployment_id)
 
-        deployment_activator_factory = DeploymentActivatorFactory(self.clients)
-        deployment_activator = deployment_activator_factory.create(depl_obj)
-        deployment_activator.prepare()
+        self.deploy_planner = DeploymentPlanner(self.clients)
+        self.deploy_planner.prepare_activation(deployment_obj)
 
         # process any removals
-        for site_id, device_id in deployment_activator.hasdevice_associations_to_delete():
+        for site_id, device_id in self.deploy_planner.hasdevice_associations_to_delete():
             log.info("Unassigning hasDevice; device '%s' from site '%s'", device_id, site_id)
             self.unassign_device_from_site(device_id, site_id)
             log.info("Removing geo and updating temporal attrs for device '%s'", device_id)
-            self._update_device_remove_geo_update_temporal(device_id, depl_obj)
+            self._update_device_remove_geo_update_temporal(device_id, deployment_obj)
 
         # process the additions
-        for site_id, device_id in deployment_activator.hasdevice_associations_to_create():
+        for site_id, device_id in self.deploy_planner.hasdevice_associations_to_create():
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
             log.info("Adding geo and updating temporal attrs for device '%s'", device_id)
-            self._update_device_add_geo_add_temporal(device_id, site_id, depl_obj)
+            self._update_device_add_geo_add_temporal(device_id, site_id, deployment_obj)
 
-        if depl_obj.lcstate != LCS.DEPLOYED:
+        if deployment_obj.lcstate != LCS.DEPLOYED:
             self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
         else:
-            log.warn("Deployment %s was already DEPLOYED when activated", depl_obj._id)
+            log.warn("Deployment %s was already DEPLOYED when activated", deployment_obj._id)
 
 
     def deactivate_deployment(self, deployment_id=''):
@@ -692,9 +690,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 #            raise BadRequest("This deploment is not active")
 
         # get all associated components
-        collector_factory = DeploymentResourceCollectorFactory(self.clients)
-        resource_collector = collector_factory.create(deployment_obj)
-        resource_collector.collect()
+        resource_collector = DeploymentResourceCollector(self.clients)
+        resource_collector.collect_deployment_resources(deployment_obj)
 
         # must only remove from sites that are not deployed under a different active deployment
         # must only remove    devices that are not deployed under a different active deployment
