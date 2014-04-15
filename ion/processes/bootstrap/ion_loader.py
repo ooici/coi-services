@@ -114,7 +114,8 @@ MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfS
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
 #TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dDZoajE3d1Z3WkE0T0tyOW9oYmZqenc&output=xls"
-TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0ArFEMmslwP1ddHY3Zmlza0h5LXZINmpXRXNvRXBkdEE&output=xls"
+#Apr15 TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0ArFEMmslwP1ddHY3Zmlza0h5LXZINmpXRXNvRXBkdEE&output=xls"
+TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dHRFS0x4eWdRM21vMHdEMWZTeFFNTVE&output=xls"
 
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -3577,8 +3578,11 @@ Reason: %s
                                          reference_designator=port_asgn_info.get("reference_designator", ""),
                                          port_type=port_asgn_info.get("port_type", PortTypeEnum.NONE),
                                          ip_address=str(port_asgn_info.get("ip_address", "") ))
-                device_resrc_id = self.resource_ids[dev_id]
-                assignments[device_resrc_id] = platform_port
+                if dev_id in self.resource_ids:
+                    device_resrc_id = self.resource_ids[dev_id]
+                    assignments[device_resrc_id] = platform_port
+                else:
+                    log.warning("Deployment loading device_resrc_id %s does not have port assignment information", dev_id)
         return assignments
 
     def _load_Deployment(self, row):
@@ -3586,6 +3590,8 @@ Reason: %s
         coordinate_name = row['coordinate_system']
         context_type = row['context_type']
         context = IonObject(context_type)
+
+        #build port assigments
         assignments = self._get_port_assignments(row.get('port_assignment', None))
 
         deployment_id = self._basic_resource_create(row, "Deployment", "d/",
