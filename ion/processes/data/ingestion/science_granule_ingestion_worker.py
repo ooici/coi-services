@@ -242,18 +242,62 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         for data_product in data_products:
             self.update_time(data_product, rdt[rdt.temporal_parameter][:])
             self.update_geo(data_product, rdt)
-            self.container.resource_registry.update(data_product)
+            try:
+                self.container.resource_registry.update(data_product)
+            except: # TODO: figure out WHICH Exception gets raised here when the bounds are off
+                log.error("Problem updating the data product metadata", exc_info=True)
+                # Carry on :(
+
+
 
     def update_time(self, data_product, t):
+        t0, t1 = self.get_datetime_bounds(data_product)
         #TODO: Account for non NTP-based timestamps
-        t_min = np.min(t)
-        t_min -= 2208988800
-        t_max = np.max(t)
-        t_max -= 2208988800
+        min_t = np.min(t) - 2208988800
+        max_t = np.max(t) - 2208988800
+        if t0:
+            t0 = min(t0, min_t)
+        else:
+            t0 = min_t
 
-        if not data_product.nominal_datetime.start_datetime:
-            data_product.nominal_datetime.start_datetime = t_min
-        data_product.nominal_datetime.end_datetime = t_max
+        if t1:
+            t1 = max(t1, max_t)
+        else:
+            t1 = max_t
+
+        if t0 > t1:
+            log.error("This should never happen but t0 > t1")
+
+        data_product.nominal_datetime.start_datetime = t0
+        data_product.nominal_datetime.end_datetime = t1
+
+    def get_datetime(self, nominal_datetime):
+        '''
+        Returns a floating point value for the datetime or None if it's an
+        empty string
+        '''
+        t = None
+        # So normally this is a string
+        if isinstance(nominal_datetime, (float, int)):
+            t = nominal_datetime # simple enough
+        elif isinstance(nominal_datetime, basestring):
+            if nominal_datetime: # not an empty string
+                # Try to convert it to a float
+                try:
+                    t = float(nominal_datetime)
+                except ValueError:
+                    pass
+        return t
+
+    def get_datetime_bounds(self, data_product):
+        '''Returns the min and max for the bounds in the nominal_datetime
+        attr
+        '''
+        
+        t0 = self.get_datetime(data_product.nominal_datetime.start_datetime)
+        t1 = self.get_datetime(data_product.nominal_datetime.end_datetime)
+        return (t0, t1)
+
 
     def update_geo(self, data_product, rdt):
         lat = None
