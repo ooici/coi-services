@@ -39,6 +39,7 @@
       ooiparams= if True (default is False) create links to OOI parameter definitions
       ooiactivate= if True (default is True) activate deployments/persistence for assets actually deployed in the past
       ooiupdate= if True (default is False), supports in-place updates to OOI generated resources
+      ooirename= if True (default is True) and ooiupdate==True, renames existing OOI resources if needed
 
       debug= if True, allows shortcuts to perform faster loads (where possible)
       bulk= if True, uses RR bulk insert operations to load, not service calls
@@ -331,6 +332,7 @@ class IONLoader(ImmediateProcess):
             self.ooiactivate = bool(config.get("ooiactivate", True))  # Activate deployments and persistence
             self.parseooi = config.get("parseooi", False)
             self.ooiupdate = config.get("ooiupdate", False)      # Support update to existing OOI generated resources
+            self.ooirename = config.get("ooirename", True)       # Support update of names for existing OOI resources
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
 
@@ -2290,7 +2292,7 @@ Reason: %s
         needupdate = False
         # Update name if different
         prefix = "id" if instrument else "pd"
-        if res_obj.name != newrow[prefix+'/name']:
+        if self.ooirename and res_obj.name != newrow[prefix+'/name']:
             res_obj.name = newrow[prefix+'/name']
             needupdate = True
         # Update description if different
@@ -2884,7 +2886,7 @@ Reason: %s
         res_obj = self._get_resource_obj(ai_id)
         needupdate = False
         # Update name if different
-        if res_obj.name != newrow[prefix+'/name']:
+        if self.ooirename and res_obj.name != newrow[prefix+'/name']:
             res_obj.name = newrow[prefix+'/name']
             needupdate = True
         # Update description if different
@@ -3328,7 +3330,7 @@ Reason: %s
             res_obj = self._get_resource_obj(dp_id)
             needupdate = False
             # Update name if different
-            if res_obj.name != newrow['dp/name']:
+            if self.ooirename and res_obj.name != newrow['dp/name']:
                 res_obj.name = newrow['dp/name']
                 needupdate = True
             # Update geospatial bounds if not yet set
@@ -3838,7 +3840,7 @@ Reason: %s
             res_obj = self._get_resource_obj(dep_id)
             needupdate = False
             # Update name if different
-            if res_obj.name != newrow['d/name']:
+            if self.ooirename and res_obj.name != newrow['d/name']:
                 res_obj.name = newrow['d/name']
                 needupdate = True
             # Check port_assignments
