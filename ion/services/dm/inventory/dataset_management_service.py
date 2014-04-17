@@ -754,3 +754,9 @@ class DatasetManagementService(BaseDatasetManagementService):
                 pdict.add_context(context)
         return pdict
 
+    def read_qc_table(self, obj_id):
+        obj = self.container.object_store.read(obj_id)
+        if '_type' in obj and obj['_type'] == 'QC':
+            return obj
+        else:
+            raise BadRequest('obj_id %s not QC' % obj_id)

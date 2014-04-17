@@ -10,6 +10,7 @@ import numpy as np
 from nose.plugins.attrib import attr
 from webtest import TestApp
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from ion.services.coi.service_gateway_service import service_gateway_app
 from ion.services.dm.test.dm_test_case import DMTestCase
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
@@ -390,6 +391,93 @@ Archive:  local_range_test.zip
               }
            ]
         })
+
+    def test_download(self):
+
+        # clients
+        dataset_management = DatasetManagementServiceClient()
+
+        # verify target object [REFDES01] do not exist in object_store
+        self.assertRaises(NotFound, dataset_management.read_qc_table, 'REFDES01')
+
+        # NOTE: time is again monkey patched in 'test_upload_qc' but should be static for that
+        # MONKEY PATCH time.time() for volatile ts_updated values in dict (set in POST below)
+        CONSTANT_TIME = time.time() # time value we'll use in assert tests
+        def new_time():
+            return CONSTANT_TIME
+        old_time = time.time
+        time.time = new_time
+
+        #upload some data
+        self.test_upload_qc()
+
+        # restore MONKEY PATCHed time
+        time.time = old_time
+
+        REFDES01 = dataset_management.read_qc_table('REFDES01')
+        RD01DP01 = REFDES01.get('RD01DP01', None)
+        self.assertEquals(RD01DP01, {
+           'stuck_value':[
+              {
+                 'units':'C',
+                 'consecutive_values':10,
+                 'ts_created':CONSTANT_TIME,
+                 'resolution':0.005,
+                 'author':'Otter'
+              }
+           ],
+           'gradient_test':[
+              {
+                 'toldat':0.1,
+                 'xunits':'s',
+                 'mindx':30,
+                 'author':'Boon',
+                 'startdat':None,
+                 'ddatdx':[-0.01, 0.01],
+                 'units':'C',
+                 'ts_created':CONSTANT_TIME
+              }
+           ],
+           'global_range':[
+              {
+                 'units':'m/s',
+                 'max_value':1,
+                 'min_value':-1,
+                 'ts_created':CONSTANT_TIME,
+                 'author':'Douglas C. Neidermeyer'
+              },
+              {
+                 'units':'m/s',
+                 'max_value':10,
+                 'min_value':-10,
+                 'ts_created':CONSTANT_TIME,
+                 'author':'Bluto'
+              }
+           ],
+           'trend_test':[
+              {
+                 'author':'Pinto',
+                 'standard_deviation':4.5,
+                 'polynomial_order':4,
+                 'sample_length':25,
+                 'units':'K',
+                 'ts_created':CONSTANT_TIME
+              }
+           ],
+           'spike_test':[
+              {
+                 'author':'Flounder',
+                 'range_multiplier':4,
+                 'window_length':15,
+                 'units':'degrees',
+                 'ts_created':CONSTANT_TIME,
+                 'accuracy':0.0001
+              }
+           ]
+        })
+
+
+
 
     def getUploadedParameterContexts(self, dp_id):
         '''
