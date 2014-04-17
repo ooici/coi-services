@@ -17,82 +17,17 @@ from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
 import constraint
 
-CSP_DEVICE_PREFIX = "Csp-Device"
-def mk_csp_var(label):
-    return "%s_%s" % (CSP_DEVICE_PREFIX, label)
 
-def unpack_csp_var(var):
-    return var.split("_")[1]
-
-class DeploymentOperatorFactory(object):
+class DeploymentResourceCollector(object):
     """
-    Deployment operators all require a deployment object and a set of options describing how their devices
-    are included.  This class builds them appropriately based on deployment objects
+    A deployment resource collector pulls in all devices, sites, and models related to a deployment.
+
+    its primary purpose is to collect( ) after which you'll be able to access what it collected.
+
+    various lookup tables exist to prevent too many hits on the resource registry.
     """
 
     def __init__(self, clients, RR2=None):
-        self.clients = clients
-        self.RR2 = RR2 #enhanced resource registry client
-
-    def creation_type(self):
-        raise NotImplementedError("this function should be overridden, and return the class to be instantiated")
-
-    def create(self, deployment_obj):
-        deployment_context_type = type(deployment_obj.context).__name__
-
-        new_object_type = self.creation_type()
-
-        # a bundled, integrated platform
-        if deployment_context_type in (OT.RemotePlatformDeploymentContext, OT.MobileAssetDeploymentContext):
-            return new_object_type(self.clients,
-                                   deployment_obj,
-                                   allow_children=True,
-                                   include_children=True,
-                                   RR2=self.RR2)
-
-        # a one-to-one deployment of an instrument onto an RSN platform
-        if OT.CabledInstrumentDeploymentContext == deployment_context_type:
-            return new_object_type(self.clients,
-                                   deployment_obj,
-                                   allow_children=True,
-                                   include_children=False,
-                                   RR2=self.RR2)
-
-        # single node, with instruments optionally
-        if OT.CabledNodeDeploymentContext == deployment_context_type:
-            return new_object_type(self.clients,
-                                   deployment_obj,
-                                   allow_children=True,
-                                   include_children=False,
-                                   RR2=self.RR2)
-
-        raise BadRequest("Can't activate deployments of unimplemented context type '%s'" % deployment_context_type)
-
-class DeploymentActivatorFactory(DeploymentOperatorFactory):
-
-    def creation_type(self):
-        return DeploymentActivator
-
-
-class DeploymentResourceCollectorFactory(DeploymentOperatorFactory):
-
-    def creation_type(self):
-        return DeploymentResourceCollector
-
-
-
-
-
-
-class DeploymentOperator(object):
-    """
-    A deployment operator (in the functional addition/subtraction/comparison operator sense) understands attributes
-    of a deployment, as determined by several static parameters. (these are based on the deployment context).
-
-    This is the base class
-    """
-
-    def __init__(self, clients, deployment_obj, allow_children, include_children, RR2=None):
         """
         @param clients dict of clients from a service
         @param deployment_obj the deployment to activate
@@ -102,36 +37,18 @@ class DeploymentOperator(object):
         """
 
         self.clients = clients
-        self.RR2 = RR2
+        self.enhanced_rr = RR2
 
-        #sanity
-        if include_children: assert allow_children
-        self.allow_children = allow_children
-        self.include_children = include_children
+        if None is self.enhanced_rr:
+            self.enhanced_rr = EnhancedResourceRegistryClient(self.clients.resource_registry)
 
-        if None is self.RR2:
-            self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
-
-        if not isinstance(self.RR2, EnhancedResourceRegistryClient):
-            raise AssertionError("Type of self.RR2 is %s not %s" %
-                                 (type(self.RR2), type(EnhancedResourceRegistryClient)))
-
-        self.deployment_obj = deployment_obj
+        if not isinstance(self.enhanced_rr, EnhancedResourceRegistryClient):
+            raise AssertionError("Type of self.enhanced_rr is %s not %s" %
+                                 (type(self.enhanced_rr), type(EnhancedResourceRegistryClient)))
 
         self.on_init()
 
-    def on_init(self):
-        pass
 
-
-class DeploymentResourceCollector(DeploymentOperator):
-    """
-    A deployment resource collector pulls in all devices, sites, and models related to a deployment.
-
-    its primary purpose is to collect( ) after which you'll be able to access what it collected.
-
-    various lookup tables exist to prevent too many hits on the resource registry.
-    """
     def on_init(self):
         # return stuff
         self._device_models = {}
@@ -184,11 +101,11 @@ class DeploymentResourceCollector(DeploymentOperator):
         if resource_id in self._type_lookup:
             self._typecache_hits += 1
             log.trace("Typeache HIT/miss = %s / %s", self._typecache_hits, self._typecache_miss)
-            return self.RR2.read(resource_id, self._type_lookup[resource_id])
+            return self.enhanced_rr.read(resource_id, self._type_lookup[resource_id])
 
         self._typecache_miss += 1
         log.trace("Typeache hit/MISS = %s / %s", self._typecache_hits, self._typecache_miss)
-        rsrc_obj = self.RR2.read(resource_id)
+        rsrc_obj = self.enhanced_rr.read(resource_id)
         self.typecache_add(resource_id, rsrc_obj._get_type())
         return rsrc_obj
 
@@ -216,13 +133,13 @@ class DeploymentResourceCollector(DeploymentOperator):
 
         rsrc_type = self.get_resource_type(resource_id)
         if RT.PlatformDevice == rsrc_type:
-            model = self.RR2.find_platform_model_id_of_platform_device_using_has_model(resource_id)
+            model = self.enhanced_rr.find_platform_model_id_of_platform_device_using_has_model(resource_id)
         elif RT.PlatformSite == rsrc_type:
-            model = self.RR2.find_platform_model_ids_of_platform_site_using_has_model(resource_id)
+            model = self.enhanced_rr.find_platform_model_ids_of_platform_site_using_has_model(resource_id)
         elif RT.InstrumentDevice == rsrc_type:
-            model = self.RR2.find_instrument_model_id_of_instrument_device_using_has_model(resource_id)
+            model = self.enhanced_rr.find_instrument_model_id_of_instrument_device_using_has_model(resource_id)
         elif RT.InstrumentSite == rsrc_type:
-            model = self.RR2.find_instrument_model_ids_of_instrument_site_using_has_model(resource_id)
+            model = self.enhanced_rr.find_instrument_model_ids_of_instrument_site_using_has_model(resource_id)
         else:
             raise AssertionError("Got unexpected type from which to find a model: %s" % rsrc_type)
 
@@ -257,7 +174,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         time_caching_start = get_ion_ts()
         for pred in preds:
             log.debug(" - %s", pred)
-            self.RR2.cache_predicate(pred)
+            self.enhanced_rr.cache_predicate(pred)
         time_caching_stop = get_ion_ts()
 
         total_time = int(time_caching_stop) - int(time_caching_start)
@@ -271,7 +188,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         time_caching_start = get_ion_ts()
         for r in rsrcs:
             log.debug(" - %s", r)
-            self.RR2.cache_resources(r)
+            self.enhanced_rr.cache_resources(r)
         time_caching_stop = get_ion_ts()
 
         total_time = int(time_caching_stop) - int(time_caching_start)
@@ -279,23 +196,35 @@ class DeploymentResourceCollector(DeploymentOperator):
         log.info("Cached %s resource types in %s seconds", len(rsrcs), total_time / 1000.0)
 
     def _fetch_caches(self):
-        if any([not self.RR2.has_cached_predicate(x) for x in self._predicates_to_cache()]):
+        if any([not self.enhanced_rr.has_cached_predicate(x) for x in self._predicates_to_cache()]):
             self._update_cached_predicates()
 
-        if any([not self.RR2.has_cached_resource(x) for x in self._resources_to_cache()]):
+        if any([not self.enhanced_rr.has_cached_resource(x) for x in self._resources_to_cache()]):
             self._update_cached_resources()
 
 
     def _clear_caches(self):
         log.warn("Clearing caches")
         for r in self._resources_to_cache():
-            self.RR2.clear_cached_resource(r)
+            self.enhanced_rr.clear_cached_resource(r)
 
         for p in self._predicates_to_cache():
-            self.RR2.clear_cached_predicate(p)
+            self.enhanced_rr.clear_cached_predicate(p)
 
+    def _include_children(self):
+        deployment_context_type = type(self.deployment_obj.context).__name__
 
-
+        # a bundled, integrated platform
+        if deployment_context_type in (OT.RemotePlatformDeploymentContext, OT.MobileAssetDeploymentContext):
+            return True
+        # a one-to-one deployment of an instrument onto an RSN platform
+        if OT.CabledInstrumentDeploymentContext == deployment_context_type:
+            return False
+        # single node, with instruments optionally
+        if OT.CabledNodeDeploymentContext == deployment_context_type:
+            return True
+        raise BadRequest("Can't activate deployments of unimplemented context type '%s'" % deployment_context_type)
+    
 
     def _build_tree(self, root_id, assn_type, leaf_types, known_leaves):
         """
@@ -316,7 +245,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         tree["type"] = self._type_lookup[root_id]
         if PRED.hasDevice == assn_type:
             tree["model"] = self.find_models_fromcache(root_id)
-            tree["model_name"] = self.RR2.read(tree["model"]).name
+            tree["model_name"] = self.enhanced_rr.read(tree["model"]).name
             assert type("") == type(tree["model"]) == type(tree["model_name"])
         elif PRED.hasSite == assn_type:
             tree["models"] = self.find_models_fromcache(root_id)
@@ -329,10 +258,10 @@ class DeploymentResourceCollector(DeploymentOperator):
         # build list of children
         children  = []
         for lt in leaf_types:
-            immediate_children = self.RR2.find_objects(root_id, assn_type, lt, True)
+            immediate_children = self.enhanced_rr.find_objects(root_id, assn_type, lt, True)
 
             # filter list to just the allowed stuff if we aren't meant to find new all children
-            if not self.include_children:
+            if not self._include_children():
                 immediate_children = filter(lambda x: x in known_leaves, immediate_children)
 
             children += immediate_children
@@ -379,11 +308,11 @@ class DeploymentResourceCollector(DeploymentOperator):
         return None
 
 
-
-    def collect(self):
+    def collect_deployment_resources(self, deployment_obj):
         """
         Get all the resources involved for a deployment.  store them several ways.
         """
+        self.deployment_obj = deployment_obj
 
         # fetch caches just in time
         self._fetch_caches()
@@ -415,14 +344,14 @@ class DeploymentResourceCollector(DeploymentOperator):
 
         def add_sites(site_ids, model_type):
             for s in site_ids:
-                models = self.RR2.find_objects(s, PRED.hasModel, model_type, id_only=True)
+                models = self.enhanced_rr.find_objects(s, PRED.hasModel, model_type, id_only=True)
                 for m in models: self.typecache_add(m, model_type)
                 log.trace("Found %s %s objects of site", len(models), model_type)
                 add_site_models(s, models)
 
         def add_devices(device_ids, model_type):
             for d in device_ids:
-                model = self.RR2.find_object(d, PRED.hasModel, model_type, id_only=True)
+                model = self.enhanced_rr.find_object(d, PRED.hasModel, model_type, id_only=True)
                 self.typecache_add(model, model_type)
                 log.trace("Found 1 %s object of device", model_type)
                 add_device_model(d, model)
@@ -432,13 +361,13 @@ class DeploymentResourceCollector(DeploymentOperator):
             # check this deployment -- specific device types -- for validity
             # return a list of pairs (site, device) to be associated
             #log.debug("Collecting resources: site=%s device=%s model=%s", site_type, device_type, model_type)
-            new_site_ids = self.RR2.find_subjects(site_type,
+            new_site_ids = self.enhanced_rr.find_subjects(site_type,
                                                     PRED.hasDeployment,
                                                     deployment_id,
                                                     True)
             log.debug("Found %s %s", len(new_site_ids), site_type)
 
-            new_device_ids = self.RR2.find_subjects(device_type,
+            new_device_ids = self.enhanced_rr.find_subjects(device_type,
                                                       PRED.hasDeployment,
                                                       deployment_id,
                                                       True)
@@ -499,7 +428,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         if not device_tree:
             raise BadRequest("Devices in this deployment were not part of the same tree")
 
-        if not self.allow_children and 0 < len(device_tree["children"]):
+        if not self._include_children() and 0 < len(device_tree["children"]):
             raise BadRequest("This type of deployment does not allow child devices, but they were included")
 
         log.info("Got site tree: %s" % site_tree)
@@ -513,22 +442,27 @@ class DeploymentResourceCollector(DeploymentOperator):
 
 
 
-class DeploymentActivator(DeploymentOperator):
+class DeploymentPlanner(object):
     """
     A deployment activator validates that a set of devices will map to a set of sites in one unique way
 
     its primary purpose is to prepare( ) after which you'll be able to access what associations must be made (and unmade)
 
-    it makes use of the deployment resource colelctor
+    it makes use of the deployment resource collector
     """
 
-    def on_init(self):
-        resource_collector_factory = DeploymentResourceCollectorFactory(self.clients, self.RR2)
-        self.resource_collector = resource_collector_factory.create(self.deployment_obj)
+    def __init__(self, clients=None, enhanced_rr=None):
+        self.clients = clients
+        self.enhanced_rr = enhanced_rr
 
-        self._hasdevice_associations_to_delete = []
-        self._hasdevice_associations_to_create = []
-        self.outil = ObservatoryUtil(self, enhanced_rr=self.RR2)
+        if not enhanced_rr:
+            self.enhanced_rr = EnhancedResourceRegistryClient(self.clients.resource_registry)
+        self.outil = ObservatoryUtil(self, enhanced_rr=self.enhanced_rr)
+
+        self.resource_collector= DeploymentResourceCollector(self.clients, self.enhanced_rr)
+        #self.resource_collector = resource_collector.create(self.deployment_obj)
+        
+
 
     # these are the output accessors
     def hasdevice_associations_to_delete(self):
@@ -537,42 +471,29 @@ class DeploymentActivator(DeploymentOperator):
     def hasdevice_associations_to_create(self):
         return self._hasdevice_associations_to_create[:]
 
-    # for debugging purposes
-    def _csp_solution_to_string(self, soln):
-        ret = "%s" % type(soln).__name__
-
-        for k, s in soln.iteritems():
-            d = unpack_csp_var(k)
-            log.trace("reading device %s", d)
-            dev_obj = self.resource_collector.read_using_typecache(d)
-            log.trace("reading site %s", s)
-            site_obj = self.resource_collector.read_using_typecache(s)
-            ret = "%s, %s '%s' -> %s '%s'" % (ret, dev_obj._get_type(), d, site_obj._get_type(), s)
-        return ret
 
 
-    def prepare(self):
+    def prepare_activation(self, deployment_obj):
         """
         Prepare (validate) a deployment for activation, returning lists of what associations need to be added
         and which ones need to be removed.
         """
+    
+        
+        self.deployment_obj = deployment_obj
+        
+        self.outil = ObservatoryUtil(self, enhanced_rr=self.enhanced_rr)
+        
         #retrieve the site tree information using the OUTIL functions; site info as well has site children
-        site_ids = self.RR2.find_subjects(subject_type=RT.PlatformSite, predicate=PRED.hasDeployment, object=self.deployment_obj._id, id_only=True)
+        site_ids = self.enhanced_rr.find_subjects(subject_type=RT.PlatformSite, predicate=PRED.hasDeployment, object=self.deployment_obj._id, id_only=True)
         if not site_ids:
-           site_ids = self.RR2.find_subjects(subject_type=RT.InstrumentSite, predicate=PRED.hasDeployment, object=self.deployment_obj._id, id_only=True)
+           site_ids = self.enhanced_rr.find_subjects(subject_type=RT.InstrumentSite, predicate=PRED.hasDeployment, object=self.deployment_obj._id, id_only=True)
         if site_ids:
             self.site_resources, self.site_children = self.outil.get_child_sites( parent_site_id=site_ids[0], id_only=False)
 
-        log.debug("about to collect deployment components")
-        self.resource_collector.collect()
+        self.resource_collector.collect_deployment_resources(self.deployment_obj)
 
-
-        if not self.deployment_obj.port_assignments:
-            log.info("No port assignments, so using CSP")
-            pairs_to_add = self._prepare_using_csp()
-        else:
-            log.info("Merging trees with port assignments")
-            pairs_to_add = self._prepare_using_portassignment_trees()
+        pairs_to_add = self._prepare_using_portassignment_trees()
 
         log.info("Pairs to add: %s", pairs_to_add)
 
@@ -595,6 +516,8 @@ class DeploymentActivator(DeploymentOperator):
         self._hasdevice_associations_to_delete = pairs_to_remove
 
         log.info("Pairs to remove: %s", pairs_to_remove)
+        
+        return pairs_to_remove, pairs_to_add
 
 
     def _prepare_using_portassignment_trees(self):
@@ -607,6 +530,7 @@ class DeploymentActivator(DeploymentOperator):
         merged_tree_pairs, leftover_devices = self._merge_trees(site_tree, device_tree)
 
         if leftover_devices:
+            log.info("Merging site and device trees resulted unassigned devices: %s", leftover_devices)
             raise BadRequest("Merging site and device trees resulted in %s unassigned devices" % len(leftover_devices))
 
         return merged_tree_pairs
@@ -643,7 +567,7 @@ class DeploymentActivator(DeploymentOperator):
 
 
             site_of_portref = {}
-            #creat a dict of reference_designator on sites so that devices can be matched
+            # create a dict of reference_designator on sites so that devices can be matched
             dev_site_obj = self.site_resources[site_id]
             site_of_portref[dev_site_obj.reference_designator] = site_id
             if site_id in self.site_children:
@@ -654,7 +578,11 @@ class DeploymentActivator(DeploymentOperator):
             for child_dev_id, child_dev_ptr in dev_ptr["children"].iteritems():
 
                 if not child_dev_id in portref_of_device:
-                    log.warning("No platform port information specified for device %s" % child_dev_id)
+                    child_dev_obj = self.enhanced_rr.read(child_dev_id)
+                    log.error("Activation cancelled. No platform port information specified for device %s. Exiting deployment", child_dev_id)
+
+                    raise BadRequest("Activation cancelled. No port assignments provided in the deployment resource: %s", self.deployment_obj)
+                    #log.warning("No platform port information specified for device %s" % child_dev_id)
                 dev_port = portref_of_device[child_dev_id]
 
                 #check that a PlatformPort object is provided
@@ -669,6 +597,7 @@ class DeploymentActivator(DeploymentOperator):
 
                 if dev_port.reference_designator in site_of_portref:
                     child_site_id = site_of_portref[dev_port.reference_designator]
+                    child_site_obj = self.enhanced_rr.read(child_site_id)
                     child_site_ptr = site_ptr["children"][child_site_id]
                     acc, unmatched_list = _merge_helper(acc[:], child_site_ptr, child_dev_ptr, unmatched_list[:])
 
@@ -709,7 +638,7 @@ class DeploymentActivator(DeploymentOperator):
         ret_ignore = None
 
         try:
-            found_device_id = self.RR2.find_object(site_id, PRED.hasDevice, device_type, True)
+            found_device_id = self.enhanced_rr.find_object(site_id, PRED.hasDevice, device_type, True)
 
             if found_device_id == device_id:
                 ret_ignore = (site_id, device_id)
@@ -721,109 +650,4 @@ class DeploymentActivator(DeploymentOperator):
             pass
 
         return ret_remove, ret_ignore
-
-
-
-    def _prepare_using_csp(self):
-        """
-        use the previously collected resoures in a CSP problem
-        """
-        site_tree   = self.resource_collector.collected_site_tree()
-        device_tree = self.resource_collector.collected_device_tree()
-        device_models = self.resource_collector.collected_models_by_device()
-        site_models = self.resource_collector.collected_models_by_site()
-
-        log.debug("Collected %s device models, %s site models", len(device_models), len(site_models))
-
-        # csp solver can't handle multiple platforms, because it doesn't understand hierarchy.
-        #             (parent-platformsite---hasmodel-a, child-platformsite---hasmodel-b)
-        # would match (parent-platformdevice-hasmodel-b, child-platformdevice-hasmodel-a)
-        #
-        # we can avoid this by simply restricting the deployment to 1 platform device/site in this case
-
-#        n_pdev = sum(RT.PlatformDevice == self.resource_collector.get_resource_type(d) for d in device_models.keys())
-#        if 1 < n_pdev:
-#            raise BadRequest("Deployment activation without port_assignment is limited to 1 PlatformDevice, got %s" % n_pdev)
-#
-#        n_psite = sum(RT.PlatformSite == self.resource_collector.get_resource_type(d) for d in site_models.keys())
-#        if 1 < n_psite:
-#            raise BadRequest("Deployment activation without port_assignment is limited to 1 PlatformSite, got %s" % n_psite)
-
-        solutions = self._get_deployment_csp_solutions(device_tree, site_tree, device_models, site_models)
-
-        if 1 > len(solutions):
-            raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
-                             "models") # and streamdefs")
-
-        if 1 == len(solutions):
-            log.info("Found one possible way to map devices and sites.  Best case scenario!")
-        else:
-            log.info("Found %d possible ways to map device and site", len(solutions))
-            log.trace("Here is the %s of all of them:", type(solutions).__name__)
-            for i, s in enumerate(solutions):
-                log.trace("Option %d: %s" , i+1, self._csp_solution_to_string(s))
-            uhoh = ("The set of devices could be mapped to the set of sites in %s ways based only " +
-                    "on matching models, and no port assignments were specified.") % len(solutions)
-            #raise BadRequest(uhoh)
-            log.warn(uhoh + "  PICKING THE FIRST AVAILABLE OPTION.")
-
-        # return list of site_id, device_id
-        return [(solutions[0][mk_csp_var(device_id)], device_id) for device_id in device_models.keys()]
-
-
-
-    def _get_deployment_csp_solutions(self, device_tree, site_tree, device_models, site_models):
-
-        log.debug("creating a CSP solver to match devices and sites")
-        problem = constraint.Problem()
-
-        def safe_get_parent(child_site_id):
-            try:
-                return self.RR2.find_subject(RT.PlatformSite,
-                                             PRED.hasSite,
-                                             child_site_id,
-                                             id_only=True)
-            except NotFound:
-                return None
-
-        log.debug("adding variables to CSP - the devices to be assigned, and their range (possible sites)")
-        for device_id in device_models.keys():
-            device_model = device_models[device_id]
-            assert type(device_model) == type('')
-            assert all([type('') == type(s) for s in site_models])
-            possible_sites = [s for s in site_models.keys()
-                              if device_model in site_models[s]]
-
-            if not possible_sites:
-                log.info("Device model: %s", device_model)
-                log.info("Site models: %s", site_models)
-                raise BadRequest("No sites in the deployment match the model of device '%s'" % device_id)
-
-            device_var = mk_csp_var(device_id)
-            problem.addVariable(device_var, possible_sites)
-
-            # add parent-child constraints
-            try:
-                parent_device_id = self.RR2.find_subject(RT.PlatformDevice, PRED.hasDevice, device_id, id_only=True)
-                if parent_device_id in device_models:
-                    problem.addConstraint(lambda child_site, parent_site: parent_site == safe_get_parent(child_site),
-                                          [device_var, mk_csp_var(parent_device_id)])
-
-
-            except NotFound:
-                log.debug("Device '%s' has no parent", device_id) # no big deal
-
-
-
-
-        log.debug("adding the constraint that all the variables have to pick their own site")
-        problem.addConstraint(constraint.AllDifferentConstraint(),
-            [mk_csp_var(device_id) for device_id in device_models.keys()])
-
-        log.debug("performing CSP solve")
-        # this will be a list of solutions, each a dict of var -> value
-        return problem.getSolutions()
-
-
-
 

@@ -6,6 +6,7 @@ from ion.agents.port.port_agent_process import PortAgentProcessType
 
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.public import IonObject
+from interface.objects import PortTypeEnum
 from pyon.util.containers import DotDict
 #from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.containers import create_unique_identifier
@@ -147,10 +148,13 @@ class TestAssembly(GenericIntHelperTestCase):
                                                      extra_fn=add_to_org_fn)
         
         log.info("Create instrument site")
+        instSite_obj = IonObject(RT.InstrumentSite,
+                                 name="instrument_site",
+                                 reference_designator="GA01SUMO-FI003-01-CTDMO0999")
         instrument_site_id = self.perform_fcruf_script(RT.InstrumentSite,
                                                        "instrument_site",
                                                        self.client.OMS,
-                                                       actual_obj=None,
+                                                       actual_obj=instSite_obj,
                                                        extra_fn=add_to_org_fn)
         
         ###############################################
@@ -216,7 +220,7 @@ class TestAssembly(GenericIntHelperTestCase):
                                                     actual_obj=None,
                                                     extra_fn=add_to_org_fn)
         log.info("Create an instrument device")
-        instrument_device_id = self.perform_fcruf_script(RT.InstrumentDevice, 
+        instrument_device_id = self.perform_fcruf_script(RT.InstrumentDevice,
                                                          "instrument_device", 
                                                          self.client.IMS,
                                                          actual_obj=None,
@@ -489,7 +493,14 @@ class TestAssembly(GenericIntHelperTestCase):
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
                                    data_product_id=inst_data_product_id)
 
-        deployment_obj = any_old(RT.Deployment, {"context": IonObject(OT.CabledNodeDeploymentContext)})
+        port_assignments={}
+        pp_obj = IonObject(OT.PlatformPort, reference_designator='GA01SUMO-FI003-01-CTDMO0999', port_type= PortTypeEnum.PAYLOAD, ip_address='1' )
+        port_assignments[instrument_device_id] = pp_obj
+
+        deployment_obj = IonObject(RT.Deployment,
+                                   name='deployment',
+                                   port_assignments=port_assignments,
+                                   context=IonObject(OT.CabledNodeDeploymentContext))
         deployment_id = self.perform_fcruf_script(RT.Deployment, "deployment", c.OMS, actual_obj=deployment_obj,
                                                   extra_fn=add_to_org_fn)
 

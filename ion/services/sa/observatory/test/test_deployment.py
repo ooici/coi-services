@@ -26,6 +26,7 @@ from nose.plugins.attrib import attr
 
 
 import datetime
+import unittest
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -229,6 +230,7 @@ class TestDeployment(IonIntegrationTestCase):
         instrument_site_obj = IonObject(RT.InstrumentSite,
                                         name='InstrumentSite1',
                                         description='test instrument site',
+                                        reference_designator='GA01SUMO-FI003-01-CTDMO0999',
                                         constraint_list=[bounds])
         instrument_site_id = self.omsclient.create_instrument_site(instrument_site_obj, platform_site_id)
 
@@ -246,6 +248,8 @@ class TestDeployment(IonIntegrationTestCase):
         instrument_device_id = self.imsclient.create_instrument_device(instrument_device_obj)
         self.rrclient.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
 
+        pp_obj = IonObject(OT.PlatformPort, reference_designator='GA01SUMO-FI003-01-CTDMO0999', port_type= PortTypeEnum.PAYLOAD, ip_address='1' )
+        port_assignments = {instrument_device_id : pp_obj}
 
 
         #----------------------------------------------------------------------------------------------------
@@ -269,6 +273,7 @@ class TestDeployment(IonIntegrationTestCase):
                                    name='TestDeployment',
                                    description='some new deployment',
                                    context=IonObject(OT.CabledNodeDeploymentContext),
+                                   port_assignments=port_assignments,
                                    constraint_list=[temporal_bounds])
         deployment_id = self.omsclient.create_deployment(deployment_obj)
 
@@ -380,60 +385,6 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("activating deployment without device, expecting fail")
         self.assert_deploy_fail(res.deployment_id, BadRequest, "No devices were found in the deployment")
 
-
-    def test_activate_deployment_asymmetric_children(self):
-        """
-        P0
-        |  \
-        P1  P2
-        |
-        I1
-
-        Complex deployment using CSP
-
-        P1, P2, and P3 share the same platform model.  The CSP solver should be able to work this out
-        based on relationships to parents
-
-        """
-
-        log.debug("create models")
-        imodel_id = self.RR2.create(any_old(RT.InstrumentModel))
-        pmodel_id = self.RR2.create(any_old(RT.PlatformModel))
-
-        log.debug("create devices")
-        idevice_id = self.RR2.create(any_old(RT.InstrumentDevice))
-        pdevice_id = [self.RR2.create(any_old(RT.PlatformDevice)) for _ in range(3)]
-
-        log.debug("create sites")
-        isite_id = self.RR2.create(any_old(RT.InstrumentSite))
-        psite_id = [self.RR2.create(any_old(RT.PlatformSite)) for _ in range(3)]
-
-        log.debug("assign models")
-        self.RR2.assign_instrument_model_to_instrument_device_with_has_model(imodel_id, idevice_id)
-        self.RR2.assign_instrument_model_to_instrument_site_with_has_model(imodel_id, isite_id)
-        for x in range(3):
-            self.RR2.assign_platform_model_to_platform_device_with_has_model(pmodel_id, pdevice_id[x])
-            self.RR2.assign_platform_model_to_platform_site_with_has_model(pmodel_id, psite_id[x])
-
-        log.debug("assign hierarchy")
-        self.RR2.assign_instrument_device_to_platform_device_with_has_device(idevice_id, pdevice_id[1])
-        self.RR2.assign_instrument_site_to_platform_site_with_has_site(isite_id, psite_id[1])
-        for x in range(1,3):
-            self.RR2.assign_platform_device_to_platform_device_with_has_device(pdevice_id[x], pdevice_id[0])
-            self.RR2.assign_platform_site_to_platform_site_with_has_site(psite_id[x], psite_id[0])
-
-        log.debug("create and activate deployment")
-        dep_id = self.RR2.create(any_old(RT.Deployment, {"context": IonObject(OT.RemotePlatformDeploymentContext)}))
-        self.RR2.assign_deployment_to_platform_device_with_has_deployment(dep_id, pdevice_id[0])
-        self.RR2.assign_deployment_to_platform_site_with_has_deployment(dep_id, psite_id[0])
-        self.omsclient.activate_deployment(dep_id)
-
-        log.debug("verifying deployment")
-        self.assertEqual(idevice_id, self.RR2.find_instrument_device_id_of_instrument_site_using_has_device(isite_id),
-                         "The instrument device was not assigned to the instrument site")
-        for x in range(3):
-            self.assertEqual(pdevice_id[x], self.RR2.find_platform_device_id_of_platform_site_using_has_device(psite_id[x]),
-                             "Platform device %d was not assigned to platform site %d" % (x, x))
 
     def assert_deploy_fail(self, deployment_id, err_type=BadRequest, fail_message="did not specify fail_message"):
         with self.assertRaises(err_type) as cm:
