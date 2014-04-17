@@ -23,6 +23,7 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         self.notification_worker(process,config)
         self.registration_worker(process,config)
         self.pydap_server(process,config)
+        self.importer_server(process,config)
 
     def pydap_server(self, process, config):
         pydap_module = config.get_safe('bootstrap.processes.pydap.module', 'ion.processes.data.externalization.lightweight_pydap')
@@ -39,7 +40,24 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
 
         self._create_and_launch(process_definition,use_pydap)
 
+    def importer_server(self, process, config):
+        res, meta = self.resource_registry.find_resources(name='table_loader', restype=RT.ProcessDefinition)
+        if len(res):
+            return
 
+        table_loader_module = config.get_safe('bootstrap.processes.table_loader.module', 'ion.services.eoi.table_loader')
+        table_loader_class  = config.get_safe('bootstrap.processes.table_loader.class', 'ResourceParser')
+
+        use_table_loader = config.get_safe('eoi.meta.use_eoi_services', False)
+
+
+        process_definition = ProcessDefinition(
+                name = 'table_loader',
+                description = 'interface for eoi services')
+        process_definition.executable['module'] = table_loader_module
+        process_definition.executable['class'] = table_loader_class
+
+        self._create_and_launch(process_definition,use_table_loader)        
 
     def registration_worker(self, process, config):
         res, meta = self.resource_registry.find_resources(name='registration_worker', restype=RT.ProcessDefinition)
@@ -64,9 +82,9 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
         proc_def_id = self.pds_client.create_process_definition(process_definition=process_definition)
 
         if conditional:
-
             process_res_id = self.pds_client.create_process(process_definition_id=proc_def_id)
             self.pds_client.schedule_process(process_definition_id=proc_def_id, process_id=process_res_id)
+
 
     def ingestion_worker(self, process, config):
         # ingestion

@@ -51,20 +51,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
         #self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
-        self.rr_table_loader = ResourceParser()
         self.geos_available = False
-        #check that the services are available 
-        if self.rr_table_loader.use_geo_services:
-            self.geos_available = True
-            # if they are proceed with the reset
-            try:
-                self.rr_table_loader.reset()
-                self.geos_available = True
-                pass
-            except Exception as e:
-                #check the eoi geoserver importer service is started
-                raise e
-
 
 #--------
 
@@ -109,11 +96,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         self._save_coverage(cov)
         cov.close()
 
-        #table loader code goes here
-        
-        if self.geos_available:
+        #table loader create resource
+        if self.get_eoi_service_available():
             log.debug('DM:create dataset: %s -- dataset_id: %s', name, dataset_id)
-            self.rr_table_loader.create_single_resource(dataset_id, parameter_dict)
+            self.create_single_resource(dataset_id, parameter_dict)
+
 
         return dataset_id
 
@@ -129,9 +116,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         #@todo: Check to make sure retval is boolean
 
         log.debug('DM:update dataset: dataset_id: %s', dataset._id)
-        if self.geos_available:
-            self.rr_table_loader.remove_single_resource(dataset._id)
-            self.rr_table_loader.create_single_resource(dataset._id, dataset.parameter_dictionary)
+        if self.get_eoi_service_available():
+            self.remove_single_resource(dataset._id)
+            self.create_single_resource(dataset._id, dataset.parameter_dictionary)
 
         return True
 
@@ -142,8 +129,8 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.clients.resource_registry.delete(dataset_id)
 
         log.debug('DM:delete dataset: dataset_id: %s', dataset_id)
-        if self.geos_available:
-            self.rr_table_loader.remove_single_resource(dataset_id)
+        if self.get_eoi_service_available():
+            self.remove_single_resource(dataset_id)
 
     def register_dataset(self, data_product_id=''):
         raise BadRequest("register_dataset is no longer supported, please use create_catalog_entry in data product management")
@@ -753,4 +740,71 @@ class DatasetManagementService(BaseDatasetManagementService):
             else:
                 pdict.add_context(context)
         return pdict
+
+    def create_single_resource(self,dataset_id, param_dict):
+        '''
+        EOI
+        Creates a foreign data table and a geoserver layer for the given dataset
+        and parameter dictionary
+        '''
+        pid = self._get_table_loader_pid()
+        rpc_cli = RPCClient(to_name=pid)
+        arg_dict = {"new_resource_id" : dataset_id,"param_dict":param_dict}
+        retval = rpc_cli.request(arg_dict,op='create_single_resource')
+        return retval
+
+    def remove_single_resource(self,dataset_id):
+        '''
+        EOI
+        Removes foreign data table and geoserver layer for the given dataset
+        '''
+        pid = self._get_table_loader_pid()
+        rpc_cli = RPCClient(to_name=pid)
+        arg_dict = {"resource_id" : dataset_id}
+        retval = rpc_cli.request(arg_dict,op='remove_single_resource')
+        return retval
+
+    def get_eoi_service_available(self):
+        '''
+        EOI
+        Returns true if geoserver endpoint is running and verified by table 
+        loader process. 
+        
+        Once a true is returned, the result is cached and the process is no 
+        longer queried
+        '''
+
+        # See if we have it already before hitting RPC
+        if self.geos_available:
+            return True
+        try:
+            pid = self._get_table_loader_pid()
+        except BadRequest as e:
+            if "No Table Loader Found..." in e.message:
+                log.debug("No Table Loader Found")
+                return False
+            raise    
+
+        rpc_cli = RPCClient(to_name=pid)
+        arg_dict = {}
+        retval = rpc_cli.request(arg_dict,op='get_eoi_service_available')
+        # Set a cached result if it's True
+        if retval:
+            self.geos_available = True
+        return retval    
+
+    def _get_table_loader_pid(self):
+        '''
+        EOI
+        Review the resource registry to find the correct pid for the table loader
+        '''
+        procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
+        pid = None
+        for p in procs:
+            if 'table_loader' in p:
+                pid = p
+        if not pid: 
+            raise BadRequest("No Table Loader Found...")
+            return
+        return pid    
 
