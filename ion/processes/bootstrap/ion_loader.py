@@ -125,6 +125,7 @@ DEFAULT_ASSETS_PATH = "res/preload/r2_ioc/ooi_assets"
 DEFAULT_ATTACHMENTS_PATH = "res/preload/r2_ioc/attachments"
 
 # URL of the mapping spreadsheet for OOI assets
+# URL of the mapping spreadsheet for OOI assets
 OOI_MAPPING_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVUeDdoUTU0b0NFQ1dCVDhuUjY0THc&output=xls"
 
 # The preload spreadsheets (tabs) in the order they should be loaded
@@ -1670,6 +1671,30 @@ class IONLoader(ImmediateProcess):
                     svc_client.assign_platform_model_to_platform_site(self.resource_ids[pm_id], res_id,
                         headers=headers)
 
+    def _update_site(self, site_id, newrow, const_id1, const_id2, instrument=True):
+        res_obj = self._get_resource_obj(site_id)
+        needupdate = False
+        # Update name if different
+        prefix = "is" if instrument else "ps"
+        if self.ooirename and res_obj.name != newrow[prefix+'/name']:
+            res_obj.name = newrow[prefix+'/name']
+            needupdate = True
+        # Update description if different
+        if res_obj.description != newrow[prefix+'/description']:
+            res_obj.description = newrow[prefix+'/description']
+            needupdate = True
+        # Update geospatial bounds if not yet set
+        if const_id1 and not any([cst for cst in res_obj.constraint_list if cst.type_ == OT.GeospatialBounds]):
+            res_obj.constraint_list.append(self.constraint_defs[const_id1])
+            needupdate = True
+        # Update temporal constraint if not yet set
+        if const_id2 and not any([cst for cst in res_obj.constraint_list if cst.type_ == OT.TemporalBounds]):
+            res_obj.constraint_list.append(self.constraint_defs[const_id2])
+            needupdate = True
+        if needupdate:
+            self._update_resource_obj(site_id)
+
+
     def _load_PlatformSite_OOI(self):
         subsite_objs = self.ooi_loader.get_type_assets("subsite")
         ssite_objs = self.ooi_loader.get_type_assets("ssite")
@@ -1719,8 +1744,6 @@ class IONLoader(ImmediateProcess):
             # We generate all top level platforms
             if not ooi_obj.get('is_platform', False) and not self._before_cutoff(ooi_obj):
                 return
-            if self._resource_exists(ooi_id):
-                return
 
             newrow = {}
             newrow[COL_ID] = ooi_id
@@ -1766,7 +1789,10 @@ class IONLoader(ImmediateProcess):
             if not self._match_filter(ooi_id[:2]):
                 return
 
-            self._load_PlatformSite(newrow)
+            if self._resource_exists(ooi_id):
+                self._load_PlatformSite(newrow)
+            elif self.ooiupdate:
+                self._update_site(newrow, const_id1, const_id2, instrument=False)
 
         ooi_objs = self.ooi_loader.get_type_assets("node")
         # WARNING: Only supports 2 levels of platforms/nodes
@@ -1883,6 +1909,8 @@ class IONLoader(ImmediateProcess):
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentSite(newrow)
+            elif self.ooiupdate:
+                self._update_site(newrow, const_id1, const_id2, instrument=True)
 
     # -------------------------------------------------------------------------
     # Parameters, streams, etc.
@@ -2283,8 +2311,8 @@ Reason: %s
         if res_obj.description != newrow[prefix+'/description']:
             res_obj.description = newrow[prefix+'/description']
             needupdate = True
-        # Set serial if different
-        if res_obj.serial_number != newrow[prefix+'/serial_number'] and "changeme" in res_obj.serial_number:
+        # Set serial if different or empty
+        if not res_obj.serial_number or (res_obj.serial_number != newrow[prefix+'/serial_number'] and "changeme" in res_obj.serial_number):
             res_obj.serial_number = newrow[prefix+'/serial_number']
             needupdate = True
         if needupdate:
@@ -2411,7 +2439,6 @@ Reason: %s
             newrow[COL_ID] = ooi_id + "_ID"
             serial = "changeme_%s.001" % (ooi_id)
             serial = serial.lower()
-            #newrow['id/name'] = "%s on %s" % (class_objs[ooi_rd.inst_class]['alt_name'], node_objs[ooi_rd.node_rd]['name'])
             newrow['id/name'] = "%s serial# %s" % (class_objs[ooi_rd.inst_class]['alt_name'], serial)
             newrow['id/description'] = "Instrument %s device #01" % ooi_id
             newrow['id/serial_number'] = serial
