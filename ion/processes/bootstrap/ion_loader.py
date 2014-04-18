@@ -34,7 +34,6 @@
       parseooi= if True (default is False) reads and parses OOI asset information
 
       idmap= if True, the IDMap category is used to substitute preload ids
-      ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
       ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       ooiparams= if True (default is False) create links to OOI parameter definitions
       ooiactivate= if True (default is True) activate deployments/persistence for assets actually deployed in the past
@@ -325,7 +324,6 @@ class IONLoader(ImmediateProcess):
             self.loadui = config.get("loadui", False)      # Import UI asset data
             self.update = config.get("update", False)      # Support update to existing resources
             self.bulk = config.get("bulk", False)          # Use bulk insert where available
-            self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
             self.revert = bool(config.get("revert", False)) and self.debug    # Revert to RR snapshot on failure
             self.clearcols = config.get("clearcols", None)          # Clear given columns in rows
             self.idmap = bool(config.get("idmap", False))           # Substitute column values in rows
@@ -837,19 +835,6 @@ class IONLoader(ImmediateProcess):
                 'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
                 'expiry':'0'}
 
-    def _match_filter(self, rdlist):
-        """Returns true if at least one item in given list (or comma separated str) matches a filter in ooifilter"""
-        if not self.ooifilter:
-            return True
-        if not rdlist:
-            return False
-        if type(rdlist) is str:
-            rdlist = [val.strip() for val in rdlist.split(",")]
-        for item in rdlist:
-            if item in self.ooifilter:
-                return True
-        return False
-
     def _before_cutoff(self, ooi_obj):
         """Indicates whether a given OOI parsed asset is first used before a cutoff date"""
         deploy_date = ooi_obj.get("deploy_date", None)
@@ -1320,8 +1305,6 @@ class IONLoader(ImmediateProcess):
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             #if not self._before_cutoff(ooi_obj):
             #    continue
-            #if not self._match_filter(ooi_obj.get('array_list', None)):
-            #    continue
 
             newrow = {}
             newrow[COL_ID] = ooi_id + "_PM"
@@ -1440,9 +1423,6 @@ class IONLoader(ImmediateProcess):
             addl['class_long_name'] = series_obj['ClassLongName']
             addl['comments'] = series_obj['Comments']
             newrow['im/addl'] = repr(addl)
-
-            if not self._match_filter(class_obj.get('array_list', None)):
-                continue
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentModel(newrow)
@@ -1569,9 +1549,6 @@ class IONLoader(ImmediateProcess):
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_obj['rd']])
-
-            if not self._match_filter(ooi_obj['rd']):
-                continue
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_Observatory(newrow)
@@ -1789,9 +1766,6 @@ class IONLoader(ImmediateProcess):
                 newrow['ps/planned_uplink_port/port_type'] = "NONE"
                 newrow['ps/planned_uplink_port/reference_designator'] = ""
 
-            if not self._match_filter(ooi_id[:2]):
-                return
-
             if self._resource_exists(ooi_id):
                 self._load_PlatformSite(newrow)
             elif self.ooiupdate:
@@ -1906,9 +1880,6 @@ class IONLoader(ImmediateProcess):
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
             newrow['instrument_model_ids'] = self._get_primary_model(inst_obj['instrument_model'])
             newrow['parent_site_id'] = ooi_rd.node_rd
-
-            if not self._match_filter(ooi_rd.array):
-                continue
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentSite(newrow)
@@ -2344,8 +2315,6 @@ Reason: %s
             ooi_rd = OOIReferenceDesignator(node_id)
             if not self._before_cutoff(node_obj):
                 continue
-            if not self._match_filter([ooi_rd.array]):
-                continue
 
             newrow = {}
             platform_id = node_id + "_PD"
@@ -2472,9 +2441,6 @@ Reason: %s
                 newrow['lcstate'] = "DEPLOYED_AVAILABLE"
             else:
                 newrow['lcstate'] = "PLANNED_AVAILABLE"
-
-            if not self._match_filter(ooi_rd.array):
-                continue
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentDevice(newrow)
@@ -2724,8 +2690,6 @@ Reason: %s
         for node_id, node_obj in node_objs.iteritems():
             if not self._before_cutoff(node_obj):
                 continue
-            if not self._match_filter([node_id[:2]]):
-                continue
 
             ooi_rd = OOIReferenceDesignator(node_id)
             platform_id = node_id + "_PD"
@@ -2852,8 +2816,6 @@ Reason: %s
             if agent_obj.get('active', False):
 
                 # TODO: Filter based on model use
-                #if not self._match_filter(ooi_id[:2]):
-                #    continue
 
                 ia_id = "IA_" + ooi_id
                 if self._get_resource_obj(ia_id):
@@ -2937,8 +2899,6 @@ Reason: %s
             ooi_rd = OOIReferenceDesignator(ooi_id)
             node_obj = node_objs[ooi_rd.node_rd]
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
-                continue
-            if not self._match_filter(ooi_id[:2]):
                 continue
 
             node_id = ooi_id[:14]
@@ -3458,8 +3418,6 @@ Reason: %s
 
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
-            if not self._match_filter(inst_id[:2]):
-                continue
 
             const_id1, const_id2 = '', ''
             if inst_id + "_const1" in self.constraint_defs:
@@ -3891,8 +3849,6 @@ Reason: %s
             node_obj = node_objs[node_id]
             if not self._before_cutoff(node_obj):
                 continue
-            if not self._match_filter(node_id[:2]):
-                continue
             if not node_obj.get('is_platform', False):
                 continue
 
@@ -3955,8 +3911,6 @@ Reason: %s
             ooi_rd = OOIReferenceDesignator(inst_id)
             node_obj = node_objs[ooi_rd.node_rd]
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
-                continue
-            if not self._match_filter(inst_id[:2]):
                 continue
             if not self._is_cabled(ooi_rd):
                 continue
