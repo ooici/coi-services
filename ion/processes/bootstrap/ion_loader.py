@@ -3569,14 +3569,20 @@ Reason: %s
 
     def _get_port_assignments(self, raw_port_assigment):
         assignments = {}
+        parent_id = ''
         if raw_port_assigment:
             port_assigments = parse_dict(raw_port_assigment)
 
             for dev_id, port_asgn_info in port_assigments.iteritems():
+                parent_id = port_asgn_info.get("parent_id", "")
+                if parent_id and parent_id in self.resource_ids:
+                    parent_id = self.resource_ids[parent_id]
+                    log.debug('_get_port_assignments converted parent id: %s', parent_id)
                 platform_port = IonObject(OT.PlatformPort,
                                          reference_designator=port_asgn_info.get("reference_designator", ""),
                                          port_type=port_asgn_info.get("port_type", PortTypeEnum.NONE),
-                                         ip_address=str(port_asgn_info.get("ip_address", "") ))
+                                         ip_address=str(port_asgn_info.get("ip_address", "") ),
+                                         parent_id=parent_id )
                 if dev_id in self.resource_ids:
                     device_resrc_id = self.resource_ids[dev_id]
                     assignments[device_resrc_id] = platform_port

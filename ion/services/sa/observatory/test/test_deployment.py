@@ -303,8 +303,6 @@ class TestDeployment(IonIntegrationTestCase):
         self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
 
         log.debug("adding instrument site and device to deployment")
-        self.omsclient.deploy_instrument_site(res.instrument_site_id, res.deployment_id)
-        self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
 
         log.debug("adding platform site and device to deployment")
         self.omsclient.deploy_platform_site(res.platform_site_id, res.deployment_id)
@@ -368,7 +366,7 @@ class TestDeployment(IonIntegrationTestCase):
         self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
 
         log.debug("activating deployment without instrument site, expecting fail")
-        self.assert_deploy_fail(res.deployment_id, BadRequest, "Devices in this deployment outnumber sites")
+        self.assert_deploy_fail(res.deployment_id, BadRequest)
 
     #@unittest.skip("targeting")
     def test_activate_deployment_nodevice(self):
@@ -386,10 +384,12 @@ class TestDeployment(IonIntegrationTestCase):
         self.assert_deploy_fail(res.deployment_id, BadRequest, "No devices were found in the deployment")
 
 
-    def assert_deploy_fail(self, deployment_id, err_type=BadRequest, fail_message="did not specify fail_message"):
+    def assert_deploy_fail(self, deployment_id, err_type=BadRequest, fail_message=""):
         with self.assertRaises(err_type) as cm:
             self.omsclient.activate_deployment(deployment_id)
-        self.assertIn(fail_message, cm.exception.message)
+            log.debug("assert_deploy_fail cm: %s", str(cm) )
+            if fail_message:
+                self.assertIn(fail_message, cm.exception.message)
 
     def test_3x3_matchups_remoteplatform(self):
         self.base_3x3_matchups(IonObject(OT.RemotePlatformDeploymentContext))

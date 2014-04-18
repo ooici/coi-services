@@ -16,7 +16,7 @@ from pyon.ion.resource import ExtendedResourceContainer
 
 from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
-from ion.services.sa.observatory.deployment_activator import DeploymentPlanner, DeploymentResourceCollector
+from ion.services.sa.observatory.deployment_activator import DeploymentPlanner
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.processes.event.device_state import DeviceStateManager
@@ -653,17 +653,23 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         deployment_obj = self.RR2.read(deployment_id)
 
         self.deploy_planner = DeploymentPlanner(self.clients)
-        self.deploy_planner.prepare_activation(deployment_obj)
+
+        pairs_to_remove, pairs_to_add = self.deploy_planner.prepare_activation(deployment_obj)
+        log.debug("activate_deployment  pairs_to_add: %s", pairs_to_add)
+        log.debug("activate_deployment  pairs_to_remove: %s", pairs_to_remove)
+
+        if not pairs_to_add:
+            log.warning('No Site and Device pairs were added to activate this deployment')
 
         # process any removals
-        for site_id, device_id in self.deploy_planner.hasdevice_associations_to_delete():
+        for site_id, device_id in pairs_to_remove:
             log.info("Unassigning hasDevice; device '%s' from site '%s'", device_id, site_id)
             self.unassign_device_from_site(device_id, site_id)
             log.info("Removing geo and updating temporal attrs for device '%s'", device_id)
             self._update_device_remove_geo_update_temporal(device_id, deployment_obj)
 
         # process the additions
-        for site_id, device_id in self.deploy_planner.hasdevice_associations_to_create():
+        for site_id, device_id in pairs_to_add:
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
             log.info("Adding geo and updating temporal attrs for device '%s'", device_id)
@@ -690,8 +696,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 #            raise BadRequest("This deploment is not active")
 
         # get all associated components
-        resource_collector = DeploymentResourceCollector(self.clients)
-        resource_collector.collect_deployment_resources(deployment_obj)
 
         # must only remove from sites that are not deployed under a different active deployment
         # must only remove    devices that are not deployed under a different active deployment
@@ -708,8 +712,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     ret.append(r)
             return ret
 
-        device_ids = filter_alternate_deployments(resource_collector.collected_device_ids())
-        site_ids   = filter_alternate_deployments(resource_collector.collected_site_ids())
+        self.deploy_planner = DeploymentPlanner(self.clients)
+        site_ids, device_ids = self.deploy_planner.get_deployment_sites_devices(deployment_obj)
 
         # delete only associations where both site and device have passed the filter
         for s in site_ids:
