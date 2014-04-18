@@ -14,6 +14,7 @@ __license__ = 'Apache 2.0'
 
 # Pyon object and resource imports.
 from pyon.public import IonObject, log, RT, PRED, LCS, LCE, OT, CFG, AS
+from interface.objects import  PortTypeEnum
 
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
