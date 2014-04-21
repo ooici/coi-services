@@ -114,7 +114,8 @@ MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfS
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
 #Apr15 TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0ArFEMmslwP1ddHY3Zmlza0h5LXZINmpXRXNvRXBkdEE&output=xls"
-TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dHRFS0x4eWdRM21vMHdEMWZTeFFNTVE&output=xls"
+#Apr21 TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dHRFS0x4eWdRM21vMHdEMWZTeFFNTVE&output=xls"
+TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dHNTX3pKU0o3ZXN0c0ZoN1JycURUNFE&output=xls"
 
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -3583,11 +3584,10 @@ Reason: %s
                                          port_type=port_asgn_info.get("port_type", PortTypeEnum.NONE),
                                          ip_address=str(port_asgn_info.get("ip_address", "") ),
                                          parent_id=parent_id )
-                if dev_id in self.resource_ids:
-                    device_resrc_id = self.resource_ids[dev_id]
-                    assignments[device_resrc_id] = platform_port
-                else:
-                    log.warning("Deployment loading device_resrc_id %s does not have port assignment information", dev_id)
+
+                device_resrc_id = self.resource_ids[dev_id]
+                assignments[device_resrc_id] = platform_port
+
         return assignments
 
     def _load_Deployment(self, row):
