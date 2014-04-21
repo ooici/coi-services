@@ -56,7 +56,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point='', dataset_id='', parent_data_product_id=''):
+    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point='', dataset_id='', parent_data_product_id='', default_stream_configuration=None):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -67,7 +67,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         # WARNING: This creates a Stream as a side effect!!
         self.assign_stream_definition_to_data_product(data_product_id=data_product_id,
                                                       stream_definition_id=stream_definition_id,
-                                                      exchange_point=exchange_point)
+                                                      exchange_point=exchange_point,
+                                                      stream_configuration=default_stream_configuration)
 
         if dataset_id and parent_data_product_id:
             raise BadRequest('A parent dataset or parent data product can be specified, not both.')
@@ -160,7 +161,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         '''
         pass
 
-    def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
+    def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point='', stream_configuration=None):
 
         validate_is_not_none(data_product_id, 'A data product id must be passed to register a data product')
         validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to assign to a data product')
@@ -178,11 +179,19 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Associate the StreamDefinition with the data product
         self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id,
                                                                                      data_product_id)
+        stream_name = ''
+        stream_type = ''
+        if stream_configuration is not None:
+            stream_name = stream_configuration.stream_name
+            stream_type = stream_configuration.stream_type
+
 
         stream_id, route = self.clients.pubsub_management.create_stream(name=data_product.name,
                                                                         exchange_point=exchange_point,
                                                                         description=data_product.description,
-                                                                        stream_definition_id=stream_definition_id)
+                                                                        stream_definition_id=stream_definition_id, 
+                                                                        stream_name=stream_name,
+                                                                        stream_type=stream_type)
 
         # Associate the Stream with the main Data Product and with the default data product version
         self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)

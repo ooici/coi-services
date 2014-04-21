@@ -23,7 +23,7 @@ from interface.services.ans.ivisualization_service import VisualizationServiceCl
 from ion.processes.data.registration.registration_process import RegistrationProcess
 
 from pyon.public import RT, PRED, CFG
-from interface.objects import DataProduct
+from interface.objects import DataProduct, StreamConfiguration, StreamConfigurationType
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.util.context import LocalContextMixin
@@ -91,7 +91,9 @@ class DMTestCase(IonIntegrationTestCase):
                 parameter_dictionary_id=pdict_id or self.RR2.find_resource_by_name(RT.ParameterDictionary,
                     param_dict_name, id_only=True))
 
-        data_product_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id)
+        stream_config = StreamConfiguration(stream_name='parsed_ctd', stream_type=StreamConfigurationType.PARSED)
+
+        data_product_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, default_stream_configuration=stream_config)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
         return data_product_id
 
