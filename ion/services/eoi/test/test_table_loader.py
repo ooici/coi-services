@@ -6,7 +6,6 @@ table loader is a service to load data products in to postgres and geoserver fro
 """
 
 from gevent import server
-from gevent.baseserver import _tcp_listener
 from gevent import pywsgi
 from gevent.monkey import patch_all; patch_all()
 from pyon.util.breakpoint import breakpoint
