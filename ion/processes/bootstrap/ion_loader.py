@@ -3636,8 +3636,7 @@ Reason: %s
                 platform_port = IonObject(OT.PlatformPort,
                                          reference_designator=port_asgn_info.get("reference_designator", ""),
                                          port_type=port_asgn_info.get("port_type", PortTypeEnum.NONE),
-                                         ip_address=str(port_asgn_info.get("ip_address", "") ),
-                                         parent_id=parent_id )
+                                         ip_address=str(port_asgn_info.get("ip_address", "") ) )
 
                 device_resrc_id = self.resource_ids[dev_id]
                 assignments[device_resrc_id] = platform_port
