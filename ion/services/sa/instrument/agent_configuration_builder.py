@@ -268,10 +268,7 @@ class AgentConfigurationBuilder(object):
         device_obj = self._get_device()
 
         streams_dict = {}
-        print "--------------------------------------------------------------------------------"
-        print "Available streams:"
         for stream_cfg in agent_obj.stream_configurations:
-            print '    ' + stream_cfg.stream_name
             #create a stream def for each param dict to match against the existing data products
             streams_dict[stream_cfg.stream_name] = {'param_dict_name':stream_cfg.parameter_dictionary_name}
 
@@ -282,12 +279,9 @@ class AgentConfigurationBuilder(object):
 
         stream_config = {}
         for dp in data_product_objs:
-            print "looking at", dp.name
             stream_def_id = self.RR2.find_stream_definition_id_of_data_product_using_has_stream_definition(dp._id)
             for stream in self.RR2.find_streams_of_data_product_using_has_stream(dp._id):
-                print "here's a stream for it", stream
                 if stream.stream_name and stream.stream_name in streams_dict:
-                    print "there in-fact was a stream_name in the streams_dict"
                     stream_def = psm.read_stream_definition(stream_def_id)
                     #from pyon.core.object import IonObjectSerializer
                     stream_def_dict = IonObjectSerializer().serialize(stream_def)

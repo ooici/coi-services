@@ -110,7 +110,7 @@ CANDIDATE_UI_ASSETS = 'http://userexperience.oceanobservatories.org/database-exp
 
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
 # Edit the doc here: https://docs.google.com/spreadsheet/ccc?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE
-MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydDFwTUdwcDFONmhQMERFMjM2RXJWUFE&output=xls"
+MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
 #Apr15 TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0ArFEMmslwP1ddHY3Zmlza0h5LXZINmpXRXNvRXBkdEE&output=xls"
@@ -3074,7 +3074,6 @@ Reason: %s
                 except KeyError:
                     pass
             elif isinstance(sc, StreamConfiguration): # Passed in from OOI loader
-                print "yay it worked"
                 pass # Already set sc
             else:
                 sc = None
