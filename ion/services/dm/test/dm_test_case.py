@@ -76,7 +76,7 @@ class DMTestCase(IonIntegrationTestCase):
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
         return stream_def_id
 
-    def create_data_product(self,name, stream_def_id='', param_dict_name='', pdict_id=''):
+    def create_data_product(self,name, stream_def_id='', param_dict_name='', pdict_id='', stream_configuration=None):
         if not (stream_def_id or param_dict_name or pdict_id):
             raise AssertionError('Attempted to create a Data Product without a parameter dictionary')
 
@@ -91,7 +91,8 @@ class DMTestCase(IonIntegrationTestCase):
                 parameter_dictionary_id=pdict_id or self.RR2.find_resource_by_name(RT.ParameterDictionary,
                     param_dict_name, id_only=True))
 
-        stream_config = StreamConfiguration(stream_name='parsed_ctd', stream_type=StreamConfigurationType.PARSED)
+
+        stream_config = stream_configuration or StreamConfiguration(stream_name='parsed_ctd', stream_type=StreamConfigurationType.PARSED)
 
         data_product_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, default_stream_configuration=stream_config)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
