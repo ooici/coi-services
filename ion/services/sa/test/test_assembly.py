@@ -509,11 +509,6 @@ class TestAssembly(GenericIntHelperTestCase):
         c.IMS.deploy_platform_device(platform_device_id, deployment_id)
         self.RR2.find_deployment_of_platform_device_using_has_deployment(platform_device_id)
 
-        c.OMS.deploy_instrument_site(instrument_site_id, deployment_id)
-        self.RR2.find_deployment_id_of_instrument_site_using_has_deployment(instrument_site_id)
-        c.IMS.deploy_instrument_device(instrument_device_id, deployment_id)
-        self.RR2.find_deployment_id_of_instrument_device_using_has_deployment(instrument_device_id)
-
 
         c.OMS.activate_deployment(deployment_id, True)
         self.assertLess(0, len(self.RR2.find_instrument_sites_by_instrument_device_using_has_device(instrument_device_id)))
