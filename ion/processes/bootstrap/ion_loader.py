@@ -115,7 +115,7 @@ MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfS
 #TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dDZoajE3d1Z3WkE0T0tyOW9oYmZqenc&output=xls"
 #Apr15 TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0ArFEMmslwP1ddHY3Zmlza0h5LXZINmpXRXNvRXBkdEE&output=xls"
 #Apr21 TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dHRFS0x4eWdRM21vMHdEMWZTeFFNTVE&output=xls"
-TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dHNTX3pKU0o3ZXN0c0ZoN1JycURUNFE&output=xls"
+TESTED_DOC =  "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dGZ6TXdQZ2VTT0phdXMyU0JydmE2cHc&output=xls"
 
 
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
