@@ -392,6 +392,60 @@ Archive:  local_range_test.zip
            ]
         })
 
+    def test_upload_calibration(self):
+
+        # verify target object [REFDES01] do not exist in object_store
+        self.assertRaises(NotFound, self.object_store.read, 'IPN01')
+
+        # write CSV to temporary file (contains comment and blank line)
+        CALIBRATION_CSV = '''
+IPN01,NAME01,0.1,m/s,NAME01_0.1,2014-01-01T01:01:01Z
+IPN01,NAME01,0.2,m/s,NAME01_0.2,2014-02-02T02:02:02Z
+IPN01,NAME01,0.3,m/s,NAME01_0.3,2014-03-03T03:03:03Z'''
+        (CALIBRATION_HANDLE,CALIBRATION_FILENAME) = tempfile.mkstemp()
+        os.write(CALIBRATION_HANDLE, CALIBRATION_CSV)
+        os.close(CALIBRATION_HANDLE)
+
+        # POST temporary file to ServiceGatewayService using TestApp
+        upload_files = [('file', CALIBRATION_FILENAME)]
+        result = self.testapp.post('/ion-service/upload/calibration', upload_files=upload_files, status=200)
+
+        # remove temporary file since using mkstemp
+        os.unlink(CALIBRATION_FILENAME)
+ 
+        # reponse JSON data
+        json_data = json.loads(result.body)
+        data = json_data.get('data', None) # dict
+
+        # read the FileUploadContext (async) return
+        #gateway_response = data.get('GatewayResponse', None)
+        #fuc_id = gateway_response.get('fuc_id', None) # CAUTION this is unicode
+        #fuc = self.object_store.read(str(fuc_id))
+
+        # check the QC table stored in object_store
+        IPN01 = self.object_store.read('IPN01')
+        NAME01 = IPN01.get('NAME01', None)
+        self.assertEquals(NAME01, [
+           {
+              'units':'m/s',
+              'description':'NAME01_0.1',
+              'value':0.1,
+              'start_date':'2014-01-01T01:01:01Z'
+           },
+           {
+              'units':'m/s',
+              'description':'NAME01_0.2',
+              'value':0.2,
+              'start_date':'2014-02-02T02:02:02Z'
+           },
+           {
+              'units':'m/s',
+              'description':'NAME01_0.3',
+              'value':0.3,
+              'start_date':'2014-03-03T03:03:03Z'
+           }
+        ]);
+
     def test_download(self):
 
         # clients

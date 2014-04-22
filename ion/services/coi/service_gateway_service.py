@@ -1035,6 +1035,60 @@ def upload_qc():
     except Exception as e:
         return build_error_response(e)
 
+@service_gateway_app.route('/ion-service/upload/calibration', methods=['POST'])
+def upload_calibration():
+    """
+    upload calibrations (CSV or ZIP format)
+    """
+    upload_folder = FileSystem.get_url(FS.TEMP,'uploads')
+    try:
+        object_store = Container.instance.object_store
+        # required fields
+        upload = request.files['file'] # <input type=file name="file">
+        if upload:
+            # upload file - run filename through werkzeug.secure_filename
+            filename = secure_filename(upload.filename)
+            path = os.path.join(upload_folder, filename)
+            upload_time = time.time()
+            upload.save(path)
+            filetype = _check_magic(upload) or 'CSV' # Either going to be ZIP or CSV, probably
+            # register upload
+            file_upload_context = {
+                'name':'User uploaded calibration file %s' % filename,
+                'filename':filename,
+                'filetype':filetype, # only CSV, no detection necessary
+                'path':path,
+                'upload_time':upload_time,
+                'status':'File uploaded to server'
+            }
+            fuc_id, _ = object_store.create_doc(file_upload_context)
+            # client to process dispatch
+            pd_client = ProcessDispatcherServiceClient()
+            # create process definition
+            process_definition = ProcessDefinition(
+                name='upload_calibration_processor',
+                executable={
+                    'module':'ion.processes.data.upload.upload_calibration_processing',
+                    'class':'UploadCalibrationProcessing'
+                }
+            )
+            process_definition_id = pd_client.create_process_definition(process_definition)
+            # create process
+            process_id = pd_client.create_process(process_definition_id)
+            #schedule process
+            config = DotDict()
+            config.process.fuc_id = fuc_id
+            pid = pd_client.schedule_process(process_definition_id, process_id=process_id, configuration=config)
+            log.info('UploadCalibrationProcessing process created %s' % pid)
+            # response - only FileUploadContext ID and determined filetype for UX display
+            resp = {'fuc_id': fuc_id}
+            return gateway_json_response(resp)
+
+        raise BadRequest('Invalid Upload')
+
+    except Exception as e:
+        return build_error_response(e)
+
 @service_gateway_app.route('/ion-service/upload/<fuc_id>', methods=['GET'])
 def upload_status(fuc_id):
     try:
