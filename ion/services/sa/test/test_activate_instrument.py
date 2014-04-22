@@ -308,7 +308,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
+        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id, default_stream_configuration=parsed_config)
         log.debug( 'new dp_id = %s' , data_product_id1)
         self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
@@ -336,7 +336,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
+        data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id, default_stream_configuration=raw_config)
         log.debug('new dp_id = %s', data_product_id2)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
