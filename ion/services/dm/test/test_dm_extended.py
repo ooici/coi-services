@@ -33,6 +33,8 @@ from shutil import rmtree
 from datetime import datetime, timedelta
 from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
+from pyon.ion.event import EventPublisher
+from interface.objects import InstrumentSite, InstrumentModel, PortTypeEnum, Deployment, CabledInstrumentDeploymentContext
 import lxml.etree as etree
 import simplejson as json
 import pkg_resources
@@ -1600,7 +1602,6 @@ def rotate_v(u,v,theta):
         
     @attr("UTIL")
     def test_qc_stuff(self):
-        from interface.objects import *
         data_product_id = self.make_ctd_data_product()
         self.add_tempwat_qc(data_product_id)
         data_product = self.resource_registry.read(data_product_id)
@@ -1713,4 +1714,24 @@ def rotate_v(u,v,theta):
         self.container.object_store.create_doc(doc, 'CP01CNSM-MFD37-03-CTDBPD000')
         streamer = Streamer(data_product_id)
         self.addCleanup(streamer.stop)
+
+
+        event_publisher = EventPublisher(OT.ParameterQCEvent)
+        self.addCleanup(event_publisher.close)
+        event = Event()
+
+        def annoying_thread(event_publisher, event):
+            log.error("Started annoying thread")
+            while not event.wait(1):
+                log.error("annoying thread")
+                event_publisher.publish_event(origin='what')
+                
+
+        g = gevent.spawn(annoying_thread, event_publisher, event)
+
+
         breakpoint(locals(), globals())
+        event.set()
+        g.join()
+
+
