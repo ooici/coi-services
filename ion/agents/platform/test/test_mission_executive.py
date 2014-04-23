@@ -230,6 +230,20 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         self.missionSchedule = MissionScheduler(self._pa_client, self._instruments, self.mission.mission_entries)
 
     @skip("Work in progress...")
+    def test_simple_simulator_mission_finite_loop(self):
+        """
+        similar to test_simple_simulator_mission but with a finite loop
+        """
+        filename = "ion/agents/platform/test/mission_RSN_simulator1_finite_loop.yml"
+
+        self.load_mission(yaml_filename=filename)
+
+        self.setup_platform_simulator_and_instruments()
+
+        # Start Mission Scheduer
+        self.missionSchedule = MissionScheduler(self._pa_client, self._instruments, self.mission.mission_entries)
+
+    @skip("Work in progress...")
     def test_shallow_profiler_mission(self):
         """
         Test the Shallow Water Profiler mission
