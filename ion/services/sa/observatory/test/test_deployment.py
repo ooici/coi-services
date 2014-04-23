@@ -85,8 +85,8 @@ class TestDeployment(IonIntegrationTestCase):
                                         description='some new deployment',
                                         constraint_list=[temporal_bounds])
         deployment_id = self.omsclient.create_deployment(deployment_obj)
-        self.omsclient.deploy_platform_site(site_id, deployment_id)
-        self.imsclient.deploy_platform_device(device_id, deployment_id)
+        self.omsclient.assign_site_to_deployment(site_id, deployment_id)
+        self.omsclient.assign_device_to_deployment(device_id, deployment_id)
 
         log.debug("test_create_deployment: created deployment id: %s ", str(deployment_id) )
 
@@ -305,8 +305,8 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("adding instrument site and device to deployment")
 
         log.debug("adding platform site and device to deployment")
-        self.omsclient.deploy_platform_site(res.platform_site_id, res.deployment_id)
-        self.imsclient.deploy_platform_device(res.platform_device_id, res.deployment_id)
+        self.omsclient.assign_site_to_deployment(res.platform_site_id, res.deployment_id)
+        self.omsclient.assign_device_to_deployment(res.platform_device_id, res.deployment_id)
 
         before_activate_instrument_device_obj = self.rrclient.read(res.instrument_device_id)
 
@@ -341,8 +341,8 @@ class TestDeployment(IonIntegrationTestCase):
 
         res = self.base_activate_deployment()
 
-        self.omsclient.deploy_instrument_site(res.instrument_site_id, res.deployment_id)
-        self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
+        self.omsclient.assign_site_to_deployment(res.instrument_site_id, res.deployment_id)
+        self.omsclient.assign_device_to_deployment(res.instrument_device_id, res.deployment_id)
 
         log.debug("activating deployment without site+device models, expecting fail")
         self.assert_deploy_fail(res.deployment_id, NotFound, "Expected 1")
@@ -363,7 +363,7 @@ class TestDeployment(IonIntegrationTestCase):
         self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
 
         log.debug("deploying instrument device only")
-        self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
+        self.omsclient.assign_device_to_deployment(res.instrument_device_id, res.deployment_id)
 
         log.debug("activating deployment without instrument site, expecting fail")
         self.assert_deploy_fail(res.deployment_id, BadRequest)
@@ -378,7 +378,7 @@ class TestDeployment(IonIntegrationTestCase):
         self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
 
         log.debug("deploying instrument site only")
-        self.omsclient.deploy_instrument_site(res.instrument_site_id, res.deployment_id)
+        self.omsclient.assign_site_to_deployment(res.instrument_site_id, res.deployment_id)
 
         log.debug("activating deployment without device, expecting fail")
         self.assert_deploy_fail(res.deployment_id, BadRequest, "No devices were found in the deployment")

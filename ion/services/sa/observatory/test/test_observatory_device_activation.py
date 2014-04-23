@@ -353,8 +353,8 @@ class TestDeviceActivation(IonIntegrationTestCase):
 
             deployment = IonObject('Deployment', config)
             deployment_id = self.oms.create_deployment(deployment)
-            self.oms.deploy_platform_site(site_id, deployment_id)
-            self.ims.deploy_platform_device(device_id, deployment_id)
+            self.oms.assign_site_to_deployment(site_id, deployment_id)
+            self.oms.assign_device_to_deployment(device_id, deployment_id)
             self.container.resource_registry.set_lifecycle_state(deployment_id,
                                                                  LCS.DEPLOYED)
             self.oms.activate_deployment(deployment_id)
@@ -373,8 +373,8 @@ class TestDeviceActivation(IonIntegrationTestCase):
             device_id = self._retrieve_ooi_asset(instrument_device)['_id']
             deployment = IonObject('Deployment', config)
             deployment_id = self.oms.create_deployment(deployment)
-            self.oms.deploy_instrument_site(site_id, deployment_id)
-            self.ims.deploy_instrument_device(device_id, deployment_id)
+            self.oms.assign_site_to_deployment(site_id, deployment_id)
+            self.oms.assign_device_to_deployment(device_id, deployment_id)
             self.container.resource_registry.set_lifecycle_state(deployment_id,
                                                                  LCS.DEPLOYED)
             self.oms.activate_deployment(deployment_id)
@@ -552,8 +552,8 @@ class TestDeviceActivation(IonIntegrationTestCase):
         # Assign mooring device and site to deployment.
         ############################################################
         mooring_site_id = self._retrieve_ooi_asset(CGSN_MOORING_SITE_ALT_ID)['_id']
-        self.oms.deploy_platform_site(mooring_site_id,deployment_2_id)
-        self.ims.deploy_platform_device(mooring_2_id, deployment_2_id)
+        self.oms.assign_site_to_deployment(mooring_site_id,deployment_2_id)
+        self.oms.assign_device_to_deployment(mooring_2_id, deployment_2_id)
 
         ############################################################
         # Assign agent and agent instances.
@@ -1248,8 +1248,8 @@ class TestDeviceActivation(IonIntegrationTestCase):
         self.oms.assign_resource_to_observatory_org(new_dep_id,
                                                     self._orgs['rsn']['_id'])
 
-        self.oms.deploy_instrument_site(site_id, new_dep_id)
-        self.ims.deploy_instrument_device(new_dev_id, new_dep_id)
+        self.oms.assign_site_to_deployment(site_id, new_dep_id)
+        self.oms.assign_device_to_deployment(new_dev_id, new_dep_id)
         self.oms.activate_deployment(new_dep_id)
 
         # Deployments no longer need this due to recent michael changes
