@@ -280,36 +280,52 @@ class AgentConfigurationBuilder(object):
         stream_config = {}
         for dp in data_product_objs:
             stream_def_id = self.RR2.find_stream_definition_id_of_data_product_using_has_stream_definition(dp._id)
-            for stream_name, stream_info_dict in streams_dict.items():
-                # read objects from cache to be compared
-                pdict = self.RR2.find_resource_by_name(RT.ParameterDictionary, stream_info_dict.get('param_dict_name'))
-                stream_def_id = self._find_streamdef_for_dp_and_pdict(dp._id, pdict._id)
-
-                if stream_def_id:
-                    #model_param_dict = self.RR2.find_resources_by_name(RT.ParameterDictionary,
-                    #                                         stream_info_dict.get('param_dict_name'))[0]
-                    #model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
-                    #stream_route = self.RR2.read(product_stream_id).stream_route
-                    product_stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(dp._id)
+            for stream in self.RR2.find_streams_of_data_product_using_has_stream(dp._id):
+                if stream.stream_name and stream.stream_name in streams_dict:
                     stream_def = psm.read_stream_definition(stream_def_id)
-                    stream_route = psm.read_stream_route(stream_id=product_stream_id)
-
-                    from pyon.core.object import IonObjectSerializer
+                    #from pyon.core.object import IonObjectSerializer
                     stream_def_dict = IonObjectSerializer().serialize(stream_def)
                     stream_def_dict.pop('type_')
 
-                    if stream_name in stream_config:
-                        log.warn("Overwriting stream_config[%s]", stream_name)
+                    stream_config[stream.stream_name] = { 
+                        'routing_key'           : stream.stream_route.routing_key,
+                        'stream_id'             : stream._id,
+                        'stream_definition_ref' : stream_def_id,
+                        'stream_def_dict'       : stream_def_dict,
+                        'exchange_point'        : stream.stream_route.exchange_point
+                   }
 
-                    stream_config[stream_name] = {  'routing_key'           : stream_route.routing_key,  # TODO: Serialize stream_route together
-                                                    'stream_id'             : product_stream_id,
-                                                    'stream_definition_ref' : stream_def_id,
-                                                    'stream_def_dict'       : stream_def_dict,  # This is very large
-                                                    'exchange_point'        : stream_route.exchange_point,
-                                                    # This is redundant and very large - the param dict is in the stream_def_dict
-                                                    #'parameter_dictionary'  : stream_def.parameter_dictionary,
-
-                    }
+#            stream_def_id = self.RR2.find_stream_definition_id_of_data_product_using_has_stream_definition(dp._id)
+#            for stream_name, stream_info_dict in streams_dict.items():
+#                # read objects from cache to be compared
+#                pdict = self.RR2.find_resource_by_name(RT.ParameterDictionary, stream_info_dict.get('param_dict_name'))
+#                stream_def_id = self._find_streamdef_for_dp_and_pdict(dp._id, pdict._id)
+#
+#                if stream_def_id:
+#                    #model_param_dict = self.RR2.find_resources_by_name(RT.ParameterDictionary,
+#                    #                                         stream_info_dict.get('param_dict_name'))[0]
+#                    #model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
+#                    #stream_route = self.RR2.read(product_stream_id).stream_route
+#                    product_stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(dp._id)
+#                    stream_def = psm.read_stream_definition(stream_def_id)
+#                    stream_route = psm.read_stream_route(stream_id=product_stream_id)
+#
+#                    from pyon.core.object import IonObjectSerializer
+#                    stream_def_dict = IonObjectSerializer().serialize(stream_def)
+#                    stream_def_dict.pop('type_')
+#
+#                    if stream_name in stream_config:
+#                        log.warn("Overwriting stream_config[%s]", stream_name)
+#
+#                    stream_config[stream_name] = {  'routing_key'           : stream_route.routing_key,  # TODO: Serialize stream_route together
+#                                                    'stream_id'             : product_stream_id,
+#                                                    'stream_definition_ref' : stream_def_id,
+#                                                    'stream_def_dict'       : stream_def_dict,  # This is very large
+#                                                    'exchange_point'        : stream_route.exchange_point,
+#                                                    # This is redundant and very large - the param dict is in the stream_def_dict
+#                                                    #'parameter_dictionary'  : stream_def.parameter_dictionary,
+#
+#                    }
         if len(stream_config) < len(streams_dict):
             log.warn("Found only %s matching streams by stream definition (%s) than %s defined in the agent (%s).",
                      len(stream_config), stream_config.keys(), len(streams_dict), streams_dict.keys())

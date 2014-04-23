@@ -130,7 +130,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
     #--------------------------------------------------------------------------------
     
-    def create_stream(self, name='', exchange_point='', topic_ids=None, credentials=None, stream_definition_id='', description=''):
+    def create_stream(self, name='', exchange_point='', topic_ids=None, credentials=None, stream_definition_id='', description='', stream_name='', stream_type=''):
         # Argument Validation
         if name and self.clients.resource_registry.find_resources(restype=RT.Stream, name=name, id_only=True)[0]:
             raise Conflict("The named stream '%s' already exists on XP '%s'" % (name, exchange_point))
@@ -172,6 +172,8 @@ class PubsubManagementService(BasePubsubManagementService):
         stream.stream_route.routing_key = routing_key
         #@todo: validate credentials
         stream.stream_route.credentials = credentials
+        stream.stream_name = stream_name
+        stream.stream_type = stream_type
 
         stream_id, rev = self.clients.resource_registry.create(stream)
 

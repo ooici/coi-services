@@ -95,12 +95,14 @@ class TestInstrumentIntegration(DMTestCase):
         self.addCleanup(self.instrument_management.stop_instrument_agent_instance, instrument_agent_instance_id)
 
     def create_instrument_data_products(self, instrument_device_id):
-        raw_dp_id = self.create_data_product('raw', param_dict_name='raw') 
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='raw')
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict')
+        raw_dp_id = self.create_data_product('raw', param_dict_name='raw', stream_configuration=raw_config)
         self.data_product_management.activate_data_product_persistence(raw_dp_id)
         self.addCleanup(self.data_product_management.suspend_data_product_persistence, raw_dp_id)
         self.data_acquisition_management.assign_data_product(input_resource_id=instrument_device_id, data_product_id=raw_dp_id)
 
-        parsed_dp_id = self.create_data_product('parsed', param_dict_name='ctd_parsed_param_dict')
+        parsed_dp_id = self.create_data_product('parsed', param_dict_name='ctd_parsed_param_dict', stream_configuration=parsed_config)
         self.data_product_management.activate_data_product_persistence(parsed_dp_id)
         self.addCleanup(self.data_product_management.suspend_data_product_persistence, parsed_dp_id)
         self.data_acquisition_management.assign_data_product(input_resource_id=instrument_device_id, data_product_id=parsed_dp_id)

@@ -92,7 +92,7 @@ from coverage_model import NumexprFunction, PythonFunction, QuantityType, Parame
 
 from interface import objects
 from interface.objects import StreamAlertType, PortTypeEnum, StreamConfigurationType, ParameterFunction as ParameterFunctionResource
-from interface.objects import DataProcessDefinition, DataProcessTypeEnum
+from interface.objects import DataProcessDefinition, DataProcessTypeEnum, StreamConfiguration
 
 from ooi.timer import Accumulator, Timer
 stats = Accumulator(persist=True)
@@ -3065,6 +3065,22 @@ Reason: %s
 
         contacts = self._get_contacts(row, field='contact_ids', type='DataProduct')
         res_obj = self._create_object_from_row("DataProduct", row, "dp/", contacts=contacts, contact_field='contacts')
+        sc = None
+
+        if 'default_stream_configuration' in row and row['default_stream_configuration']:
+            sc = row['default_stream_configuration']
+            if isinstance(sc, basestring): # The stream config is a key like SC7
+                try:
+                    sc = self.stream_config[row['default_stream_configuration']]
+                except KeyError:
+                    pass
+            elif isinstance(sc, StreamConfiguration): # Passed in from OOI loader
+                pass # Already set sc
+            else:
+                sc = None
+                log.warning("Unkonwn type for stream configuration in data product row")
+                
+
 
         constraint_id = row['geo_constraint_id']
         if constraint_id:
@@ -3100,6 +3116,7 @@ Reason: %s
                 res_id = dpms_client.create_data_product(data_product=res_obj,
                                                          stream_definition_id=stream_definition_id,
                                                          parent_data_product_id=parent_id,
+                                                         default_stream_configuration=sc,
                                                          headers=headers)
             else:
                 res_id = dpms_client.create_data_product_(data_product=res_obj,
@@ -3276,6 +3293,7 @@ Reason: %s
                     newrow['geo_constraint_id'] = const_id1
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                     newrow['parent'] = ''
+                    newrow['default_stream_configuration'] = scfg
                     if self._is_deployed(node_obj) and self.ooiactivate:
                         newrow['persist_data'] = 'True'
                     else:
@@ -3363,6 +3381,7 @@ Reason: %s
                         newrow['persist_data'] = 'False'
                     newrow['parent'] = ''
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+                    newrow['default_stream_configuration'] = scfg
 
                     pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                     strdef_id = self._create_dp_stream_def(inst_id, pdict_id, scfg.stream_name)
