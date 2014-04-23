@@ -363,7 +363,7 @@ class TestDeployment(IonIntegrationTestCase):
         self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
 
         log.debug("deploying instrument device only")
-        self.omsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
+        self.omsclient.assign_device_to_deployment(res.instrument_device_id, res.deployment_id)
 
         log.debug("activating deployment without instrument site, expecting fail")
         self.assert_deploy_fail(res.deployment_id, BadRequest)
