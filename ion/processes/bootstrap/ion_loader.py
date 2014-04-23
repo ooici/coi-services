@@ -1296,6 +1296,21 @@ class IONLoader(ImmediateProcess):
             "instrument_management", "create_platform_model",
             support_bulk=True)
 
+    def _update_model(self, model_id, newrow, instrument=True):
+        res_obj = self._get_resource_obj(model_id)
+        needupdate = False
+        # Update name if different
+        prefix = "im" if instrument else "pm"
+        if self.ooirename and res_obj.name != newrow[prefix+'/name']:
+            res_obj.name = newrow[prefix+'/name']
+            needupdate = True
+        # Update description if different
+        if res_obj.description != newrow[prefix+'/description']:
+            res_obj.description = newrow[prefix+'/description']
+            needupdate = True
+        if needupdate:
+            self._update_resource_obj(model_id)
+
     def _load_PlatformModel_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("nodetype")
 
@@ -1314,6 +1329,9 @@ class IONLoader(ImmediateProcess):
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_PlatformModel(newrow)
+            elif self.ooiupdate:
+                self._update_model(newrow[COL_ID], newrow, instrument=False)
+
 
     def _load_InstrumentModel(self, row):
         row['im/reference_urls'] = repr(get_typed_value(row['im/reference_urls'], targettype="simplelist"))
@@ -1423,6 +1441,8 @@ class IONLoader(ImmediateProcess):
 
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentModel(newrow)
+            elif self.ooiupdate:
+                self._update_model(newrow[COL_ID], newrow)
 
     # -------------------------------------------------------------------------
     # Sites and geospatial constraints
@@ -1763,10 +1783,10 @@ class IONLoader(ImmediateProcess):
                 newrow['ps/planned_uplink_port/port_type'] = "NONE"
                 newrow['ps/planned_uplink_port/reference_designator'] = ""
 
-            if self._resource_exists(ooi_id):
+            if not self._resource_exists(ooi_id):
                 self._load_PlatformSite(newrow)
             elif self.ooiupdate:
-                self._update_site(newrow, const_id1, const_id2, instrument=False)
+                self._update_site(ooi_id, newrow, const_id1, const_id2, instrument=False)
 
         ooi_objs = self.ooi_loader.get_type_assets("node")
         # WARNING: Only supports 2 levels of platforms/nodes
@@ -1881,7 +1901,7 @@ class IONLoader(ImmediateProcess):
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentSite(newrow)
             elif self.ooiupdate:
-                self._update_site(newrow, const_id1, const_id2, instrument=True)
+                self._update_site(inst_id, newrow, const_id1, const_id2, instrument=True)
 
     # -------------------------------------------------------------------------
     # Parameters, streams, etc.
@@ -2306,7 +2326,7 @@ Reason: %s
             serial = "changeme_%s.001" % (node_id)
             serial = serial.lower()
             newrow['pd/name'] = "%s serial# %s" % (nodetype_objs[ooi_rd.node_type]["name"], serial)
-            newrow['pd/description'] = "Platform %s device #01" % node_id
+            newrow['pd/description'] = "Platform device first deployed to %s" % node_id
             newrow['pd/serial_number'] = serial
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
             newrow['platform_model_id'] = ooi_rd.node_type + "_PM"
@@ -2409,7 +2429,7 @@ Reason: %s
             serial = "changeme_%s.001" % (ooi_id)
             serial = serial.lower()
             newrow['id/name'] = "%s serial# %s" % (class_objs[ooi_rd.inst_class]['alt_name'], serial)
-            newrow['id/description'] = "Instrument %s device #01" % ooi_id
+            newrow['id/description'] = "Instrument device first deployed to %s" % ooi_id
             newrow['id/serial_number'] = serial
             newrow['id/reference_urls'] = ''
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
@@ -2688,7 +2708,7 @@ Reason: %s
                 device_obj = self._get_resource_obj(platform_id)
                 newrow['pai/name'] = "Platform agent instance for %s serial# %s" % (
                     nodetype_objs[ooi_rd.node_type]["name"], device_obj.serial_number)
-                newrow['pai/description'] = ""
+                newrow['pai/description'] = "For device first deployed to %s" % node_id
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
                 newrow['platform_agent_id'] = agent_id
                 newrow['platform_device_id'] = platform_id
@@ -2711,7 +2731,7 @@ Reason: %s
                 device_obj = self._get_resource_obj(platform_id)
                 newrow['ai/name'] = "Dataset agent instance for %s serial# %s" % (
                     nodetype_objs[ooi_rd.node_type]["name"], device_obj.serial_number)
-                newrow['ai/description'] = ""
+                newrow['ai/description'] = "For device first deployed to %s" % node_id
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_rd.array])
                 newrow['agent_id'] = agent_id
                 newrow['device_id'] = platform_id
@@ -2905,7 +2925,7 @@ Reason: %s
                 device_obj = self._get_resource_obj(idev_id)
                 newrow['iai/name'] = "Instrument agent instance for %s serial# %s" % (
                     class_objs[ooi_rd.inst_class]['alt_name'], device_obj.serial_number)
-                newrow['iai/description'] = ""
+                newrow['iai/description'] = "For device first deployed to %s" % ooi_id
                 newrow['iai/reference_urls'] = ''
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
                 newrow['instrument_agent_id'] = agent_id
@@ -2931,7 +2951,7 @@ Reason: %s
                 device_obj = self._get_resource_obj(idev_id)
                 newrow['ai/name'] = "Dataset agent instance for %s serial# %s" % (
                     class_objs[ooi_rd.inst_class]['alt_name'], device_obj.serial_number)
-                newrow['ai/description'] = ""
+                newrow['ai/description'] = "For device first deployed to %s" % ooi_id
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
                 newrow['agent_id'] = agent_id
                 newrow['device_id'] = idev_id
@@ -3346,7 +3366,7 @@ Reason: %s
 
         pdict_map = self._get_paramdict_param_map()
 
-        # I. Platform data products as defined by agents
+        # I. Platforms: Generate one data product for each stream of the node type's agent definition (if existing)
         for node_id in sorted(node_objs.keys()):
             node_obj = node_objs[node_id]
             ooi_rd = OOIReferenceDesignator(node_id)
@@ -3410,7 +3430,8 @@ Reason: %s
                     elif self.ooiupdate:
                         update_data_product(dp_id, newrow, const_id1, const_id2)
 
-        # II. Instrument data products (raw, parsed, engineering, derived science L0, L1, L2)
+        # ---------------------------------------------------------------------
+        # II. Instruments: Generate data products (raw, parsed, engineering, derived science L0, L1, L2)
         for inst_id in sorted(inst_objs.keys()):
             inst_obj= inst_objs[inst_id]
             num_dp_generated = 0
@@ -3437,7 +3458,9 @@ Reason: %s
             agent_id, agent_obj = self._get_agent_definition(ooi_rd)
 
             parsed_pdict_id, parsed_id = "", ""
-            # (1) Generate stream DataProducts (raw, parsed, engineering)
+
+            # ---------------------------------------------------------------------
+            # II.1 Generate one data product for each stream of the agent definition (if existing): raw, parsed, engineering
             if agent_obj:
                 log.debug("Checking DataProducts for %s from instrument/data agent %s streams and SAF", inst_id, agent_id)
 
@@ -3513,7 +3536,9 @@ Reason: %s
                 #log.debug("Not generating DataProducts for %s - no agent/streams defined", inst_id)
                 pass
 
-            # (2) Generate derived DataProducts for L0/L1/L2 based on SAF DPS - Level (per site) AND param dict
+            # ---------------------------------------------------------------------
+            # II.2 Generate one data product for each DPS-level combination defined in SAF: L0/L1/L2
+            # Note: do not generate data product if PDICT does not have the referenced parameter
             skip_list = []
             data_product_list = inst_obj.get('data_product_list', [])
             for dptype_id in data_product_list:
