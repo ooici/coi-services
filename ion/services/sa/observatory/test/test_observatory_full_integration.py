@@ -446,8 +446,8 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         GP03FLMB_RI001_10_CTDMOG999_ID_idevice = self.retrieve_ooi_asset('GP03FLMB-RI001-10-CTDMOG999_ID')
 
         deploy_id_2 = self.create_basic_deployment(name='CE04OSBP-LJ01C-06-CTDBPO108_DEP2', description='substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a comparable device')
-        self.IMS.deploy_instrument_device(instrument_device_id=GP03FLMB_RI001_10_CTDMOG999_ID_idevice._id, deployment_id=deploy_id_2)
-        self.OMS.deploy_instrument_site(instrument_site_id=CE04OSBP_LJ01C_06_CTDBPO108_isite._id, deployment_id=deploy_id_2)
+        self.OMS.assign_device_to_deployment(instrument_device_id=GP03FLMB_RI001_10_CTDMOG999_ID_idevice._id, deployment_id=deploy_id_2)
+        self.OMS.assign_site_to_deployment(instrument_site_id=CE04OSBP_LJ01C_06_CTDBPO108_isite._id, deployment_id=deploy_id_2)
         self.dump_deployment(deploy_id_2)
 
         # (optional) Activate this second deployment - check first deployment is deactivated
@@ -812,11 +812,11 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Assign Deployment X to site GP05MOAS-GL001
         GP05MOAS_GL001_psite = self.retrieve_ooi_asset('GP05MOAS-GL001')
-        self.OMS.deploy_platform_site(GP05MOAS_GL001_psite._id, x_deploy_id)
+        self.OMS.assign_site_to_deployment(GP05MOAS_GL001_psite._id, x_deploy_id)
 
         # Assign Deployment X to first device for GP05MOAS-GL001
         GP05MOAS_GL001_device = self.retrieve_ooi_asset('GP05MOAS-GL001_PD')
-        self.IMS.deploy_platform_device(GP05MOAS_GL001_device._id, x_deploy_id)
+        self.OMS.assign_device_to_deployment(GP05MOAS_GL001_device._id, x_deploy_id)
 
         # Set GP05MOAS-GL001 Deployment to PLANNED state
         #self.transition_lcs_then_verify(resource_id=x_deploy_id, new_lcs_state=LCE.PLAN, verify='PLANNED')

@@ -3639,12 +3639,9 @@ Reason: %s
         device_obj = self._get_resource_obj(device_id)
         if device_obj is None:
             device_obj = self._read_resource_id(device_id)
-        if device_obj.type_ == "InstrumentDevice":
-            oms.deploy_instrument_site(site_id, deployment_id, headers=headers)
-            ims.deploy_instrument_device(device_id, deployment_id, headers=headers)
-        else:
-            oms.deploy_platform_site(site_id, deployment_id, headers=headers)
-            ims.deploy_platform_device(device_id, deployment_id, headers=headers)
+
+        oms.assign_site_to_deployment(site_id, deployment_id, headers=headers)
+        oms.assign_device_to_deployment(device_id, deployment_id, headers=headers)
 
         self._resource_advance_lcs(row, deployment_id)
 

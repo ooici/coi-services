@@ -1435,32 +1435,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.RR2.unassign_sensor_device_from_instrument_device_with_has_device(sensor_device_id, instrument_device_id)
 
 
-    ##########################################################################
-    #
-    # DEPLOYMENTS
-    #
-    ##########################################################################
 
-
-
-    def deploy_instrument_device(self, instrument_device_id='', deployment_id=''):
-        # OBSOLETE - Move calls to assign/unassign in observatory_management
-        self.RR2.assign_deployment_to_instrument_device_with_has_deployment(deployment_id, instrument_device_id)
-
-
-    def undeploy_instrument_device(self, instrument_device_id='', deployment_id=''):
-        # OBSOLETE - Move calls to assign/unassign in observatory_management
-        self.RR2.unassign_deployment_from_instrument_device_with_has_deployment(deployment_id, instrument_device_id)
-
-
-    def deploy_platform_device(self, platform_device_id='', deployment_id=''):
-        # OBSOLETE - Move calls to assign/unassign in observatory_management
-        self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id)
-
-
-    def undeploy_platform_device(self, platform_device_id='', deployment_id=''):
-        # OBSOLETE - Move calls to assign/unassign in observatory_management
-        self.RR2.unassign_deployment_from_platform_device_with_has_deployment(deployment_id, platform_device_id)
 
 
 

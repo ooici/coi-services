@@ -560,22 +560,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     ##########################################################################
 
 
-    def deploy_instrument_site(self, instrument_site_id='', deployment_id=''):
-        # OBSOLETE - Move calls to assign/unassign
-        self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, instrument_site_id)
-
-    def undeploy_instrument_site(self, instrument_site_id='', deployment_id=''):
-        # OBSOLETE - Move calls to assign/unassign
-        self.RR2.unassign_deployment_from_instrument_site_with_has_deployment(deployment_id, instrument_site_id)
-
-    def deploy_platform_site(self, platform_site_id='', deployment_id=''):
-        # OBSOLETE - Move calls to assign/unassign
-        self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id)
-
-    def undeploy_platform_site(self, platform_site_id='', deployment_id=''):
-        # OBSOLETE - Move calls to assign/unassign
-        self.RR2.unassign_deployment_from_platform_site_with_has_deployment(deployment_id, platform_site_id)
-
     def _get_deployment_assocs(self, deployment_id):
         res_ids, assocs = self.RR.find_subjects(predicate=PRED.hasDeployment, object=deployment_id, id_only=True)
         assoc_by_type = dict(Site=[], Device=[])
