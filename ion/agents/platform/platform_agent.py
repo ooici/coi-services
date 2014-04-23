@@ -265,11 +265,11 @@ class PlatformAgent(ResourceAgent):
         self._status_manager = None
 
         # The current loaded mission file.
-        self.aparm_mission = None
+        self.aparam_mission = None
 
         # The get/set helpers set by the mission loader.
-        self.aparm_get_mission = None
-        self.aparm_set_mission = None
+        self.aparam_get_mission = None
+        self.aparam_set_mission = None
 
         #####################################
         # lost_connection handling:
