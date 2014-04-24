@@ -15,7 +15,7 @@ class BootstrapEOI(BootstrapPlugin):
         """
         EOI BootstrapPlugin
 
-        Creating transform workers happens here...
+        Resets the geoserver datastore... 
         """
         r = ResourceParser()
         r.init()

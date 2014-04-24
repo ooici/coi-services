@@ -776,6 +776,5 @@ class DatasetManagementService(BaseDatasetManagementService):
         # See if we have it already before hitting RPC
         if self.geos_available:
             return True
-        self.geos_available = self.resource_parser.get_eoi_service_available()     
-        print "use geoservices:",self.geos_available
+        self.geos_available = self.resource_parser.get_eoi_service_available()             
         return self.geos_available

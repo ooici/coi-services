@@ -35,9 +35,8 @@ class ResourceParser(object):
         initalizes the resource configuration 
         """
 
-        self.using_eoi_services = CFG.get_safe('eoi.meta.use_eoi_services', False)
-        print "using eoi:",self.using_eoi_services
-
+        self.using_eoi_services = CFG.get_safe('eoi.meta.use_eoi_services', False)        
+        log.debug("TableLoader:Using geoservices="+str(self.using_eoi_services))
         if not self.using_eoi_services:
             raise BadRequest("Eoi services not enabled")
 
@@ -76,13 +75,13 @@ class ResourceParser(object):
 
         except psycopg2.databaseError as e:
             #error setting up connection
-            log.debug('Error %s', e)
+            log.warn('Error %s', e)
         
         if self.postgres_db_available and self.importer_service_available:
             self.use_geo_services = True
             log.debug("TableLoader:Using geoservices...")
         else:
-            log.debug("TableLoader:NOT using geoservices...") 
+            log.warn("TableLoader:NOT using geoservices...") 
 
     def get_eoi_service_available(self):
         """
@@ -93,7 +92,7 @@ class ResourceParser(object):
     def check_for_importer_service(self):
         try:
             r = requests.get(self.server+'/service=alive&name=ooi&id=ooi')
-            log.debug("importerservice status code: %s", str(r.status_code))
+            log.debug("importer service available, status code: %s", str(r.status_code))
             #alive service returned ok
             if r.status_code == 200:
                 return True
@@ -101,7 +100,7 @@ class ResourceParser(object):
                 return False
         except Exception as e:
             #SERVICE IS REALLY NOT AVAILABLE
-            log.debug("service is really not available...%s", e)
+            log.warn("importer service is really not available...%s", e)
             return False
 
     def close(self):
