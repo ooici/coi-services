@@ -9,6 +9,7 @@ Supports the following ops:
          can provide start and stop date for instrument agent reachback recover (optionally)
 - stop: via DAMS service call, stop agent instance
 - configure_instance: using a config csv lookup file, update the AgentInstance driver_config
+- set_attributes: using a config csv lookup file, update the given resource attributes
 - activate_persistence: activate persistence for the data products of the devices
 - suspend_persistence: suspend persistence for the data products of the devices
 - cleanup_persistence: Deletes remnant persistent records about activated persistence in the system
@@ -395,7 +396,7 @@ class AgentControl(ImmediateProcess):
                     # Note: this is bad because devices are not assigned to the same RD over time
                     cfg_id = alt_ids[0].rsplit("_", 1)[0]
                     dev_cfg = cfg_dict.get(cfg_id, None)
-        if not dev_cfg and res_obj.serial_number:
+        if not dev_cfg and getattr(res_obj, "serial_number", None):
             if res_obj.type_ == RT.InstrumentDevice:
                 # Find config by instrument series + serial number, e.g. CDTBPN:123123
                 model_obj = self.rr.read_object(res_obj._id, PRED.hasModel, id_only=False)
@@ -407,6 +408,33 @@ class AgentControl(ImmediateProcess):
                 dev_cfg = cfg_dict.get(cfg_id, None)
 
         return cfg_id, dev_cfg
+
+    def _add_attribute_row(self, row, cfg_dict):
+        # Value per row format
+        device_id = row["ID"]
+        attr_name = row["Attribute"]
+        param_name = row["Name"]
+        param_value = row["Value"]
+        param_type = row.get("Type", "str") or "str"
+        if not param_name:
+            log.warn("Row %s value %s has no name", device_id, attr_name, param_value)
+            return
+
+        target_dict = cfg_dict.setdefault(device_id, {})
+        nested_attrs = attr_name.split(".") if attr_name else []
+        for na in nested_attrs:
+            if ":" in na:
+                # Index in a list, 0-based e.g. field_name:0
+                nan, naidx = na.rsplit(":", 1)
+                target_list = target_dict.setdefault(nan, [])
+                naidx = int(naidx)
+                if len(target_list) < naidx+1:
+                    # Expand list length
+                    target_list[len(target_list):naidx] = [{}] * (naidx + 1 - len(target_list))
+                target_dict = target_list[naidx]
+            else:
+                target_dict = target_dict.setdefault(na, {})
+        target_dict[param_name] = get_typed_value(param_value, targettype=param_type)
 
     def config_instance(self, agent_instance_id, resource_id):
         if not agent_instance_id:
@@ -423,31 +451,7 @@ class AgentControl(ImmediateProcess):
                 reader = csv.DictReader(f, delimiter=',')
                 for row in reader:
                     if "Attribute" in row:
-                        # Value per row format
-                        device_id = row["ID"]
-                        attr_name = row["Attribute"]
-                        param_name = row["Name"]
-                        param_value = row["Value"]
-                        param_type = row.get("Type", "str") or "str"
-                        if not param_name:
-                            log.warn("Resource %s attribute %s value %s has no name", resource_id, attr_name, param_value)
-                            continue
-
-                        target_dict = self.cfg_mappings.setdefault(device_id, {})
-                        nested_attrs = attr_name.split(".") if attr_name else []
-                        for na in nested_attrs:
-                            if ":" in na:
-                                # Index in a list, 0-based e.g. field_name:0
-                                nan, naidx = na.rsplit(":", 1)
-                                target_list = target_dict.setdefault(nan, [])
-                                naidx = int(naidx)
-                                if len(target_list) < naidx+1:
-                                    # Expand list length
-                                    target_list[len(target_list):naidx] = [{}] * (naidx + 1 - len(target_list))
-                                target_dict = target_list[naidx]
-                            else:
-                                target_dict = target_dict.setdefault(na, {})
-                        target_dict[param_name] = get_typed_value(param_value, targettype=param_type)
+                        self._add_attribute_row(row, self.cfg_mappings)
                     else:
                         # Parse_dict format, one row per AI resource
                         self.cfg_mappings[row["ID"]] = dict(
@@ -481,6 +485,9 @@ class AgentControl(ImmediateProcess):
 
         for attr_name, attr_cfg in dev_cfg.iteritems():
             if hasattr(ai, attr_name):
+                if attr_name in {"_id", "_rev", "type_"}:
+                    log.warn("Attribute %s cannot be modified", attr_name)
+                    continue
                 if type(getattr(ai, attr_name)) != type(attr_cfg):
                     log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(ai, attr_name)))
                     continue
@@ -494,6 +501,44 @@ class AgentControl(ImmediateProcess):
                     setattr(ai, attr_name, attr_cfg)
 
         self.rr.update(ai)
+
+    def set_attributes(self, agent_instance_id, resource_id):
+        cfg_file = self.CFG.get("cfg", None)
+        if not cfg_file:
+            raise BadRequest("No cfg argument provided")
+
+        if not self.cfg_mappings:
+            self.cfg_mappings = {}
+
+            with open(cfg_file, "rU") as f:
+                reader = csv.DictReader(f, delimiter=',')
+                for row in reader:
+                    self._add_attribute_row(row, self.cfg_mappings)
+
+        res_obj = self.rr.read(resource_id)
+        cfg_id, dev_cfg = self._get_resource_cfg(res_obj, self.cfg_mappings)
+
+        if not dev_cfg:
+            log.warn("Could not determine attributes for resource %s", resource_id)
+            return
+
+        log.info("Setting attributes for resource %s '%s': %s", cfg_id, res_obj.name, dev_cfg)
+
+        for attr_name, attr_cfg in dev_cfg.iteritems():
+            if hasattr(res_obj, attr_name):
+                if type(getattr(res_obj, attr_name)) != type(attr_cfg):
+                    log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(ai, attr_name)))
+                    continue
+                if isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
+                    attr_cfg.pop("_replace")
+                    setattr(res_obj, attr_name, attr_cfg)
+                elif isinstance(attr_cfg, dict):
+                    attr_val = getattr(res_obj, attr_name)
+                    dict_merge(attr_val, attr_cfg, inplace=True)
+                else:
+                    setattr(res_obj, attr_name, attr_cfg)
+
+        self.rr.update(res_obj)
 
     def set_calibration(self, agent_instance_id, resource_id):
         res_obj = self.rr.read(resource_id)
