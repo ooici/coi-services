@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""Common utilities to parse external files, e.g. for preload"""
+"""Common utilities to parse external input, e.g. for preload"""
 
 __author__ = 'Michael Meisinger, Ian Katz'
 
@@ -14,6 +14,7 @@ from interface import objects
 def get_typed_value(value, schema_entry=None, targettype=None):
     """
     Performs a value type conversion according to a schema specified target type.
+    Supports simplelist and parsedict special type parsing.
     """
     targettype = targettype or schema_entry["type"]
     if schema_entry and 'enum_type' in schema_entry:
@@ -40,26 +41,32 @@ def get_typed_value(value, schema_entry=None, targettype=None):
             log.warn("Value %s is type %s not type %s" % (value, type(value), targettype))
             return ast.literal_eval(value)
     elif targettype == 'simplelist':
-        if value.startswith('[') and value.endswith(']'):
-            value = value[1:len(value)-1].strip()
-        elif not value.strip():
-            return []
-        return list(value.split(','))
+        return parse_list(value)
+    elif targettype == 'parsedict':
+        return parse_dict(str(value))
     else:
         log.trace('parsing value as %s: %s', targettype, value)
         return ast.literal_eval(value)
 
+def parse_list(value):
+    """
+    Parse a string to extract a simple list of string values.
+    """
+    if value.startswith('[') and value.endswith(']'):
+        value = value[1:len(value)-1].strip()
+    elif not value.strip():
+        return []
+    return list(value.split(','))
+
 def parse_dict(text):
     """
-    parse a "simple" dictionary of unquoted string keys and values. -- no nested values, no complex characters
-
-    But is it really simple?  Not quite.  The following substitutions are made:
-
+    Parse a text string to obtain a dictionary of unquoted string keys and values.
+    The following substitutions are made:
     keys with dots ('.') will be split into dictionaries.
     booleans "True", "False" will be parsed
     numbers will be parsed as floats unless they begin with "0" or include one "." and end with "0"
     "{}" will be converted to {}
-    "[]" will be converted to [] (that's "[ ]" with no space)
+    "[]" will be converted to []
 
     For example, an entry in preload would be this:
 
@@ -74,7 +81,6 @@ def parse_dict(text):
     { "PARAMETERS": { "TXWAVESTATS": False, "TXREALTIME": True, "TXWAVEBURST": "false" },
       "SCHEDULER": { "ACQUIRE_STATUS": { }, "CLOCK_SYNC", 48.2, "VERSION": {"number": "3.0"}}
     }
-
     """
 
     substitutions = {"{}": {}, "[]": [], "True": True, "False": False}
