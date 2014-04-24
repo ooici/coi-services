@@ -17,6 +17,8 @@ from pyon.util.arg_check import validate_is_not_none
 from pyon.ion.event import EventSubscriber
 from pyon.util.log import log
 from gevent.event import Event
+import gevent
+from gevent.queue import Queue
 import numpy as np
 import re
 import threading
@@ -123,9 +125,12 @@ class QCProcessor(SimpleProcess):
         '''
         Process initialization
         '''
-        self._thread = self._process.thread_manager.spawn(self.event_loop)
+        self._thread = self._process.thread_manager.spawn(self.thread_loop)
+        self._event_subscriber = EventSubscriber(event_type=OT.ParameterQCEvent, callback=self.receive_event, auto_delete=True) # TODO Correct event types
+        self._event_subscriber.start()
         self.timeout = self.CFG.get_safe('endpoint.receive.timeout', 10)
         self.resource_registry = self.container.resource_registry
+        self.event_queue = Queue()
 
     def on_quit(self):
         '''
@@ -133,21 +138,25 @@ class QCProcessor(SimpleProcess):
         '''
         self.suspend()
 
-    def event_loop(self):
+    def receive_event(self, event, *args, **kwargs):
+        log.error("Adding event to the event queue")
+        self.event_queue.put(event)
+
+    def thread_loop(self):
         '''
         Asynchronous event-loop
         '''
         threading.current_thread().name = '%s-qc-processor' % self.id
         while not self.event.wait(1):
-            self.main_loop()
+            self.qc_processing_loop()
+            self.event_processing_loop()
 
-    def main_loop(self):
+    def qc_processing_loop(self):
         '''
         Iterates through available data products and evaluates QC
         '''
         data_products, _ = self.container.resource_registry.find_resources(restype=RT.DataProduct, id_only=False)
         for data_product in data_products:
-            log.error("Looking at %s", data_product.name)
             # Get the reference designator
             try:
                 rd = self.get_reference_designator(data_product._id)
@@ -165,18 +174,24 @@ class QCProcessor(SimpleProcess):
                     if g:
                         sname = g.groups()[0]
                     qc_mapping[sname] = p.name
-            log.error(qc_mapping)
 
             for p in parameters:
                 # for each parameter, if the name ends in _qc run the qc
                 if p.name.endswith('_qc'):
                     self.run_qc(data_product,rd, p, qc_mapping)
-            log.error("Data Product RD: %s", rd)
 
             # Break early if we can
             if self.event.is_set(): 
                 break
 
+    def event_processing_loop(self):
+        '''
+        Processes the events in the event queue
+        '''
+        log.error("Processing event queue")
+        self.event_queue.put(StopIteration)
+        for event in self.event_queue:
+            log.error("My event: %s", event)
 
     def suspend(self):
         '''
@@ -194,7 +209,6 @@ class QCProcessor(SimpleProcess):
         # First try to get the parent data product
         data_product_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
         if data_product_ids:
-            log.error("Derived data product")
             return self.get_reference_designator(data_product_ids[0])
 
         device_ids, _ = self.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasOutputProduct, subject_type=RT.InstrumentDevice, id_only=True)
@@ -216,10 +230,7 @@ class QCProcessor(SimpleProcess):
 
         # We key off of the OOI Short Name
         # DATAPRD_ALGRTHM_QC
-        log.error("Running QC %s (%s)", data_product.name, parameter.name)
         dp_ident, alg, qc = parameter.ooi_short_name.split('_')
-        log.error("Identifier: %s", dp_ident)
-        log.error("Test: %s", alg)
         if dp_ident not in qc_mapping:
             return # No input!
         input_name = qc_mapping[dp_ident]
@@ -233,7 +244,6 @@ class QCProcessor(SimpleProcess):
             return # No data product of this listing in the RD's entry
         # Lookup table has the rows for the QC inputs
         lookup_table = doc[reference_designator][dp_ident]
-        log.error("lookup table found")
 
         # An instance of the coverage is loaded if we need to run an algorithm
         dataset_id = self.get_dataset(data_product)
@@ -251,21 +261,18 @@ class QCProcessor(SimpleProcess):
                 self.process_glblrng(coverage, parameter, input_name, min_value, max_value)
 
             elif alg.lower() == 'stuckvl':
-                log.error("Running Stuck Value")
                 row = self.recent_row(lookup_table['stuck_value'])
                 resolution = row['resolution']
                 N = row['consecutive_values']
                 self.process_stuck_value(coverage, parameter,input_name, resolution, N)
 
             elif alg.lower() == 'trndtst':
-                log.error("Running Trend Test")
                 row = self.recent_row(lookup_table['trend_test'])
                 ord_n = row['polynomial_order']
                 nstd = row['standard_deviation']
                 self.process_trend_test(coverage, parameter, input_name, ord_n, nstd)
 
             elif alg.lower() == 'spketst':
-                log.error("Running Spike Test")
                 row = self.recent_row(lookup_table['spike_test'])
                 acc = row['accuracy']
                 N = row['range_multiplier']
@@ -273,7 +280,6 @@ class QCProcessor(SimpleProcess):
                 self.process_spike_test(coverage, parameter, input_name, acc, N, L)
 
             elif alg.lower() == "gradtst":
-                log.error("Running Gradient Test")
                 row = self.recent_row(lookup_table["gradient_test"])
                 ddatdx = row["ddatdx"]
                 mindx = row["mindx"]
@@ -286,7 +292,7 @@ class QCProcessor(SimpleProcess):
                 self.process_gradient_test(coverage, parameter, input_name, ddatdx, mindx, startdat, toldat)
 
             elif alg.lower() == 'loclrng':
-                log.error("Coming soon!")
+                pass
 
         finally:
             coverage.close()
@@ -386,8 +392,6 @@ class QCProcessor(SimpleProcess):
                 parameter.name : qc_array[indexes]
         }
 
-        log.error("Normally I'd set these in the coverage model...")
-        log.error(return_dictionary)
 
     def process_local_range_test(self, coverage, parameter, input_name, datlim, datlimz):
         qc_array = coverage.get_parameter_values(parameter.name)
@@ -406,8 +410,6 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array[indexes],
                 parameter.name : qc_array[indexes]
         }
-        log.error("Normally I'd set these in the coverage model...")
-        log.error(return_dictionary)
 
 
 
