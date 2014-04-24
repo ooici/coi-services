@@ -81,7 +81,7 @@ class UploadQcProcessing(ImmediateProcess):
                 # updates[rd][dp] object is now available to have QC 'tables' added (in dict form)
                 # actually process the row (global|stuck|trend|spike|gradient)
                 if qc_type == 'global_range':
-                    if len(row) != 7:
+                    if len(row) < 7:
                         log.warn("invalid global_range line %s" % ','.join(row))
                         continue
                     d = self.parse_global_range(row)
@@ -92,7 +92,7 @@ class UploadQcProcessing(ImmediateProcess):
                         updates[rd][dp]['global_range'] = []
                     updates[rd][dp]['global_range'].append(d)
                 elif qc_type == "stuck_value":
-                    if len(row) != 7:
+                    if len(row) < 7:
                         log.warn("invalid stuck_value line %s" % ','.join(row))
                         continue
                     d = self.parse_stuck_value(row)
@@ -103,7 +103,7 @@ class UploadQcProcessing(ImmediateProcess):
                         updates[rd][dp]['stuck_value'] = []
                     updates[rd][dp]['stuck_value'].append(d)
                 elif qc_type == "trend_test":
-                    if len(row) != 8:
+                    if len(row) < 8:
                         log.warn("invalid trend_test line %s" % ','.join(row))
                         continue
                     d = self.parse_trend_test(row)
@@ -114,7 +114,7 @@ class UploadQcProcessing(ImmediateProcess):
                         updates[rd][dp]['trend_test'] = []
                     updates[rd][dp]['trend_test'].append(d)
                 elif qc_type == "spike_test":
-                    if len(row) != 8:
+                    if len(row) < 8:
                         log.warn("invalid spike_test line %s" % ','.join(row))
                         continue
                     d = self.parse_spike_test(row)
@@ -125,7 +125,7 @@ class UploadQcProcessing(ImmediateProcess):
                         updates[rd][dp]['spike_test'] = []
                     updates[rd][dp]['spike_test'].append(d)
                 elif qc_type == "gradient_test":
-                    if len(row) != 10:
+                    if len(row) < 10:
                         log.warn("invalid gradient_test line %s" % ','.join(row))
                         continue
                     d = self.parse_gradient_test(row)

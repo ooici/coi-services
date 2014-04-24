@@ -1,0 +1,12 @@
+# global_range,reference designator,data product,units,author,min,max,,,
+# stuck_value,reference designator,data product,units,author,resolution,consecutive,,,
+# trend_test,reference designator,data product,units,author,length,poly_order,std,,
+# spike,reference designator,data product,units,author,accuracy,N,L,,
+# gradient_test,reference designator,data product,units,author,xunits,ddatdx,mindx,startdat,toldat
+global_range,CP01CNSM-MFD37-03-CTDBPD000,TEMPWAT,deg_C,Campbell,10.5,11,,,
+stuck_value,CP01CNSM-MFD37-03-CTDBPD000,TEMPWAT,deg_C,Campbell,0.005,10,,,
+spike_test,CP01CNSM-MFD37-03-CTDBPD000,TEMPWAT,deg_C,Campbell,0.0001,4,15,,
+gradient_test,CP01CNSM-MFD37-03-CTDBPD000,TEMPWAT,dev_C,Campbell,s,[-50.0 50.0],10,,0.1
+stuck_value,CP01CNSM-MFD37-03-CTDBPD000,PRESWAT,dbar,Campbell,0.005,10,,,
+trend_test,CP01CNSM-MFD37-03-CTDBPD000,TEMPWAT,deg_C,Campbell,25,4,4.5,,
+

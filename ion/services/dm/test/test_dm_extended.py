@@ -46,6 +46,8 @@ import time
 import gevent
 from gevent.event import Event
 import calendar
+from ion.services.coi.service_gateway_service import service_gateway_app
+from webtest import TestApp
 
 class TestDMExtended(DMTestCase):
     '''
@@ -1603,6 +1605,8 @@ def rotate_v(u,v,theta):
     @attr("UTIL")
     def test_qc_stuff(self):
         data_product_id = self.make_ctd_data_product()
+
+        testapp = TestApp(service_gateway_app)
         self.add_tempwat_qc(data_product_id)
         data_product = self.resource_registry.read(data_product_id)
         data_product.qc_glblrng = 'applicable'
@@ -1630,88 +1634,15 @@ def rotate_v(u,v,theta):
         self.data_acquisition_management.assign_data_product(device_id, data_product_id)
         tempwat_id = self.make_tempwat(data_product_id)
 
+        upload_files = [('file', 'test_data/sample_qc_upload.csv')]
+        result = testapp.post('/ion-service/upload/qc', upload_files=upload_files, status=200)
+        
+
         # Now lets make a derived data product for tempwat
 
         self.container.spawn_process('qc', 'ion.processes.data.transforms.qc_post_processing', 'QCProcessor', {})
 
-
-        doc = { "CP01CNSM-MFD37-03-CTDBPD000":{
-                  "TEMPWAT":{
-                     "stuck_value":[
-                        {
-                           "units":"C",
-                           "consecutive_values":10,
-                           "ts_created":1396371094.658699,
-                           "resolution":0.005,
-                           "author":"BM"
-                        }
-                     ],
-                     "global_range":[
-                        {
-                           "author":"BM",
-                           "max_value":11.0,
-                           "min_value":10.5,
-                           "units":"m/s",
-                           "ts_created":1396372094.658695
-                        },
-                        {
-                           "author":"BM",
-                           "max_value":1,
-                           "min_value":-1,
-                           "units":"m/s",
-                           "ts_created":1396371094.658695
-                        }
-                     ],
-                     "trend_test":[
-                        {
-                           "sample_length":25,
-                           "author":"BM",
-                           "units":"K",
-                           "standard_deviation":4.5,
-                           "ts_created":1396371094.658704,
-                           "polynomial_order":4
-                        }
-                     ],
-                     "spike_test":[
-                        {
-                           "window_length":15,
-                           "author":"BM",
-                           "units":"degrees",
-                           "range_multiplier":4,
-                           "ts_created":1396371094.658708,
-                           "accuracy":0.0001
-                        }
-                     ],
-                     "gradient_test" : [
-                        {
-                           "toldat": 0.1,
-                           "xunits" : "s",
-                           "mindx" : 10,
-                           "author" : "Boon",
-                           "startdat" : "",
-                           "ddatdx" : [-50.0, 50.0],
-                           "units" : "deg_C",
-                           "ts_created" : 1396371094.658695
-                        }
-                     ]                  
-                 },
-                  "PRESWAT":{
-                     "stuck_value":[
-                        {
-                           "units":"C",
-                           "consecutive_values":10,
-                           "ts_created":1396371094.658699,
-                           "resolution":0.005,
-                           "author":"BM"
-                        }
-                     ],
-                     "global_range":[],
-                     "trend_test":[],
-                     "spike_test":[]
-                  }
-               }
-            }
-        self.container.object_store.create_doc(doc, 'CP01CNSM-MFD37-03-CTDBPD000')
+        #self.container.object_store.create_doc(doc, 'CP01CNSM-MFD37-03-CTDBPD000')
         streamer = Streamer(data_product_id)
         self.addCleanup(streamer.stop)
 

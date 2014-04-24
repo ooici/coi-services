@@ -148,8 +148,14 @@ class QCProcessor(SimpleProcess):
         '''
         threading.current_thread().name = '%s-qc-processor' % self.id
         while not self.event.wait(1):
-            self.qc_processing_loop()
-            self.event_processing_loop()
+            try:
+                self.qc_processing_loop()
+            except:
+                log.error("Error in QC Processing Loop", exc_info=True)
+            try:
+                self.event_processing_loop()
+            except:
+                log.error("Error in QC Event Loop", exc_info=True)
 
     def qc_processing_loop(self):
         '''
@@ -239,11 +245,11 @@ class QCProcessor(SimpleProcess):
             doc = self.container.object_store.read_doc(reference_designator)
         except NotFound:
             return # NO QC lookups found
-        if dp_ident not in doc[reference_designator]:
+        if dp_ident not in doc:
             log.critical("Data product %s not in doc", dp_ident)
             return # No data product of this listing in the RD's entry
         # Lookup table has the rows for the QC inputs
-        lookup_table = doc[reference_designator][dp_ident]
+        lookup_table = doc[dp_ident]
 
         # An instance of the coverage is loaded if we need to run an algorithm
         dataset_id = self.get_dataset(data_product)
@@ -294,8 +300,15 @@ class QCProcessor(SimpleProcess):
             elif alg.lower() == 'loclrng':
                 pass
 
+        except KeyError: # No lookup table
+            self.set_error(coverage, parameter)
+
+
         finally:
             coverage.close()
+
+    def set_error(self, coverage, parameter):
+        log.error("setting coverage parameter %s to -99", parameter.name)
 
     def process_glblrng(self, coverage, parameter, input_name, min_value, max_value):
         '''
@@ -318,6 +331,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc
         }
+
 
     def process_stuck_value(self, coverage, parameter, input_name, resolution, N):
         '''
