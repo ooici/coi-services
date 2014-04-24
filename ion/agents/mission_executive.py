@@ -21,8 +21,8 @@ from pyon.public import log
 from pyon.util.breakpoint import breakpoint
 from pyon.util.config import Config
 
-from ion.agents.platform.platform_agent import PlatformAgentEvent
-from ion.agents.platform.platform_agent import PlatformAgentState
+from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
+from ion.agents.platform.platform_agent_enums import PlatformAgentState
 
 from interface.objects import AgentCommand
 
@@ -463,16 +463,25 @@ class MissionScheduler(object):
     platform mission
     """
 
-    def __init__(self, platform_agent_client = None, instrument_obj = None, mission = []):
-        # TODO: Implement within the platform agent
-        print 'Initialize Mission Scheduler'
+    def __init__(self, platform_agent, instruments, mission):
+        """
+        Creates a scheduler for the given mission operating on the given
+        platform agent.
 
-        if not mission:
-            log.error('Mission Scheduler Error: No mission')
-            raise Exception('Mission Scheduler Error: No mission')
+        @param platform_agent
+                    The associated platform agent object to access the
+                    elements handled by this helper.
+        @param instruments dict of ResourceAgentClient objects indexed by
+                    instrument ID.
+        @param mission The mission to dispatch.
+        """
 
-        self.pa_client = platform_agent_client
-        self.instruments = instrument_obj
+        self.platform_agent = platform_agent
+        self.instruments = instruments
+        self.mission = mission
+
+        log.debug('Initialize Mission Scheduler: instruments=%s mission=%s',
+                  self.instruments, self.mission)
 
         # Define max number of agent command retries
         self.max_attempts = mission[0]['error_handling']['maxRetries']
@@ -487,10 +496,21 @@ class MissionScheduler(object):
         # Should match the resource id in test_mission_executive.py
         self.profiler_resource_id = 'FakeID'
 
+    def run_mission(self):
+        log.debug('run_mission: mission=%s', self.mission)
+
         # Start up the platform
         self.startup_platform()
 
-        self.schedule(mission)
+        self.schedule(self.mission)
+
+    def abort_mission(self):
+        log.debug('abort_mission: mission=%s', self.mission)
+        # TODO
+
+    def kill_mission(self):
+        log.debug('kill_mission: mission=%s', self.mission)
+        # TODO
 
     def schedule(self, missions):
         """
@@ -514,6 +534,7 @@ class MissionScheduler(object):
                 print 'Event driven mission started. Waiting for ' + event_id
                 self.threads.append(gevent.spawn(self.run_event_driven_mission, mission))
 
+        log.debug('schedule: waiting for mission to complete')
         gevent.joinall(self.threads)
 
     def send_command(self, ia_client, cmd):
@@ -733,7 +754,7 @@ class MissionScheduler(object):
         from pyon.public import CFG
         self.receive_timeout = CFG.endpoint.receive.timeout
 
-        state = self.pa_client.get_agent_state()
+        state = self.platform_agent.get_agent_state()
 
         if state != PlatformAgentState.COMMAND:
             # Initialize platform
@@ -742,7 +763,7 @@ class MissionScheduler(object):
                 while (attempt < self.max_attempts and state != PlatformAgentState.INACTIVE):
                     attempt += 1
                     self.platform_inactive_state()
-                    state = self.pa_client.get_agent_state()
+                    state = self.platform_agent.get_agent_state()
 
             # Go active
             if state == PlatformAgentState.INACTIVE:
@@ -750,7 +771,7 @@ class MissionScheduler(object):
                 while (attempt < self.max_attempts and state != PlatformAgentState.IDLE):
                     attempt += 1
                     self.platform_idle_state()
-                    state = self.pa_client.get_agent_state()
+                    state = self.platform_agent.get_agent_state()
 
             # Run
             if state == PlatformAgentState.IDLE:
@@ -758,7 +779,7 @@ class MissionScheduler(object):
                 while (attempt < self.max_attempts and state != PlatformAgentState.COMMAND):
                     attempt += 1
                     self.platform_command_state()
-                    state = self.pa_client.get_agent_state()
+                    state = self.platform_agent.get_agent_state()
 
             # # Run Mission
             # if state == PlatformAgentState.COMMAND:
@@ -766,7 +787,7 @@ class MissionScheduler(object):
             #     while (attempt < self.max_attempts and state != PlatformAgentState.MISSION_COMMAND):
             #         attempt += 1
             #         self.platform_mission_running_state()
-            #         state = self.pa_client.get_agent_state()
+            #         state = self.platform_agent.get_agent_state()
 
     #-------------------------------------------------------------------------------------
     # Platform commands
@@ -778,7 +799,7 @@ class MissionScheduler(object):
         """
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
-        self.pa_client.execute_agent(cmd, timeout=self.receive_timeout)
+        self.platform_agent.execute_agent(cmd, timeout=self.receive_timeout)
 
     def platform_idle_state(self):
         """
@@ -786,7 +807,7 @@ class MissionScheduler(object):
         """
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE, kwargs=kwargs)
-        self.pa_client.execute_agent(cmd)
+        self.platform_agent.execute_agent(cmd)
 
     def platform_command_state(self):
         """
@@ -794,7 +815,7 @@ class MissionScheduler(object):
         """
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.RUN, kwargs=kwargs)
-        self.pa_client.execute_agent(cmd)
+        self.platform_agent.execute_agent(cmd)
 
     def platform_mission_running_state(self):
         """
@@ -802,29 +823,29 @@ class MissionScheduler(object):
         """
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.RUN_MISSION, kwargs=kwargs)
-        self.pa_client.execute_agent(cmd)
+        self.platform_agent.execute_agent(cmd)
 
     def platform_go_inactive(self):
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
-        self.pa_client.execute_agent(cmd)
-        state = self.pa_client.get_agent_state()
+        self.platform_agent.execute_agent(cmd)
+        state = self.platform_agent.get_agent_state()
         print state
         log.debug(state)
 
     def platform_reset(self):
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.RESET, kwargs=kwargs)
-        self.pa_client.execute_agent(cmd)
-        state = self.pa_client.get_agent_state()
+        self.platform_agent.execute_agent(cmd)
+        state = self.platform_agent.get_agent_state()
         print state
         log.debug(state)
 
     def shutdown(self):
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=kwargs)
-        self.pa_client.execute_agent(cmd)
-        state = self.pa_client.get_agent_state()
+        self.platform_agent.execute_agent(cmd)
+        state = self.platform_agent.get_agent_state()
         print state
         log.debug(state)
 
