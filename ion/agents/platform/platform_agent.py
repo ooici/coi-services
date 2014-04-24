@@ -3485,7 +3485,7 @@ class PlatformAgent(ResourceAgent):
                       self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         curr_state = self.get_agent_state()
-        next_state = PlatformAgentState.MISSION_COMMAND if curr_state is \
+        next_state = PlatformAgentState.MISSION_COMMAND if curr_state == \
             PlatformAgentState.COMMAND else PlatformAgentState.MISSION_STREAMING
 
         self._pre_mission_state = curr_state
