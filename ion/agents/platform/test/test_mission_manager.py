@@ -47,31 +47,33 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             self._shutdown(True)  # NOTE: shutdown always with recursion=True
 
     def _set_mission(self, yaml_filename):
-        log.debug('_set_mission: setting agent param mission = %s' % yaml_filename)
+        log.debug('_set_mission: setting agent param mission = %s', yaml_filename)
         self._pa_client.set_agent({'mission': yaml_filename})
 
     def _get_mission(self):
         mission = self._pa_client.get_agent(['mission'])['mission']
         self.assertIsNotNone(mission)
-        log.debug('_get_mission: agent param mission = %s' % mission)
+        log.debug('_get_mission: agent param mission = %s', mission)
         return mission
 
     def _run_mission(self):
         cmd = AgentCommand(command=PlatformAgentEvent.RUN_MISSION)
         retval = self._execute_agent(cmd)
-        log.debug('_run_mission: RUN_MISSION return: %s' % retval)
-        self._assert_state(PlatformAgentState.MISSION_COMMAND)
+        log.debug('_run_mission: RUN_MISSION return: %s', retval)
 
-    def _await_mission_completion(self, max_wait):
+    def _await_mission_completion(self, state, max_wait):
         step = 5
         elapsed = 0
-        while elapsed < max_wait and PlatformAgentState.MISSION_COMMAND == self._get_state():
-            log.debug('_await_mission_completion: elapsed=%s' % elapsed)
+        while elapsed < max_wait and state == self._get_state():
+            log.debug('_await_mission_completion: elapsed=%s', elapsed)
             sleep(step)
             elapsed += step
 
-        if PlatformAgentState.MISSION_COMMAND == self._get_state():
-            log.info('_await_mission_completion: elapsed=%s' % elapsed)
+        if state != self._get_state():
+            log.info('_await_mission_completion: left state=%s, new state=%s',
+                     state, self._get_state())
+        else:
+            log.warn('_await_mission_completion: still in state=%s', state)
 
     def test_simple_mission_command_state(self):
         #
@@ -94,8 +96,9 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         filename = "ion/agents/platform/test/mission_RSN_simulator1_finite_loop.yml"
         self._set_mission(filename)
         self._run_mission()
+        self._assert_state(PlatformAgentState.MISSION_COMMAND)
 
-        self._await_mission_completion(240)
+        self._await_mission_completion(PlatformAgentState.MISSION_COMMAND, 240)
 
         # verify we are back to COMMAND state:
         self._assert_state(PlatformAgentState.COMMAND)
@@ -123,8 +126,9 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         filename = "ion/agents/platform/test/mission_RSN_simulator1_finite_loop.yml"
         self._set_mission(filename)
         self._run_mission()
+        self._assert_state(PlatformAgentState.MISSION_STREAMING)
 
-        self._await_mission_completion(240)
+        self._await_mission_completion(PlatformAgentState.MISSION_STREAMING, 240)
 
         # verify we are back to MONITORING state:
         self._assert_state(PlatformAgentState.MONITORING)
