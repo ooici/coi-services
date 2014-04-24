@@ -64,11 +64,11 @@ import shutil
 import time
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
-from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound, LCS, EventPublisher
+from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound, LCS, EventPublisher, dict_merge
 
 from ion.core.includes.mi import DriverEvent
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from ion.util.parse_utils import parse_dict
+from ion.util.parse_utils import parse_dict, get_typed_value
 
 from interface.objects import AgentCommand, Site, TemporalBounds, AgentInstance, Device
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceProcessClient
@@ -375,6 +375,39 @@ class AgentControl(ImmediateProcess):
         else:
             BadRequest("Attempt to stop unsupported agent type: %s", ai_obj.type_)
 
+    def _get_resource_cfg(self, res_obj, cfg_dict):
+        """Given a (device) resource object, try to find an associated config entry from the CSV file"""
+        # Find config by resource UUID
+        cfg_id = res_obj._id
+        dev_cfg = cfg_dict.get(res_obj._id, None)
+        if not dev_cfg and getattr(res_obj, "ooi_property_number", None):
+            # Find config by resource OOI property number, e.g. 12345-54321
+            cfg_id = res_obj.ooi_property_number
+            dev_cfg = cfg_dict.get(cfg_id, None)
+        if not dev_cfg:
+            alt_ids = [aid[4:] for aid in res_obj.alt_ids if aid.startswith("PRE:")]
+            if alt_ids:
+                # Find config by resource's preload ID
+                cfg_id = alt_ids[0]
+                dev_cfg = cfg_dict.get(cfg_id, None)
+                if not dev_cfg:
+                    # Find config by resource's preload ID reference designator
+                    # Note: this is bad because devices are not assigned to the same RD over time
+                    cfg_id = alt_ids[0].rsplit("_", 1)[0]
+                    dev_cfg = cfg_dict.get(cfg_id, None)
+        if not dev_cfg and res_obj.serial_number:
+            if res_obj.type_ == RT.InstrumentDevice:
+                # Find config by instrument series + serial number, e.g. CDTBPN:123123
+                model_obj = self.rr.read_object(res_obj._id, PRED.hasModel, id_only=False)
+                cfg_id = "%s:%s" % (model_obj.series_id, res_obj.serial_number)
+                dev_cfg = cfg_dict.get(cfg_id, None)
+            elif res_obj.type_ == RT.PlatformDevice:
+                # Find config by platform serial number, e.g. OOI-231
+                cfg_id = res_obj.serial_number
+                dev_cfg = cfg_dict.get(cfg_id, None)
+
+        return cfg_id, dev_cfg
+
     def config_instance(self, agent_instance_id, resource_id):
         if not agent_instance_id:
             return
@@ -389,29 +422,78 @@ class AgentControl(ImmediateProcess):
             with open(cfg_file, "rU") as f:
                 reader = csv.DictReader(f, delimiter=',')
                 for row in reader:
-                    self.cfg_mappings[row["ID"]] = dict(harvester_cfg=parse_dict(row["Harvester Config"]),
-                                                        parser_cfg=parse_dict(row["Parser Config"]),
-                                                        max_records=parse_dict(row["Records Per Granule"]))
-        edai = self.rr.read(agent_instance_id)
-        alt_ids = [aid[4:-5] for aid in edai.alt_ids if aid.startswith("PRE:")]
-        if not alt_ids:
-            log.warn("Could not determine reference designator for EDAI %s", agent_instance_id)
-            return
+                    if "Attribute" in row:
+                        # Value per row format
+                        device_id = row["ID"]
+                        attr_name = row["Attribute"]
+                        param_name = row["Name"]
+                        param_value = row["Value"]
+                        param_type = row.get("Type", "str") or "str"
+                        if not param_name:
+                            log.warn("Resource %s attribute %s value %s has no name", resource_id, attr_name, param_value)
+                            continue
 
-        dev_rd = alt_ids[0]
-        dev_cfg = self.cfg_mappings.get(dev_rd, None)
+                        target_dict = self.cfg_mappings.setdefault(device_id, {})
+                        nested_attrs = attr_name.split(".") if attr_name else []
+                        for na in nested_attrs:
+                            if ":" in na:
+                                # Index in a list, 0-based e.g. field_name:0
+                                nan, naidx = na.rsplit(":", 1)
+                                target_list = target_dict.setdefault(nan, [])
+                                naidx = int(naidx)
+                                if len(target_list) < naidx+1:
+                                    # Expand list length
+                                    target_list[len(target_list):naidx] = [{}] * (naidx + 1 - len(target_list))
+                                target_dict = target_list[naidx]
+                            else:
+                                target_dict = target_dict.setdefault(na, {})
+                        target_dict[param_name] = get_typed_value(param_value, targettype=param_type)
+                    else:
+                        # Parse_dict format, one row per AI resource
+                        self.cfg_mappings[row["ID"]] = dict(
+                            harvester_cfg=parse_dict(row.get("Harvester Config", "")),
+                            parser_cfg=parse_dict(row.get("Parser Config", "")),
+                            max_records=row.get("Records Per Granule", ""),
+                            startup_config=parse_dict(row.get("Startup Config", "")),
+                            port_agent_config=parse_dict(row.get("Port Agent Config", "")),
+                            driver_config=parse_dict(row.get("Driver Config", "")),
+                            alerts=[parse_dict(row.get("Alerts", ""))])
+
+        res_obj = self.rr.read(resource_id)
+        ai = self.rr.read(agent_instance_id)
+
+        cfg_id, dev_cfg = self._get_resource_cfg(res_obj, self.cfg_mappings)
+
         if not dev_cfg:
+            log.warn("Could not determine AI config for device %s", resource_id)
             return
-        log.info("Setting config for device RD %s '%s': %s", dev_rd, edai.name, dev_cfg)
 
-        if dev_cfg["harvester_cfg"]:
-            edai.driver_config.setdefault("startup_config", {})["harvester"] = dev_cfg["harvester_cfg"]
-        if dev_cfg["parser_cfg"]:
-            edai.driver_config.setdefault("startup_config", {})["parser"] = dev_cfg["parser_cfg"]
-        if dev_cfg["max_records"]:
-            edai.driver_config["max_records"] = int(dev_cfg["max_records"])
+        log.info("Setting config for device %s '%s': %s", cfg_id, ai.name, dev_cfg)
 
-        self.rr.update(edai)
+        if ai.type_ == RT.ExternalDatasetAgentInstance:
+            # Special case treatment for EDAI to make entry easier
+            if dev_cfg["harvester_cfg"]:
+                ai.driver_config.setdefault("startup_config", {})["harvester"] = dev_cfg["harvester_cfg"]
+            if dev_cfg["parser_cfg"]:
+                ai.driver_config.setdefault("startup_config", {})["parser"] = dev_cfg["parser_cfg"]
+            if dev_cfg["max_records"]:
+                ai.driver_config["max_records"] = int(dev_cfg["max_records"])
+
+        for attr_name, attr_cfg in dev_cfg.iteritems():
+            if hasattr(ai, attr_name):
+                if type(getattr(ai, attr_name)) != type(attr_cfg):
+                    log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(ai, attr_name)))
+                    continue
+                if isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
+                    attr_cfg.pop("_replace")
+                    setattr(ai, attr_name, attr_cfg)
+                elif isinstance(attr_cfg, dict):
+                    attr_val = getattr(ai, attr_name)
+                    dict_merge(attr_val, attr_cfg, inplace=True)
+                else:
+                    setattr(ai, attr_name, attr_cfg)
+
+        self.rr.update(ai)
 
     def set_calibration(self, agent_instance_id, resource_id):
         res_obj = self.rr.read(resource_id)
