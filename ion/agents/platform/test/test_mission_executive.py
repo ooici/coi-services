@@ -83,11 +83,9 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         for mission in self.mission.mission_entries:
             for instrument_id in mission['instrument_id']:
                 # create only if not already created:
-                if instrument_id in self._setup_instruments:
-                    i_obj = self._setup_instruments[instrument_id]
-                else:
+                if instrument_id not in self._setup_instruments:
                     i_obj = self._create_instrument(instrument_id, start_port_agent=True)
-                self._assign_instrument_to_platform(i_obj, p_root)
+                    self._assign_instrument_to_platform(i_obj, p_root)
 
         # Start the platform
         self._start_platform(p_root)
@@ -95,6 +93,8 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         # self.addCleanup(self._run_shutdown_commands)
 
         self._instruments = {}
+
+        self._instruments.update({self.PLATFORM_ID: self._pa_client})
         # Now get instrument clients for each instrument
         for mission in self.mission.mission_entries:
             for instrument_id in mission['instrument_id']:
@@ -104,6 +104,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
                 ia_client = ResourceAgentClient(instrument_device_id, process=FakeProcess())
                 # make a dictionary storing the instrument ids and client objects
                 self._instruments.update({instrument_id: ia_client})
+
 
     def get_mission_attachment(self, filename):
         """
@@ -215,7 +216,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         self.mission = MissionLoader()
         self.mission.load_mission_file(yaml_filename)
 
-    @skip("Work in progress...")
+    # @skip("Work in progress...")
     def test_simple_simulator_mission(self):
         """
         Test the RSN OMS platform simulator with the SBE37_SIM instruments
