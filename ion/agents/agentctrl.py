@@ -37,6 +37,7 @@ Supports the following arguments:
 - force: if True, ignore some warning conditions and move on or clear up
 - autoclean: if True, try to clean up resources directly after failed operations
 - verbose: if True, log more messages for detailed steps
+- dryrun: if True, log attempted actions but don't execute them (use verbose=True to see many details)
 
 Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF'
@@ -98,6 +99,7 @@ class AgentControl(ImmediateProcess):
         self.force = self.CFG.get("force", False)
         self.autoclean = self.CFG.get("autoclean", False)
         self.verbose = self.CFG.get("verbose", False)
+        self.dryrun = self.CFG.get("dryrun", False)
         self.timeout = self.CFG.get("timeout", 120)
         self.cfg_mappings = {}
         self.system_actor = None
@@ -284,16 +286,19 @@ class AgentControl(ImmediateProcess):
         log.info('Starting agent...')
         if ai_obj.type_ == RT.ExternalDatasetAgentInstance:
             dams = DataAcquisitionManagementServiceProcessClient(process=self)
-            dams.start_external_dataset_agent_instance(agent_instance_id, headers=self._get_system_actor_headers(),
-                                                       timeout=self.timeout)
+            if not self.dryrun:
+                dams.start_external_dataset_agent_instance(agent_instance_id, headers=self._get_system_actor_headers(),
+                                                           timeout=self.timeout)
         elif ai_obj.type_ == RT.InstrumentAgentInstance:
             ims = InstrumentManagementServiceProcessClient(process=self)
-            ims.start_instrument_agent_instance(agent_instance_id, headers=self._get_system_actor_headers(),
-                                                timeout=self.timeout)
+            if not self.dryrun:
+                ims.start_instrument_agent_instance(agent_instance_id, headers=self._get_system_actor_headers(),
+                                                    timeout=self.timeout)
         elif ai_obj.type_ == RT.PlatformAgentInstance:
             ims = InstrumentManagementServiceProcessClient(process=self)
-            ims.start_platform_agent_instance(agent_instance_id, headers=self._get_system_actor_headers(),
-                                              timeout=self.timeout)
+            if not self.dryrun:
+                ims.start_platform_agent_instance(agent_instance_id, headers=self._get_system_actor_headers(),
+                                                  timeout=self.timeout)
         else:
             BadRequest("Attempt to start unsupported agent type: %s", ai_obj.type_)
         log.info('Agent started!')
@@ -301,15 +306,16 @@ class AgentControl(ImmediateProcess):
         activate = self.CFG.get("activate", True)
         if activate:
             log.info('Activating agent...')
-            client = ResourceAgentClient(resource_id, process=self)
-            client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE),
-                                 headers=self._get_system_actor_headers(), timeout=self.timeout)
-            client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE),
-                                 headers=self._get_system_actor_headers(), timeout=self.timeout)
-            client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN),
-                                 headers=self._get_system_actor_headers(), timeout=self.timeout)
-            client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE),
-                                    headers=self._get_system_actor_headers(), timeout=self.timeout)
+            if not self.dryrun:
+                client = ResourceAgentClient(resource_id, process=self)
+                client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE),
+                                     headers=self._get_system_actor_headers(), timeout=self.timeout)
+                client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE),
+                                     headers=self._get_system_actor_headers(), timeout=self.timeout)
+                client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN),
+                                     headers=self._get_system_actor_headers(), timeout=self.timeout)
+                client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE),
+                                        headers=self._get_system_actor_headers(), timeout=self.timeout)
 
             log.info('Agent in auto-sample mode!')
 
@@ -334,8 +340,9 @@ class AgentControl(ImmediateProcess):
         if ai_obj.type_ == RT.ExternalDatasetAgentInstance:
             dams = DataAcquisitionManagementServiceProcessClient(process=self)
             try:
-                dams.stop_external_dataset_agent_instance(agent_instance_id,
-                                                          headers=self._get_system_actor_headers(), timeout=self.timeout)
+                if not self.dryrun:
+                    dams.stop_external_dataset_agent_instance(agent_instance_id,
+                                                              headers=self._get_system_actor_headers(), timeout=self.timeout)
                 log.info('Agent stopped!')
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
@@ -348,8 +355,9 @@ class AgentControl(ImmediateProcess):
         elif ai_obj.type_ == RT.InstrumentAgentInstance:
             ims = InstrumentManagementServiceProcessClient(process=self)
             try:
-                ims.stop_instrument_agent_instance(agent_instance_id,
-                                                   headers=self._get_system_actor_headers(), timeout=self.timeout)
+                if not self.dryrun:
+                    ims.stop_instrument_agent_instance(agent_instance_id,
+                                                       headers=self._get_system_actor_headers(), timeout=self.timeout)
                 log.info('Agent stopped!')
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
@@ -362,8 +370,9 @@ class AgentControl(ImmediateProcess):
         elif ai_obj.type_ == RT.PlatformAgentInstance:
             ims = InstrumentManagementServiceProcessClient(process=self)
             try:
-                ims.stop_platform_agent_instance(agent_instance_id,
-                                                 headers=self._get_system_actor_headers(), timeout=self.timeout)
+                if not self.dryrun:
+                    ims.stop_platform_agent_instance(agent_instance_id,
+                                                     headers=self._get_system_actor_headers(), timeout=self.timeout)
                 log.info('Agent stopped!')
             except NotFound:
                 log.warn("Agent for resource %s not found", resource_id)
@@ -477,10 +486,19 @@ class AgentControl(ImmediateProcess):
         if ai.type_ == RT.ExternalDatasetAgentInstance:
             # Special case treatment for EDAI to make entry easier
             if dev_cfg["harvester_cfg"]:
+                if self.verbose:
+                    log.debug("Change AI %s attribute driver_config.startup_config.harvester: OLD=%s NEW=%s", ai._id,
+                              ai.driver_config.get("startup_config", {}).get("harvester", None), dev_cfg["harvester_cfg"])
                 ai.driver_config.setdefault("startup_config", {})["harvester"] = dev_cfg["harvester_cfg"]
             if dev_cfg["parser_cfg"]:
+                if self.verbose:
+                    log.debug("Change AI %s attribute driver_config.startup_config.parser: OLD=%s NEW=%s", ai._id,
+                              ai.driver_config.get("startup_config", {}).get("parser", None), dev_cfg["parser_cfg"])
                 ai.driver_config.setdefault("startup_config", {})["parser"] = dev_cfg["parser_cfg"]
             if dev_cfg["max_records"]:
+                if self.verbose:
+                    log.debug("Change AI %s attribute driver_config.max_records: OLD=%s NEW=%s", ai._id,
+                              ai.driver_config.get("max_records", None), dev_cfg["max_records"])
                 ai.driver_config["max_records"] = int(dev_cfg["max_records"])
 
         for attr_name, attr_cfg in dev_cfg.iteritems():
@@ -493,14 +511,21 @@ class AgentControl(ImmediateProcess):
                     continue
                 if isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
                     attr_cfg.pop("_replace")
+                    if self.verbose:
+                        log.debug("Change AI %s attribute %s: OLD=%s NEW=%s", ai._id, attr_name, getattr(ai, attr_name), attr_cfg)
                     setattr(ai, attr_name, attr_cfg)
                 elif isinstance(attr_cfg, dict):
                     attr_val = getattr(ai, attr_name)
+                    if self.verbose:
+                        log.debug("Change AI %s attribute %s: OLD=%s NEW=%s", ai._id, attr_name, getattr(ai, attr_name), dict_merge(attr_val, attr_cfg))
                     dict_merge(attr_val, attr_cfg, inplace=True)
                 else:
+                    if self.verbose:
+                        log.debug("Change AI %s attribute %s: OLD=%s NEW=%s", ai._id, attr_name, getattr(ai, attr_name), attr_cfg)
                     setattr(ai, attr_name, attr_cfg)
 
-        self.rr.update(ai)
+        if not self.dryrun:
+            self.rr.update(ai)
 
     def set_attributes(self, agent_instance_id, resource_id):
         cfg_file = self.CFG.get("cfg", None)
@@ -527,18 +552,25 @@ class AgentControl(ImmediateProcess):
         for attr_name, attr_cfg in dev_cfg.iteritems():
             if hasattr(res_obj, attr_name):
                 if type(getattr(res_obj, attr_name)) != type(attr_cfg):
-                    log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(ai, attr_name)))
+                    log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(res_obj, attr_name)))
                     continue
                 if isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
                     attr_cfg.pop("_replace")
+                    if self.verbose:
+                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), attr_cfg)
                     setattr(res_obj, attr_name, attr_cfg)
                 elif isinstance(attr_cfg, dict):
                     attr_val = getattr(res_obj, attr_name)
+                    if self.verbose:
+                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), dict_merge(attr_val, attr_cfg))
                     dict_merge(attr_val, attr_cfg, inplace=True)
                 else:
+                    if self.verbose:
+                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), attr_cfg)
                     setattr(res_obj, attr_name, attr_cfg)
 
-        self.rr.update(res_obj)
+        if not self.dryrun:
+            self.rr.update(res_obj)
 
     def set_calibration(self, agent_instance_id, resource_id):
         res_obj = self.rr.read(resource_id)
@@ -561,20 +593,12 @@ class AgentControl(ImmediateProcess):
                     self.cfg_mappings[device_id][param_name]["value"] = row["Value"]  # Make sure it exists
 
         # Device has no reference designator - but use preload ID as reference designator
-        alt_ids = []
-        for aid in res_obj.alt_ids:
-            if aid.startswith('PRE:') and aid.endswith('_ID'):
-                alt_ids.append(aid[4:-3])
-            elif aid.startswith('PRE:ID'):
-                alt_ids.append(aid[4:])
-
-        device_rd = alt_ids[0] if alt_ids else None
-
-        dev_cfg = self.cfg_mappings.get(resource_id, None) or self.cfg_mappings.get(device_rd, None)
+        cfg_id, dev_cfg = self._get_resource_cfg(res_obj, self.cfg_mappings)
         if not dev_cfg:
-            log.warn("Reference designator %s not found in calibrations file" % device_rd)
+            log.warn("Instrument %s not found in calibrations file" % resource_id)
             return
-        log.info("Setting calibration for device %s (RD %s) '%s': %s", resource_id, device_rd, res_obj.name, dev_cfg)
+
+        log.info("Setting calibration for device %s '%s': %s", resource_id, res_obj.name, dev_cfg)
 
         # Find parsed data product from device id
         dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
@@ -592,8 +616,9 @@ class AgentControl(ImmediateProcess):
         if not dataset_ids:
             data_product_management = DataProductManagementServiceProcessClient(process=self)
             log.debug(" Creating dataset for data product %s", dp_obj.name)
-            data_product_management.create_dataset_for_data_product(dp_obj._id, headers=self._get_system_actor_headers())
-            dataset_ids, _ = self.rr.find_objects(dp_obj, PRED.hasDataset, id_only=True)
+            if not self.dryrun:
+                data_product_management.create_dataset_for_data_product(dp_obj._id, headers=self._get_system_actor_headers())
+                dataset_ids, _ = self.rr.find_objects(dp_obj, PRED.hasDataset, id_only=True)
             if not dataset_ids:
                 raise NotFound('No datasets were found for this data product, ensure that it was created')
         for dataset_id in dataset_ids:
@@ -605,10 +630,12 @@ class AgentControl(ImmediateProcess):
                     if cal_name in cov.list_parameters() and isinstance(cov.get_parameter_context(cal_name).param_type, SparseConstantType):
                         value = float(contents['value'])
                         log.info(' Updating Calibrations for %s in %s', cal_name, dataset_id)
-                        cov.set_parameter_values(cal_name, value)
+                        if not self.dryrun:
+                            cov.set_parameter_values(cal_name, value)
                     else:
                         log.warn(" Calibration %s not found in dataset", cal_name)
-                publisher.publish_event(origin=dataset_id, description="Calibrations Updated")
+                if not self.dryrun:
+                    publisher.publish_event(origin=dataset_id, description="Calibrations Updated")
         publisher.close()
         log.info("Calibration set for data product '%s' in %s coverages", dp_obj.name, len(dataset_ids))
 
@@ -624,7 +651,8 @@ class AgentControl(ImmediateProcess):
                         log.warn("DataProduct %s '%s' is currently persisted", dp._id, dp.name)
                         continue
                 log.info("Activating persistence for '%s'", dp.name)
-                dpms.activate_data_product_persistence(dp._id, headers=self._get_system_actor_headers(), timeout=self.timeout)
+                if not self.dryrun:
+                    dpms.activate_data_product_persistence(dp._id, headers=self._get_system_actor_headers(), timeout=self.timeout)
             except Exception:
                 self._log_error(agent_instance_id, resource_id, logexc=True,
                                 msg="Could not activate persistence for dp_id=%s" % (dp._id))
@@ -635,7 +663,8 @@ class AgentControl(ImmediateProcess):
         for dp in dp_objs:
             try:
                 log.info("Suspending persistence for '%s'", dp.name)
-                dpms.suspend_data_product_persistence(dp._id, headers=self._get_system_actor_headers(), timeout=self.timeout)
+                if not self.dryrun:
+                    dpms.suspend_data_product_persistence(dp._id, headers=self._get_system_actor_headers(), timeout=self.timeout)
             except Exception:
                 self._log_error(agent_instance_id, resource_id, logexc=True,
                                 msg="Could not suspend persistence for dp_id=%s" % (dp._id))
@@ -656,14 +685,20 @@ class AgentControl(ImmediateProcess):
             count_sub, count_xn, count_ds = 0, 0, 0
             st_objs, _ = self.rr.find_objects(data_product_obj._id, PRED.hasStream, id_only=False)
             for st_obj in st_objs:
+                if self.verbose:
+                    log.debug("Current Stream %s persisted: %s", st_obj._id, st_obj.persisted)
                 st_obj.persisted = False
-                self.rr.update(st_obj)
+                if not self.dryrun:
+                    self.rr.update(st_obj)
 
                 assocs = self.rr.find_associations(PRED.hasStream, object=st_obj._id, id_only=False)
                 for assoc in assocs:
                     if assoc.st == RT.Dataset:
-                        self.rr.delete_association(assoc)
-                        count_ds += 1
+                        if self.verbose:
+                            log.debug("Delete Stream association: %s", assoc)
+                        if not self.dryrun:
+                            self.rr.delete_association(assoc)
+                            count_ds += 1
 
                 # Delete Subscription, ExchangeName, Process
                 ingcfg_id = data_product_obj.dataset_configuration_id
@@ -676,12 +711,18 @@ class AgentControl(ImmediateProcess):
                             xn_ids, _ = self.rr.find_subjects(object=sub_obj._id, predicate=PRED.hasSubscription,
                                                                subject_type=RT.ExchangeName, id_only=True)
                             if xn_ids:
-                                self.rr.rr_store.delete_mult(xn_ids)
-                                count_xn += len(xn_ids)
+                                if self.verbose:
+                                    log.debug("Delete ExchangeNames: %s", xn_ids)
+                                if not self.dryrun:
+                                    self.rr.rr_store.delete_mult(xn_ids)
+                                    count_xn += len(xn_ids)
 
                             # Delete Subscription with all associations
-                            self.rr.delete(sub_obj._id)
-                            count_sub += 1
+                            if self.verbose:
+                                log.debug("Delete Subscription: %s", sub_obj._id)
+                            if not self.dryrun:
+                                self.rr.delete(sub_obj._id)
+                                count_sub += 1
 
             log.info("Persistence cleaned up for data product %s '%s': %s Subscription, %s ExchangeName, %s Stream assoc",
                      data_product_obj._id, data_product_obj.name, count_sub, count_xn, count_ds)
@@ -696,7 +737,11 @@ class AgentControl(ImmediateProcess):
         agent_procs = self.container.directory.find_by_value('/Agents', 'resource_id', resource_id)
         if agent_procs:
             for ap in agent_procs:
-                self.container.directory.unregister_safe("/Agents", ap.key)
+                if self.verbose:
+                    current_entry = self.container.directory.lookup("/Agents/%s" % ap.key)
+                    log.debug("Current directory entry for %s: %s", "/Agents/%s" % ap.key, current_entry)
+                if not self.dryrun:
+                    self.container.directory.unregister_safe("/Agents", ap.key)
         if agent_procs:
             log.debug("Cleaned up agent directory for device %s", resource_id)
 
@@ -756,7 +801,8 @@ class AgentControl(ImmediateProcess):
         res_obj = self.rr.read(resource_id)
         from ion.processes.event.device_state import STATE_PREFIX
         try:
-            self.container.object_store.delete_doc(STATE_PREFIX+resource_id)
+            if not self.dryrun:
+                self.container.object_store.delete_doc(STATE_PREFIX+resource_id)
             # TODO: Maybe we only want to reset any alerts?
             log.info("Status cleared for device %s '%s'", resource_id, res_obj.name)
         except NotFound:
@@ -770,8 +816,11 @@ class AgentControl(ImmediateProcess):
         res_obj = self.rr.read(resource_id)
         ai = self.rr.read(agent_instance_id)
         existed = bool(ai.saved_agent_state)
+        if self.verbose:
+            log.debug("Current saved state: %s", ai.saved_agent_state)
         ai.saved_agent_state = {}
-        self.rr.update(ai)
+        if not self.dryrun:
+            self.rr.update(ai)
         if existed:
             log.info("Saved state cleared for device %s '%s'", resource_id, res_obj.name)
 
@@ -784,7 +833,10 @@ class AgentControl(ImmediateProcess):
         # Find data products from device id
         dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
         for dp_obj in dp_objs:
-            dpms.create_dataset_for_data_product(dp_obj._id, headers=self._get_system_actor_headers())
+            if self.verbose:
+                log.debug("Create dataset for data product %s", dp_obj._id)
+            if not self.dryrun:
+                dpms.create_dataset_for_data_product(dp_obj._id, headers=self._get_system_actor_headers())
 
         log.info("Checked datasets for device %s '%s': %s", resource_id, res_obj.name, len(dp_objs))
 
@@ -809,13 +861,23 @@ class AgentControl(ImmediateProcess):
                 cov_path = DatasetManagementService._get_coverage_path(ds_obj._id)
                 if os.path.exists(cov_path):
                     log.info("Removing coverage tree at %s", cov_path)
-                    shutil.rmtree(cov_path)
+                    if self.verbose:
+                        try:
+                            proc = os.popen('du -h "%s"' % cov_path)
+                            log.debug(proc.read())
+                        except Exception:
+                            pass
+                    if not self.dryrun:
+                        shutil.rmtree(cov_path)
                 else:
                     log.warn("Coverage path does not exist %s" % cov_path)
 
                 # Delete Dataset and associations
-                self.rr.delete(ds_obj._id)
-                count_ds += 1
+                if self.verbose:
+                    log.debug("Delete Dataset: %s", ds_obj._id)
+                if not self.dryrun:
+                    self.rr.delete(ds_obj._id)
+                    count_ds += 1
 
         log.info("Datasets and coverages deleted for device %s '%s': %s", resource_id, res_obj.name, count_ds)
 
@@ -839,18 +901,27 @@ class AgentControl(ImmediateProcess):
             # Find and delete Stream
             st_objs, _ = self.rr.find_objects(dp_obj._id, PRED.hasStream, RT.Stream, id_only=False)
             for st_obj in st_objs:
-                self.rr.delete(st_obj._id)
-                count_st += 1
+                if self.verbose:
+                    log.debug("Delete Stream: %s", st_obj._id)
+                if not self.dryrun:
+                    self.rr.delete(st_obj._id)
+                    count_st += 1
 
             # Find and delete StreamDefinition
             sd_objs, _ = self.rr.find_objects(dp_obj._id, PRED.hasStreamDefinition, RT.StreamDefinition, id_only=False)
             for sd_obj in sd_objs:
-                self.rr.delete(sd_obj._id)
-                count_sd += 1
+                if self.verbose:
+                    log.debug("Delete StreamDefinition: %s", sd_obj._id)
+                if not self.dryrun:
+                    self.rr.delete(sd_obj._id)
+                    count_sd += 1
 
             # Delete DataProduct
-            self.rr.delete(dp_obj._id)
-            count_dp += 1
+            if self.verbose:
+                log.debug("Delete DataProduct: %s", dp_obj._id)
+            if not self.dryrun:
+                self.rr.delete(dp_obj._id)
+                count_dp += 1
 
         log.info("Data resources deleted for device %s '%s': %s DataProduct, %s StreamDefinition, %s Stream",
                  resource_id, res_obj.name, count_dp, count_sd, count_st)
@@ -879,24 +950,36 @@ class AgentControl(ImmediateProcess):
         # Delete DataProducers
         dp_ids, _ = self.rr.find_objects(resource_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
         if dp_ids:
-            self.rr.rr_store.delete_mult(dp_ids)
-            count_dp += len(dp_ids)
+            if self.verbose:
+                log.debug("Delete DataProducers: %s", dp_ids)
+            if not self.dryrun:
+                self.rr.rr_store.delete_mult(dp_ids)
+                count_dp += len(dp_ids)
 
         # Delete Deployment
         dep_ids, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=True)
         if dep_ids:
-            self.rr.rr_store.delete_mult(dep_ids)
-            count_dep += len(dep_ids)
+            if self.verbose:
+                log.debug("Delete Deployments: %s", dep_ids)
+            if not self.dryrun:
+                self.rr.rr_store.delete_mult(dep_ids)
+                count_dep += len(dep_ids)
 
         # Delete ExternalDatasetAgentInstance, InstrumentAgentInstance, PlatformAgentInstance
         ai_ids, _ = self.rr.find_objects(resource_id, PRED.hasAgentInstance, id_only=True)
         if ai_ids:
-            self.rr.rr_store.delete_mult(ai_ids)
-            count_ai += len(ai_ids)
+            if self.verbose:
+                log.debug("Delete AgentInstances: %s", ai_ids)
+            if not self.dryrun:
+                self.rr.rr_store.delete_mult(ai_ids)
+                count_ai += len(ai_ids)
 
         # Delete Device
-        self.rr.delete(resource_id)
-        count_dev += 1
+        if self.verbose:
+            log.debug("Delete Device: %s", resource_id)
+        if not self.dryrun:
+            self.rr.delete(resource_id)
+            count_dev += 1
 
         log.info("Device resources deleted for device %s '%s': %s Device, %s DataProducer, %s Deployment, %s AgentInstance",
                  resource_id, res_obj.name, count_dev, count_dp, count_dep, count_ai)
@@ -911,7 +994,10 @@ class AgentControl(ImmediateProcess):
         if not isinstance(res_obj, Site):
             raise BadRequest("Resource is not a site but: %s" % res_obj.type_)
 
-        self.rr.delete(res_obj._id)
+        if self.verbose:
+            log.debug("Delete Site resource: %s", res_obj._id)
+        if not self.dryrun:
+            self.rr.delete(res_obj._id)
         log.info("Site resources deleted for site %s '%s': 1 Site", resource_id, res_obj.name)
 
     def activate_deployment(self, agent_instance_id, resource_id):
@@ -921,7 +1007,8 @@ class AgentControl(ImmediateProcess):
             current_dep = self._get_current_deployment(dep_objs, for_activate=True)
             if current_dep:
                 obs_ms = ObservatoryManagementServiceProcessClient(process=self)
-                obs_ms.activate_deployment(current_dep._id, headers=self._get_system_actor_headers())
+                if not self.dryrun:
+                    obs_ms.activate_deployment(current_dep._id, headers=self._get_system_actor_headers())
 
     def deactivate_deployment(self, agent_instance_id, resource_id):
         dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
@@ -929,7 +1016,8 @@ class AgentControl(ImmediateProcess):
             current_dep = self._get_current_deployment(dep_objs, for_activate=False)
             if current_dep:
                 obs_ms = ObservatoryManagementServiceProcessClient(process=self)
-                obs_ms.deactivate_deployment(current_dep._id, headers=self._get_system_actor_headers())
+                if not self.dryrun:
+                    obs_ms.deactivate_deployment(current_dep._id, headers=self._get_system_actor_headers())
 
     def _get_current_deployment(self, dep_objs, for_activate=True):
         # TODO: How to find current deployment - wait for R3 M193
