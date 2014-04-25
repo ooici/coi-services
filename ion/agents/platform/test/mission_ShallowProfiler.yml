@@ -30,10 +30,6 @@ mission:
       - command: execute_resource(STOP_AUTOSAMPLE)
         onError: retry
     postMissionSequence:
-<<<<<<< HEAD
-
-=======
->>>>>>> 97dd70d4a3bef85460103f769fecb882de5bcddd
 
 
   - instrument:

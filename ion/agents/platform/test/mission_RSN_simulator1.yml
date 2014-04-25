@@ -45,19 +45,12 @@ mission:
       - command: SBE37_SIM_03, execute_resource(STOP_AUTOSAMPLE)
         onError: retry
     postMissionSequence:
-<<<<<<< HEAD
-      - command: SBE37_SIM_02, execute_agent(RESET)
-        onError: retry
-      - command: SBE37_SIM_03, execute_agent(RESET)
-        onError: retry
-=======
 # TODO: re-enable the following when we determine how to handle the state of
 # subordinate agents prior to mission execution.
 #      - command: SBE37_SIM_02, execute_agent(RESET)
 #        onError: retry
 #      - command: SBE37_SIM_03, execute_agent(RESET)
 #        onError: retry
->>>>>>> 97dd70d4a3bef85460103f769fecb882de5bcddd
 
   # - instrument: 
   #   instrumentID: [SBE37_SIM_03]
