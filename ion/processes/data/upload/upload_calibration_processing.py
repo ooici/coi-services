@@ -4,8 +4,10 @@
 @file ion/processes/data/upload/upload_calibration_processing.py
 '''
 
+from pyon.public import OT
 from pyon.core.exception import BadRequest
 from pyon.ion.process import ImmediateProcess
+from pyon.event.event import EventPublisher
 from pyon.util.log import log
 import time
 import re
@@ -33,9 +35,13 @@ class UploadCalibrationProcessing(ImmediateProcess):
 
         # Clients
         self.object_store = self.container.object_store
+        self.event_publisher = EventPublisher(OT.ResetQCEvent)
 
         # run process
         self.process(fuc_id)
+
+        # cleanup
+        self.event_publisher.close()
 
     def process(self,fuc_id):
 
@@ -129,3 +135,5 @@ class UploadCalibrationProcessing(ImmediateProcess):
                     ipn[name].append(updates[i][name]) # append the list from updates
             # store updated ipn keyed object in object_store (should overwrite full object, contains all previous too)
             self.object_store.update_doc(ipn)
+            # publish ResetQCEvent event (one for each instrument_property_number [AKA ipn])
+            self.event_publisher.publish_event(origin=i)
