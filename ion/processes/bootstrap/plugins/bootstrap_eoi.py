@@ -6,6 +6,7 @@ from interface.objects import IngestionQueue
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceProcessClient
 from ion.services.eoi.table_loader import ResourceParser
 from pyon.util.log import log
+from pyon.core.exception import BadRequest
 
 class BootstrapEOI(BootstrapPlugin):
     """
@@ -22,7 +23,10 @@ class BootstrapEOI(BootstrapPlugin):
         try:
             r.init()
             r.reset()
-        except Exception, e:
-            log.error("Failed to reset and initialize eoi services", exc_info=True)
+        except BadRequest as e:
+            if 'Eoi services not enabled' in e.message:
+                log.warning("EOI Services are not enabled")
+        except:
+            log.error("EOI Services are disabled", exc_info=True)
         
         
