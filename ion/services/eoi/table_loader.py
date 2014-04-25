@@ -15,6 +15,7 @@ from pyon.public import CFG
 from pyon.util.log import log
 from pyon.util.breakpoint import breakpoint
 from pyon.container.cc import Container
+from pyon.core.exceptions import BadRequest
 
 DEBUG = False
 

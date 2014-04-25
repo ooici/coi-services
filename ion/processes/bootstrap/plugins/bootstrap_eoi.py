@@ -18,6 +18,10 @@ class BootstrapEOI(BootstrapPlugin):
         Resets the geoserver datastore... 
         """
         r = ResourceParser()
-        r.init()
-        r.reset()
+        try:
+            r.init()
+            r.reset()
+        except Exception, e:
+            raise e
+        
         
