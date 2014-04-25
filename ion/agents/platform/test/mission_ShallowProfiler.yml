@@ -5,7 +5,7 @@ description: Shallow Profiler Mission
 platform:
   platformID: SHALLOW_PROFILER
 mission:
-  - instrument: 
+  - instrument:
     instrumentID: [SBE37_SIM_02]
     errorHandling:
       default: retry
@@ -20,26 +20,19 @@ mission:
         parentID:
         eventID:
     preMissionSequence:
-    missionSequence:
       - command: set_resource(INTERVAL{1})
         onError: retry
+    missionSequence:
       - command: execute_resource(START_AUTOSAMPLE)
         onError: retry
       - command: wait(1)
         onError:
       - command: execute_resource(STOP_AUTOSAMPLE)
         onError: retry
-      # - command: set_resource(LOAD_MISSION{1})
-      #   onError: retry
-      # - command: execute_resource(RUN_MISSION{1})
-      #   onError: retry
     postMissionSequence:
-      # - command: SBE37_SIM_02, execute_agent(RESET)
-      #   onError: retry
-      # - command: SBE37_SIM_03, execute_agent(RESET)
-      #   onError: retry
 
-  - instrument: 
+
+  - instrument:
     instrumentID: [SBE37_SIM_03]
     errorHandling:
       default: retry
@@ -54,9 +47,9 @@ mission:
         parentID: SBE37_SIM_02
         eventID: PROFILER_AT_STEP
     preMissionSequence:
-    missionSequence:
       - command: set_resource(INTERVAL{1})
         onError: retry
+    missionSequence:
       - command: execute_resource(START_AUTOSAMPLE)
         onError: retry
       - command: wait(1)
@@ -64,12 +57,8 @@ mission:
       - command: execute_resource(STOP_AUTOSAMPLE)
         onError: retry
     postMissionSequence:
-      # - command: SBE37_SIM_02, execute_agent(RESET)
-      #   onError: retry
-      # - command: SBE37_SIM_03, execute_agent(RESET)
-      #   onError: retry
 
-  - instrument: 
+  - instrument:
     instrumentID: [SBE37_SIM_04]
     errorHandling:
       default: retry
@@ -84,9 +73,9 @@ mission:
         parentID: SBE37_SIM_02
         eventID: PROFILER_AT_CEILING
     preMissionSequence:
-    missionSequence:
       - command: set_resource(INTERVAL{5})
         onError: retry
+    missionSequence:
       - command: execute_resource(START_AUTOSAMPLE)
         onError: retry
       - command: wait(1)
