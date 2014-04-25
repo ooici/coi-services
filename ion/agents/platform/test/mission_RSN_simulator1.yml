@@ -20,27 +20,23 @@ mission:
     schedule:
       startTime: 03/27/2014 00:00:00
       loop:
-        quantity: -1   # No. of loops (-1 for infinite)
-        value: 10      # Repeat missionParams every 'xx' 'units'
+        quantity: 2   # No. of loops (-1 for infinite)
+        value: 3      # Repeat missionParams every 'xx' 'units'
         units: mins    # mins, hrs, days
       event:
         parentID:
         eventID: 
     preMissionSequence:
-      # - command: SBE37_SIM_02, execute_agent(RUN)
-      #   onError:
-      # - command: SBE37_SIM_03, execute_agent(RUN)
-      #   onError:
-    missionSequence:
-      - command: SBE37_SIM_02, set_resource(INTERVAL{1})
+      - command: SBE37_SIM_02, set_resource(INTERVAL{3})
         onError: retry
+      - command: SBE37_SIM_03, set_resource(INTERVAL{3})
+        onError: retry
+    missionSequence:
       - command: SBE37_SIM_02, execute_resource(START_AUTOSAMPLE)
         onError: retry
       - command: wait(1)
         onError:
       - command: SBE37_SIM_02, execute_resource(STOP_AUTOSAMPLE)
-        onError: retry
-      - command: SBE37_SIM_03, set_resource(INTERVAL{1})
         onError: retry
       - command: SBE37_SIM_03, execute_resource(START_AUTOSAMPLE)
         onError: retry
@@ -49,15 +45,42 @@ mission:
       - command: SBE37_SIM_03, execute_resource(STOP_AUTOSAMPLE)
         onError: retry
     postMissionSequence:
-      - command: SBE37_SIM_02, execute_agent(RESET)
-        onError: retry
-      - command: SBE37_SIM_03, execute_agent(RESET)
-        onError: retry
+# TODO: re-enable the following when we determine how to handle the state of
+# subordinate agents prior to mission execution.
+#      - command: SBE37_SIM_02, execute_agent(RESET)
+#        onError: retry
+#      - command: SBE37_SIM_03, execute_agent(RESET)
+#        onError: retry
 
-
-
-
-
-
-
+  # - instrument: 
+  #   instrumentID: [SBE37_SIM_03]
+  #   errorHandling:
+  #     default: retry
+  #     maxRetries: 3
+  #   schedule:
+  #     startTime:
+  #     loop:
+  #       quantity:
+  #       value:
+  #       units:
+  #     event:
+  #       parentID: SBE37_SIM_02
+  #       eventID: STOP_AUTOSAMPLE
+  #   preMissionSequence:
+  #     # - command: SBE37_SIM_02, set_resource(INTERVAL{3})
+  #     #   onError: retry
+  #     # - command: SBE37_SIM_03, set_resource(INTERVAL{3})
+  #     #   onError: retry
+  #   missionSequence:
+  #     - command: SBE37_SIM_03, execute_resource(START_AUTOSAMPLE)
+  #       onError: retry
+  #     - command: wait(1)
+  #       onError:
+  #     - command: SBE37_SIM_03, execute_resource(STOP_AUTOSAMPLE)
+  #       onError: retry
+  #   postMissionSequence:
+  #     # - command: SBE37_SIM_02, execute_agent(RESET)
+  #     #   onError: retry
+  #     - command: SBE37_SIM_03, execute_agent(RESET)
+  #       onError: retry
 
