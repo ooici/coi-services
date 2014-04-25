@@ -216,7 +216,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         self.mission = MissionLoader()
         self.mission.load_mission_file(yaml_filename)
 
-    # @skip("Work in progress...")
+    @skip("Work in progress...")
     def test_simple_simulator_mission(self):
         """
         Test the RSN OMS platform simulator with the SBE37_SIM instruments

@@ -24,10 +24,10 @@ from pyon.public import log, CFG
 
 from gevent import sleep
 from mock import patch
-from unittest import skipIf
+from unittest import skipIf, skip
 import os
 
-
+@skip("Work in progress...")
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
 @skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestPlatformAgentMission(BaseIntTestPlatform):
