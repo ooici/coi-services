@@ -41,23 +41,30 @@ class MissionManager(object):
         Specifies mission to be executed.
         @param yaml_filename  Mission definition
         """
-        log.debug('aparam_set_mission: yaml_filename=%s' % yaml_filename)
+        log.debug('[mm] aparam_set_mission: yaml_filename=%s', yaml_filename)
 
         mission_loader = MissionLoader()
         mission_loader.load_mission_file(yaml_filename)
         self._agent.aparam_mission = mission_loader.mission_entries
+
+        log.debug('[mm] aparam_set_mission: _ia_clients=\n%s',
+                  self._agent._pp.pformat(self._agent._ia_clients))
 
         # get instrument IDs and clients for the valid running instruments:
         instruments = {}
         for (instrument_id, obj) in self._agent._ia_clients.iteritems():
             if isinstance(obj, dict):
                 # it's valid instrument.
-                instruments[instrument_id] = obj.ia_client
+                if instrument_id != obj.resource_id:
+                    log.error('[mm] aparam_set_mission: instrument_id=%s, '
+                              'resource_id=%s', instrument_id, obj.resource_id)
+
+                instruments[obj.resource_id] = obj.ia_client
 
         self.mission_scheduler = MissionScheduler(self._agent,
                                                   instruments,
                                                   self._agent.aparam_mission)
-        log.debug('aparam_set_mission: MissionScheduler created. entries=%s' %
+        log.debug('[mm] aparam_set_mission: MissionScheduler created. entries=%s',
                   self._agent.aparam_mission)
 
     # TODO appropriate way to handle potential errors/exceptions in
@@ -68,7 +75,7 @@ class MissionManager(object):
             self.mission_scheduler.run_mission()
             return None
         except Exception as ex:
-            log.exception('run_mission')
+            log.exception('[mm] run_mission')
             return ex
 
     def abort_mission(self):
@@ -76,7 +83,7 @@ class MissionManager(object):
             self.mission_scheduler.abort_mission()
             return None
         except Exception as ex:
-            log.exception('abort_mission')
+            log.exception('[mm] abort_mission')
             return ex
 
     def kill_mission(self):
@@ -84,5 +91,5 @@ class MissionManager(object):
             self.mission_scheduler.kill_mission()
             return None
         except Exception as ex:
-            log.exception('kill_mission')
+            log.exception('[mm] kill_mission')
             return ex

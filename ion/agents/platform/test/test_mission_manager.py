@@ -10,8 +10,8 @@
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
-# bin/nosetests -sv ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_command_state
-# bin/nosetests -sv ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_streaming_state
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_command_state
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_streaming_state
 
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
@@ -40,6 +40,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         self._run(recursion)
 
     def _run_shutdown_commands(self, recursion=True):
+        log.debug('[mm] _run_shutdown_commands.  state=%s', self._get_state())
         try:
             self._go_inactive(recursion)
             self._reset(recursion)
@@ -47,90 +48,116 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             self._shutdown(True)  # NOTE: shutdown always with recursion=True
 
     def _set_mission(self, yaml_filename):
-        log.debug('_set_mission: setting agent param mission = %s', yaml_filename)
+        log.debug('[mm] _set_mission: setting agent param mission = %s', yaml_filename)
         self._pa_client.set_agent({'mission': yaml_filename})
 
     def _get_mission(self):
         mission = self._pa_client.get_agent(['mission'])['mission']
         self.assertIsNotNone(mission)
-        log.debug('_get_mission: agent param mission = %s', mission)
+        log.debug('[mm] _get_mission: agent param mission = %s', mission)
         return mission
 
     def _run_mission(self):
         cmd = AgentCommand(command=PlatformAgentEvent.RUN_MISSION)
         retval = self._execute_agent(cmd)
-        log.debug('_run_mission: RUN_MISSION return: %s', retval)
+        log.debug('[mm] _run_mission: RUN_MISSION return: %s', retval)
 
-    def _await_mission_completion(self, state, max_wait):
+    def _await_mission_completion(self, mission_state, max_wait=None):
+        """
+        @param mission_state  The mission that we are waiting to leave
+        @param max_wait       maximum wait; no effect if None
+        """
         step = 5
         elapsed = 0
-        while elapsed < max_wait and state == self._get_state():
-            log.debug('_await_mission_completion: elapsed=%s', elapsed)
+        while (max_wait is None or elapsed < max_wait) and mission_state == self._get_state():
+            log.debug('[mm] _await_mission_completion: elapsed=%s', elapsed)
             sleep(step)
             elapsed += step
 
-        if state != self._get_state():
-            log.info('_await_mission_completion: left state=%s, new state=%s',
-                     state, self._get_state())
+        state = self._get_state()
+        if mission_state != state:
+            log.info('[mm] _await_mission_completion: transitioned from=%s to=%s elapsed=%s',
+                     mission_state, state, elapsed)
         else:
-            log.warn('_await_mission_completion: still in state=%s', state)
+            log.warn('[mm] _await_mission_completion: still in state=%s elapsed=%s',
+                     mission_state)
+
+    def _test_simple_mission(self, in_command_state):
+        """
+        Verifies mission execution involving a platform with 2 instruments
+        as specified in mission_RSN_simulator1.yml.
+
+        @param in_command_state
+                    True to start mission execution in COMMAND state.
+                    False to start mission execution in MONITORING state.
+        """
+        self._set_receive_timeout()
+
+        if in_command_state:
+            base_state    = PlatformAgentState.COMMAND
+            mission_state = PlatformAgentState.MISSION_COMMAND
+        else:
+            base_state    = PlatformAgentState.MONITORING
+            mission_state = PlatformAgentState.MISSION_STREAMING
+
+        # start everything up to platform agent in COMMAND state.
+        # Instruments launched here are the ones referenced in the mission.
+        instr_keys = ['SBE37_SIM_02', 'SBE37_SIM_03']
+        p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+        self._run_startup_commands()
+
+        if not in_command_state:
+            self._start_resource_monitoring()
+
+        # now prepare, set, and run mission:
+
+        filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
+
+        # TODO determine appropriate instrument identification mechanism as the
+        # instrument keys (like SBE37_SIM_02) are basically only known in
+        # the scope of the tests. In the following, we transform the mission
+        # file so the instrument keys are replaced by the corresponding
+        # instrument_device_id's:
+
+        string = open(filename).read()
+        for instr_key in instr_keys:
+            i_obj = self._get_instrument(instr_key)
+            resource_id = i_obj.instrument_device_id
+            log.debug('[mm] replacing %s to %s', instr_key, resource_id)
+            string = string.replace(instr_key, resource_id)
+
+        generated_filename = "ion/agents/platform/test/mission_RSN_simulator1_GENERATED.yml"
+        with open(generated_filename, 'w') as f:
+            f.write(string)
+
+        # now set and run mission:
+        self._set_mission(generated_filename)
+        self._run_mission()
+
+        self._assert_state(mission_state)
+
+        # per loop parameters, this mission execution will take several mins.
+        # I've seen this taking about 410 secs but for the moment,
+        # not restricting with max_wait
+        self._await_mission_completion(mission_state)
+
+        # verify we are back to the base_state:
+        self._assert_state(base_state)
+
+        if not in_command_state:
+            self._stop_resource_monitoring()
 
     def test_simple_mission_command_state(self):
         #
         # Mission execution is started in COMMAND state.
-        # Verifies mission execution involving a platform with 2 instruments
-        # as specified in mission_RSN_simulator1_finite_loop.yml.
         #
-        self._set_receive_timeout()
-
-        # start everything up to platform agent in COMMAND state.
-        # Instruments launched here are the ones referenced in the mission.
-        p_root = self._set_up_single_platform_with_some_instruments(
-            ['SBE37_SIM_02', 'SBE37_SIM_03'])
-        self._start_platform(p_root)
-        self.addCleanup(self._stop_platform, p_root)
-        self.addCleanup(self._run_shutdown_commands)
-        self._run_startup_commands()
-
-        # now set and run mission:
-        filename = "ion/agents/platform/test/mission_RSN_simulator1_finite_loop.yml"
-        self._set_mission(filename)
-        self._run_mission()
-        self._assert_state(PlatformAgentState.MISSION_COMMAND)
-
-        self._await_mission_completion(PlatformAgentState.MISSION_COMMAND, 240)
-
-        # verify we are back to COMMAND state:
-        self._assert_state(PlatformAgentState.COMMAND)
+        self._test_simple_mission(in_command_state=True)
 
     def test_simple_mission_streaming_state(self):
         #
         # Mission execution is started in MONITORING state.
-        # Verifies mission execution involving a platform with 2 instruments
-        # as specified in mission_RSN_simulator1_finite_loop.yml.
         #
-        self._set_receive_timeout()
-
-        # start everything up to platform agent in MONITORING state.
-        # Instruments launched here are the ones referenced in the mission.
-        p_root = self._set_up_single_platform_with_some_instruments(
-            ['SBE37_SIM_02', 'SBE37_SIM_03'])
-        self._start_platform(p_root)
-        self.addCleanup(self._stop_platform, p_root)
-        self.addCleanup(self._run_shutdown_commands)
-        self._run_startup_commands()
-
-        self._start_resource_monitoring()
-
-        # now set and run mission:
-        filename = "ion/agents/platform/test/mission_RSN_simulator1_finite_loop.yml"
-        self._set_mission(filename)
-        self._run_mission()
-        self._assert_state(PlatformAgentState.MISSION_STREAMING)
-
-        self._await_mission_completion(PlatformAgentState.MISSION_STREAMING, 240)
-
-        # verify we are back to MONITORING state:
-        self._assert_state(PlatformAgentState.MONITORING)
-
-        self._stop_resource_monitoring()
+        self._test_simple_mission(in_command_state=False)
