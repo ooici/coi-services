@@ -1647,7 +1647,7 @@ def rotate_v(u,v,theta):
         self.addCleanup(streamer.stop)
 
 
-        event_publisher = EventPublisher(OT.ParameterQCEvent)
+        event_publisher = EventPublisher(OT.ResetQCEvent)
         self.addCleanup(event_publisher.close)
         event = Event()
 
@@ -1655,7 +1655,7 @@ def rotate_v(u,v,theta):
             log.error("Started annoying thread")
             while not event.wait(1):
                 log.error("annoying thread")
-                event_publisher.publish_event(origin='what')
+                event_publisher.publish_event(origin='refdes')
                 
 
         g = gevent.spawn(annoying_thread, event_publisher, event)

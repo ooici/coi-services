@@ -126,7 +126,7 @@ class QCProcessor(SimpleProcess):
         Process initialization
         '''
         self._thread = self._process.thread_manager.spawn(self.thread_loop)
-        self._event_subscriber = EventSubscriber(event_type=OT.ParameterQCEvent, callback=self.receive_event, auto_delete=True) # TODO Correct event types
+        self._event_subscriber = EventSubscriber(event_type=OT.ResetQCEvent, callback=self.receive_event, auto_delete=True) # TODO Correct event types
         self._event_subscriber.start()
         self.timeout = self.CFG.get_safe('endpoint.receive.timeout', 10)
         self.resource_registry = self.container.resource_registry
@@ -136,6 +136,7 @@ class QCProcessor(SimpleProcess):
         '''
         Stop and cleanup the thread
         '''
+        self._event_subscriber.stop()
         self.suspend()
 
     def receive_event(self, event, *args, **kwargs):
@@ -197,7 +198,7 @@ class QCProcessor(SimpleProcess):
         log.error("Processing event queue")
         self.event_queue.put(StopIteration)
         for event in self.event_queue:
-            log.error("My event: %s", event)
+            log.error("My event's reference designator: %s", event.origin)
 
     def suspend(self):
         '''
