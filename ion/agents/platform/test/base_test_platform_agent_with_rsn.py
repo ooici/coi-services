@@ -641,7 +641,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
             # data product creation
             dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
-            dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=self.parsed_stream_def_id)
+            parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict')
+            dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=self.parsed_stream_def_id, default_stream_configuration=parsed_config)
             self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
             self.addCleanup(self.DP.delete_data_product, dp_id)
@@ -985,8 +986,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            temporal_domain=tdom,
                            spatial_domain=sdom)
 
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict')
         data_product_id1 = self.DP.create_data_product(data_product=dp_obj,
-                                                       stream_definition_id=parsed_stream_def_id)
+                                                       stream_definition_id=parsed_stream_def_id,
+                                                       default_stream_configuration=parsed_config)
         self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
         self.addCleanup(self.DP.delete_data_product, data_product_id1)
 
@@ -1006,8 +1009,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            temporal_domain=tdom,
                            spatial_domain=sdom)
 
+        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict')
         data_product_id2 = self.DP.create_data_product(data_product=dp_obj,
-                                                       stream_definition_id=raw_stream_def_id)
+                                                       stream_definition_id=raw_stream_def_id,
+                                                       default_stream_configuration=raw_config)
 
         self.DP.activate_data_product_persistence(data_product_id=data_product_id2)
         self.addCleanup(self.DP.delete_data_product, data_product_id2)
