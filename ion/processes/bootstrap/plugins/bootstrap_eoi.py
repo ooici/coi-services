@@ -5,6 +5,7 @@ from pyon.public import Container
 from interface.objects import IngestionQueue
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceProcessClient
 from ion.services.eoi.table_loader import ResourceParser
+from pyon.util.log import log
 
 class BootstrapEOI(BootstrapPlugin):
     """
@@ -22,6 +23,6 @@ class BootstrapEOI(BootstrapPlugin):
             r.init()
             r.reset()
         except Exception, e:
-            raise e
+            log.error("Failed to reset and initialize eoi services", exc_info=True)
         
         
