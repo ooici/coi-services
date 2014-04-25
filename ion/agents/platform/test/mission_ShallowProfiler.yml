@@ -5,7 +5,7 @@ description: Shallow Profiler Mission
 platform:
   platformID: SHALLOW_PROFILER
 mission:
-  - instrument: 
+  - instrument:
     instrumentID: [SBE37_SIM_02]
     errorHandling:
       default: retry
@@ -30,9 +30,13 @@ mission:
       - command: execute_resource(STOP_AUTOSAMPLE)
         onError: retry
     postMissionSequence:
+<<<<<<< HEAD
+
+=======
+>>>>>>> 97dd70d4a3bef85460103f769fecb882de5bcddd
 
 
-  - instrument: 
+  - instrument:
     instrumentID: [SBE37_SIM_03]
     errorHandling:
       default: retry
@@ -58,7 +62,7 @@ mission:
         onError: retry
     postMissionSequence:
 
-  - instrument: 
+  - instrument:
     instrumentID: [SBE37_SIM_04]
     errorHandling:
       default: retry
