@@ -711,15 +711,19 @@ class OOILoader(object):
 
         return res_tree
 
-    def is_cabled(self, ooi_rd):
+    @classmethod
+    def is_cabled(cls, ooi_rd):
+        """Returns True if given RD is associated with the cabled infrastructure"""
         if isinstance(ooi_rd, str):
             ooi_rd = OOIReferenceDesignator(ooi_rd)
         return ooi_rd.marine_io == "RSN" or ooi_rd.subsite_rd == "CE02SHBP" or ooi_rd.subsite_rd == "CE04OSBP"
 
-    def is_dataagent(self, ooi_rd):
+    @classmethod
+    def is_dataagent(cls, ooi_rd):
+        """Returns True if given RD is serviced by a dataset agent"""
         if isinstance(ooi_rd, str):
             ooi_rd = OOIReferenceDesignator(ooi_rd)
-        cabled = self.is_cabled(ooi_rd)
+        cabled = cls.is_cabled(ooi_rd)
         if not cabled:
             return True
         if ooi_rd.inst_class in {"HYDBB", "HYDLF", "OBSBB", "OBSBK", "OBSSP", "FLOBN", "OSMOI"}:
@@ -727,7 +731,7 @@ class OOILoader(object):
         return False
 
     def get_agent_code(self, ooi_rd):
-        # TODO: This mirrors the get_agent_definition in the ion_loader - redundancy
+        # TODO: This mirrors the get_agent_definition() in the ion_loader - redundancy
         if isinstance(ooi_rd, str):
             ooi_rd = OOIReferenceDesignator(ooi_rd)
         nodetype_objs = self.get_type_assets("nodetype")
