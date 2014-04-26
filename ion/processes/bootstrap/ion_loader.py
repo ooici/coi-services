@@ -2359,8 +2359,10 @@ Reason: %s
         self._resource_advance_lcs(row, res_id)
 
     def _is_cabled(self, ooi_rd):
-        # TODO: Refine this algorithm!
-        return ooi_rd.marine_io == "RSN" or ooi_rd.subsite_rd == "CE02SHBP" or ooi_rd.subsite_rd == "CE04OSBP"
+        return self.ooi_loader.is_cabled(ooi_rd)
+
+    def _is_dataagent(self, ooi_rd):
+        return self.ooi_loader.is_dataagent(ooi_rd)
 
     def _load_InstrumentDevice_OOI(self):
         inst_objs = self.ooi_loader.get_type_assets("instrument")
@@ -2583,7 +2585,7 @@ Reason: %s
         series_objs = self.ooi_loader.get_type_assets("series")
         nodetype_objs = self.ooi_loader.get_type_assets("nodetype")
         series_obj, nodetype_obj = None, None
-        is_cabled = self._is_cabled(ooi_rd)
+        is_data = self._is_dataagent(ooi_rd)
 
         if ooi_rd.rd_type == "asset" and ooi_rd.rd_subtype == "instrument":
             series_obj = series_objs[ooi_rd.series_rd]
@@ -2606,7 +2608,7 @@ Reason: %s
                         return None, None
 
         if ooi_rd.rd_subtype == "instrument":
-            if is_cabled:
+            if not is_data:
                 # Try the IA Code defined in the Series spreadsheet
                 ia_code = series_obj["ia_code"]
                 agent_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
@@ -2626,7 +2628,7 @@ Reason: %s
             if agent_obj:
                 return pa_code, agent_obj
 
-            if is_cabled:
+            if not is_data:
                 # Try a default agent code derived from node type for cabled
                 pa_code = "PA_" + ooi_rd.node_type
                 agent_obj = self._get_resource_obj(pa_code, True)
