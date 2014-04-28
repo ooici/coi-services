@@ -51,14 +51,12 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
         #self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
-        self.geos_available = False
-        try:
+        using_eoi_services = self.CFG.get_safe('eoi.meta.use_eoi_services', False)
+        if using_eoi_services:
             self.resource_parser = ResourceParser()
-            self.resource_parser.init()
-        except:
+        else:
             self.resource_parser = None
-            self.geos_available = False
-            log.warning("Geoserver is disabled")
+
 #--------
 
     def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None, temporal_domain=None, parameter_dictionary_id='', description='', parent_dataset_id=''):
@@ -778,10 +776,4 @@ class DatasetManagementService(BaseDatasetManagementService):
         longer queried
         '''
 
-        # See if we have it already before hitting RPC
-        if self.geos_available:
-            return True
-        if self.resource_parser is None:
-            return False
-        self.geos_available = self.resource_parser.get_eoi_service_available()             
-        return self.geos_available
+        return self.resource_parser and self.resource_parser.get_eoi_service_available()
