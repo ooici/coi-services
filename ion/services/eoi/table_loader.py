@@ -30,34 +30,28 @@ class ResourceParser(object):
     """
     def __init__(self):
         self.container = Container.instance
+        self.using_eoi_services = CFG.get_safe('eoi.meta.use_eoi_services', False)
+        self.latitude           = CFG.get_safe('eoi.meta.lat_field', 'lat')
+        self.longitude          = CFG.get_safe('eoi.meta.lon_field', 'lon')
 
-    def init(self):
-        """
-        initalizes the resource configuration 
-        """
+        self.resetstore         = CFG.get_safe('eoi.importer_service.reset_store', 'resetstore')
+        self.removelayer        = CFG.get_safe('eoi.importer_service.remove_layer', 'removelayer')
+        self.addlayer           = CFG.get_safe('eoi.importer_service.add_layer', 'addlayer')
 
-        self.using_eoi_services = CFG.get_safe('eoi.meta.use_eoi_services', False)        
+        self.server             = CFG.get_safe('eoi.importer_service.server', "localhost")+":"+str(CFG.get_safe('eoi.importer_service.port', 8844))
+        self.database           = CFG.get_safe('eoi.postgres.database', 'postgres')
+        self.db_user            = CFG.get_safe('eoi.postgres.user_name', 'postgres')
+        self.db_pass            = CFG.get_safe('eoi.postgres.password', '')
+
+        self.table_prefix       = CFG.get_safe('eoi.postgres.table_prefix', '_')
+        self.view_suffix        = CFG.get_safe('eoi.postgres.table_suffix', '_view')
+
+        self.coverage_fdw_sever = CFG.get_safe('eoi.fdw.server', 'cov_srv')
+
         log.debug("TableLoader:Using geoservices="+str(self.using_eoi_services))
         if not self.using_eoi_services:
             raise BadRequest("Eoi services not enabled")
 
-        self.latitude = CFG.get_safe('eoi.meta.lat_field', 'lat')
-        self.longitude = CFG.get_safe('eoi.meta.lon_field', 'lon')
-
-        self.resetstore = CFG.get_safe('eoi.importer_service.reset_store', 'resetstore')
-        self.removelayer = CFG.get_safe('eoi.importer_service.remove_layer', 'removelayer')
-        self.addlayer = CFG.get_safe('eoi.importer_service.add_layer', 'addlayer')
-        
-        #add default varaibles
-        self.server = CFG.get_safe('eoi.importer_service.server', "localhost")+":"+str(CFG.get_safe('eoi.importer_service.port', 8844))
-        self.database = CFG.get_safe('eoi.postgres.database', 'postgres')
-        self.db_user = CFG.get_safe('eoi.postgres.user_name', 'postgres')
-        self.db_pass = CFG.get_safe('eoi.postgres.password', '')
-
-        self.table_prefix = CFG.get_safe('eoi.postgres.table_prefix', '_')
-        self.view_suffix = CFG.get_safe('eoi.postgres.table_suffix', '_view')
-
-        self.coverage_fdw_sever = CFG.get_safe('eoi.fdw.server', 'cov_srv')
 
         self.con = None
         self.postgres_db_available = False
