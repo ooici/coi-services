@@ -403,7 +403,7 @@ Archive:  local_range_test.zip
         reset_qc_event = Event() # EventSubscriber will set this to true if OT.ResetQCEvent published
         event_subscriber = EventSubscriber(event_type=OT.ResetQCEvent, callback=lambda *args,**kwargs : reset_qc_event.set(), auto_delete=True)
         event_subscriber.start()
-        self.addCleanup(event_subscriber.stop())
+        self.addCleanup(event_subscriber.stop)
 
         # write CSV to temporary file (contains comment and blank line)
         CALIBRATION_CSV = '''
@@ -455,7 +455,7 @@ IPN01,NAME01,0.3,m/s,NAME01_0.3,2014-03-03T03:03:03Z'''
         ]);
 
         # check Event
-        self.assertTrue(reset_qc_event.wait())
+        self.assertTrue(reset_qc_event.wait(5))
 
 
     def test_download(self):
