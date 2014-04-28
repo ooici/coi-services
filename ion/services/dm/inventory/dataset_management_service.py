@@ -51,20 +51,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
         #self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
-        self.rr_table_loader = ResourceParser()
-        self.geos_available = False
-        #check that the services are available 
-        if self.rr_table_loader.use_geo_services:
-            self.geos_available = True
-            # if they are proceed with the reset
-            try:
-                self.rr_table_loader.reset()
-                self.geos_available = True
-                pass
-            except Exception as e:
-                #check the eoi geoserver importer service is started
-                raise e
-
+        using_eoi_services = self.CFG.get_safe('eoi.meta.use_eoi_services', False)
+        if using_eoi_services:
+            self.resource_parser = ResourceParser()
+        else:
+            self.resource_parser = None
 
 #--------
 
@@ -109,11 +100,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         self._save_coverage(cov)
         cov.close()
 
-        #table loader code goes here
-        
-        if self.geos_available:
+        #table loader create resource
+        if self._get_eoi_service_available():
             log.debug('DM:create dataset: %s -- dataset_id: %s', name, dataset_id)
-            self.rr_table_loader.create_single_resource(dataset_id, parameter_dict)
+            self._create_single_resource(dataset_id, parameter_dict)
+
 
         return dataset_id
 
@@ -129,9 +120,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         #@todo: Check to make sure retval is boolean
 
         log.debug('DM:update dataset: dataset_id: %s', dataset._id)
-        if self.geos_available:
-            self.rr_table_loader.remove_single_resource(dataset._id)
-            self.rr_table_loader.create_single_resource(dataset._id, dataset.parameter_dictionary)
+        if self._get_eoi_service_available():
+            self._remove_single_resource(dataset._id)
+            self._create_single_resource(dataset._id, dataset.parameter_dictionary)
 
         return True
 
@@ -142,8 +133,8 @@ class DatasetManagementService(BaseDatasetManagementService):
         self.clients.resource_registry.delete(dataset_id)
 
         log.debug('DM:delete dataset: dataset_id: %s', dataset_id)
-        if self.geos_available:
-            self.rr_table_loader.remove_single_resource(dataset_id)
+        if self._get_eoi_service_available():
+            self._remove_single_resource(dataset_id)
 
     def register_dataset(self, data_product_id=''):
         raise BadRequest("register_dataset is no longer supported, please use create_catalog_entry in data product management")
@@ -760,3 +751,29 @@ class DatasetManagementService(BaseDatasetManagementService):
             return obj
         else:
             raise BadRequest('obj_id %s not QC' % obj_id)
+    def _create_single_resource(self,dataset_id, param_dict):
+        '''
+        EOI
+        Creates a foreign data table and a geoserver layer for the given dataset
+        and parameter dictionary
+        '''
+        self.resource_parser.create_single_resource(dataset_id,param_dict)
+
+    def _remove_single_resource(self,dataset_id):
+        '''
+        EOI
+        Removes foreign data table and geoserver layer for the given dataset
+        '''
+        self.resource_parser.remove_single_resource(dataset_id)
+
+    def _get_eoi_service_available(self):
+        '''
+        EOI
+        Returns true if geoserver endpoint is running and verified by table 
+        loader process. 
+        
+        Once a true is returned, the result is cached and the process is no 
+        longer queried
+        '''
+
+        return self.resource_parser and self.resource_parser.get_eoi_service_available()
