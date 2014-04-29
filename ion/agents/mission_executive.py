@@ -246,11 +246,7 @@ class MissionLoader(object):
         num_loops = schedule['loop']['quantity']
         loop_value = schedule['loop']['value']
 
-        if type(loop_value) == str:
-            # TODO: Check that event is valid
-            pass
-            #This is an event driven loop, check event cases
-        elif num_loops == -1 or num_loops > 1:
+        if num_loops:
             loop_units = schedule['loop']['units']
             if loop_units.lower() == 'days':
                 loop_value *= 3600*24
@@ -258,6 +254,9 @@ class MissionLoader(object):
                 loop_value *= 3600
             elif loop_units.lower() == 'mins':
                 loop_value *= 60
+        else:
+            num_loops = None
+            loop_value = None
 
         loop_parameters = {'loop_duration': loop_value, 'num_loops': num_loops}
 
@@ -319,28 +318,6 @@ class MissionLoader(object):
                 duration = param * 60
             else:
                 duration = 0
-
-            # if command == 'wait':
-            #     duration = params['duration']
-            #     units = params['units']
-            # elif command == 'sample':
-            #     duration = params['duration']
-            #     units = params['units']
-            # else:
-            #     units = None
-            #     duration = 0
-
-            # if units == 'days':
-            #     duration *= 86400
-            # elif units == 'hrs':
-            #     duration *= 3600
-            # elif units == 'mins':
-            #     duration *= 60
-
-            # For convenience convert time commands to seconds
-            # if units:
-            #     mission_sequence[index]['params']['duration'] = duration
-            #     mission_sequence[index]['params']['units'] = 'secs'
 
             mission_duration += duration
             mission_params.append({'instrument_id': instrument,
@@ -502,6 +479,14 @@ class MissionScheduler(object):
 
     def abort_mission(self):
         log.debug('abort_mission: mission=%s', self.mission)
+
+        # Take any instrument out of streaming and shutdown platform
+        for instrument, client in self.instruments.iteritems():
+            print instrument, client
+            self.instrument_abort_sequence(client)
+
+        log.error('Mission Aborted')
+        raise Exception('Mission Aborted')
         # TODO
 
     def kill_mission(self):
@@ -645,7 +630,7 @@ class MissionScheduler(object):
 
         mission_running = True
         loop_count = 0
-        # breakpoint(locals(),globals())
+
         self.max_attempts = mission['error_handling']['maxRetries']
         self.default_error = mission['error_handling']['default']
 
@@ -692,17 +677,12 @@ class MissionScheduler(object):
         if mission_running:
             # Execute postmission if specified
             if mission['postmission_cmds']:
-                self.execute_mission_commands(mission['postmission_cmds'])
+                success = self.execute_mission_commands(mission['postmission_cmds'])
+                if not success:
+                    self.abort_mission()
         else:
-            # Mission must have been aborted
-            log.error('Mission Aborted')
-            raise Exception('Mission Aborted')
-
-        # At the end of a command loop, put instrument in idle
-        # cmd = 'idle'
-        # self.send_command(ia_client, cmd)
-        # self.kill_mission()
-        # self.shutdown_platform()
+            # Abort mission
+            self.abort_mission()
 
     def run_event_driven_mission(self, mission):
         """
@@ -776,8 +756,7 @@ class MissionScheduler(object):
             log.debug('Event driven mission started. Waiting for ' + event_id)
             print 'Event driven mission started. Waiting for ' + event_id
         else:
-            log.error('Mission Aborted')
-            raise Exception('Mission Aborted')
+            self.abort_mission()
 
     def check_preconditions(self, ia_client):
         """
@@ -926,6 +905,19 @@ class MissionScheduler(object):
             #         attempt += 1
             #         self.platform_mission_running_state()
             #         state = self.platform_agent.get_agent_state()
+    #-------------------------------------------------------------------------------------
+    # Instrument commands
+    #-------------------------------------------------------------------------------------
+    def instrument_abort_sequence(self, agent_client):
+        """
+        Check state, stop streaming if necessary and get into command state
+        """
+        state = agent_client.get_agent_state()
+        if state != ResourceAgentState.COMMAND:
+            # Get capabilities
+            retval = agent_client.get_capabilities()
+            agt_cmds, agt_pars, res_cmds, res_iface, res_pars = self.sort_capabilities(retval)
+            # TODO: Get into command state
 
     #-------------------------------------------------------------------------------------
     # Error handling
@@ -941,12 +933,6 @@ class MissionScheduler(object):
                 if error_event['origin'] == v.resource_id:
                     ia_client = v
             # print error_event['error_code']
-
-    def abort_mission(self):
-        """
-        Abort the current mission
-        """
-        pass
 
     #------------------------------------------------------------------------------
     # Event helpers. Taken from ion/agents/instrument/test/test_instrument_agent.py
