@@ -154,6 +154,7 @@ DEFAULT_CATEGORIES = [
     'PlatformAgentInstance',
     'InstrumentAgent',
     'InstrumentDevice',
+    'DataSource',
     'ExternalDataProvider',
     'ExternalDatasetModel',
     'ExternalDataset',
@@ -3046,6 +3047,9 @@ Reason: %s
         self._basic_resource_create(row, 'ExternalDatasetModel', 'edm/',
                                     'data_acquisition_management', 'create_external_dataset_model',
                                     support_bulk=True)
+
+    def _load_DataSource(self, row):
+        self._basic_resource_create(row, 'DataSource', 'ds/','data_acquisition_management','create_data_source',support_bulk=True)                           
 
     def _load_ExternalDataset(self, row):
         contacts = self._get_contacts(row, field='contact_id')
