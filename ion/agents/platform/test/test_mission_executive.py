@@ -171,38 +171,65 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         def stair_step_simulator():
             # Let's simulate a profiler stair step scenario
 
-            seconds_between_steps = 120
+            seconds_between_steps = 60
             num_steps = 2
 
+            # Start Mission
+            profiler_event_state_change('StartMission', 1)
+
+            # Going up
+            profiler_event_state_change('StartingAscent', seconds_between_steps)
+
             for x in range(num_profiles):
-                # Going up
-                # state = 'atStep'
-                # for up in range(num_steps):
-                #     profiler_event_state_change(state, seconds_between_steps)
 
-                state = 'atCeiling'
-                profiler_event_state_change(state, seconds_between_steps)
-
-                # Step down
-                state = 'atStep'
+                # Step up
                 for down in range(num_steps):
-                    profiler_event_state_change(state, seconds_between_steps)
+                    profiler_event_state_change('atStep', seconds_between_steps)
+                    profiler_event_state_change('StartingUp', 1)
 
-                state = 'atFloor'
-                profiler_event_state_change(state, seconds_between_steps)
+                # Ascend to ceiling
+                profiler_event_state_change('atCeiling', seconds_between_steps)
+                # Start to descend
+                profiler_event_state_change('StartingDescent', seconds_between_steps)
+                # Arrive at floor
+                profiler_event_state_change('atFloor', seconds_between_steps)
+
+            profiler_event_state_change('MissionComplete', 1)
 
         def up_down_simulator():
             # Let's simulate a profiler up-down scenario
             seconds_between_steps = 5 * 60
 
-            for x in range(num_profiles):
-                # start at bottom
-                state = 'atFloor'
-                profiler_event_state_change(state, seconds_between_steps)
+            # Start Mission
+            profiler_event_state_change('StartMission', 1)
 
-                # ascend to ceiling depth
-                state = 'atCeiling'
-                profiler_event_state_change(state, seconds_between_steps)
+            # Start ascent
+            profiler_event_state_change('StartingAscent', seconds_between_steps)
+
+            for x in range(num_profiles):
+                # Ascend to ceiling
+                profiler_event_state_change('atCeiling', seconds_between_steps)
+                # Start to descend
+                profiler_event_state_change('StartingDescent', seconds_between_steps)
+                # Arrive at floor
+                profiler_event_state_change('atFloor', seconds_between_steps)
+
+            profiler_event_state_change('MissionComplete', 1)
+
+        def simulator_error():
+            # Let's simulate a profiler up-down scenario
+            seconds_between_steps = 60
+
+            # Start Mission
+            profiler_event_state_change('StartMission', 1)
+
+            # Start ascent
+            profiler_event_state_change('StartingAscent', seconds_between_steps)
+
+            # Ascend to ceiling
+            profiler_event_state_change('atCeiling', seconds_between_steps)
+
+            profiler_event_state_change('systemError', 1)
 
         if profile_type == 'stair_step':
             stair_step_simulator()
@@ -216,7 +243,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         self.mission = MissionLoader()
         self.mission.load_mission_file(yaml_filename)
 
-    @skip("Work in progress...")
+    # @skip("Work in progress...")
     def test_simple_simulator_mission(self):
         """
         Test the RSN OMS platform simulator with the SBE37_SIM instruments
