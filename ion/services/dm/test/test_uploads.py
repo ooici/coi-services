@@ -9,6 +9,7 @@ import time
 import numpy as np
 from nose.plugins.attrib import attr
 from webtest import TestApp
+from gevent.event import Event
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from ion.services.coi.service_gateway_service import service_gateway_app
@@ -16,7 +17,8 @@ from ion.services.dm.test.dm_test_case import DMTestCase
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.util.direct_coverage_utils import DirectCoverageAccess
 from pyon.core.exception import NotFound
-from pyon.public import PRED
+from pyon.event.event import EventSubscriber
+from pyon.public import OT, PRED
 from pyon.util.log import log
 
 @attr('INT', group='dm')
@@ -391,6 +393,70 @@ Archive:  local_range_test.zip
               }
            ]
         })
+
+    def test_upload_calibration(self):
+
+        # verify target object [REFDES01] do not exist in object_store
+        self.assertRaises(NotFound, self.object_store.read, 'IPN01')
+
+        # create Event to check OT.ResetQCEvent is published
+        reset_qc_event = Event() # EventSubscriber will set this to true if OT.ResetQCEvent published
+        event_subscriber = EventSubscriber(event_type=OT.ResetQCEvent, callback=lambda *args,**kwargs : reset_qc_event.set(), auto_delete=True)
+        event_subscriber.start()
+        self.addCleanup(event_subscriber.stop)
+
+        # write CSV to temporary file (contains comment and blank line)
+        CALIBRATION_CSV = '''
+IPN01,NAME01,0.1,m/s,NAME01_0.1,2014-01-01T01:01:01Z
+IPN01,NAME01,0.2,m/s,NAME01_0.2,2014-02-02T02:02:02Z
+IPN01,NAME01,0.3,m/s,NAME01_0.3,2014-03-03T03:03:03Z'''
+        (CALIBRATION_HANDLE,CALIBRATION_FILENAME) = tempfile.mkstemp()
+        os.write(CALIBRATION_HANDLE, CALIBRATION_CSV)
+        os.close(CALIBRATION_HANDLE)
+
+        # POST temporary file to ServiceGatewayService using TestApp
+        upload_files = [('file', CALIBRATION_FILENAME)]
+        result = self.testapp.post('/ion-service/upload/calibration', upload_files=upload_files, status=200)
+
+        # remove temporary file since using mkstemp
+        os.unlink(CALIBRATION_FILENAME)
+ 
+        # reponse JSON data
+        json_data = json.loads(result.body)
+        data = json_data.get('data', None) # dict
+
+        # read the FileUploadContext (async) return
+        #gateway_response = data.get('GatewayResponse', None)
+        #fuc_id = gateway_response.get('fuc_id', None) # CAUTION this is unicode
+        #fuc = self.object_store.read(str(fuc_id))
+
+        # check the QC table stored in object_store
+        IPN01 = self.object_store.read('IPN01')
+        NAME01 = IPN01.get('NAME01', None)
+        self.assertEquals(NAME01, [
+           {
+              'units':'m/s',
+              'description':'NAME01_0.1',
+              'value':0.1,
+              'start_date':'2014-01-01T01:01:01Z'
+           },
+           {
+              'units':'m/s',
+              'description':'NAME01_0.2',
+              'value':0.2,
+              'start_date':'2014-02-02T02:02:02Z'
+           },
+           {
+              'units':'m/s',
+              'description':'NAME01_0.3',
+              'value':0.3,
+              'start_date':'2014-03-03T03:03:03Z'
+           }
+        ]);
+
+        # check Event
+        self.assertTrue(reset_qc_event.wait(5))
+
 
     def test_download(self):
 
