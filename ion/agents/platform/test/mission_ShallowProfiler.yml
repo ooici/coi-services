@@ -5,7 +5,7 @@ description: Shallow Profiler Mission
 platform:
   platformID: SHALLOW_PROFILER
 mission:
-  - instrument:
+  - missionThread:
     instrumentID: [SBE37_SIM_02]
     errorHandling:
       default: retry
@@ -32,7 +32,7 @@ mission:
     postMissionSequence:
 
 
-  - instrument:
+  - missionThread:
     instrumentID: [SBE37_SIM_03]
     errorHandling:
       default: retry
@@ -58,7 +58,7 @@ mission:
         onError: retry
     postMissionSequence:
 
-  - instrument:
+  - missionThread:
     instrumentID: [SBE37_SIM_04]
     errorHandling:
       default: retry
