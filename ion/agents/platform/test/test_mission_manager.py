@@ -24,10 +24,9 @@ from pyon.public import log, CFG
 
 from gevent import sleep
 from mock import patch
-from unittest import skipIf, skip
+from unittest import skipIf
 import os
 
-@skip("Work in progress...")
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
 @skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestPlatformAgentMission(BaseIntTestPlatform):
@@ -39,11 +38,26 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         self._go_active(recursion)
         self._run(recursion)
 
-    def _run_shutdown_commands(self, recursion=True):
+    # TODO: reset recursion=True in general once the dispatch logic in
+    # platform agent (to check status of child instruments) is adjusted.
+    def _run_shutdown_commands(self, recursion=False):
+        """
+        Issues commands as needed to bring the parent platform to shutdown.
+        This is mainly considering that a mission plan may transition child
+        instruments to various states without direct involvement of the parent
+        platform.
+        """
         log.debug('[mm] _run_shutdown_commands.  state=%s', self._get_state())
         try:
-            self._go_inactive(recursion)
-            self._reset(recursion)
+            state = self._get_state()
+            if state != PlatformAgentState.UNINITIALIZED:
+                if state in [PlatformAgentState.IDLE,
+                             PlatformAgentState.STOPPED,
+                             PlatformAgentState.COMMAND,
+                             PlatformAgentState.LOST_CONNECTION]:
+                    self._go_inactive(recursion)
+
+                self._reset(recursion)
         finally:  # attempt shutdown anyway
             self._shutdown(True)  # NOTE: shutdown always with recursion=True
 
