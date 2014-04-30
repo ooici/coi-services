@@ -1407,9 +1407,13 @@ class IONLoader(ImmediateProcess):
             subseries_obj = subseries_objs.get(ooi_id + "01", None)
             newrow = {}
             newrow[COL_ID] = ooi_id
-            newrow['im/name'] = "%s (%s-%s)" % (class_obj['alt_name'], series_obj['Class'], series_obj['Series'])
+            if makemodel_obj:
+                newrow['im/name'] = "%s %s (%s-%s)" % (makemodel_obj['Manufacturer'], makemodel_obj['name'],
+                                                                      series_obj['Class'], series_obj['Series'])
+            else:
+                newrow['im/name'] = "%s (%s-%s)" % (class_obj['alt_name'], series_obj['Class'], series_obj['Series'])
             newrow['im/alt_ids'] = "['OOI:" + ooi_id + "']"
-            newrow['im/description'] = series_obj['description']
+            newrow['im/description'] = "%s: %s" % (class_obj['alt_name'], series_obj['description'])
             newrow['im/instrument_family'] = family_obj['name']   # DEPRECATED. Remove when UI db updated.
             newrow['im/family_id'] = family_obj['id']
             newrow['im/family_name'] = family_obj['name']
@@ -2230,8 +2234,16 @@ Reason: %s
 
     def _load_PlatformDevice(self, row):
         contacts = self._get_contacts(row, field='contact_ids', type='PlatformDevice')
+        geo_constraint, temp_constraint = None, None
+        geo_constraint_id = row.get('geo_constraint_id', None)
+        if geo_constraint_id:
+            geo_constraint = self.constraint_defs[geo_constraint_id]
+        temp_constraint_id = row.get('temp_constraint_id', None)
+        if temp_constraint_id:
+            temp_constraint = self.constraint_defs[temp_constraint_id]
         res_id = self._basic_resource_create(row, "PlatformDevice", "pd/",
             "instrument_management", "create_platform_device", contacts=contacts,
+            set_attributes=dict(geospatial_bounds=geo_constraint, temporal_bounds=temp_constraint),
             support_bulk=True)
 
         if self.bulk:
@@ -2306,7 +2318,7 @@ Reason: %s
                 oms_client.assign_device_to_network_parent(self.resource_ids[network_parent_id], res_id,
                                                            headers=headers)
 
-    def _update_device(self, device_id, newrow, instrument=True):
+    def _update_device(self, device_id, newrow, const_id1, const_id2, instrument=True):
         res_obj = self._get_resource_obj(device_id)
         needupdate = False
         # Update name if different
@@ -2322,6 +2334,14 @@ Reason: %s
         if not res_obj.serial_number or (res_obj.serial_number != newrow[prefix+'/serial_number'] and "changeme" in res_obj.serial_number):
             res_obj.serial_number = newrow[prefix+'/serial_number']
             needupdate = True
+        # Update geospatial bounds if not yet set
+        if const_id1 and (not res_obj.geospatial_bounds or not res_obj.geospatial_bounds.geospatial_latitude_limit_north):
+            res_obj.geospatial_bounds = self.constraint_defs.get(const_id1, None)
+            needupdate = True
+        # Update temporal constraint if not yet set
+        if const_id2 and (not res_obj.temporal_bounds or not res_obj.temporal_bounds.start_datetime):
+            res_obj.temporal_bounds = self.constraint_defs.get(const_id2, None)
+            needupdate = True
         if needupdate:
             self._update_resource_obj(device_id)
 
@@ -2336,6 +2356,8 @@ Reason: %s
             if not self._before_cutoff(node_obj):
                 continue
 
+            const_id1 = node_id + "_const1"
+            const_id2 = node_id + "_const2"
             newrow = {}
             platform_id = node_id + "_PD"
             newrow[COL_ID] = platform_id
@@ -2349,6 +2371,8 @@ Reason: %s
             newrow['contact_ids'] = "%s_DEV_1,%s_DEV_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
             newrow['network_parent_id'] = ""
             newrow['platform_device_id'] = ""  # Cannot set here because of nondeterministic load order - see below
+            newrow['geo_constraint_id'] = const_id1
+            newrow['temp_constraint_id'] = const_id2
             if self._is_deployed(node_obj):
                 newrow['lcstate'] = "DEPLOYED_AVAILABLE"
             else:
@@ -2358,7 +2382,7 @@ Reason: %s
                 self._load_PlatformDevice(newrow)
                 new_node_ids.add(node_id)
             elif self.ooiupdate:
-                self._update_device(platform_id, newrow, instrument=False)
+                self._update_device(platform_id, newrow, const_id1, const_id2, instrument=False)
 
         for node_id, node_obj in node_objs.iteritems():
             if node_id not in new_node_ids:
@@ -2385,8 +2409,16 @@ Reason: %s
     def _load_InstrumentDevice(self, row):
         row['id/reference_urls'] = repr(get_typed_value(row['id/reference_urls'], targettype="simplelist"))
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
+        geo_constraint, temp_constraint = None, None
+        geo_constraint_id = row.get('geo_constraint_id', None)
+        if geo_constraint_id:
+            geo_constraint = self.constraint_defs[geo_constraint_id]
+        temp_constraint_id = row.get('temp_constraint_id', None)
+        if temp_constraint_id:
+            temp_constraint = self.constraint_defs[temp_constraint_id]
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
             "instrument_management", "create_instrument_device", contacts=contacts,
+            set_attributes=dict(geospatial_bounds=geo_constraint, temporal_bounds=temp_constraint),
             support_bulk=True)
 
         if self.bulk:
@@ -2439,6 +2471,9 @@ Reason: %s
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
 
+            const_id1 = ooi_id + "_const1"
+            const_id2 = ooi_id + "_const2"
+
             ooi_rd = OOIReferenceDesignator(ooi_id)
             newrow = {}
             newrow[COL_ID] = ooi_id + "_ID"
@@ -2457,6 +2492,8 @@ Reason: %s
             #     newrow['platform_device_id'] = node_id + "_PD"
             newrow['platform_device_id'] = ooi_rd.node_rd + "_PD"
             newrow['contact_ids'] = "%s_DEV_1,%s_DEV_2" % (ooi_rd.marine_io, ooi_rd.marine_io)
+            newrow['geo_constraint_id'] = const_id1
+            newrow['temp_constraint_id'] = const_id2
             if self._is_deployed(inst_obj):
                 newrow['lcstate'] = "DEPLOYED_AVAILABLE"
             else:
@@ -2465,7 +2502,9 @@ Reason: %s
             if not self._resource_exists(newrow[COL_ID]):
                 self._load_InstrumentDevice(newrow)
             elif self.ooiupdate:
-                self._update_device(newrow[COL_ID], newrow)
+                const_id1 = ooi_id + "_const1"
+                const_id2 = ooi_id + "_const2"
+                self._update_device(newrow[COL_ID], newrow, const_id1, const_id2)
 
     # -------------------------------------------------------------------------
     # Agents
@@ -3906,8 +3945,9 @@ Reason: %s
             else:
                 newrow['activate'] = "FALSE"
             device_obj = self._get_resource_obj(newrow['device_id'])
-            newrow['d/name'] = "Deployment 00001 of %s serial# %s to site %s" % (
-                nodetype_objs[ooi_rd.node_type]["name"], device_obj.serial_number, node_id)
+            deploy_unique = node_obj['deploy_date'].strftime("%Y-%m")
+            newrow['d/name'] = "Deployment %s of %s serial# %s to site %s" % (
+                deploy_unique, nodetype_objs[ooi_rd.node_type]["name"], device_obj.serial_number, node_id)
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([node_id[:2]])
             newrow['constraint_ids'] = const_ids
@@ -3967,8 +4007,9 @@ Reason: %s
             else:
                 newrow['activate'] = "FALSE"
             device_obj = self._get_resource_obj(newrow['device_id'])
-            newrow['d/name'] = "Deployment 00001 of %s serial# %s to site %s" % (
-                class_objs[ooi_rd.inst_class]['alt_name'], device_obj.serial_number, inst_id)
+            deploy_unique = inst_obj['deploy_date'].strftime("%Y-%m")
+            newrow['d/name'] = "Deployment %s of %s serial# %s to site %s" % (
+                deploy_unique, class_objs[ooi_rd.inst_class]['alt_name'], device_obj.serial_number, inst_id)
             newrow['d/description'] = ""
             newrow['org_ids'] = self.ooi_loader.get_org_ids([inst_id[:2]])
             newrow['constraint_ids'] = const_ids
