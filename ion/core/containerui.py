@@ -97,7 +97,7 @@ def process_index():
             "<li>Platforms: <a href='/list/PlatformDevice'>PlatformDevice</a>, <a href='/list/PlatformSite'>PlatformSite</a>, <a href='/list/PlatformModel'>PlatformModel</a>, <a href='/list/PlatformAgent'>PlatformAgent</a>, <a href='/list/PlatformAgentInstance'>PlatformAgentInstance</a></li>",
             "<li>Instruments: <a href='/list/InstrumentDevice'>InstrumentDevice</a>, <a href='/list/InstrumentSite'>InstrumentSite</a>, <a href='/list/InstrumentModel'>InstrumentModel</a>, <a href='/list/InstrumentAgent'>InstrumentAgent</a>, <a href='/list/InstrumentAgentInstance'>InstrumentAgentInstance</a></li>",
             "<li>External Data: <a href='/list/ExternalDataset'>ExternalDataset</a>, <a href='/list/ExternalDataProvider'>ExternalDataProvider</a>, <a href='/list/ExternalDatasetModel'>ExternalDatasetModel</a>, <a href='/list/ExternalDatasetAgent'>ExternalDatasetAgent</a>, <a href='/list/ExternalDatasetAgentInstance'>ExternalDatasetAgentInstance</a></li>",
-            "<li>Data: <a href='/list/DataProduct'>DataProduct</a>, <a href='/list/Dataset'>Dataset</a>, <a href='/list/Stream'>Stream</a></li>",
+            "<li>Data: <a href='/list/DataProduct'>DataProduct</a>, <a href='/list/Dataset'>Dataset</a></li>",
             "<li>Coverage: <a href='/list/ParameterContext'>ParameterContext</a>, <a href='/list/ParameterDictionary'>ParameterDictionary</a>, <a href='/list/ParameterFunction'>ParameterFunction</a>, <a href='/list/StreamDefinition'>StreamDefinition</a></li>",
             "<li>Streaming: <a href='/list/DataProcessDefinition'>DataProcessDefinition</a>, <a href='/list/DataProcess'>DataProcess</a>, <a href='/list/DataProducer'>DataProducer</a>, <a href='/list/Stream'>Stream</a>, <a href='/list/Subscription'>Subscription</a></li>",
             "<li>Execution: <a href='/list/ProcessDefinition'>ProcessDefinition</a>, <a href='/list/Process'>Process</a>, <a href='/list/Service'>Service</a>, <a href='/list/ServiceDefinition'>ServiceDefinition</a>, <a href='/list/CapabilityContainer'>CapabilityContainer</a></li>",
@@ -106,14 +106,15 @@ def process_index():
             "</ul></li>",
             "<li><a href='/events'><b>Browse Events</b></a></li>",
             "<li><a href='/viewobj'><b>View Objects</b></a></li>",
+            "<li><a href='/viewstate'><b>View Process State</b></a></li>",
             "<li><a href='/dir'><b>Browse ION Directory</b></a></li>",
-            "<li><a href='/mscweb'><b>Show system messages (MSCWeb)</b></a>",
-            "<ul>",
-            "<li><a href='/mscaction/stop'>Stop system message recording</a></li>",
-            "</ul></li>",
+            #"<li><a href='/mscweb'><b>Show system messages (MSCWeb)</b></a>",
+            #"<ul>",
+            #"<li><a href='/mscaction/stop'>Stop system message recording</a></li>",
+            #"</ul></li>",
             "<li><a href='http://localhost:3000'><b>ION Web UI (if running)</b></a></li>",
-            "<li><a href='http://localhost:5984/_utils'><b>CouchDB Futon UI (if running)</b></a></li>",
-            "<li><a href='http://localhost:55672/'><b>RabbitMQ Management UI (if running)</b></a></li>",
+            "<li><a href='http://localhost:55672/'><b>RabbitMQ Management UI V2.x (if running)</b></a></li>",
+            "<li><a href='http://localhost:15672/'><b>RabbitMQ Management UI V3.x (if running)</b></a></li>",
             "<li><a href='http://localhost:9001/'><b>Supervisord UI (if running)</b></a></li>",
             "</ul></p>",
             "<h2>System and Container Properties</h2>",
@@ -407,7 +408,7 @@ def build_commands(resource_id, restype):
 
     options = [(p, p) for p in sorted(PRED)]
     args = [('select', 'pred', options), ('input', 'rid2', 45)]
-    fragments.append(build_command("Associate from subject", "/cmd/createassoc?rid=%s&dir=to" % resource_id, args))
+    fragments.append(build_command("Associate from subject", "/cmd/createassoc?rid=%s&dir=from" % resource_id, args))
     fragments.append(build_command("Associate to object", "/cmd/createassoc?rid=%s&dir=to" % resource_id, args))
 
     from pyon.ion.resource import LCE, LCS, AS
@@ -778,7 +779,7 @@ def _process_cmd_sites(resource_id, res_obj=None):
                 dev_list = Container.instance.resource_registry.read_mult(dev_id_list)
                 device_info = dict(zip([res._id for res in dev_list], dev_list))
         elif ancestors:
-            dev_id_list = [anc for anc_list in ancestors.values() if anc_list is not None for anc in anc_list]
+            dev_id_list = [anc[1] for anc_list in ancestors.values() if anc_list is not None for anc in anc_list]
             dev_id_list.append(resource_id)
             dev_list = Container.instance.resource_registry.read_mult(dev_id_list)
             device_info = dict(zip([res._id for res in dev_list], dev_list))
@@ -808,6 +809,8 @@ def _process_cmd_sites(resource_id, res_obj=None):
 
             ch_ids = ancestors.get(parent_id, None) or []
             for ch_id in ch_ids:
+                if type(ch_id) in (list, tuple):
+                    ch_id = ch_id[1]  # TODO: Check why content type is different
                 status_table(ch_id, level+1)
 
         status_table(root_id, 0)
@@ -1095,6 +1098,33 @@ def process_view_objects():
             obj = Container.instance.object_store.read_doc(obj_id)
             value = yaml.dump(obj, default_flow_style=False)
             fragments.append(value)
+            fragments.append("</pre></p>")
+
+        content = "\n".join(fragments)
+        return build_page(content)
+
+    except Exception as e:
+        return build_error_page(traceback.format_exc())
+
+# ----------------------------------------------------------------------------------------
+
+@app.route('/viewstate', methods=['GET','POST'])
+def process_view_state():
+    try:
+        state_id = get_arg('state_id')
+        args_view = [('input', 'state_id', 45)]
+        fragments = [
+            build_standard_menu(),
+            "<h1>View State</h1>",
+            build_command("State ID", "/viewstate?dummy=1", args_view),
+        ]
+        if state_id:
+            fragments.append("<h2>State Details</h2>")
+            fragments.append("<p><pre>")
+            obj_state, obj = Container.instance.state_repository.get_state(state_id)
+            if obj:
+                value = yaml.dump(obj_state, default_flow_style=False)
+                fragments.append(value)
             fragments.append("</pre></p>")
 
         content = "\n".join(fragments)
