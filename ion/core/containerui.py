@@ -28,7 +28,7 @@ DEFAULT_WEB_SERVER_PORT = 8080
 containerui_instance = None
 
 standard_types = ['str', 'int', 'bool', 'float', 'list', 'dict']
-standard_resattrs = ['name', 'description', 'lcstate', 'availability', 'ts_created', 'ts_updated']
+standard_resattrs = ['name', 'description', 'lcstate', 'availability', 'ts_created', 'ts_updated', 'alt_ids']
 EDIT_IGNORE_FIELDS = ['rid', 'restype', 'lcstate', 'availability', 'ts_created', 'ts_updated']
 EDIT_IGNORE_TYPES = ['list', 'dict', 'bool']
 standard_eventattrs = ['origin', 'ts_created', 'description']
@@ -113,7 +113,7 @@ def process_index():
             #"<li><a href='/mscaction/stop'>Stop system message recording</a></li>",
             #"</ul></li>",
             "<li><a href='http://localhost:3000'><b>ION Web UI (if running)</b></a></li>",
-            "<li><a href='http://localhost:55672/'><b>RabbitMQ Management UI V2.x (if running)</b></a></li>",
+            "<li><a href='http://" + CFG.get_safe("server.amqp.host") + ":55672/'><b>RabbitMQ Management UI V2.x (if running)</b></a></li>",
             "<li><a href='http://localhost:15672/'><b>RabbitMQ Management UI V3.x (if running)</b></a></li>",
             "<li><a href='http://localhost:9001/'><b>Supervisord UI (if running)</b></a></li>",
             "</ul></p>",
@@ -204,11 +204,15 @@ def process_alt_ids(namespace, alt_id):
 def process_list_resources(resource_type):
     try:
         restype = str(resource_type)
+        with_details = get_arg("details", "off") == "on"
+
         res_list,_ = Container.instance.resource_registry.find_resources(restype=restype)
 
         fragments = [
             build_standard_menu(),
             "<h1>List of '%s' Resources</h1>" % restype,
+            build_command("Hide details" if with_details else "Show details", "/list/%s?details=%s" % (
+                restype, "off" if with_details else "on")),
             build_command("New %s" % restype, "/new/%s" % restype),
             build_res_extends(restype),
             "<p>",
@@ -221,7 +225,7 @@ def process_list_resources(resource_type):
 
         for res in res_list:
             fragments.append("<tr>")
-            fragments.extend(build_table_row(res))
+            fragments.extend(build_table_row(res, details=with_details))
             fragments.append("</tr>")
 
         fragments.append("</table></p>")
@@ -277,17 +281,17 @@ def build_table_alt_row(obj):
         "<td>%s</td>" % obj.alt_ids])
     return fragments
 
-def build_table_row(obj):
+def build_table_row(obj, details=True):
     schema = obj._schema
     fragments = []
     fragments.append("<td><a href='/view/%s'>%s</a></td>" % (obj._id,obj._id))
     for field in standard_resattrs:
         if field in schema:
-            value = get_formatted_value(getattr(obj, field), fieldname=field)
+            value = get_formatted_value(getattr(obj, field), fieldname=field, fieldtype=schema[field]["type"], details=True)
             fragments.append("<td>%s</td>" % (value))
     for field in sorted(schema.keys()):
         if field not in standard_resattrs:
-            value = get_formatted_value(getattr(obj, field), fieldname=field, fieldtype=schema[field]["type"], brief=True)
+            value = get_formatted_value(getattr(obj, field), fieldname=field, fieldtype=schema[field]["type"], brief=True, details=details)
             fragments.append("<td>%s</td>" % (value))
     return fragments
 
@@ -335,7 +339,7 @@ def build_nested_obj(obj, prefix, edit=False):
     schema = obj._schema
     for field in standard_resattrs:
         if field in schema:
-            value = get_formatted_value(getattr(obj, field), fieldname=field)
+            value = get_formatted_value(getattr(obj, field), fieldname=field, fieldtype=schema[field]["type"])
             if edit and field not in EDIT_IGNORE_FIELDS:
                 fragments.append("<tr><td>%s%s</td><td>%s</td><td><input type='text' name='%s%s' value='%s' size='60'/></td>" % (prefix, field, schema[field]["type"], prefix, field, getattr(obj, field)))
             else:
@@ -372,10 +376,11 @@ def build_associations(resid):
     fragments.append("<p><table>")
     fragments.append("<tr><th>Subject Type</th><th>Subject Name</th><th>Subject ID</th><th>Predicate</th><th>Command</th></tr>")
     obj_list, assoc_list = Container.instance.resource_registry.find_subjects(object=resid, id_only=False)
-    for obj,assoc in zip(obj_list,assoc_list):
+    iter_list = sorted(zip(obj_list, assoc_list), key=lambda x: [x[1].p, x[0].type_, x[0].name])
+    for obj, assoc in iter_list:
         fragments.append("<tr>")
         fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-            build_type_link(obj._get_type()), obj.name, build_link(assoc.s, "/view/%s" % assoc.s),
+            build_type_link(obj.type_), obj.name, build_link(assoc.s, "/view/%s" % assoc.s),
             build_link(assoc.p, "/assoc?predicate=%s" % assoc.p),
             build_link("Delete", "/cmd/deleteassoc?rid=%s" % assoc._id, "return confirm('Are you sure to delete association?');")))
 
@@ -386,10 +391,11 @@ def build_associations(resid):
     fragments.append("<p><table>")
     fragments.append("<tr><th>Object Type</th><th>Object Name</th><th>Object ID</th><th>Predicate</th><th>Command</th></tr>")
 
-    for obj,assoc in zip(obj_list,assoc_list):
+    iter_list = sorted(zip(obj_list, assoc_list), key=lambda x: [x[1].p, x[0].type_, x[0].name])
+    for obj, assoc in iter_list:
         fragments.append("<tr>")
         fragments.append("<td>%s</td><td>%s&nbsp;</td><td>%s</td><td>%s</td><td>%s</td></tr>" % (
-            build_type_link(obj._get_type()), obj.name, build_link(assoc.o, "/view/%s" % assoc.o),
+            build_type_link(obj.type_), obj.name, build_link(assoc.o, "/view/%s" % assoc.o),
             build_link(assoc.p, "/assoc?predicate=%s" % assoc.p),
             build_link("Delete", "/cmd/deleteassoc?rid=%s" % assoc._id, "return confirm('Are you sure to delete association?');")))
 
@@ -1297,19 +1303,23 @@ def get_value_dict(obj, ignore_fields=None):
             val_dict[k] = val
     return val_dict
 
-def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None, brief=False, time_millis=False, is_root=True):
+def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None, brief=False, time_millis=False,
+                        is_root=True, details=True):
     if not fieldtype and fieldschema:
         fieldtype = fieldschema['type']
     if isinstance(value, IonObjectBase):
         if brief:
-            value = "[%s]" % value._get_type()
-    elif fieldtype in ("list","dict"):
-        value = yaml.dump(value, default_flow_style=False)
-        value = value.replace("\n", "<br>")
-        if value.endswith("<br>"):
-            value = value[:-4]
-        if is_root:
-            value = "<span class='preform'>%s</span>" % value
+            value = "[%s]" % value.type_
+    elif fieldtype in ("list", "dict"):
+        if details:
+            value = yaml.dump(value, default_flow_style=False)
+            value = value.replace("\n", "<br>")
+            if value.endswith("<br>"):
+                value = value[:-4]
+            if is_root:
+                value = "<span class='preform'>%s</span>" % value
+        else:
+            value = "..."
     elif fieldschema and 'enum_type' in fieldschema:
         enum_clzz = getattr(objects, fieldschema['enum_type'])
         return enum_clzz._str_map[int(value)]
