@@ -2095,15 +2095,12 @@ class PlatformAgent(ResourceAgent):
 
         return children_with_errors
 
-    def _instruments_execute_agent(self, command=None, create_command=None,
+    def _instruments_execute_agent(self, command,
                                    expected_state=None):
         """
         Supporting routine for various commands sent to instruments.
 
         Note that invalidated children are ignored.
-
-        @param create_command invoked as create_command(instrument_id) for each
-                              instrument to create the command to be executed.
 
         @param expected_state  If given, it is checked that the child gets to
                                this state.
@@ -2111,9 +2108,6 @@ class PlatformAgent(ResourceAgent):
         @return dict with children having caused some error. Empty if all
                 children were processed OK.
         """
-
-        # OOIION-1290: only rely on self._ia_clients, which is the more dynamic
-        # variable reflecting the current situation with child instruments.
 
         # act only on the children that are not invalidated:
         valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
@@ -2129,8 +2123,8 @@ class PlatformAgent(ResourceAgent):
         if not len(valid_clients):
             log.warn("%r: OOIION-1077 all instrument children (%s) are "
                      "invalidated or could not be re-validated. Not executing"
-                     " command. command=%r, create_command=%r",
-                     self._platform_id, instrument_ids, command, create_command)
+                     " command. command=%r",
+                     self._platform_id, instrument_ids, command)
             return children_with_errors   # that is, none.
 
         def execute_cmd(instrument_id, cmd):
@@ -2168,12 +2162,8 @@ class PlatformAgent(ResourceAgent):
 
             return None
 
-        if command:
-            log.debug("%r: executing command %r on my instruments: %s",
-                      self._platform_id, command, valid_clients.keys())
-        else:
-            log.debug("%r: executing command on my instruments: %s",
-                      self._platform_id, valid_clients.keys())
+        log.debug("%r: executing command %r on my instruments: %s",
+                  self._platform_id, command, valid_clients.keys())
 
         for instrument_id in valid_clients:
             if expected_state:
@@ -2187,7 +2177,7 @@ class PlatformAgent(ResourceAgent):
                               self._platform_id, instrument_id, expected_state)
                     continue
 
-            cmd = AgentCommand(command=command) if command else create_command(instrument_id)
+            cmd = AgentCommand(command=command)
             err_msg = execute_cmd(instrument_id, cmd)
 
             if err_msg is not None:
@@ -2386,9 +2376,6 @@ class PlatformAgent(ResourceAgent):
                 children were processed OK.
         """
         instruments_with_errors = {}
-
-        # OOIION-1290: only rely on self._ia_clients, which is the more dynamic
-        # variable reflecting the current situation with child instruments.
 
         # Act only on the children that are not invalidated:
         valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
