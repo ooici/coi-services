@@ -61,7 +61,7 @@ class QCPostProcessing(SimpleProcess):
                 self.process(dataset_id)
             except BadRequest as e:
                 if 'Problems reading from the coverage' in e.message:
-                    log.error('Failed to read from dataset')
+                    log.error('Failed to read from dataset %s', dataset_id, exc_info=True)
 
     def process(self, dataset_id, start_time=0, end_time=0):
         if not dataset_id:
