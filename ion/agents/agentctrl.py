@@ -79,7 +79,6 @@ from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFoun
 from ion.core.includes.mi import DriverEvent
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
-from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.util.parse_utils import parse_dict, get_typed_value
 
 from interface.objects import AgentCommand, Site, TemporalBounds, AgentInstance, AgentDefinition, Device, DeviceModel, \
@@ -89,6 +88,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
 
 class AgentControl(ImmediateProcess):
@@ -1045,19 +1045,25 @@ class AgentControl(ImmediateProcess):
     def activate_deployment(self, agent_instance_id, resource_id):
         # For current device, find all deployments. Activate the one that
         dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+        if self.verbose:
+            log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
         if dep_objs:
             current_dep = self._get_current_deployment(dep_objs, only_deployed=False)
             if current_dep:
                 obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+                log.info("Activating deployment %s", current_dep._id)
                 if not self.dryrun:
                     obs_ms.activate_deployment(current_dep._id, headers=self._get_system_actor_headers())
 
     def deactivate_deployment(self, agent_instance_id, resource_id):
         dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+        if self.verbose:
+            log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
         if dep_objs:
             current_dep = self._get_current_deployment(dep_objs, only_deployed=True)
             if current_dep:
                 obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+                log.info("Deactivating deployment %s", current_dep._id)
                 if not self.dryrun:
                     obs_ms.deactivate_deployment(current_dep._id, headers=self._get_system_actor_headers())
 
@@ -1101,46 +1107,47 @@ class AgentControl(ImmediateProcess):
         filtered_dep = sorted(filtered_dep, key=lambda x: x[0])
         return filtered_dep[0][2]
 
-    def clone_device(self, agent_instance_id, resource_id):
-        """Clones the given device with its associations and makes a few modifications"""
-        if not hasattr(self, "clone_map"):
-            self.clone_map = {}   # Holds a map of old to new devices
+    def _clone_res_obj(self, res_obj, clone_id):
+        res_pre_id = self._get_alt_id(res_obj, "PRE")
+        resnew_pre_id = res_pre_id + "_" + clone_id
+        if self._get_resource_by_alt_id("PRE", resnew_pre_id):
+            raise BadRequest("%s %s clone %s already exists", res_obj.type_, res_obj._id, resnew_pre_id)
 
-        clone_id = self.CFG.get("clone_id", None)
-        if not clone_id:
-            raise BadRequest("Must provide clone_id argument")
-
-        ims = InstrumentManagementServiceProcessClient(process=self)
-        orgms = OrgManagementServiceProcessClient(process=self)
-        dams = DataAcquisitionManagementServiceProcessClient(process=self)
-
-        # ---------------------------------------------------------------------
-        # (1) Clone device and associations
-        res_obj = self.rr.read(resource_id)
-        if not isinstance(res_obj, Device):
-            raise BadRequest("Given resource %s is not a Device: %s" % (resource_id, res_obj.type_))
-
-        dev_pre_id = self._get_alt_id(res_obj, "PRE")
-
-        # Duplicate device using service call. Append name, desc, clear out serial
-        dev_dict = res_obj.__dict__.copy()
-        dev_type = dev_dict.pop("type_")
+        res_dict = res_obj.__dict__.copy()
+        res_type = res_dict.pop("type_")
         for attr in ["_id", "_rev", "lcstate", "availability", "alt_ids"]:
-            dev_dict.pop(attr)
+            res_dict.pop(attr)
 
-        newdev_obj = IonObject(dev_type, **dev_dict)
-        self._set_alt_id(newdev_obj, "CLONE:%s" % resource_id)
-        if dev_pre_id:
-            self._set_alt_id(newdev_obj, dev_pre_id + "_" + clone_id)
-        newdev_obj.name = res_obj.name + " (cloned)"
-        newdev_obj.description = "Cloned from %s" % resource_id
+        newres_obj = IonObject(res_type, **res_dict)
+        self._set_alt_id(newres_obj, "CLONE:%s" % res_obj._id)
+        if res_pre_id:
+            self._set_alt_id(newres_obj, "PRE:" + resnew_pre_id)
+        newres_obj.name = res_obj.name + " (cloned)"
+        newres_obj.description = "Cloned from %s" % res_obj._id
+
+        return newres_obj, res_pre_id, resnew_pre_id
+
+    def _clone_org_share(self, res_id, newres_id):
+        orgms = OrgManagementServiceProcessClient(process=self)
+        # Share in Orgs
+        org_ids, _ = self.rr.find_subjects(RT.Org, PRED.hasResource, res_id, id_only=True)
+        for org_id in org_ids:
+            if self.verbose:
+                log.debug("Share cloned resource %s in org %s", newres_id, org_id)
+            orgms.share_resource(org_id, newres_id, headers=self._get_system_actor_headers())
+
+    def _clone_device(self, res_obj, clone_id):
+        ims = InstrumentManagementServiceProcessClient(process=self)
+
+        resource_id = res_obj._id
+        newdev_obj, dev_pre_id, devnew_pre_id = self._clone_res_obj(res_obj, clone_id)
         newdev_obj.serial_number = ""
         newdev_obj.ooi_property_number = ""
         if newdev_obj.temporal_bounds:
-            newdev_obj.temporal_bounds.start_datetime = str(time.time())
+            newdev_obj.temporal_bounds.start_datetime = str(int(time.time()))
         else:
             newdev_obj.temporal_bounds = IonObject(OT.TemporalBounds)
-            newdev_obj.temporal_bounds.start_datetime = str(time.time())
+            newdev_obj.temporal_bounds.start_datetime = str(int(time.time()))
             newdev_obj.temporal_bounds.end_datetime = "2650838400"  # 2054-01-01
 
         # Create resource
@@ -1149,7 +1156,8 @@ class AgentControl(ImmediateProcess):
         else:
             newdev_id = ims.create_platform_device(newdev_obj, headers=self._get_system_actor_headers())
         self.clone_map[resource_id] = newdev_id
-        log.debug("Cloned device %s as new device %s '%s'", resource_id, newdev_id, newdev_obj.name)
+        log.debug("Cloned device %s %s as: %s %s '%s'", resource_id,
+                  dev_pre_id, newdev_id, devnew_pre_id, newdev_obj.name)
         if self.verbose:
             newdev_obj1 = self.rr.read(newdev_id)
             log.debug("Device details: %s", newdev_obj1)
@@ -1160,7 +1168,7 @@ class AgentControl(ImmediateProcess):
 
         # Mirror associations to parent device
         try:
-            parent_id = self.rr.read_subject(resource_id, PRED.hasDevice, id_only=True)
+            parent_id = self.rr.read_subject(RT.PlatformDevice, PRED.hasDevice, resource_id, id_only=True)
             if parent_id and parent_id in self.clone_map:
                 # This cloned device is a child as part of a recurse
                 self.rr.create_association(self.clone_map[parent_id], PRED.hasDevice, newdev_id)
@@ -1168,95 +1176,168 @@ class AgentControl(ImmediateProcess):
             pass  # No parent found
 
         # Share in Orgs
-        org_ids, _ = self.rr.find_subjects(RT.Org, PRED.hasResource, resource_id, id_only=True)
-        for org_id in org_ids:
+        self._clone_org_share(resource_id, newdev_id)
+
+        return newdev_id, newdev_obj
+
+    def _clone_agent_instance(self, ai_obj, clone_id, newdev_id):
+        ims = InstrumentManagementServiceProcessClient(process=self)
+        dams = DataAcquisitionManagementServiceProcessClient(process=self)
+
+        agent_instance_id = ai_obj._id
+        newai_obj, ai_pre_id, ainew_pre_id = self._clone_res_obj(ai_obj, clone_id)
+
+        adef_id = self.rr.read_object(agent_instance_id, PRED.hasAgentDefinition, id_only=True)
+
+        # Create agent instance, association to agent definition and to device
+        if ai_obj.type_ == RT.InstrumentAgentInstance:
+            newai_id = ims.create_instrument_agent_instance(newai_obj,
+                                                            instrument_agent_id=adef_id,
+                                                            instrument_device_id=newdev_id,
+                                                            headers=self._get_system_actor_headers())
+        elif ai_obj.type_ == RT.PlatformAgentInstance:
+            newai_id = ims.create_platform_agent_instance(newai_obj,
+                                                          platform_agent_id=adef_id,
+                                                          platform_device_id=newdev_id,
+                                                          headers=self._get_system_actor_headers())
+        else:
+            newai_id = dams.create_external_dataset_agent_instance(newai_obj,
+                                                                   external_dataset_agent_id=adef_id,
+                                                                   external_dataset_id=None,
+                                                                   headers=self._get_system_actor_headers())
+            # Need to create association to device
+            self.rr.create_association(newdev_id, PRED.hasAgentInstance, newai_id)
+        log.debug("Cloned agent instance %s %s as: %s %s '%s'", agent_instance_id,
+                  ai_pre_id, newai_id, ainew_pre_id, newai_obj.name)
+        if self.verbose:
+            newai_obj1 = self.rr.read(newai_id)
+            log.debug("Agent instance details: %s", newai_obj1)
+
+        # Share in Orgs
+        self._clone_org_share(agent_instance_id, newai_id)
+
+        return newai_id, newai_obj
+
+    def _clone_data_product(self, dp_obj, clone_id, is_output=True, parent_dp_id=None, device_id=None):
+        dpms = DataProductManagementServiceProcessClient(process=self)
+        psms = PubsubManagementServiceProcessClient(process=self)
+
+        newdp_obj, dp_pre_id, dpnew_pre_id = self._clone_res_obj(dp_obj, clone_id)
+
+        # Duplicate StreamDefinition
+        sdef_obj = self.rr.read_object(dp_obj._id, PRED.hasStreamDefinition, RT.StreamDefinition, id_only=False)
+        pdict_id = self.rr.read_object(sdef_obj._id, PRED.hasParameterDictionary, RT.ParameterDictionary, id_only=True)
+
+        newsdef_id = psms.create_stream_definition(name=sdef_obj.name + " (cloned)",
+                                                   parameter_dictionary_id=pdict_id,
+                                                   stream_configuration=sdef_obj.stream_configuration,
+                                                   available_fields=sdef_obj.available_fields,
+                                                   headers=self._get_system_actor_headers())
+
+        # Update alt_ids (StreamDefinition has a non-compliant create signature)
+        newsdef_obj = self.rr.read(newsdef_id)
+        newsdef_obj.description = "Cloned from %s" % sdef_obj._id
+        res_pre_id = self._get_alt_id(sdef_obj, "PRE")
+        resnew_pre_id = res_pre_id + "_" + clone_id
+        self._set_alt_id(newsdef_obj, "CLONE:%s" % sdef_obj._id)
+        if res_pre_id:
+            self._set_alt_id(newsdef_obj, "PRE:" + resnew_pre_id)
+        newsdef_obj.addl["stream_use"] = sdef_obj.addl.get("stream_use", "")
+        self.rr.update(newsdef_obj)
+
+        log.debug("Cloned StreamDefinition %s %s as: %s %s '%s'", sdef_obj._id,
+                  res_pre_id, newsdef_id, resnew_pre_id, newsdef_obj.name)
+
+        # Create agent instance, association to agent definition and to device
+        newdp_id = dpms.create_data_product(newdp_obj,
+                                            stream_definition_id=newsdef_id,
+                                            parent_data_product_id=parent_dp_id,
+                                            headers=self._get_system_actor_headers())
+
+        log.debug("Cloned data product %s %s as: %s %s '%s'", dp_obj._id,
+                  dp_pre_id, newdp_id, dpnew_pre_id, newdp_obj.name)
+        if self.verbose:
+            newdp_obj1 = self.rr.read(newdp_id)
+            log.debug("Data product details: %s", newdp_obj1)
+
+        # Share in Orgs
+        self._clone_org_share(dp_obj._id, newdp_id)
+
+        # Associations hasOutputProduct
+        if device_id:
+            self.rr.create_association(newdp_id, PRED.hasSource, device_id)
             if self.verbose:
-                log.debug("Share cloned device %s in org %s", newdev_id, org_id)
-            orgms.share_resource(org_id, newdev_id, headers=self._get_system_actor_headers())
-
-        # ---------------------------------------------------------------------
-        # (2) Clone agent instance and associations
-        if agent_instance_id:
-            ai_obj = self.rr.read(agent_instance_id)
-            ai_pre_id = self._get_alt_id(ai_obj, "PRE")
-
-            # Duplicate device using service call. Append name, desc, clear out serial
-            ai_dict = ai_obj.__dict__.copy()
-            ai_type = ai_dict.pop("type_")
-            for attr in ["_id", "_rev", "lcstate", "availability", "alt_ids"]:
-                ai_dict.pop(attr)
-
-            newai_obj = IonObject(ai_type, **ai_dict)
-            self._set_alt_id(newai_obj, "CLONE:%s" % agent_instance_id)
-            if ai_pre_id:
-                self._set_alt_id(newai_obj, ai_pre_id + "_" + clone_id)
-            newai_obj.name = ai_obj.name + " (cloned)"
-            newai_obj.description = "Cloned from %s" % agent_instance_id
-
-            adef_id = self.rr.read_object(agent_instance_id, PRED.hasAgentDefinition, id_only=True)
-
-            # Create agent instance, association to agent definition and to device
-            if ai_obj.type_ == RT.InstrumentAgentInstance:
-                newai_id = ims.create_instrument_agent_instance(newai_obj,
-                                                                instrument_agent_id=adef_id,
-                                                                instrument_device_id=newdev_id,
-                                                                headers=self._get_system_actor_headers())
-            elif ai_obj.type_ == RT.PlatformAgentInstance:
-                newai_id = ims.create_platform_agent_instance(newai_obj,
-                                                              platform_agent_id=adef_id,
-                                                              platform_device_id=newdev_id,
-                                                              headers=self._get_system_actor_headers())
-            else:
-                newai_id = dams.create_external_dataset_agent_instance(newai_obj,
-                                                                       external_dataset_agent_id=adef_id,
-                                                                       external_dataset_id=None,
-                                                                       headers=self._get_system_actor_headers())
-                # Need to create association to device
-                self.rr.create_association(newdev_id, PRED.hasAgentInstance, newai_id)
-            log.debug("Cloned agent instance %s as new agent instance %s '%s'", agent_instance_id, newai_id, newai_obj.name)
-            if self.verbose:
-                newai_obj1 = self.rr.read(newai_id)
-                log.debug("Agent instance details: %s", newai_obj1)
-
-            # Share in Orgs
-            org_ids, _ = self.rr.find_subjects(RT.Org, PRED.hasResource, agent_instance_id, id_only=True)
-            for org_id in org_ids:
+                log.debug(" Created association DP %s %s Device %s", newdp_id, PRED.hasSource, device_id)
+            if is_output:
+                self.rr.create_association(device_id, PRED.hasOutputProduct, newdp_id)
                 if self.verbose:
-                    log.debug("Share cloned agent instance %s in org %s", newai_id, org_id)
-                orgms.share_resource(org_id, newai_id, headers=self._get_system_actor_headers())
+                    log.debug(" Created association Device %s %s DP %s", device_id, PRED.hasOutputProduct, newdp_id)
 
-        # To duplicate data products run incremental preload for this
+        # Association hasSource
+        targ_objs, _ = self.rr.find_objects(dp_obj._id, PRED.hasSource, id_only=False)
+        for targ_obj in targ_objs:
+            if isinstance(targ_obj, Site):
+                self.rr.create_association(newdp_id, PRED.hasSource, targ_obj._id)
+                if self.verbose:
+                    log.debug(" Created association Site %s %s DP %s", newdp_id, PRED.hasSource, targ_obj._id)
 
-    def clone_deployment(self, agent_instance_id, resource_id):
+        # Create dataset
+        dpms.create_dataset_for_data_product(newdp_id, headers=self._get_system_actor_headers())
+        log.debug(" Created dataset for data product %s %s '%s'", newdp_id, dpnew_pre_id, newdp_obj.name)
+
+        return newdp_id, newdp_obj
+
+    # Potential Issues: Names etc attributes are not final at time of create, but DataProducer, Stream etc
+    # names are derived from these names.
+    # - Stream.routing_key is derived from DP name. Issue?
+    def clone_device(self, agent_instance_id, resource_id):
+        """Clones the given device with its associations and makes a few modifications"""
+        if not hasattr(self, "clone_map"):
+            self.clone_map = {}   # Holds a map of old to new devices
+
         clone_id = self.CFG.get("clone_id", None)
         if not clone_id:
             raise BadRequest("Must provide clone_id argument")
 
+        # (1) Clone device and associations
         res_obj = self.rr.read(resource_id)
-        if not res_obj.type_ == RT.Deployment:
-            raise BadRequest("Given resource %s is not a Deployment: %s" % (resource_id, res_obj.type_))
-        dep_pre_id = self._get_alt_id(res_obj, "PRE")
+        if not isinstance(res_obj, Device):
+            raise BadRequest("Given resource %s is not a Device: %s" % (resource_id, res_obj.type_))
 
+        newdev_id, newdev_obj = self._clone_device(res_obj, clone_id)
+
+        # (2) Clone agent instance and associations
+        if agent_instance_id:
+            ai_obj = self.rr.read(agent_instance_id)
+            newai_id, newai_obj = self._clone_agent_instance(ai_obj, clone_id, newdev_id)
+
+        # (3) Clone data products: output data products with derived data products
+        dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
+        for dp_obj in dp_objs:
+            newdp_id, newdp_obj = self._clone_data_product(dp_obj, clone_id, device_id=newdev_id)
+
+            # Clone derived data products for an output data product
+            dp_objs1, _ = self.rr.find_objects(resource_id, PRED.hasDataProductParent, RT.DataProduct, id_only=False)
+            for dp_obj1 in dp_objs1:
+                self._clone_data_product(dp_obj1, clone_id, is_output=False, parent_dp_id=newdp_id, device_id=newdev_id)
+
+    def _clone_deployment(self, res_obj, clone_id):
         oms = ObservatoryManagementServiceProcessClient(process=self)
-        orgms = OrgManagementServiceProcessClient(process=self)
 
-        # Clone the Deployment resource and associations
-        dep_dict = res_obj.__dict__.copy()
-        for attr in ["_id", "_rev", "type_", "lcstate", "availability", "alt_ids"]:
-            dep_dict.pop(attr)
-
-        newdep_obj = IonObject(RT.Deployment, **dep_dict)
-        self._set_alt_id(newdep_obj, "CLONE:%s" % resource_id)
-        if dep_pre_id:
-            self._set_alt_id(newdep_obj, dep_pre_id + "_" + clone_id)
-        newdep_obj.name = res_obj.name + " (cloned)"
-        newdep_obj.description = "Cloned from %s" % resource_id
+        resource_id = res_obj._id
+        newdep_obj, dep_pre_id, depnew_pre_id = self._clone_res_obj(res_obj, clone_id)
         for const in newdep_obj.constraint_list:
             if const.type_ == OT.TemporalBounds:
-                const.start_datetime = str(time.time())
+                const.start_datetime = str(int(time.time()))
 
-        site_id = self.rr.read_subject(resource_id, PRED.hasDeployment, id_only=True)
-        device_obj = self.rr.read_subject(resource_id, PRED.hasDeployment, id_only=False)
+        try:
+            site_id = self.rr.read_subject(RT.PlatformSite, PRED.hasDeployment, resource_id, id_only=True)
+        except NotFound:
+            site_id = self.rr.read_subject(RT.InstrumentSite, PRED.hasDeployment, resource_id, id_only=True)
+        try:
+            device_obj = self.rr.read_subject(RT.PlatformDevice, PRED.hasDeployment, resource_id, id_only=False)
+        except NotFound:
+            device_obj = self.rr.read_subject(RT.InstrumentDevice, PRED.hasDeployment, resource_id, id_only=False)
 
         # Determine device tree from current deployment device
         # TODO: This does NOT work if the cloned device assembly was not cloned as a full tree
@@ -1267,12 +1348,20 @@ class AgentControl(ImmediateProcess):
         def build_map(dev_id, dev_child_devices):
             dev_obj = self.rr.read(dev_id)
             dev_pre_id = self._get_alt_id(dev_obj, "PRE")
-            if not dev_pre_id:
-                raise BadRequest("Cannot find PRE id of device %s" % dev_id)
-            newdev_obj = self._get_resource_by_alt_id("PRE", dev_pre_id + "_" + clone_id)
-            if not newdev_obj:
-                raise BadRequest("Cannot find cloned device for device %s" % dev_id)
-            self.clone_map[dev_id] = newdev_obj._id
+            if dev_pre_id:
+                newdev_obj = self._get_resource_by_alt_id("PRE", dev_pre_id + "_" + clone_id)
+                if newdev_obj:
+                    self.clone_map[dev_id] = newdev_obj._id
+                else:
+                    if self.force:
+                        log.warn("Cannot find cloned device for device %s" % dev_id)
+                    else:
+                        raise BadRequest("Cannot find cloned device for device %s" % dev_id)
+            else:
+                if self.force:
+                    log.warn("Cannot find PRE id of device %s" % dev_id)
+                else:
+                    raise BadRequest("Cannot find PRE id of device %s" % dev_id)
             for _, ch_id, _ in dev_child_devices.get(dev_id, []):
                 build_map(ch_id, dev_child_devices)
         build_map(device_obj._id, dev_child_devices)
@@ -1281,7 +1370,7 @@ class AgentControl(ImmediateProcess):
 
         # Revise port assignments
         new_port_assignments = {}
-        for dev_id, dev_port in device_obj.port_assignments.iteritems():
+        for dev_id, dev_port in res_obj.port_assignments.iteritems():
             if dev_id in self.clone_map:
                 new_port_assignments[self.clone_map[dev_id]] = dev_port
                 if hasattr(dev_port, "parent_id"):
@@ -1290,8 +1379,13 @@ class AgentControl(ImmediateProcess):
                     else:
                         log.warn("Could not find parent device id %s in cloned device tree", dev_port.parent_id)
             else:
-                log.warn("Could not find device id %s in cloned device tree", dev_id)
+                if self.force:
+                    log.warn("Could not find device id %s in cloned device tree", dev_id)
+                else:
+                    raise BadRequest("Could not find device id %s in cloned device tree" % dev_id)
         newdep_obj.port_assignments = new_port_assignments
+        if self.verbose:
+            log.debug("Cloned port_assignments: %s", newdep_obj.port_assignments)
 
         # Create Deployment resource with associations
         newdep_id = oms.create_deployment(newdep_obj,
@@ -1299,12 +1393,24 @@ class AgentControl(ImmediateProcess):
                                           device_id=newdev_id,
                                           headers=self._get_system_actor_headers())
 
+        log.debug("Cloned deployment %s %s as: %s %s '%s'", resource_id,
+                  dep_pre_id, newdep_id, depnew_pre_id, newdep_obj.name)
+
         # Orgs
-        org_ids, _ = self.rr.find_subjects(RT.Org, PRED.hasResource, resource_id, id_only=True)
-        for org_id in org_ids:
-            if self.verbose:
-                log.debug("Share cloned deployment %s in org %s", newdep_id, org_id)
-            orgms.share_resource(org_id, newdep_id, headers=self._get_system_actor_headers())
+        self._clone_org_share(resource_id, newdep_id)
+
+        return newdep_id, newdep_obj
+
+    def clone_deployment(self, agent_instance_id, resource_id):
+        clone_id = self.CFG.get("clone_id", None)
+        if not clone_id:
+            raise BadRequest("Must provide clone_id argument")
+
+        res_obj = self.rr.read(resource_id)
+        if not res_obj.type_ == RT.Deployment:
+            raise BadRequest("Given resource %s is not a Deployment: %s" % (resource_id, res_obj.type_))
+
+        self._clone_deployment(res_obj, clone_id)
 
     def list_agents(self):
         # Show running agent instances (active or not)
