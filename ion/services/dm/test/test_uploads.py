@@ -20,7 +20,10 @@ from pyon.core.exception import NotFound
 from pyon.event.event import EventSubscriber
 from pyon.public import OT, PRED
 from pyon.util.log import log
+import unittest
 
+@unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+@attr('LOCOINT')
 @attr('INT', group='dm')
 class TestUploadInt(DMTestCase):
 
