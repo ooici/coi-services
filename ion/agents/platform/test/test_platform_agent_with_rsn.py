@@ -108,7 +108,13 @@ class TestPlatformAgent(BaseIntTestPlatform):
                     else:
                         # default "done" sequence for most tests
                         try:
-                            self._go_inactive()
+                            state = self._get_state()
+                            if state != PlatformAgentState.UNINITIALIZED:
+                                if state in [PlatformAgentState.IDLE,
+                                             PlatformAgentState.STOPPED,
+                                             PlatformAgentState.COMMAND,
+                                             PlatformAgentState.LOST_CONNECTION]:
+                                    self._go_inactive()
                             self._reset()
                         finally:  # attempt shutdown anyway
                             self._shutdown()
@@ -390,6 +396,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             'alerts',
             'aggstatus',
             'rollup_status',
+            'mission',
         ]
         res_pars_all = []
         res_cmds_all = [

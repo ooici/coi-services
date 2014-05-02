@@ -294,7 +294,14 @@ AGENT_SCHEMA_V1 = {
                         "value_map" : DeviceStatusType._value_map
                         }                    
                     }]
-                }
+                },
+        "mission":
+            {
+                "display_name" : "Mission.",
+                "description" : "Mission filename.",
+                "visibility" : "READ_WRITE",
+                "type" : "string"
+            }
         },
     "states" : {
         PlatformAgentState.UNINITIALIZED : {
