@@ -27,12 +27,14 @@ Supports the following ops:
 - activate_deployment: If device has Deployments, activate the current one
 - deactivate_deployment: If device has an active Deployment, deactivate it
 - clone_device: For a given device, create another device with similar associations and data products.
+        The cfg argument can point to a CSV file to immediately set clone attributes.
 - clone_deployment: For a given deployment, create another deployment with similar associations
+        The cfg argument can point to a CSV file to immediately set clone attributes.
 - list_persistence: Prints a report of currently active persistence
 - list_agents: Prints a report of currently active agents
 - list_containers: Prints a report of currently active containers
 - list_services: Prints a report of currently active services
-- list_use: Prints a report of uses for given agent definition or device model
+- show_use: Prints a report of uses for given agent definition or device model
 - show_dataset: Prints a report about a dataset (coverage)
 
 Supports the following arguments:
@@ -69,17 +71,20 @@ TODO:
 __author__ = 'Michael Meisinger, Ian Katz, Bill French, Luke Campbell'
 
 import csv
+import datetime
 import os
 import shutil
 import time
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
+from pyon.core.object import IonObjectBase
 from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound, LCS, EventPublisher, dict_merge, IonObject
 
 from ion.core.includes.mi import DriverEvent
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.util.parse_utils import parse_dict, get_typed_value
+from ion.util.datastore.resuse import ResourceUseInfo
 
 from interface.objects import AgentCommand, Site, TemporalBounds, AgentInstance, AgentDefinition, Device, DeviceModel, \
     ProcessStateEnum
@@ -435,8 +440,8 @@ class AgentControl(ImmediateProcess):
     def _get_resource_cfg(self, res_obj, cfg_dict):
         """Given a (device) resource object, try to find an associated config entry from the CSV file"""
         # Find config by resource UUID
-        cfg_id = res_obj._id
-        dev_cfg = cfg_dict.get(res_obj._id, None)
+        cfg_id = getattr(res_obj, "_id", "?")
+        dev_cfg = cfg_dict.get(cfg_id, None)
         if not dev_cfg and getattr(res_obj, "ooi_property_number", None):
             # Find config by resource OOI property number, e.g. 12345-54321
             cfg_id = res_obj.ooi_property_number
@@ -473,7 +478,7 @@ class AgentControl(ImmediateProcess):
         param_value = row["Value"]
         param_type = row.get("Type", "str") or "str"
         if not param_name:
-            log.warn("Row %s value %s has no name", device_id, attr_name, param_value)
+            log.warn("Device %s row %s value %s has no name", device_id, attr_name, param_value)
             return
 
         target_dict = cfg_dict.setdefault(device_id, {})
@@ -501,10 +506,17 @@ class AgentControl(ImmediateProcess):
                 if attr_name in {"_id", "_rev", "type_", "alt_ids", "lcstate", "availability"}:
                     log.warn("Attribute %s cannot be modified", attr_name)
                     continue
-                if type(getattr(res_obj, attr_name)) != type(attr_cfg):
+                if isinstance(attr_cfg, dict) and isinstance(res_obj, IonObjectBase):
+                    pass
+                elif type(getattr(res_obj, attr_name)) != type(attr_cfg):
                     log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(res_obj, attr_name)))
                     continue
-                if isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
+
+                if isinstance(attr_cfg, dict) and isinstance(res_obj, IonObjectBase):
+                    # TODO: Nested objects
+                    for an, av in attr_cfg.iteritems():
+                        setattr(res_obj, an, av)
+                elif isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
                     attr_cfg.pop("_replace")
                     if self.verbose:
                         log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), attr_cfg)
@@ -581,18 +593,23 @@ class AgentControl(ImmediateProcess):
         if not self.dryrun:
             self.rr.update(ai)
 
-    def set_attributes(self, agent_instance_id, resource_id):
+    def _parse_attributes_cfg(self, require_cfg=True):
+        self.cfg_mappings = {}
+
         cfg_file = self.CFG.get("cfg", None)
         if not cfg_file:
-            raise BadRequest("No cfg argument provided")
+            if require_cfg:
+                raise BadRequest("No cfg argument provided")
+            else:
+                return
 
-        if not self.cfg_mappings:
-            self.cfg_mappings = {}
+        with open(cfg_file, "rU") as f:
+            reader = csv.DictReader(f, delimiter=',')
+            for row in reader:
+                self._add_attribute_row(row, self.cfg_mappings)
 
-            with open(cfg_file, "rU") as f:
-                reader = csv.DictReader(f, delimiter=',')
-                for row in reader:
-                    self._add_attribute_row(row, self.cfg_mappings)
+    def set_attributes(self, agent_instance_id, resource_id):
+        self._parse_attributes_cfg()
 
         res_obj = self.rr.read(resource_id)
         cfg_id, dev_cfg = self._get_resource_cfg(res_obj, self.cfg_mappings)
@@ -1043,29 +1060,37 @@ class AgentControl(ImmediateProcess):
         log.info("Site resources deleted for site %s '%s': 1 Site", resource_id, res_obj.name)
 
     def activate_deployment(self, agent_instance_id, resource_id):
-        # For current device, find all deployments. Activate the one that
-        dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
-        if self.verbose:
-            log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
-        if dep_objs:
-            current_dep = self._get_current_deployment(dep_objs, only_deployed=False)
-            if current_dep:
-                obs_ms = ObservatoryManagementServiceProcessClient(process=self)
-                log.info("Activating deployment %s", current_dep._id)
-                if not self.dryrun:
-                    obs_ms.activate_deployment(current_dep._id, headers=self._get_system_actor_headers())
+        obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+        res_obj = self.rr.read(resource_id)
+        if res_obj.type_ == RT.Deployment:
+            obs_ms.activate_deployment(resource_id, headers=self._get_system_actor_headers())
+        elif isinstance(res_obj, Device):
+            # For current device, find all deployments. Activate the one that
+            dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+            if self.verbose:
+                log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
+            if dep_objs:
+                current_dep = self._get_current_deployment(dep_objs, only_deployed=False)
+                if current_dep:
+                    log.info("Activating deployment %s", current_dep._id)
+                    if not self.dryrun:
+                        obs_ms.activate_deployment(current_dep._id, headers=self._get_system_actor_headers())
 
     def deactivate_deployment(self, agent_instance_id, resource_id):
-        dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
-        if self.verbose:
-            log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
-        if dep_objs:
-            current_dep = self._get_current_deployment(dep_objs, only_deployed=True)
-            if current_dep:
-                obs_ms = ObservatoryManagementServiceProcessClient(process=self)
-                log.info("Deactivating deployment %s", current_dep._id)
-                if not self.dryrun:
-                    obs_ms.deactivate_deployment(current_dep._id, headers=self._get_system_actor_headers())
+        obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+        res_obj = self.rr.read(resource_id)
+        if res_obj.type_ == RT.Deployment:
+            obs_ms.deactivate_deployment(resource_id, headers=self._get_system_actor_headers())
+        elif isinstance(res_obj, Device):
+            dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+            if self.verbose:
+                log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
+            if dep_objs:
+                current_dep = self._get_current_deployment(dep_objs, only_deployed=True)
+                if current_dep:
+                    log.info("Deactivating deployment %s", current_dep._id)
+                    if not self.dryrun:
+                        obs_ms.deactivate_deployment(current_dep._id, headers=self._get_system_actor_headers())
 
     def _get_current_deployment(self, dep_objs, only_deployed=False):
         """Return the most likely current deployment from given list of Deployment resources
@@ -1103,9 +1128,12 @@ class AgentControl(ImmediateProcess):
         if len(filtered_dep) == 1:
             return filtered_dep[0][2]
 
-        log.warn("Cannot determine current deployment unambiguously - choosing earliest start date")
-        filtered_dep = sorted(filtered_dep, key=lambda x: x[0])
-        return filtered_dep[0][2]
+        if self.force:
+            log.warn("Cannot determine current deployment unambiguously - choosing earliest start date")
+            filtered_dep = sorted(filtered_dep, key=lambda x: x[0])
+            return filtered_dep[0][2]
+        else:
+            raise BadRequest("Cannot determine current deployment unambiguously - choosing earliest start date")
 
     def _clone_res_obj(self, res_obj, clone_id):
         res_pre_id = self._get_alt_id(res_obj, "PRE")
@@ -1150,6 +1178,9 @@ class AgentControl(ImmediateProcess):
             newdev_obj.temporal_bounds.start_datetime = str(int(time.time()))
             newdev_obj.temporal_bounds.end_datetime = "2650838400"  # 2054-01-01
 
+        cfg_id, dev_cfg = self._get_resource_cfg(newdev_obj, self.cfg_mappings)
+        self._update_attributes(newdev_obj, dev_cfg)
+
         # Create resource
         if res_obj.type_ == RT.InstrumentDevice:
             newdev_id = ims.create_instrument_device(newdev_obj, headers=self._get_system_actor_headers())
@@ -1186,6 +1217,9 @@ class AgentControl(ImmediateProcess):
 
         agent_instance_id = ai_obj._id
         newai_obj, ai_pre_id, ainew_pre_id = self._clone_res_obj(ai_obj, clone_id)
+
+        cfg_id, ai_cfg = self._get_resource_cfg(newai_obj, self.cfg_mappings)
+        self._update_attributes(newai_obj, ai_cfg)
 
         adef_id = self.rr.read_object(agent_instance_id, PRED.hasAgentDefinition, id_only=True)
 
@@ -1224,6 +1258,9 @@ class AgentControl(ImmediateProcess):
 
         newdp_obj, dp_pre_id, dpnew_pre_id = self._clone_res_obj(dp_obj, clone_id)
 
+        cfg_id, dp_cfg = self._get_resource_cfg(newdp_obj, self.cfg_mappings)
+        self._update_attributes(newdp_obj, dp_cfg)
+
         # Duplicate StreamDefinition
         sdef_obj = self.rr.read_object(dp_obj._id, PRED.hasStreamDefinition, RT.StreamDefinition, id_only=False)
         pdict_id = self.rr.read_object(sdef_obj._id, PRED.hasParameterDictionary, RT.ParameterDictionary, id_only=True)
@@ -1243,6 +1280,10 @@ class AgentControl(ImmediateProcess):
         if res_pre_id:
             self._set_alt_id(newsdef_obj, "PRE:" + resnew_pre_id)
         newsdef_obj.addl["stream_use"] = sdef_obj.addl.get("stream_use", "")
+
+        cfg_id, sdef_cfg = self._get_resource_cfg(newsdef_obj, self.cfg_mappings)
+        self._update_attributes(newsdef_obj, sdef_cfg)
+
         self.rr.update(newsdef_obj)
 
         log.debug("Cloned StreamDefinition %s %s as: %s %s '%s'", sdef_obj._id,
@@ -1299,6 +1340,8 @@ class AgentControl(ImmediateProcess):
         if not clone_id:
             raise BadRequest("Must provide clone_id argument")
 
+        self._parse_attributes_cfg(require_cfg=False)
+
         # (1) Clone device and associations
         res_obj = self.rr.read(resource_id)
         if not isinstance(res_obj, Device):
@@ -1329,6 +1372,9 @@ class AgentControl(ImmediateProcess):
         for const in newdep_obj.constraint_list:
             if const.type_ == OT.TemporalBounds:
                 const.start_datetime = str(int(time.time()))
+
+        cfg_id, dep_cfg = self._get_resource_cfg(newdep_obj, self.cfg_mappings)
+        self._update_attributes(newdep_obj, dep_cfg)
 
         try:
             site_id = self.rr.read_subject(RT.PlatformSite, PRED.hasDeployment, resource_id, id_only=True)
@@ -1402,6 +1448,8 @@ class AgentControl(ImmediateProcess):
         return newdep_id, newdep_obj
 
     def clone_deployment(self, agent_instance_id, resource_id):
+        self._parse_attributes_cfg(require_cfg=False)
+
         clone_id = self.CFG.get("clone_id", None)
         if not clone_id:
             raise BadRequest("Must provide clone_id argument")
@@ -1413,263 +1461,27 @@ class AgentControl(ImmediateProcess):
         self._clone_deployment(res_obj, clone_id)
 
     def list_agents(self):
-        # Show running agent instances (active or not)
-        agent_entries = self.container.directory.find_child_entries("/Agents", direct_only=True)
-        agent_objs = []
-        for agent_entry in agent_entries:
-            attrs = agent_entry.attributes
-            agent_type = "?"
-            agent_name = attrs.get("name", "")
-            if agent_name.startswith("eeagent"):
-                agent_type = "EEAgent"
-            elif agent_name.startswith("haagent"):
-                agent_type = "HAAgent"
-            elif "ExternalDatasetAgent" in agent_name:
-                agent_type = "DatasetAgent"
-            elif "InstrumentAgent" in agent_name:
-                agent_type = "InstrumentAgent"
-            elif "PlatformAgent" in agent_name:
-                agent_type = "PlatformAgent"
-            agent_objs.append(dict(agent_type=agent_type, name=agent_name, entry=agent_entry))
-
-        log.debug("Agents: %s", len(agent_objs))
-        for agent_obj in sorted(agent_objs, key=lambda o: (o["agent_type"], o["name"])):
-            agent_entry = agent_obj["entry"]
-            attrs = agent_entry.attributes
-            resource_id = attrs.get("resource_id", "")
-            log.debug(" %s %s %s on %s", agent_obj["agent_type"], resource_id, agent_entry.key, attrs.get("container", ""))
-            # Process
-            try:
-                targ_obj1 = self.rr.read(agent_entry.key)
-                log.debug("  %s %s: %s", targ_obj1.type_, targ_obj1._id, ProcessStateEnum._str_map[targ_obj1.process_state])
-                if self.verbose:
-                    # ProcessDefinition
-                    targ_objs2, _ = self.rr.find_objects(targ_obj1._id, PRED.hasProcessDefinition, id_only=False)
-                    for targ_obj2 in sorted(targ_objs2, key=lambda o: o.name):
-                        log.debug("    %s %s %s '%s'", targ_obj2.type_, self._get_alt_id(targ_obj2, "PRE"), targ_obj2._id, targ_obj2.name)
-
-            except NotFound:
-                pass
-            # Resource
-            try:
-                targ_obj1 = self.rr.read(resource_id)
-                log.debug("  %s %s %s '%s'", targ_obj1.type_, self._get_alt_id(targ_obj1, "PRE"), targ_obj1._id, targ_obj1.name)
-                # AgentInstance
-                targ_objs2, _ = self.rr.find_objects(targ_obj1._id, PRED.hasAgentInstance, id_only=False)
-                for targ_obj2 in sorted(targ_objs2, key=lambda o: o.name):
-                    log.debug("   %s %s %s '%s'", targ_obj2.type_, self._get_alt_id(targ_obj2, "PRE"), targ_obj2._id, targ_obj2.name)
-                    if not self.verbose:
-                        continue
-                    # AgentDefinition
-                    targ_objs3, _ = self.rr.find_objects(targ_obj2._id, PRED.hasAgentDefinition, id_only=False)
-                    for targ_obj3 in sorted(targ_objs3, key=lambda o: o.name):
-                        log.debug("    %s %s %s '%s'", targ_obj3.type_, self._get_alt_id(targ_obj3, "PRE"), targ_obj3._id, targ_obj3.name)
-                        # Model
-                        targ_objs4, _ = self.rr.find_objects(targ_obj3._id, PRED.hasModel, id_only=False)
-                        for targ_obj4 in sorted(targ_objs4, key=lambda o: o.name):
-                            log.debug("     %s %s %s '%s'", targ_obj4.type_, self._get_alt_id(targ_obj4, "PRE"), targ_obj4._id, targ_obj4.name)
-                # DataProduct
-                if self.verbose:
-                    targ_objs2, _ = self.rr.find_objects(targ_obj1._id, PRED.hasOutputProduct, id_only=False)
-                    for targ_obj2 in sorted(targ_objs2, key=lambda o: o.name):
-                        log.debug("   %s %s %s '%s'", targ_obj2.type_, self._get_alt_id(targ_obj2, "PRE"), targ_obj2._id, targ_obj2.name)
-                        # Stream
-                        targ_objs3, _ = self.rr.find_objects(targ_obj2._id, PRED.hasStream, id_only=False)
-                        for targ_obj3 in sorted(targ_objs3, key=lambda o: o.name):
-                            log.debug("    %s %s: %s on %s", targ_obj3.type_, targ_obj3._id, targ_obj3.stream_route.routing_key, targ_obj3.stream_route.exchange_point)
-
-            except NotFound:
-                pass
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.list_agents()
 
     def list_containers(self):
-        # CapabilityContainer
-        targ_objs, _ = self.rr.find_resources(RT.CapabilityContainer, id_only=False)
-        log.debug("CapabilityContainers: %s", len(targ_objs))
-        for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-            log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-            # Process
-            targ_objs1, _ = self.rr.find_objects(targ_obj._id, PRED.hasProcess, id_only=False)
-            for targ_obj1 in sorted(targ_objs1, key=lambda o: o.name):
-                log.debug("  %s %s '%s': %s", targ_obj1.type_, targ_obj1._id, targ_obj1.name, ProcessStateEnum._str_map[targ_obj1.process_state])
-                # ProcessDefinition
-                targ_objs2, _ = self.rr.find_objects(targ_obj1._id, PRED.hasProcessDefinition, id_only=False)
-                for targ_obj2 in sorted(targ_objs2, key=lambda o: o.name):
-                    log.debug("   %s %s %s '%s'", targ_obj2.type_, self._get_alt_id(targ_obj2, "PRE"), targ_obj2._id, targ_obj2.name)
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.list_containers()
 
     def list_services(self):
-        # ServiceDefinition
-        targ_objs, _ = self.rr.find_resources(RT.ServiceDefinition, id_only=False)
-        log.debug("ServiceDefinitions: %s", len(targ_objs))
-        for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-            log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-            # Service
-            targ_objs1, _ = self.rr.find_subjects(None, PRED.hasServiceDefinition, targ_obj._id, id_only=False)
-            for targ_obj1 in sorted(targ_objs1, key=lambda o: o.name):
-                log.debug("  %s %s %s '%s'", targ_obj1.type_, self._get_alt_id(targ_obj1, "PRE"), targ_obj1._id, targ_obj1.name)
-                # Process
-                targ_objs2, _ = self.rr.find_objects(targ_obj1._id, PRED.hasProcess, id_only=False)
-                for targ_obj2 in sorted(targ_objs2, key=lambda o: o.name):
-                    log.debug("   %s %s '%s': %s", targ_obj2.type_, targ_obj2._id, targ_obj2.name, ProcessStateEnum._str_map[targ_obj2.process_state])
-                    # ProcessDefinition
-                    targ_objs3, _ = self.rr.find_objects(targ_obj2._id, PRED.hasProcessDefinition, id_only=False)
-                    for targ_obj3 in sorted(targ_objs3, key=lambda o: o.name):
-                        log.debug("    %s %s %s '%s'", targ_obj3.type_, self._get_alt_id(targ_obj3, "PRE"), targ_obj3._id, targ_obj3.name)
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.list_services()
 
     def list_persistence(self):
-        # Show ingestion streams, workers (active or not) etc
-        ingconf_ids, _ = self.rr.find_resources(RT.IngestionConfiguration, id_only=True)
-        if not ingconf_ids:
-            log.warn("Could not find system IngestionConfiguration")
-        ingconf_id = ingconf_ids[0]
-        targ_objs, _ = self.rr.find_objects(ingconf_id, PRED.hasSubscription, id_only=False)
-        log.debug("Subscriptions: %s", len(targ_objs))
-        for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-            log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-            # ExchangeName
-            targ_objs1, _ = self.rr.find_subjects(RT.ExchangeName, PRED.hasSubscription, targ_obj._id, id_only=False)
-            for targ_obj1 in sorted(targ_objs1, key=lambda o: o.name):
-                log.debug("  %s %s %s '%s'", targ_obj1.type_, self._get_alt_id(targ_obj1, "PRE"), targ_obj1._id, targ_obj1.name)
-                # Process
-                targ_objs2, _ = self.rr.find_objects(targ_obj1._id, PRED.hasIngestionWorker, id_only=False)
-                for targ_obj2 in sorted(targ_objs2, key=lambda o: o.name):
-                    log.debug("   %s %s '%s': %s", targ_obj2.type_, targ_obj2._id, targ_obj2.name, ProcessStateEnum._str_map[targ_obj2.process_state])
-                    # ProcessDefinition
-                    targ_objs3, _ = self.rr.find_objects(targ_obj2._id, PRED.hasProcessDefinition, id_only=False)
-                    for targ_obj3 in sorted(targ_objs3, key=lambda o: o.name):
-                        log.debug("    %s %s %s '%s'", targ_obj3.type_, self._get_alt_id(targ_obj3, "PRE"), targ_obj3._id, targ_obj3.name)
-            # Stream
-            targ_objs1, _ = self.rr.find_objects(targ_obj._id, PRED.hasStream, id_only=False)
-            for targ_obj1 in sorted(targ_objs1, key=lambda o: o.name):
-                log.debug("  %s %s %s '%s'", targ_obj1.type_, self._get_alt_id(targ_obj1, "PRE"), targ_obj1._id, targ_obj1.name)
-                targ_objs2, _ = self.rr.find_subjects(RT.Dataset, PRED.hasStream, targ_obj1._id, id_only=False)
-                for targ_obj2 in sorted(targ_objs2, key=lambda o: o.name):
-                    log.debug("   %s %s %s '%s'", targ_obj2.type_, self._get_alt_id(targ_obj2, "PRE"), targ_obj2._id, targ_obj2.name)
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.list_persistence()
 
-    def list_use(self, agent_instance_id, resource_id):
-        # For given resource, list all uses
-        res_obj = self.rr.read(resource_id)
-        log.info("LISTING USE of %s %s %s '%s'", res_obj.type_, self._get_alt_id(res_obj, "PRE"), resource_id, res_obj.name)
-        if isinstance(res_obj, AgentDefinition):
-            # Models
-            targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasModel, id_only=False)
-            log.debug("DeviceModels: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-            # Agent Instances
-            targ_objs, _ = self.rr.find_subjects(None, PRED.hasAgentDefinition, object=resource_id, id_only=False)
-            log.debug("AgentInstances: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-                targ_objs1, _ = self.rr.find_subjects(None, PRED.hasAgentInstance, object=targ_obj._id, id_only=False)
-                for targ_obj1 in sorted(targ_objs1, key=lambda o: o.name):
-                    log.debug("  %s %s %s '%s'", targ_obj1.type_, self._get_alt_id(targ_obj1, "PRE"), targ_obj1._id, targ_obj1.name)
-
-        elif isinstance(res_obj, DeviceModel):
-            # Site
-            targ_objs, _ = self.rr.find_subjects(None, PRED.hasModel, object=resource_id, id_only=False)
-            site_objs = [o for o in targ_objs if isinstance(o, Site)]
-            log.debug("Sites: %s", len(site_objs))
-            for targ_obj in sorted(site_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-            # Device
-            device_objs = [o for o in targ_objs if isinstance(o, Device)]
-            log.debug("Devices: %s", len(device_objs))
-            for targ_obj in sorted(device_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-            # Agent Definition
-            adef_objs = [o for o in targ_objs if isinstance(o, AgentDefinition)]
-            log.debug("AgentDefinitions: %s", len(adef_objs))
-            for targ_obj in sorted(adef_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-
-        elif res_obj.type_ == RT.ParameterDictionary:
-            # StreamDefinition
-            targ_objs, _ = self.rr.find_subjects(RT.StreamDefinition, PRED.hasParameterDictionary, object=resource_id, id_only=False)
-            log.debug("StreamDefinitions: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-                targ_objs1, _ = self.rr.find_subjects(RT.Stream, PRED.hasStreamDefinition, object=targ_obj._id, id_only=False)
-                for targ_obj1 in sorted(targ_objs1, key=lambda o: o.name):
-                    log.debug("  %s %s %s '%s'", targ_obj1.type_, self._get_alt_id(targ_obj1, "PRE"), targ_obj1._id, targ_obj1.name)
-                targ_objs1, _ = self.rr.find_subjects(RT.DataProduct, PRED.hasStreamDefinition, object=targ_obj._id, id_only=False)
-                for targ_obj1 in sorted(targ_objs1, key=lambda o: o.name):
-                    log.debug("  %s %s %s '%s'", targ_obj1.type_, self._get_alt_id(targ_obj1, "PRE"), targ_obj1._id, targ_obj1.name)
-            # ParameterContext
-            targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasParameterContext, id_only=False)
-            log.debug("ParameterContexts: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-
-        elif res_obj.type_ == RT.ParameterContext:
-            # ParameterDictionary
-            targ_objs, _ = self.rr.find_subjects(RT.ParameterDictionary, PRED.hasParameterContext, object=resource_id, id_only=False)
-            log.debug("ParameterDictionarys: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-
-        elif res_obj.type_ == RT.Dataset:
-            # DataProduct
-            targ_objs, _ = self.rr.find_subjects(RT.DataProduct, PRED.hasDataset, object=resource_id, id_only=False)
-            log.debug("DataProducts: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-                targ_objs1, _ = self.rr.find_objects(targ_obj._id, PRED.hasStreamDefinition, id_only=False)
-                for targ_obj1 in sorted(targ_objs1, key=lambda o: o.name):
-                    log.debug("  %s %s %s '%s'", targ_obj1.type_, self._get_alt_id(targ_obj1, "PRE"), targ_obj1._id, targ_obj1.name)
-                    targ_objs2, _ = self.rr.find_objects(targ_obj1._id, PRED.hasParameterDictionary, id_only=False)
-                    for targ_obj2 in sorted(targ_objs2, key=lambda o: o.name):
-                        log.debug("   %s %s %s '%s'", targ_obj2.type_, self._get_alt_id(targ_obj2, "PRE"), targ_obj2._id, targ_obj2.name)
-
-            # Stream
-            targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasStream, id_only=False)
-            log.debug("Streams: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-
-        elif res_obj.type_ == RT.ActorIdentity:
-            # UserInfo
-            targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasInfo, id_only=False)
-            log.debug("UserInfos: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-            # UserCredential
-            targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasCredentials, id_only=False)
-            log.debug("UserCredentials: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-            # Member Orgs
-            targ_objs, _ = self.rr.find_subjects(RT.Org, PRED.hasMembership, object=resource_id, id_only=False)
-            log.debug("Member of Orgs: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: (o.type_, o.name)):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-            # UserRole
-            targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasRole, id_only=False)
-            log.debug("UserRoles: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                log.debug(" %s %s %s '%s' in %s", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name, targ_obj.org_governance_name)
-            # Resources
-            targ_objs, _ = self.rr.find_subjects(None, PRED.hasOwner, object=resource_id, id_only=False)
-            log.debug("Owned Resources: %s", len(targ_objs))
-            for targ_obj in sorted(targ_objs, key=lambda o: (o.type_, o.name)):
-                log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-
-        elif res_obj.type_ == RT.ProcessDefintion:
-            pass
-
-        else:
-            log.warn("No details for type: %s", res_obj.type_)
-
-        targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasOwner, id_only=False)
-        log.debug("Owned by Actors: %s", len(targ_objs))
-        for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-            log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
-        targ_objs, _ = self.rr.find_subjects(RT.Org, PRED.hasResource, object=resource_id, id_only=False)
-        log.debug("Shared in Orgs: %s", len(targ_objs))
-        for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-            log.debug(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
+    def show_use(self, agent_instance_id, resource_id):
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.show_use(resource_id)
 
     def show_dataset(self, agent_instance_id, resource_id):
-        # Show details for a dataset (coverage)
-        pass
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.show_dataset(resource_id)
 
 ImportDataset = AgentControl
