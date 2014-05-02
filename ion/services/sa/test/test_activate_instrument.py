@@ -4,7 +4,6 @@ from gevent.event import AsyncResult
 import unittest, os
 from nose.plugins.attrib import attr
 import gevent
-import elasticpy as ep
 from mock import patch
 
 import time
