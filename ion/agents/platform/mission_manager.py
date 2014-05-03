@@ -31,7 +31,9 @@ class MissionManager(object):
         self._agent = pa
         self._platform_id = pa._platform_id
 
-        self._agent.aparam_mission = []
+        self._agent.aparam_mission = None
+        self._mission_entries = None
+        self._mission_scheduler = None
 
         self._agent.aparam_set_mission = self.aparam_set_mission
 
@@ -39,13 +41,20 @@ class MissionManager(object):
     def aparam_set_mission(self, yaml_filename):
         """
         Specifies mission to be executed.
-        @param yaml_filename  Mission definition
+        @param yaml_filename  Mission definition filename; can be None.
         """
         log.debug('[mm] aparam_set_mission: yaml_filename=%s', yaml_filename)
 
+        self._agent.aparam_mission = yaml_filename
+
+        if self._agent.aparam_mission is None:
+            self._mission_entries = None
+            self._mission_scheduler = None
+            return
+
         mission_loader = MissionLoader()
         mission_loader.load_mission_file(yaml_filename)
-        self._agent.aparam_mission = mission_loader.mission_entries
+        self._mission_entries = mission_loader.mission_entries
 
         log.debug('[mm] aparam_set_mission: _ia_clients=\n%s',
                   self._agent._pp.pformat(self._agent._ia_clients))
@@ -61,35 +70,44 @@ class MissionManager(object):
 
                 instruments[obj.resource_id] = obj.ia_client
 
-        self.mission_scheduler = MissionScheduler(self._agent,
-                                                  instruments,
-                                                  self._agent.aparam_mission)
+        self._mission_scheduler = MissionScheduler(self._agent,
+                                                   instruments,
+                                                   self._mission_entries)
         log.debug('[mm] aparam_set_mission: MissionScheduler created. entries=%s',
-                  self._agent.aparam_mission)
+                  self._mission_entries)
 
     # TODO appropriate way to handle potential errors/exceptions in
     # methods below.  Very ad hoc for the moment.
 
     def run_mission(self):
-        try:
-            self.mission_scheduler.run_mission()
-            return None
-        except Exception as ex:
-            log.exception('[mm] run_mission')
-            return ex
+        if self._mission_scheduler is not None:
+            try:
+                self._mission_scheduler.run_mission()
+                return None
+            except Exception as ex:
+                log.exception('[mm] run_mission')
+                return ex
+        else:
+            log.error('[mm] run_mission: no mission given')
 
     def abort_mission(self):
-        try:
-            self.mission_scheduler.abort_mission()
-            return None
-        except Exception as ex:
-            log.exception('[mm] abort_mission')
-            return ex
+        if self._mission_scheduler is not None:
+            try:
+                self._mission_scheduler.abort_mission()
+                return None
+            except Exception as ex:
+                log.exception('[mm] abort_mission')
+                return ex
+        else:
+            log.error('[mm] abort_mission: no mission given')
 
     def kill_mission(self):
-        try:
-            self.mission_scheduler.kill_mission()
-            return None
-        except Exception as ex:
-            log.exception('[mm] kill_mission')
-            return ex
+        if self._mission_scheduler is not None:
+            try:
+                self._mission_scheduler.kill_mission()
+                return None
+            except Exception as ex:
+                log.exception('[mm] kill_mission')
+                return ex
+        else:
+            log.error('[mm] kill_mission: no mission given')

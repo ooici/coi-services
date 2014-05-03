@@ -2095,25 +2095,33 @@ class PlatformAgent(ResourceAgent):
 
         return children_with_errors
 
-    def _instruments_execute_agent(self, command=None, create_command=None,
-                                   expected_state=None):
+    def _instruments_execute_agent(self, command, expected_state):
         """
         Supporting routine for various commands sent to instruments.
 
+        If expected_state is not None, the command will actually NOT be issued
+        against a child agent if that child is already in this state,
+        or if its current state is already at a "level of activation" in the
+        "direction" of the command. The level of activation for this purpose
+        is given by the following ordering of relevant states:
+
+         UNINITIALIZED < INACTIVE < IDLE < COMMAND < STREAMING
+
+        Example: If command = CLEAR (which "decreases" level of activation)
+        and expected_state = IDLE, then the command is *not* issued if child's
+        current state is UNINITIALIZED, INACTIVE, or IDLE.
+
         Note that invalidated children are ignored.
 
-        @param create_command invoked as create_command(instrument_id) for each
-                              instrument to create the command to be executed.
-
-        @param expected_state  If given, it is checked that the child gets to
-                               this state.
+        @param command
+                    Command to be issued
+        @param expected_state
+                    Desired state to determine if current state is acceptable
+                    (in which case the command is not actually issued).
 
         @return dict with children having caused some error. Empty if all
                 children were processed OK.
         """
-
-        # OOIION-1290: only rely on self._ia_clients, which is the more dynamic
-        # variable reflecting the current situation with child instruments.
 
         # act only on the children that are not invalidated:
         valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
@@ -2129,9 +2137,83 @@ class PlatformAgent(ResourceAgent):
         if not len(valid_clients):
             log.warn("%r: OOIION-1077 all instrument children (%s) are "
                      "invalidated or could not be re-validated. Not executing"
-                     " command. command=%r, create_command=%r",
-                     self._platform_id, instrument_ids, command, create_command)
+                     " command. command=%r",
+                     self._platform_id, instrument_ids, command)
             return children_with_errors   # that is, none.
+
+        def acceptable_state(current_state, expected_state, command):
+            """
+            Returns true only if the instrument's current state is acceptable
+            for the desired expected state.
+            """
+            def activation_level(state):
+                """
+                Returns number for ordering purposes; None if state is not
+                associated with any activation level.
+                """
+                order = [
+                    ResourceAgentState.UNINITIALIZED,
+                    ResourceAgentState.INACTIVE,
+                    ResourceAgentState.IDLE,
+                    ResourceAgentState.COMMAND,
+                    ResourceAgentState.STREAMING,
+                ]
+                return order.index(state) if state in order else None
+
+            def compare_states(state1, state2):
+                """
+                Returns numeric result of comparison; None if the states are
+                not comparable.
+                """
+                al1 = activation_level(state1)
+                al2 = activation_level(state2)
+                if al1 is None or al2 is None:
+                    return None
+                else:
+                    return int(al1) - int(al2)
+
+            def activation_level_direction(command):
+                """
+                Returns 'incr' or 'decr' if command increases or
+                decreases activation level; otherwise None.
+                """
+                incr_commands = [
+                    ResourceAgentEvent.GO_ACTIVE,
+                    ResourceAgentEvent.RUN,
+                    DriverEvent.START_AUTOSAMPLE,
+                ]
+                decr_commands = [
+                    ResourceAgentEvent.RESET,
+                    ResourceAgentEvent.GO_INACTIVE,
+                    DriverEvent.STOP_AUTOSAMPLE,
+                    ResourceAgentEvent.CLEAR,
+                ]
+                if command in incr_commands:
+                    return 'incr'
+                elif command in decr_commands:
+                    return 'decr'
+                else:
+                    return None
+
+            acceptable = False
+
+            if current_state == expected_state:
+                log.trace("%r: instrument %r already in state: %r",
+                          self._platform_id, instrument_id, expected_state)
+                acceptable = True
+            else:
+                comp = compare_states(current_state, expected_state)
+                actl = activation_level_direction(command)
+                if comp is not None:
+                    acceptable = (comp <= 0 and actl == 'decr') or \
+                                 (comp > 0  and actl == 'incr')
+
+                log.debug("%r: instrument %r: current_state=%r expected_state=%r"
+                          " command=%r, comp=%s, actl=%s, acceptable_state=%s",
+                          self._platform_id, instrument_id,
+                          current_state, expected_state,
+                          command, comp, actl, acceptable)
+            return acceptable
 
         def execute_cmd(instrument_id, cmd):
             ia_client = valid_clients[instrument_id].ia_client
@@ -2168,26 +2250,17 @@ class PlatformAgent(ResourceAgent):
 
             return None
 
-        if command:
-            log.debug("%r: executing command %r on my instruments: %s",
-                      self._platform_id, command, valid_clients.keys())
-        else:
-            log.debug("%r: executing command on my instruments: %s",
-                      self._platform_id, valid_clients.keys())
+        log.debug("%r: executing command %r on my instruments: %s",
+                  self._platform_id, command, valid_clients.keys())
 
         for instrument_id in valid_clients:
             if expected_state:
                 ia_client = valid_clients[instrument_id].ia_client
-                sub_state = ia_client.get_agent_state()
-                if expected_state == sub_state:
-                    #
-                    # already in the desired state; do nothing for this child:
-                    #
-                    log.trace("%r: instrument %r already in state: %r",
-                              self._platform_id, instrument_id, expected_state)
+                current_state = ia_client.get_agent_state()
+                if acceptable_state(current_state, expected_state, command):
                     continue
 
-            cmd = AgentCommand(command=command) if command else create_command(instrument_id)
+            cmd = AgentCommand(command=command)
             err_msg = execute_cmd(instrument_id, cmd)
 
             if err_msg is not None:
@@ -2386,9 +2459,6 @@ class PlatformAgent(ResourceAgent):
                 children were processed OK.
         """
         instruments_with_errors = {}
-
-        # OOIION-1290: only rely on self._ia_clients, which is the more dynamic
-        # variable reflecting the current situation with child instruments.
 
         # Act only on the children that are not invalidated:
         valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()

@@ -38,14 +38,9 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         self._go_active(recursion)
         self._run(recursion)
 
-    # TODO: reset recursion=True in general once the dispatch logic in
-    # platform agent (to check status of child instruments) is adjusted.
-    def _run_shutdown_commands(self, recursion=False):
+    def _run_shutdown_commands(self, recursion=True):
         """
         Issues commands as needed to bring the parent platform to shutdown.
-        This is mainly considering that a mission plan may transition child
-        instruments to various states without direct involvement of the parent
-        platform.
         """
         log.debug('[mm] _run_shutdown_commands.  state=%s', self._get_state())
         try:
@@ -84,23 +79,24 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         step = 5
         elapsed = 0
         while (max_wait is None or elapsed < max_wait) and mission_state == self._get_state():
-            log.debug('[mm] _await_mission_completion: elapsed=%s', elapsed)
             sleep(step)
             elapsed += step
+            if elapsed % 20 == 0:
+                log.debug('[mm] _await_mission_completion: waiting, elapsed=%s', elapsed)
 
         state = self._get_state()
         if mission_state != state:
-            log.info('[mm] _await_mission_completion: transitioned from=%s to=%s elapsed=%s',
-                     mission_state, state, elapsed)
+            log.info('[mm] _await_mission_completion: completed, elapsed=%s, '
+                     'transitioned from=%s to=%s', elapsed, mission_state, state)
         else:
-            log.warn('[mm] _await_mission_completion: still in state=%s elapsed=%s',
-                     mission_state)
+            log.warn('[mm] _await_mission_completion: timeout, elapsed=%s, '
+                     'still in state=%s', elapsed, mission_state)
 
-    def _test_simple_mission(self, in_command_state):
+    def _test_simple_mission(self, mission_filename, in_command_state):
         """
-        Verifies mission execution involving a platform with 2 instruments
-        as specified in mission_RSN_simulator1.yml.
+        Verifies mission execution.
 
+        @param mission_filename
         @param in_command_state
                     True to start mission execution in COMMAND state.
                     False to start mission execution in MONITORING state.
@@ -115,8 +111,9 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             mission_state = PlatformAgentState.MISSION_STREAMING
 
         # start everything up to platform agent in COMMAND state.
-        # Instruments launched here are the ones referenced in the mission.
-        instr_keys = ['SBE37_SIM_02', 'SBE37_SIM_03']
+        # Instruments launched here are the ones referenced in the mission
+        # file below.
+        instr_keys = ['SBE37_SIM_02']
         p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
@@ -128,22 +125,20 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
 
         # now prepare, set, and run mission:
 
-        filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
-
         # TODO determine appropriate instrument identification mechanism as the
         # instrument keys (like SBE37_SIM_02) are basically only known in
         # the scope of the tests. In the following, we transform the mission
         # file so the instrument keys are replaced by the corresponding
         # instrument_device_id's:
 
-        string = open(filename).read()
+        string = open(mission_filename).read()
         for instr_key in instr_keys:
             i_obj = self._get_instrument(instr_key)
             resource_id = i_obj.instrument_device_id
             log.debug('[mm] replacing %s to %s', instr_key, resource_id)
             string = string.replace(instr_key, resource_id)
 
-        generated_filename = "ion/agents/platform/test/mission_RSN_simulator1_GENERATED.yml"
+        generated_filename = mission_filename.replace(".yml", "_GENERATED.yml")
         with open(generated_filename, 'w') as f:
             f.write(string)
 
@@ -153,9 +148,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
 
         self._assert_state(mission_state)
 
-        # per loop parameters, this mission execution will take several mins.
-        # I've seen this taking about 410 secs but for the moment,
-        # not restricting with max_wait
+        # not restricting with max_wait for the moment
         self._await_mission_completion(mission_state)
 
         # verify we are back to the base_state:
@@ -166,12 +159,16 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
 
     def test_simple_mission_command_state(self):
         #
-        # Mission execution is started in COMMAND state.
+        # With mission plan to be started in COMMAND state.
         #
-        self._test_simple_mission(in_command_state=True)
+        self._test_simple_mission(
+            "ion/agents/platform/test/mission_RSN_simulator0C.yml",
+            in_command_state=True)
 
     def test_simple_mission_streaming_state(self):
         #
-        # Mission execution is started in MONITORING state.
+        # With mission plan to be started in MONITORING state.
         #
-        self._test_simple_mission(in_command_state=False)
+        self._test_simple_mission(
+            "ion/agents/platform/test/mission_RSN_simulator0S.yml",
+            in_command_state=False)

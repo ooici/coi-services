@@ -1,0 +1,43 @@
+#
+# Based on mission_RSN_simulator1.yml but here even simpler (1 instrument) to
+# facilitate some core testing of the platform-agent/mission-execution integration
+# and platform-instrument coordination in terms of state transitions.
+#
+# In this case, mission to be started by platform in COMMAND state.
+#
+
+name: OMS Simulator Mission
+version: 0.4
+description: Sample OMS Simulator Mission
+
+platform:
+  platformID: LJ01D
+
+mission:
+  - instrument:
+    instrumentID: [SBE37_SIM_02]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:
+      startTime: 05/01/2014 00:00:00
+      loop:
+        quantity: 1
+        value: 3
+        units: mins
+      event:
+        parentID: 
+        eventID: 
+    preMissionSequence:
+      - command: SBE37_SIM_02, set_resource(INTERVAL{3})
+        onError: retry
+    missionSequence:
+      - command: SBE37_SIM_02, execute_resource(START_AUTOSAMPLE)
+        onError: retry
+      - command: wait(1)
+        onError:
+      - command: SBE37_SIM_02, execute_resource(STOP_AUTOSAMPLE)
+        onError: retry
+    postMissionSequence:
+      - command: SBE37_SIM_02, execute_agent(RESET)
+        onError: retry
