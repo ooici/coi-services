@@ -146,10 +146,15 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         self._set_mission(generated_filename)
         self._run_mission()
 
-        self._assert_state(mission_state)
-
-        # not restricting with max_wait for the moment
-        self._await_mission_completion(mission_state)
+        state = self._get_state()
+        if state == mission_state:
+            # ok, this is the general expected behaviour here as typical
+            # mission plans should at least take several seconds to complete;
+            # now wait until mission is completed:
+            # (note: not restricting with max_wait for the moment)
+            self._await_mission_completion(mission_state)
+        # else: mission completed/failed very quickly; we should be
+        # back in the base state, as verified below in general.
 
         # verify we are back to the base_state:
         self._assert_state(base_state)
