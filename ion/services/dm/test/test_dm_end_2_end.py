@@ -683,6 +683,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.start_ingestion(stream_id,dataset_id)
         self.addCleanup(self.stop_ingestion, stream_id)
 
+        # Publish initial granule
+        # the first one has the sparse value set inside it, sets lat to 45 and lon to -71
         ntp_now = time.time() + 2208988800
         rdt = ph.get_rdt(stream_def_id)
         rdt['time'] = [ntp_now]
@@ -702,11 +704,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.addCleanup(dataset_monitor.stop)
         publisher.publish(rdt.to_granule())
         self.assertTrue(dataset_monitor.wait())
-        dataset_monitor.event.clear()
+        dataset_monitor.reset()
 
         replay_granule = self.data_retriever.retrieve(dataset_id)
         rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
 
+        # Check the values and make sure they're correct
         np.testing.assert_array_almost_equal(rdt_out['time'], rdt['time'])
         np.testing.assert_array_almost_equal(rdt_out['temp'], rdt['temp'])
         np.testing.assert_array_almost_equal(rdt_out['lat'], np.array([45]))
@@ -719,19 +722,23 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283], dtype='float32'))
 
 
+        # We're going to change the lat/lon
         rdt = ph.get_rdt(stream_def_id)
         rdt['lat'] = [46]
         rdt['lon'] = [-73]
         
         publisher.publish(rdt.to_granule())
         self.assertTrue(dataset_monitor.wait())
-        dataset_monitor.event.clear()
+        dataset_monitor.reset()
         
         rdt = ph.get_rdt(stream_def_id)
         rdt['lat'] = [1000]
         rdt['lon'] = [3]
         
         publisher.publish(rdt.to_granule())
+        # We need to wait AGAIN here, an event was still published and therefore it's on the queue.
+        self.assertTrue(dataset_monitor.wait())
+        dataset_monitor.reset()
 
         rdt = ph.get_rdt(stream_def_id)
         rdt['time'] = [ntp_now]
@@ -744,10 +751,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt['driver_timestamp'] = [ntp_now]
         rdt['pressure'] = [256.8]
         
-        dataset_monitor.event.clear()
         publisher.publish(rdt.to_granule())
         self.assertTrue(dataset_monitor.wait())
-        dataset_monitor.event.clear()
+        dataset_monitor.reset()
 
 
         replay_granule = self.data_retriever.retrieve(dataset_id)
@@ -777,4 +783,8 @@ class DatasetMonitor(object):
         if timeout is None:
             timeout = CFG.get_safe('endpoint.receive.timeout', 10)
         return self.event.wait(timeout)
+
+    def reset(self):
+        self.event.clear()
+
 
