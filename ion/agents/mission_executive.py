@@ -25,6 +25,8 @@ from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
 from ion.agents.platform.platform_agent_enums import PlatformAgentState
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
+from ion.core.includes.mi import DriverEvent
+
 from interface.objects import AgentCommand
 from interface.objects import AgentCapability
 from interface.objects import CapabilityType
@@ -539,7 +541,6 @@ class MissionScheduler(object):
         @param agent_client         Instrument/platform agent client
         @param cmd                  Mission command to be parsed
         """
-        from mi.core.instrument.instrument_driver import DriverEvent
 
         method = cmd['method']
         command = cmd['command']
@@ -717,7 +718,6 @@ class MissionScheduler(object):
         Run an event driven mission
         @param mission      Mission dictionary
         """
-        from mi.core.instrument.instrument_driver import DriverEvent
 
         self.max_attempts = mission['error_handling']['maxRetries']
         self.default_error = mission['error_handling']['default']
@@ -967,7 +967,6 @@ class MissionScheduler(object):
         """
         Check state, stop streaming if necessary and get into command state
         """
-        from mi.core.instrument.instrument_driver import DriverEvent
 
         state = agent_client.get_agent_state()
         while state != ResourceAgentState.COMMAND:
