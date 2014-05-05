@@ -12,7 +12,7 @@ platform:
 # This mission will loop every hour until an operator intervenes
 
 mission:
-  - instrument:
+  - missionThread:
     instrumentID: [SBE37_SIM_02, SBE37_SIM_03]
     errorHandling:
       default: retry
@@ -29,6 +29,8 @@ mission:
     preMissionSequence:
       - command: SBE37_SIM_02, set_resource(INTERVAL{3})
         onError: retry
+      - command: SBE37_SIM_02, execute_resource(CLOCK_SYNC)
+        onError: skip
       # - command: SBE37_SIM_03, set_resource(INTERVAL{3})
       #   onError: retry
     missionSequence:
@@ -50,7 +52,7 @@ mission:
       - command: SBE37_SIM_03, execute_agent(RESET)
         onError: retry
 
-  # - instrument:
+  # - missionThread:
   #   instrumentID: [SBE37_SIM_03]
   #   errorHandling:
   #     default: retry
@@ -79,6 +81,6 @@ mission:
   #   postMissionSequence:
   #     # - command: SBE37_SIM_02, execute_agent(RESET)
   #     #   onError: retry
-  #     - command: SBE37_SIM_03, execute_agent(RESET)
-  #       onError: retry
+  #     # - command: SBE37_SIM_03, execute_agent(RESET)
+  #     #   onError: retry
 
