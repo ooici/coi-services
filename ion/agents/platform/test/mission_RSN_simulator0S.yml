@@ -14,7 +14,7 @@ platform:
   platformID: LJ01D
 
 mission:
-  - instrument:
+  - missionThread:
     instrumentID: [SBE37_SIM_02]
     errorHandling:
       default: retry
