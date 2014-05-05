@@ -1600,6 +1600,25 @@ def rotate_v(u,v,theta):
         site_2_id, _ = self.resource_registry.create(site_2)
 
 
+    def local_range_upload(self):
+        content = {'TEMPWAT': {'local_range': [{'author': 'Bodhi',
+            'table': {'datlim1': [0, 1, 2, 3, 4],
+             'datlim2': [30, 31, 32, 33, 34],
+             'month': [0, 2, 6, 8, 10]},
+            'ts_created': 1399319183.604609,
+            'units': 'deg_C'}]},
+         'PRACSAL': {'local_range': [{'author': 'Johnny Utah',
+            'table': {'datlim1': [0.0, 10.0, 10.0, 20.0],
+             'datlim2': [30.0, 40.0, 40.0, 50.0],
+             'lat': [46.436926, 46.436926, 46.436926, 46.436926],
+             'lon': [-124.832179, -124.832179, -125.35965425, -125.35965425],
+             'pressure': [0.0, 37.5, 0.0, 37.5]},
+            'ts_created': 1399319183.604609,
+            'units': '1'}]},
+         '_type': 'QC'}
+
+        self.container.object_store.create_doc(content, "CP01CNSM-MFD37-03-CTDBPD000")
+
 
         
     @attr("UTIL")
@@ -1634,6 +1653,8 @@ def rotate_v(u,v,theta):
         self.data_acquisition_management.assign_data_product(device_id, data_product_id)
         tempwat_id = self.make_tempwat(data_product_id)
 
+        # Post the lookup tables
+        self.local_range_upload()
         upload_files = [('file', 'test_data/sample_qc_upload.csv')]
         result = testapp.post('/ion-service/upload/qc', upload_files=upload_files, status=200)
         

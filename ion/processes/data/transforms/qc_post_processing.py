@@ -299,7 +299,18 @@ class QCProcessor(SimpleProcess):
                 self.process_gradient_test(coverage, parameter, input_name, ddatdx, mindx, startdat, toldat)
 
             elif alg.lower() == 'loclrng':
-                pass
+                row = self.recent_row(lookup_table["local_range"])
+                table = row['table']
+                dims = []
+                datlimz = []
+                for key in table.iterkeys():
+                    # Skip the datlims
+                    if 'datlim' in key:
+                        continue
+                    dims.append(key)
+                    datlimz.append(table[key])
+
+
 
         except KeyError: # No lookup table
             self.set_error(coverage, parameter)
