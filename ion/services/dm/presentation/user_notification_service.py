@@ -15,6 +15,13 @@ from interface.services.dm.iuser_notification_service import BaseUserNotificatio
 from interface.objects import ComputedValueAvailability, ComputedListValue
 from interface.objects import ProcessDefinition, TemporalBounds
 
+from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+
+from interface.objects import DeliveryModeEnum, NotificationFrequencyEnum, NotificationTypeEnum
+from pyon.datastore.datastore import DataStore
+from pyon.datastore.datastore_query import DatastoreQueryBuilder, DQ
+from pyon.public import get_ion_ts_millis
+from email.mime.text import MIMEText
 
 class EmailEventProcessor(object):
     """
@@ -46,6 +53,8 @@ class UserNotificationService(BaseUserNotificationService):
     """
     A service that provides users with an API for CRUD methods for notifications.
     """
+    MAX_EVENT_QUERY_RESULTS = CFG.get_safe('service.user_notification.max_event_query_results', 100000)
+
     def __init__(self, *args, **kwargs):
         self._schedule_ids = []
         BaseUserNotificationService.__init__(self, *args, **kwargs)
@@ -307,6 +316,10 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.clients.resource_registry.update(notification_request)
 
+        # set lcs to retired, not deleted.
+
+        self.clients.resource_registry.retire(notification_id)
+
         #-------------------------------------------------------------------------------------------------------------------
         # Find users who are interested in the notification and update the notification in the list maintained by the UserInfo object
         #-------------------------------------------------------------------------------------------------------------------
@@ -415,6 +428,8 @@ class UserNotificationService(BaseUserNotificationService):
 
         return pids
 
+
+
     def process_batch(self, start_time = '', end_time = ''):
         """
         This method is launched when an process_batch event is received. The user info dictionary maintained
@@ -426,68 +441,300 @@ class UserNotificationService(BaseUserNotificationService):
         @param end_time int milliseconds
         """
         self.smtp_client = setting_up_smtp_client()
+        outil_client = ObservatoryUtil(self)
 
         if end_time <= start_time:
             return
 
-        for user_id, value in self.user_info.iteritems():
+        # retrieve all users in the system
+        users, _ = self.clients.resource_registry.find_resources(restype=RT.UserInfo)
 
-            notifications = self.get_user_notifications(user_info_id=user_id)
-            notifications_disabled = value['notifications_disabled']
-            notifications_daily_digest = value['notifications_daily_digest']
+        for user in users:
 
+            #retrieve all the active notifications assoc to this user
+            notifications = self._get_user_notifications(user_info_id=user._id)
 
-            # Ignore users who do NOT want batch notifications or who have disabled the delivery switch
-            # However, if notification preferences have not been set for the user, use the default mechanism and do not bother
-            if notifications_disabled or not notifications_daily_digest:
-                    continue
+            # these are lists of all the origins and event types found in the set of Notification resources
+            # used to query the events db
+            self.origins = []
+            self.event_types = []
+            self.origin_types = []
 
-            events_for_message = []
+            # the following maps help us quickly filer the set of retrieved events to see if they are of interest
+            # this map has a tuple of (origin, event type) as the key and a list of NotificationRequest resources as the value
+            self.origin_event_type_map = {}
+            # this map has an origin id as the key and a list of NotificationRequest resources as the value
+            self.origin_nr_map = {}
+            #if no origin id
+            #   this map has an origin type as the key and a list of NotificationRequest resources as the value
+            self.origintype_nr_map = {}
+            #   this map has an event type as the key and a list of NotificationRequest resources as the value
+            self.eventtype_nr_map = {}
+            # map user email and devlivery mode to a list of events
+            self.email_mode_to_events_map = {}
+            # map the event ids to the NRs that it is assoc with
+            self.event_id_to_nr_map = {}
 
-            search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (start_time, end_time)
-
+            # for each subscription created by this user
             for notification in notifications:
-                # If the notification request has expired, then do not use it in the search
-                if notification.temporal_bounds.end_datetime:
+
+                #check that this NotificationRequest is active and also has at least one delivery_configuration that is batch delivery
+                #todo are there still notification diasable switch at the UserInfo level?
+                batch_mode = False
+                for delivery_configuration in notification.delivery_configurations:
+                    if delivery_configuration.frequency == NotificationFrequencyEnum.BATCH:
+                        batch_mode = True
+
+                if not batch_mode or notification.temporal_bounds.end_datetime:
                     continue
 
-                event_tuples = self.container.event_repository.find_events(
-                    origin=notification.origin,
-                    event_type=notification.event_type,
-                    start_ts=start_time,
-                    end_ts=end_time)
-                events = [item[2] for item in event_tuples]
+                #create a set of maps and lists for query
+                self._build_reference_maps(notification.origin, notification)
 
-                events_for_message.extend(events)
 
-            log.debug("Found following events of interest to user, %s: %s", user_id, events_for_message)
+                # if this is an aggregate notification then collect child ids and build map to search by origin if provided
+                children_ids = []
+                if notification.type != NotificationTypeEnum.SIMPLE and notification.origin:
+                    children_ids = self._find_children_by_type( parent_id= notification.origin, type=notification.type, outil=outil_client)
+
+                    #add all the children
+                    for children_id in children_ids:
+                        #augment the  set of maps and lists with the included child origins
+                        self._build_reference_maps(children_id, notification)
+
+
+            #log.debug('notification processing origin_event_type_map:   %s', self.origin_event_type_map)
+            #log.debug('notification processing origin_nr_map:   %s', self.origin_nr_map)
+            #log.debug('notification processing origintype_nr_map:   %s', self.origintype_nr_map)
+            #
+            #
+            #log.debug('notification processing origins:   %s', self.origins)
+            #log.debug('notification processing event_types:   %s', self.event_types)
+            event_objects = []
+
+            event_objects = self._get_user_batch_events(start_time=start_time, end_time=end_time,origins=self.origins, event_types=self.event_types, origin_types=self.origintype_nr_map.keys() )
+            # filter out the events that have a correct origin/event_type pairing
+            batch_events = []
+            for event_object in event_objects:
+
+                # determine if we are interested in this event using maps and assign to email map
+                self._process_event(event_object)
+
+            #log.debug('event processing  self.email_mode_to_events_map:   %s',  self.email_mode_to_events_map)
 
             # send a notification email to each user using a _send_email() method
-            if events_for_message:
-                self.format_and_send_email(events_for_message = events_for_message,
-                                            user_id = user_id,
-                                            smtp_client=self.smtp_client)
+            self._format_and_send_email(user_info=user, smtp_client=self.smtp_client)
 
         self.smtp_client.quit()
 
+    def _build_reference_maps(self, origin_id = '', notification=None):
 
-    def format_and_send_email(self, events_for_message=None, user_id=None, smtp_client=None):
+        #add event type to list of event types to include in the events db query
+        if notification.event_type:
+            #add to the list of event types to pull back in eventdb query
+            if not notification.event_type in self.event_types and notification.event_type != '*':
+                self.event_types.append(notification.event_type)
+
+
+        # the most common subscription is an origin and an event type so create a map that has that pair as a tuple
+        if origin_id and origin_id != '*':
+
+            # get the union of origins and event types to build the query
+            if not origin_id in self.origins :
+                self.origins.append(origin_id)
+
+            if notification.event_type and notification.event_type != '*':
+                tuple = (origin_id, notification.event_type)
+                # create a map that pairs origins to the corresponding event types
+                if not tuple in self.origin_event_type_map:
+                    self.origin_event_type_map[tuple] = [notification]
+                else:
+                    self.origin_event_type_map[tuple].append(notification)
+
+            if not notification.event_type or notification.event_type == '*':
+                if origin_id in self.origin_nr_map:
+                    self.origin_nr_map[origin_id].append(notification)
+                else:
+                    self.origin_nr_map[origin_id] = [notification]
+
+
+        # if there is no origin (or wildcard) but origin_type is specified then add to origin type map
+        if (not origin_id or origin_id == '*') and notification.origin_type and notification.origin_type != '*':
+            # add to list of origin types in query
+            if not notification.origin_type in self.origin_types:
+                self.origin_types.append(notification.origin_type)
+            if notification.origin_type in self.origintype_nr_map:
+                self.origintype_nr_map[notification.origin_type].append(notification)
+            else:
+                self.origintype_nr_map[notification.origin_type] = [notification]
+
+        # if there is no origin (or wildcard) but event_type is specified then add to event type map
+        if (not origin_id or origin_id == '*') and notification.event_type and notification.event_type != '*':
+            if notification.event_type in self.eventtype_nr_map:
+                self.eventtype_nr_map[notification.event_type].append(notification)
+            else:
+                self.eventtype_nr_map[notification.event_type] = [notification]
+
+    def _get_user_notifications(self, user_info_id=''):
+        """
+        Get the notification request objects that are subscribed to by the user
+
+        @param user_info_id str
+
+        @retval notifications list of NotificationRequest objects
+        """
+        notifications = []
+        user_notif_req_objs, _ = self.clients.resource_registry.find_objects(
+            subject=user_info_id, predicate=PRED.hasNotification, object_type=RT.NotificationRequest, id_only=False)
+
+        for notif in user_notif_req_objs:
+            # do not include notifications that have expired
+            #todo and method is batch
+            if notif.temporal_bounds.end_datetime == '':
+                    notifications.append(notif)
+
+        return notifications
+
+
+    def _get_user_batch_events(self, start_time='', end_time='', origins=None, event_types=None, origin_types=None ):
+        """
+        Retrieve all events that match the origins and event_types
+
+        see example: https://gist.github.com/mmeisinger/9692807
+
+        @param origins  list of all origins
+        @param event_types  list of all event types
+
+        @retval notifications list of NotificationRequest objects
+        """
+        dqb = DatastoreQueryBuilder(datastore=DataStore.DS_EVENTS, profile=DataStore.DS_PROFILE.EVENTS)
+
+        filter_origins = dqb.in_(DQ.EA_ORIGIN, *origins)
+        filter_types = dqb.in_(DQ.ATT_TYPE, *event_types)
+        filter_origin_types = dqb.in_(DQ.EA_ORIGIN_TYPE, *origin_types)
+        filter_mindate = dqb.gte(DQ.RA_TS_CREATED, start_time)
+
+        where_list = []
+        nr_condition_and = [filter_mindate]
+        if origins : nr_condition_and.append(filter_origins)
+        if event_types : nr_condition_and.append(filter_types)
+        if origin_types : nr_condition_and.append(filter_origin_types)
+
+        if nr_condition_and: where_list.append(dqb.and_(* nr_condition_and))
+        where = dqb.or_(*where_list)
+
+        order_by = dqb.order_by([["ts_created", "desc"]])  # Descending order by time
+        dqb.build_query(where=where, order_by=order_by, limit=self.MAX_EVENT_QUERY_RESULTS, skip=0, id_only=False)
+        query = dqb.get_query()
+
+        event_objs = self.container.event_repository.event_store.find_by_query(query)
+
+        #log.debug('_get_user_batch_events event_objs:  %s ', event_objs)
+
+
+        return event_objs
+
+
+
+    def _process_event(self, event_object=None):
+
+        tuple = (event_object.origin, event_object.type_)
+
+        # first check if this is a 'normal' origin and event type subscription
+        if tuple in self.origin_event_type_map:
+            self._define_delivery_configurations_for_event(event_object=event_object, notification_list=self.origin_event_type_map[tuple])
+            self._add_to_event_nr_map(event_object._id, self.origin_event_type_map[tuple])
+
+        # handle the origins map for origin ids that did not have a event type
+        if event_object.origin in self.origin_nr_map:
+            self._define_delivery_configurations_for_event(event_object=event_object, notification_list=self.origin_nr_map[event_object.origin])
+            self._add_to_event_nr_map(event_object._id, self.origin_nr_map[event_object.origin])
+
+        # next look in the list of NRs that did not specify an origin id but did specify an origin_type
+        if event_object.origin_type in self.origintype_nr_map:
+            # loop the list of NotificationRequests
+            matches = []
+            for note_req in self.origintype_nr_map[event_object.origin_type]:
+                # check that the event_type spec on this NR matches what is in the event
+                if not note_req.event_type or note_req.event_type == '*' or note_req.event_type == event_object.type_:
+                    matches.append(note_req)
+            self._define_delivery_configurations_for_event(event_object=event_object, notification_list=matches)
+            self._add_to_event_nr_map(event_object._id, matches)
+
+        # next look in the list of NRs that did not specify an origin id but did specify an event_type
+        if event_object.type_ in self.eventtype_nr_map:
+            # loop the list of NotificationRequests
+            matches = []
+            for note_req in self.eventtype_nr_map[event_object.type_]:
+                # check that the origin_type spec on this NR matches (or does not conflict) with what is in the event
+                if not note_req.origin_type or note_req.origin_type == '*' or note_req.origin_type == event_object.origin_type:
+                    matches.append(note_req)
+            self._define_delivery_configurations_for_event(event_object=event_object, notification_list=matches)
+            self._add_to_event_nr_map(event_object._id, matches)
+
+        return
+
+
+    def _add_to_event_nr_map(self, event_id='', nr_obj_list=None):
+
+        if not event_id or not nr_obj_list:
+            return
+
+        if event_id in self.event_id_to_nr_map:
+            self.event_id_to_nr_map[event_id].extend(nr_obj_list)
+        else:
+            self.event_id_to_nr_map[event_id]= nr_obj_list
+
+
+
+
+    def _define_delivery_configurations_for_event(self, event_object=None, notification_list=None):
+
+        # check the delivery confifguration in each NR object and assign the event to an email/mode pair
+        for notification in notification_list:
+            #loop thru the delivery mode objects and build map of delivery addresses and modes
+            for delivery_configuration in notification.delivery_configurations:
+                if delivery_configuration.frequency == NotificationFrequencyEnum.BATCH:
+                    email = delivery_configuration.email if delivery_configuration.email else 'default'
+                    tuple = ( email, delivery_configuration.mode )
+                    if not tuple in self.email_mode_to_events_map:
+                        self.email_mode_to_events_map[tuple] = [event_object]
+                    else:
+                        self.email_mode_to_events_map[tuple].append(event_object)
+
+        log.debug('_define_delivery_configurations_for_event  self.email_mode_to_events_map:  %s', self.email_mode_to_events_map)
+
+        return
+
+
+    def _format_and_send_email(self, user_info=None, smtp_client=None):
         """
         Format the message for a particular user containing information about the events he is to be notified about
 
-        @param events_for_message list
-        @param user_id str
         """
-        message = str(events_for_message)
-        log.debug("The user, %s, will get the following events in his batch notification email: %s", user_id, message)
 
-        msg = convert_events_to_email_message(events_for_message, self.clients.resource_registry)
-        msg["Subject"] = "(SysName: " + get_sys_name() + ") ION event "
-        msg["To"] = self.user_info[user_id]['user_contact'].email
-        self.send_batch_email(msg, smtp_client)
+        for (user_email, batch_type), events in self.email_mode_to_events_map.iteritems():
+
+            events = self._remove_duplicate_events(events)
+
+            email = user_email if user_email != 'default' else user_info.contact.email
+            msg = {}
+            if batch_type == DeliveryModeEnum.UNFILTERED:
+                message = str(events)
+                log.debug("The user, %s, will get the following events in his batch notification email: %s", user_info.name, message)
+
+                msg = convert_events_to_email_message(events=events, notifications_map=self.event_id_to_nr_map, rr_client=self.clients.resource_registry)
+                #msg["Subject"] = "(SysName: " + get_sys_name() + ") ION event "
+                msg["To"] = email
+                self._send_batch_email(msg, smtp_client)
+
+            else:
+                log.warning("Invalid delivery mode for email: %s" % user_email)
 
 
-    def send_batch_email(self, msg=None, smtp_client=None):
+
+
+    def _send_batch_email(self, msg=None, smtp_client=None):
         """
         Send the email
 
@@ -508,8 +755,45 @@ class UserNotificationService(BaseUserNotificationService):
                   msg_recipient)
 
         smtp_sender = CFG.get_safe('server.smtp.sender')
-
+        log.debug('_format_and_send_email msg_recipient %s     msg  %s', msg_recipient, msg.as_string())
         smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
+
+
+    def _find_children_by_type(self, parent_id= '', type='', outil=None):
+
+        child_ids = []
+
+        if type == NotificationTypeEnum.PLATFORM:
+            device_relations = outil.get_child_devices(parent_id)
+            child_ids = [did for pt,did,dt in device_relations[ parent_id] ]
+        elif type == NotificationTypeEnum.SITE:
+            child_site_dict, ancestors = outil.get_child_sites(parent_id)
+            child_ids = child_site_dict.keys()
+
+        elif  type == NotificationTypeEnum.FACILITY:
+            resource_objs, _ = self.clients.resource_registry.find_objects(
+                subject=parent_id, predicate=PRED.hasResource, id_only=False)
+            for resource_obj in resource_objs:
+                if resource_obj.type_ == RT.DataProduct \
+                    or resource_obj.type_ == RT.InstrumentSite or resource_obj.type_ == RT.InstrumentDevice \
+                    or resource_obj.type_ == RT.PlatformSite or resource_obj.type_ == RT.PlatformDevice:
+                    child_ids.append(resource_obj._id)
+        if parent_id in child_ids:
+            child_ids.remove(parent_id)
+        log.debug('_find_children_by_type  child_ids:  %s', child_ids)
+        return child_ids
+
+
+    def _remove_duplicate_events(self, events=None):
+
+        #remove duplicate events using a set but preserve order
+        seen = set()
+        non_dup_events = []
+        for event in events:
+            if event._id not in seen:
+                seen.add(event._id)
+                non_dup_events.append(event)
+        return non_dup_events
 
     def update_user_info_object(self, user_id, new_notification):
         """

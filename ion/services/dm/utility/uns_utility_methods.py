@@ -31,7 +31,7 @@ class fake_smtplib(object):
 
     def sendmail(self, msg_sender= None, msg_recipients=None, msg=None):
         log.warning('Sending fake message from: %s, to: "%s"', msg_sender,  msg_recipients)
-        log.info("Fake message sent: %s", msg)
+        #log.info("Fake message sent: %s", msg)
         self.sent_mail.put((msg_sender, msg_recipients[0], msg))
         log.debug("size of the sent_mail queue::: %s", self.sent_mail.qsize())
 
@@ -81,9 +81,12 @@ def convert_timestamp_to_human_readable(timestamp=''):
     return str(it)
 
 
-def convert_events_to_email_message(events=None, rr_client=None):
+def convert_events_to_email_message(events=None, notifications_map=None, rr_client=None):
 
     if events is None: events = []
+
+    # map event origins to resource objects to provide additional context in the email
+    event_origin_to_resource_map = {}
 
     if 0 == len(events): raise BadRequest("Tried to convert events to email, but none were supplied")
 
@@ -96,6 +99,9 @@ def convert_events_to_email_message(events=None, rr_client=None):
 
     msg_body = ""
 
+    #collect all the resources from the RR in one call
+    event_origin_to_resource_map = _collect_resources_from_event_origins(events=None, rr_client=None)
+
     resource_human_readable = "<uninitialized string>"
     for idx, event in enumerate(events, 1):
 
@@ -103,11 +109,14 @@ def convert_events_to_email_message(events=None, rr_client=None):
 
         # build human readable resource string
         resource_human_readable = "'%s' with ID='%s' (not found)" % (event.origin_type, event.origin)
-        try:
-            resource = rr_client.read(event.origin)
+        notification_name = _get_notification_name(event_id=event._id, notifications_map=notifications_map)
+
+        resource = ''
+        # pull the resource from the map if the origin id was found
+        if event.origin in event_origin_to_resource_map:
+            resource = event_origin_to_resource_map[event.origin]
             resource_human_readable = "%s '%s'" % (type(resource).__name__, resource.name)
-        except NotFound:
-            pass
+
 
         if 1 == len(events):
             eventtitle = "Type"
@@ -116,6 +125,8 @@ def convert_events_to_email_message(events=None, rr_client=None):
 
         msg_body += string.join(("\r\n",
                                  "Event %s: %s" %  (eventtitle, event.type_),
+                                 "",
+                                 "Notification Request Name: %s" %  notification_name,
                                  "",
                                  "Resource: %s" %  resource_human_readable,
                                  "",
@@ -153,6 +164,47 @@ def convert_events_to_email_message(events=None, rr_client=None):
     #    msg['To'] = msg_recipient
 
     return msg
+
+
+def _collect_resources_from_event_origins(events=None, rr_client=None):
+
+    unique_origin_ids = set()
+    origin_id_to_resource_map = {}
+
+    if not events or not rr_client:
+        return origin_id_to_resource_map
+
+    #get the unique set of event origin ids
+    for event in events:
+        unique_origin_ids.add(event)
+
+    #pull all the unique origins from the RR in one call
+    resources = []
+    try:
+        resources = rr_client.read_mult( list(unique_origin_ids) )
+    except NotFound:
+    # if not found, move on and do not include the details for that resource in the email msg
+        pass
+
+    #create the mapping
+    for resource in resources:
+       origin_id_to_resource_map[resource._id] = resource
+
+    return origin_id_to_resource_map
+
+
+def _get_notification_name(event_id='', notifications_map=None):
+    notification_names = ''
+    names_list = set()
+    if event_id in notifications_map:
+        for notification_obj in notifications_map[event_id]:
+            # loop the list of associated notification requests and append the names
+            names_list.add(notification_obj.name)
+
+        notification_names = ",".join(list(names_list))
+
+    return notification_names
+
 
 
 def send_email(event, msg_recipient, smtp_client, rr_client):
