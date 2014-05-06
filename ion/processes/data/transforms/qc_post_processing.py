@@ -299,7 +299,21 @@ class QCProcessor(SimpleProcess):
                 self.process_gradient_test(coverage, parameter, input_name, ddatdx, mindx, startdat, toldat)
 
             elif alg.lower() == 'loclrng':
-                pass
+                row = self.recent_row(lookup_table["local_range"])
+                table = row['table']
+                dims = []
+                datlimz = []
+                for key in table.iterkeys():
+                    # Skip the datlims
+                    if 'datlim' in key:
+                        continue
+                    dims.append(key)
+                    datlimz.append(table[key])
+
+                datlimz = np.column_stack(datlimz)
+                datlim = np.column_stack([table['datlim1'], table['datlim2']])
+                self.process_local_range_test(coverage, parameter, input_name, datlim, datlimz, dims)
+
 
         except KeyError: # No lookup table
             self.set_error(coverage, parameter)
@@ -408,24 +422,32 @@ class QCProcessor(SimpleProcess):
         }
 
 
-    def process_local_range_test(self, coverage, parameter, input_name, datlim, datlimz):
+    def process_local_range_test(self, coverage, parameter, input_name, datlim, datlimz, dims):
         qc_array = coverage.get_parameter_values(parameter.name)
         indexes = np.where(qc_array == -88)[0]
 
-        from ion_functions.qc.qc_functions import dataqc_localrangetest
+        from ion_functions.qc.qc_functions import dataqc_localrangetest_wrapper
+        # dat
         value_array = coverage.get_parameter_values(input_name)
-        # z_parameter_name needs to come from, I guess the column headings... 
-        # I also need to deal with the case where there are multiple axes... 
-        # I don't have a good feeling about this.
-        z_parameter_name = None
-        z_array = coverage.get_parameter_values(z_parameter_name)
+        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)
 
-        qc_array = dataqc_localrangetest(value_array, z_array, datlim, datlimz)
+        # datlim is an argument and comes from the lookup table
+        # datlimz is an argument and comes from the lookup table
+        # dims is an argument and is created using the column headings
+        # pval_callback, well as for that...
+        # TODO: slice_ is the window of the site data product, but for 
+        # now we'll just use a global slice
+        slice_ = slice(None)
+        def parameter_callback(param_name):
+            return coverage.get_parameter_values(param_name, slice_)
+
+
+        qc_array = dataqc_localrangetest_wrapper(value_array, datlim, datlimz, dims, parameter_callback)
         return_dictionary = {
                 coverage.temporal_parameter_name : time_array[indexes],
                 parameter.name : qc_array[indexes]
         }
-
+        log.error("Here's what it would look like\n%s", return_dictionary)
 
 
 

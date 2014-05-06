@@ -5,7 +5,7 @@
 @date Wed Apr  2 11:49:10 EDT 2014
 '''
 
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, NotFound
 from pyon.ion.process import ImmediateProcess
 from pyon.util.log import log
 import time
@@ -233,7 +233,7 @@ class UploadQcProcessing(ImmediateProcess):
         for r in updates: # loops the reference_designators in the updates object
             try: # if reference_designator exists in object_store, read it                           
                 rd = self.object_store.read(r)
-            except: # if does not yet exist in object_store, create it (can't use update_doc because need to set id)
+            except NotFound: # if does not yet exist in object_store, create it (can't use update_doc because need to set id)
                 rd = self.object_store.create_doc({'_type':'QC'},r) # CAUTION: this returns a tuple, not a dict like read() returns
                 rd = self.object_store.read(r) # read so we have a dict like we expect
             # merge all from updates[r] into dict destined for the object_store (rd)
@@ -244,7 +244,7 @@ class UploadQcProcessing(ImmediateProcess):
                     for qc in updates[r][dp]:
                         if qc not in rd[dp]:
                             rd[dp][qc] = [] # initialize (these should always be initialized, but to be safe)
-                        rd[dp][qc].append(updates[r][dp][qc]) # append the list from updates
+                        rd[dp][qc].extend(updates[r][dp][qc]) # append the list from updates
             # store updated reference_designator keyed object in object_store (should overwrite full object)
             self.object_store.update_doc(rd)
 
