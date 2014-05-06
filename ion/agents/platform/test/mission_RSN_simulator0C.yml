@@ -34,7 +34,7 @@ mission:
     missionSequence:
       - command: SBE37_SIM_02, execute_resource(START_AUTOSAMPLE)
         onError: retry
-      - command: wait(1)
+      - command: wait(0.2)
         onError:
       - command: SBE37_SIM_02, execute_resource(STOP_AUTOSAMPLE)
         onError: retry
