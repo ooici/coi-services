@@ -25,6 +25,8 @@ from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
 from ion.agents.platform.platform_agent_enums import PlatformAgentState
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
+from ion.core.includes.mi import DriverEvent
+
 from interface.objects import AgentCommand
 from interface.objects import AgentCapability
 from interface.objects import CapabilityType
@@ -99,7 +101,7 @@ class MissionLoader(object):
     """
 
     mission_entries = []
-    accepted_error_values = ['abort', 'retry', 'skip']
+    accepted_error_values = ['abort', 'abortMission', 'retry', 'skip']
 
     def add_entry(self, instrument_id=[], error_handling = {}, start_time=0, loop={}, event = {},
                   premission_cmds=[], mission_cmds=[], postmission_cmds=[]):
@@ -137,16 +139,12 @@ class MissionLoader(object):
             next_interval = start_time
             while next_interval < current_time:
                 next_interval += loop_duration
-            print "Current time is: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
-            log.debug("Current time is: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
-            print "Next start at: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time + loop_duration))
-            log.debug("Next start at: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time + loop_duration)))
+            log.debug("[mm] Current time is: %s", time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
+            log.debug("[mm] Next start at: %s", time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time + loop_duration)))
             return next_interval - current_time
         else:
-            print "Current time is: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time()))
-            log.debug("Current time is: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
-            print "Next start at: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
-            log.debug("Next start at: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time)))
+            log.debug("[mm] Current time is: %s", time.strftime("%Y-%m-%d %H:%M:%S", gmtime(time.time())))
+            log.debug("[mm] Next start at: %s", time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time)))
             return (start_time - current_time) + loop_duration
 
     def check_start_time(self, schedule, loop_duration):
@@ -168,18 +166,15 @@ class MissionLoader(object):
                         nloops = int((current_time-start_time)/loop_duration)+1
                         start_time += nloops*loop_duration
                     else:
-                        print "MissionLoader: validate_schedule: Start time has already elapsed"
-                        log.debug("MissionLoader: validate_schedule: Start time has already elapsed")
+                        log.debug("[mm] MissionLoader: validate_schedule: Start time has already elapsed")
                         # raise
 
             except ValueError:
                 # log.error("MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
-                log.error("MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
+                log.error("[mm] MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
 
-            print "Current time is: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(current_time))
-            log.debug("Current time is: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(current_time)))
-            print "Start time is: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
-            log.debug("Start time is: " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time)))
+            log.debug("[mm] Current time is: %s", time.strftime("%Y-%m-%d %H:%M:%S", gmtime(current_time)))
+            log.debug("[mm] Start time is: %s", time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time)))
 
         return start_time
 
@@ -222,7 +217,7 @@ class MissionLoader(object):
                     for sublist2 in mission_all_times[n]:
                         if (sublist1[0] >= sublist2[0] and sublist1[0] <= sublist2[1]) or (
                                 sublist1[1] >= sublist2[0] and sublist1[1] <= sublist2[1]):
-                            log.error('Mission Error: Scheduling conflict: ' + str(sublist1) + str(sublist2))
+                            log.error('[mm] Mission Error: Scheduling conflict: ' + str(sublist1) + str(sublist2))
                             raise Exception('Mission Error: Scheduling conflict')
 
         return True
@@ -333,7 +328,7 @@ class MissionLoader(object):
         Check the mission file contents types
         """
         if type(value) != _type:
-            log.debug("Mission Executive Parser Warning: value %s is not %s", value, _type)
+            log.debug("[mm] Mission Executive Parser Warning: value %s is not %s", value, _type)
             return _type(value)
         else:
             return value
@@ -347,10 +342,10 @@ class MissionLoader(object):
         parent_id = event['parentID']
 
         if not event_id:
-            log.error('Mission event not specified')
+            log.error('[mm] Mission event not specified')
             raise Exception('Mission event not specified')
         elif not parent_id:
-            log.error('Mission event parentID not specified')
+            log.error('[mm] Mission event parentID not specified')
             raise Exception('Mission event parentID not specified')
 
         return event
@@ -373,8 +368,6 @@ class MissionLoader(object):
 
             error_parameters = current_mission['errorHandling']
 
-            print instrument_id
-
             premission_params, _ = self.parse_mission_sequence(premission_sequence, instrument_id)
             mission_params, mission_duration = self.parse_mission_sequence(mission_sequence, instrument_id)
             postmission_params, _ = self.parse_mission_sequence(postmission_sequence, instrument_id)
@@ -382,7 +375,7 @@ class MissionLoader(object):
 
             loop_duration = loop_params['loop_duration']
             if (loop_duration and loop_duration < mission_duration):
-                log.error('Mission File Error: Mission duration > scheduled loop duration')
+                log.error('[mm] Mission File Error: Mission duration > scheduled loop duration')
                 raise Exception('Mission Error: Mission duration greater than scheduled loop duration')
 
             error = self.parse_error_parameters(error_parameters)
@@ -398,8 +391,6 @@ class MissionLoader(object):
             #Add mission entry
             self.add_entry(instrument_id, error, start_time, loop_params, event,
                            premission_params, mission_params, postmission_params)
-
-        print self.mission_entries
 
         #Sort mission entries by start time
         self.sort_entries()
@@ -423,8 +414,7 @@ class MissionLoader(object):
         """
         self.filename = filename
 
-        print 'Parsing ' + filename.split('/')[-1]
-        log.debug('Parsing ' + filename.split('/')[-1])
+        log.debug('[mm] Parsing %s', filename.split('/')[-1])
 
         mission_dict = Config([filename]).data
 
@@ -487,27 +477,30 @@ class MissionScheduler(object):
         self.schedule(self.mission)
 
     def abort_mission(self):
+        """
+        Set up gevent threads for each mission
+        """
 
         # Only need the abort sequence once...
         if not self.mission_aborted:
-            log.debug('abort_mission: mission=%s', self.mission)
-            
             # For event driven missions, stop event subscribers
             for subscriber in self.mission_event_subscribers:
-                self.mission_event_subscribers.stop()
+                subscriber.stop()
             self.mission_event_subscribers = None
 
             # Take instruments out of streaming and put platform into command state
             for instrument, client in self.instruments.iteritems():
-                print instrument, client
                 self.instrument_abort_sequence(client)
 
             self.mission_aborted = True
-            log.error('Mission Aborted')
+
+            #TODO Publish error as event
+
+            log.error('[mm] Mission Aborted')
             raise Exception('Mission Aborted')
 
-    def kill_mission_threads(self):
-        log.debug('kill_mission_threads: mission=%s', self.mission)
+    def kill_all_mission_threads(self):
+        log.debug('[mm] kill_mission_threads: mission=%s', self.mission)
         for thread in self.threads:
             if bool(thread):
                 # thread.GreenletExit()
@@ -539,13 +532,13 @@ class MissionScheduler(object):
         @param agent_client         Instrument/platform agent client
         @param cmd                  Mission command to be parsed
         """
-        from mi.core.instrument.instrument_driver import DriverEvent
 
         method = cmd['method']
         command = cmd['command']
         parameters = cmd['parameters']
-        print 'Command = ' + method + ' - ' + command
-        log.debug('Command =  %s - %s', method, command)
+
+        log.debug('[mm] Send mission command =  %s - %s', method, command)
+
         retval = agent_client.get_capabilities()
         agt_cmds, agt_pars, res_cmds, res_iface, res_pars = self.sort_capabilities(retval)
 
@@ -584,32 +577,35 @@ class MissionScheduler(object):
         elif command in res_pars:
             # Set parameters - check parameter first, then set if necessary
             reply = getattr(agent_client, 'get_resource')(command)
-            log.debug(command + ' = ' + str(reply[command]))
+            log.debug('[mm] %s = %s', command, str(reply[command]))
 
             if parameters and parameters != reply[command]:
                 getattr(agent_client, method)({command: parameters})
                 reply = getattr(agent_client, 'get_resource')(command)
-                print command + ' = ' + str(reply[command])
-                log.debug(command + ' = ' + str(reply[command]))
+                log.debug('[mm] %s = %s', command, str(reply[command]))
 
                 if parameters != reply[command]:
-                    log.error('Mission Error: Parameter ' + parameters + ' not set')
+                    log.error('[mm] Mission Error: Parameter ' + parameters + ' not set')
                     raise Exception('Mission Error: Parameter ' + parameters + ' not set')
 
         elif command == 'wait':
             gevent.sleep(parameters * 60)
 
         else:
-            # print 'Command ' + command + ' not recognized'
-            log.error('Mission Error: Command ' + command + ' not recognized')
+            log.error('[mm] Mission Error: Command ' + command + ' not recognized')
             raise Exception('Mission Error: Command ' + command + ' not recognized')
 
         state = agent_client.get_agent_state()
-        print 'Agent State = ' + state
+        log.debug('[mm] Agent State = %s', state)
 
     def execute_mission_commands(self, mission_cmds):
         """
         Loop through the mission commands sequentially
+        @param mission_cmds     mission command dict
+        return an error code:
+            0 = No error
+            1 = Abort mission_thread
+            2 = Abort mission
         """
 
         for cmd in mission_cmds:
@@ -627,28 +623,30 @@ class MissionScheduler(object):
             if not error_handling:
                 error_handling = self.default_error
 
-            print instrument_id
+            log.debug('[mm] %s', instrument_id)
 
             while attempt < self.max_attempts:
                 if self.mission_aborted:
-                    return False
+                    return 2
 
                 attempt += 1
-                print 'Attempt # ' + str(attempt)
-                log.debug('Mission command = %s, Attempt # %d', cmd['command'], attempt)
-
+                log.debug('[mm] Mission command = %s, Attempt # %d', cmd['command'], attempt)
                 try:
                     self.send_command(ia_client, cmd)
                 except:
-                    if error_handling == 'abort' or attempt >= self.max_attempts:
-                        return False
-                    elif error_handling == 'skip':
-                        log.debug('Mission command %s skipped on error', cmd['command'])
+                    if error_handling == 'skip':
+                        log.debug('[mm] Mission command %s skipped on error', cmd['command'])
                         break
+
+                    elif (error_handling == 'abort' or attempt >= self.max_attempts):
+                        return 1
+
+                    elif error_handling == 'abortMission':
+                        return 2
                 else:
                     break
 
-        return True
+        return 0
 
     def run_timed_mission(self, mission):
         """
@@ -656,7 +654,7 @@ class MissionScheduler(object):
         @param mission      Mission dictionary
         """
 
-        mission_running = True
+        error_code = 0   # False
         loop_count = 0
 
         self.max_attempts = mission['error_handling']['maxRetries']
@@ -669,60 +667,65 @@ class MissionScheduler(object):
             ia_client = self.instruments[instrument_id]
             self.check_preconditions(ia_client)
 
-        # First execute premission
+        # First execute premission if necessary
         if mission['premission_cmds']:
-            mission_running = self.execute_mission_commands(mission['premission_cmds'])
+            error_code = self.execute_mission_commands(mission['premission_cmds'])
 
         start_time = mission['start_time']
         num_loops = mission['loop']['num_loops']
 
         start_in = start_time - time.time() if (time.time() < start_time) else 0
-        print 'Mission start in ' + str(int(start_in)) + ' seconds'
-        log.debug('Mission start in ' + str(int(start_in)) + ' seconds')
+        log.debug('[mm] Mission start in ' + str(int(start_in)) + ' seconds')
 
         # Master loop
-        while mission_running:
+        while not error_code:
 
             # Wait until next start
             while (time.time() < start_time):
                 gevent.sleep(1)
 
             # Execute commands
-            mission_running = self.execute_mission_commands(mission['mission_cmds'])
+            error_code = self.execute_mission_commands(mission['mission_cmds'])
 
-            if mission_running:
-                # Commands have been executed - increment loop count
-                loop_count += 1
-                # Calculate next start time
-                if num_loops > 0 and loop_count >= num_loops:
-                    # Mission was completed successfully
-                    break
+            # Commands have been executed - increment loop count
+            loop_count += 1
+            # Calculate next start time
+            if error_code or (loop_count >= num_loops and num_loops != -1):
+                # Mission was completed successfully or aborted
+                break
 
-                start_time += mission['loop']['loop_duration']
-                print "Next Sequence starts at " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time))
-                log.debug("Next Sequence starts at " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time)))
+            start_time += mission['loop']['loop_duration']
+            log.debug("[mm] Next Sequence starts at " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time)))
 
-        if mission_running:
+        if error_code:
+            # Abort mission thread
+            if error_code == 1:
+                # Raise an exception
+                log.error('[mm] Timed mission thread aborted')
+                # raise Exception('Timed mission thread aborted')
+            # Abort mission
+            elif error_code == 2:
+                self.abort_mission()
+        else:
             # Execute postmission if specified
             if mission['postmission_cmds']:
-                success = self.execute_mission_commands(mission['postmission_cmds'])
-                if not success:
+                error_code = self.execute_mission_commands(mission['postmission_cmds'])
+                if error_code == 2:
                     self.abort_mission()
-        else:
-            # Abort mission
-            self.abort_mission()
+                else:
+                    #TODO Publish successful mission, stop event subscribers?
+                    pass
 
     def run_event_driven_mission(self, mission):
         """
         Run an event driven mission
         @param mission      Mission dictionary
         """
-        from mi.core.instrument.instrument_driver import DriverEvent
 
         self.max_attempts = mission['error_handling']['maxRetries']
         self.default_error = mission['error_handling']['default']
 
-        mission_running = True
+        error_code = 0   # False
         instrument_ids = mission['instrument_id']
         for instrument_id in instrument_ids:
             if instrument_id not in self.instruments:
@@ -732,7 +735,7 @@ class MissionScheduler(object):
 
         # Execute premission
         if mission['premission_cmds']:
-            mission_running = self.execute_mission_commands(mission['premission_cmds'])
+            error_code = self.execute_mission_commands(mission['premission_cmds'])
 
         # Get the agent client for the device whos event needs monitoring
         parent_id = mission['event']['parentID']
@@ -764,27 +767,32 @@ class MissionScheduler(object):
                 # An event was captured. Check that it is the correct event
                 if event_id == event[attr]:
                     # Execute the mission
-                    print 'Mission Event ' + event_id + ' received!'
-                    print 'Event Driven Mission execution commenced'
-                    log.debug('Mission Event %s received!', event_id)
-                    log.debug('Event Driven Mission execution commenced')
-                    success = self.execute_mission_commands(mission['mission_cmds'])
+                    log.debug('[mm] Mission Event %s received!', event_id)
+                    log.debug('[mm] Event Driven Mission execution commenced')
 
-                    if not success:
-                        log.error('Mission Aborted')
-                        raise Exception('Mission Aborted')
+                    error_code = self.execute_mission_commands(mission['mission_cmds'])
 
-        if mission_running:
-            self.mission_event_subscribers = EventSubscriber(event_type=event_type,
-                                                             origin=origin,
-                                                             callback=callback_for_mission_events)
+                    if error_code == 1:  # Abort thread
+                        self.mission_event_subscribers[mission_event_id].stop()
+                        log.error('[mm] Event driven mission thread aborted')
+                    elif error_code == 2:
+                        self.abort_mission()    # Abort mission
 
-            self.mission_event_subscribers.start()
-
-            log.debug('Event driven mission started. Waiting for ' + event_id)
-            print 'Event driven mission started. Waiting for ' + event_id
+        if error_code:
+            if error_code == 2:
+                self.abort_mission()
+            else:
+                log.error('[mm] Event driven mission thread aborted')
         else:
-            self.abort_mission()
+            # Start an event subscriber to catch mission event
+            self.mission_event_subscribers.append(EventSubscriber(event_type=event_type,
+                                                                  origin=origin,
+                                                                  callback=callback_for_mission_events))
+
+            mission_event_id = len(self.mission_event_subscribers) - 1
+            self.mission_event_subscribers[mission_event_id].start()
+
+            log.debug('[mm] Event driven mission started. Waiting for %s', event_id)
 
     def check_preconditions(self, ia_client):
         """
@@ -817,7 +825,7 @@ class MissionScheduler(object):
         )
         cmd = AgentCommand(command=RSNPlatformDriverEvent.CONNECT_INSTRUMENT, kwargs=kwargs)
         retval = self.platform_agent.execute_resource(cmd)
-        log.info("CONNECT_INSTRUMENT = %s", retval)
+        log.info("[mm] CONNECT_INSTRUMENT = %s", retval)
 
         # self.assertIsInstance(result, dict)
         # self.assertIn(port_id, result)
@@ -864,24 +872,21 @@ class MissionScheduler(object):
         cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
         self.platform_agent.execute_agent(cmd)
         state = self.platform_agent.get_agent_state()
-        print state
-        log.debug(state)
+        log.debug('[mm] Agent state = %s', state)
 
     def platform_reset(self):
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.RESET, kwargs=kwargs)
         self.platform_agent.execute_agent(cmd)
         state = self.platform_agent.get_agent_state()
-        print state
-        log.debug(state)
+        log.debug('[mm] Agent state = %s', state)
 
     def shutdown(self):
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=kwargs)
         self.platform_agent.execute_agent(cmd)
         state = self.platform_agent.get_agent_state()
-        print state
-        log.debug(state)
+        log.debug('[mm] Agent state = %s', state)
 
     def shutdown_platform(self):
         try:
@@ -936,28 +941,83 @@ class MissionScheduler(object):
     #-------------------------------------------------------------------------------------
     # Instrument commands
     #-------------------------------------------------------------------------------------
-    
+
     def startup_instrument_into_command(self, agent_client):
 
         state = agent_client.get_agent_state()
         while state != ResourceAgentState.COMMAND:
-            # UNINITIALIZED -> INACTIVE -> IDLE -> 
-            try: 
+            # UNINITIALIZED -> INACTIVE -> IDLE ->
+            try:
                 if state == ResourceAgentState.UNINITIALIZED:
+                    log.debug('[mm] startup_instrument_into_command - INITIALIZE')
                     cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
                     retval = agent_client.execute_agent(cmd)
                 elif state == ResourceAgentState.INACTIVE:
+                    log.debug('[mm] startup_instrument_into_command - GO_ACTIVE')
                     cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
                     retval = agent_client.execute_agent(cmd)
                 elif state == ResourceAgentState.IDLE:
+                    log.debug('[mm] startup_instrument_into_command - RUN')
                     cmd = AgentCommand(command=ResourceAgentEvent.RUN)
                     retval = agent_client.execute_agent(cmd)
                 else:
+                    log.debug('[mm] startup_instrument_into_command - RESET')
                     cmd = AgentCommand(command=ResourceAgentEvent.RESET)
                     retval = agent_client.execute_agent(cmd)
 
                 state = agent_client.get_agent_state()
-                print state
+                log.debug('[mm] Agent state = %s', state)
+            except:
+                return False
+
+        return True
+
+    def shutdown_instrument_into_inactive(self, agent_client):
+        """
+        Check state, stop streaming if necessary, and get into INACTIVE state
+        """
+
+        state = agent_client.get_agent_state()
+        while state != ResourceAgentState.INACTIVE:
+            # STREAMING -> COMMAND -> IDLE -> INACTIVE
+            try:
+                                # Get capabilities
+                retval = agent_client.get_capabilities()
+                agt_cmds, agt_pars, res_cmds, res_iface, res_pars = self.sort_capabilities(retval)
+
+                if state == ResourceAgentState.UNINITIALIZED:
+                    log.debug('[mm] startup_instrument_into_command - INITIALIZE')
+                    cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+                    retval = agent_client.execute_agent(cmd)
+
+                elif ResourceAgentEvent.GO_INACTIVE in agt_cmds:
+                    log.debug('[mm] startup_instrument_into_command - GO_INACTIVE')
+                    cmd = AgentCommand(command=ResourceAgentEvent.GO_INACTIVE)
+                    retval = agent_client.execute_agent(cmd)
+
+                elif state == ResourceAgentState.IDLE:
+                    log.debug('[mm] startup_instrument_into_command - GO_INACTIVE')
+                    cmd = AgentCommand(command=ResourceAgentEvent.GO_INACTIVE)
+                    retval = agent_client.execute_agent(cmd)
+
+                elif state == ResourceAgentState.COMMAND:
+                    log.debug('[mm] startup_instrument_into_command - CLEAR')
+                    cmd = AgentCommand(command=ResourceAgentEvent.CLEAR)
+                    retval = agent_client.execute_agent(cmd)
+
+                elif state == ResourceAgentState.STREAMING:
+                    log.debug('[mm] startup_instrument_into_command - STOP_AUTOSAMPLE')
+                    cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
+                    retval = agent_client.execute_resource(cmd)
+
+                else:
+                    # TODO: What about Calibrate?
+                    log.debug('[mm] startup_instrument_into_command - RESET')
+                    cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+                    retval = agent_client.execute_agent(cmd)
+
+                state = agent_client.get_agent_state()
+                log.debug('[mm] shutdown_instrument_into_inactive - Agent state = %s', state)
             except:
                 return False
 
@@ -965,65 +1025,12 @@ class MissionScheduler(object):
 
     def instrument_abort_sequence(self, agent_client):
         """
-        Check state, stop streaming if necessary and get into command state
+        Check state, and gracefully get into INACTIVE state
         """
-        from mi.core.instrument.instrument_driver import DriverEvent
 
         state = agent_client.get_agent_state()
-        while state != ResourceAgentState.COMMAND:
-            try:
-                # gevent.sleep(1)
-                # Get capabilities
-                retval = agent_client.get_capabilities()
-                agt_cmds, agt_pars, res_cmds, res_iface, res_pars = self.sort_capabilities(retval)
-
-                # Any of the following states are handled in startup_instrument_into_command
-                if (state == ResourceAgentState.UNINITIALIZED or 
-                        state == ResourceAgentState.INACTIVE or
-                        state == ResourceAgentState.IDLE):
-
-                    self.startup_instrument_into_command(agent_client)
-
-                # Stop autosample will put instrument into command
-                elif state == ResourceAgentState.STREAMING:
-                    cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
-                    retval = agent_client.execute_resource(cmd)
-
-                # Uninitialize   
-                elif ResourceAgentEvent.RESET in agt_cmds:
-                    cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-                    retval = agent_client.execute_agent(cmd)
-
-                # Put STOPPED instrument into IDLE
-                elif state == ResourceAgentState.STOPPED:
-                    cmd = AgentCommand(command=ResourceAgentEvent.CLEAR)
-                    retval = agent_client.execute_agent(cmd)
-
-                elif state == ResourceAgentState.ACTIVE_UNKNOWN:
-                    cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-                    retval = agent_client.execute_agent(cmd)
-
-                elif state == ResourceAgentState.CALIBRATE:
-                    # TODO Stop a calibrate
-                    pass
-                    
-                elif state == ResourceAgentState.BUSY:
-                    pass
-
-                # Try to Uninitialize  
-                else:
-                    cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-                    retval = agent_client.execute_agent(cmd)
-
-                state = agent_client.get_agent_state()
-                print state
-            except:
-                # TODO: Should we do something here?
-                print 'Error in instrument_abort_sequence'
-                log.error('')
-                return False
-
-        return True
+        if state != ResourceAgentState.INACTIVE:
+            self.shutdown_instrument_into_inactive(agent_client)
 
     #-------------------------------------------------------------------------------------
     # Error handling
@@ -1050,10 +1057,8 @@ class MissionScheduler(object):
         """
 
         def get_error_event(*args, **kwargs):
-            log.info('Mission recieved ION event: args=%s, kwargs=%s, event=%s.',
+            log.info('[mm] Mission recieved ION event: args=%s, kwargs=%s, event=%s.',
                      str(args), str(kwargs), str(args[0]))
-            # print('Mission recieved ION event: args=%s, kwargs=%s, event=%s.',
-            #       str(args), str(kwargs), str(args[0]))
 
             self.error_events_received.append(args[0])
             self.async_error_event_result.set()
