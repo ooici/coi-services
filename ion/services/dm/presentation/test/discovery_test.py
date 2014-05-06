@@ -19,7 +19,6 @@ from pyon.util.poller import poll_wrapper
 
 from ion.services.dm.presentation.discovery_service import DiscoveryService
 from ion.services.dm.inventory.index_management_service import IndexManagementService
-from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.geo_utils import GeoUtils
 
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
@@ -803,16 +802,11 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         dp = DataProduct(name='example dataproduct')
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
         stream_def_id = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
-        tdom, sdom = time_series_domain()
-        dp.spatial_domain = sdom.dump()
-        dp.temporal_domain = tdom.dump()
         dp_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, exchange_point='xp1')
 
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict')
         stream_def_id = self.pubsub_management.create_stream_definition('ctd raw', parameter_dictionary_id=pdict_id)
         dp = DataProduct(name='WRONG')
-        dp.spatial_domain = sdom.dump()
-        dp.temporal_domain = tdom.dump()
         self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, exchange_point='xp1')
 
         parameter_search = 'search "name" is "conductivity" from "resources_index"'

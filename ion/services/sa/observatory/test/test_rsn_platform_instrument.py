@@ -277,9 +277,6 @@ class TestPlatformInstrument(BaseIntTestPlatform):
                 to the platform.
         """
 
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
         param_dict_name = 'platform_eng_parsed'
         parsed_rpdict_id = self.dataset_management.read_parameter_dictionary_by_name(
@@ -318,7 +315,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         self.platform_device_id = self.imsclient.create_platform_device(any_old(RT.PlatformDevice))
 
         # data product creation
-        dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
+        dp_obj = any_old(RT.DataProduct)
         dp_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=self.parsed_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=self.platform_device_id, data_product_id=dp_id)
         self.dpclient.activate_data_product_persistence(data_product_id=dp_id)
@@ -454,9 +451,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
         dp_obj = IonObject(RT.DataProduct,
             name='vel3d_b_sample',
-            description='vel3d_b_sample',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='vel3d_b_sample')
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=vel3d_b_sample_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=self.instrument_device_id, data_product_id=data_product_id1)
@@ -465,9 +460,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
         dp_obj = IonObject(RT.DataProduct,
             name='vel3d_b_engineering',
-            description='vel3d_b_engineering',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='vel3d_b_engineering')
 
         data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=vel3d_b_engineering_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=self.instrument_device_id, data_product_id=data_product_id2)
@@ -476,9 +469,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
         dp_obj = IonObject(RT.DataProduct,
             name='the raw data',
-            description='raw stream test',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='raw stream test')
 
         data_product_id3 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
         self.damsclient.assign_data_product(input_resource_id=self.instrument_device_id, data_product_id=data_product_id3)

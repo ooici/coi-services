@@ -26,6 +26,7 @@ from coverage_model.parameter_functions import AbstractFunction
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceProcessClient
 from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
 from interface.objects import DataProcessDefinition, DataProcessTypeEnum, ParameterFunctionType as PFT
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.services.eoi.table_loader import ResourceParser
 
@@ -59,11 +60,9 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None, temporal_domain=None, parameter_dictionary_id='', description='', parent_dataset_id=''):
+    def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, parameter_dictionary_id='', description='', parent_dataset_id=''):
         
         validate_true(parameter_dict or parameter_dictionary_id, 'A parameter dictionary must be supplied to register a new dataset.')
-        validate_is_not_none(spatial_domain, 'A spatial domain must be supplied to register a new dataset.')
-        validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
         
         if parameter_dictionary_id:
             pd = self.read_parameter_dictionary(parameter_dictionary_id)
@@ -80,8 +79,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.datastore_name       = datastore_name or self.DEFAULT_DATASTORE
         dataset.view_name            = view_name or self.DEFAULT_VIEW
         dataset.parameter_dictionary = parameter_dict
-        dataset.temporal_domain      = temporal_domain
-        dataset.spatial_domain       = spatial_domain
         dataset.registered           = False
 
         
@@ -96,7 +93,7 @@ class DatasetManagementService(BaseDatasetManagementService):
             vcov.close()
             return dataset_id
 
-        cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
+        cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict)
         self._save_coverage(cov)
         cov.close()
 
@@ -626,12 +623,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
-    def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
+    def _create_coverage(self, dataset_id, description, parameter_dict):
         #file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        temporal_domain, spatial_domain = time_series_domain()
         pdict = ParameterDictionary.load(parameter_dict)
-        sdom = GridDomain.load(spatial_domain)
-        tdom = GridDomain.load(temporal_domain)
-        scov = self._create_simplex_coverage(dataset_id, pdict, sdom, tdom, self.inline_data_writes)
+        scov = self._create_simplex_coverage(dataset_id, pdict, spatial_domain, temporal_domain, self.inline_data_writes)
         #vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
         scov.close()
         return scov

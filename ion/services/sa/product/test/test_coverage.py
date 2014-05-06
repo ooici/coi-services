@@ -138,13 +138,10 @@ class TestDataProductManagementServiceCoverage(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
 
         # Generic time-series data domain creation
-        tdom, sdom = time_series_domain()
 
         dp_obj = IonObject(RT.DataProduct,
                            name='DP1',
-                           description='some new dp',
-                           temporal_domain = tdom.dump(),
-                           spatial_domain = sdom.dump())
+                           description='some new dp')
 
         dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 10.0
         dp_obj.geospatial_bounds.geospatial_latitude_limit_south = -10.0

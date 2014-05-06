@@ -68,17 +68,11 @@ class TestDataProductVersions(IonIntegrationTestCase):
         log.debug('Creating new data product with a stream definition')
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tdom, sdom = time_series_domain()
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
 
         dp_obj = IonObject(RT.DataProduct,
                            name='DP',
-                           description='some new dp',
-                           temporal_domain = tdom,
-                           spatial_domain = sdom)
+                           description='some new dp')
 
         dp_id = self.client.create_data_product(dp_obj, ctd_stream_def_id)
         log.debug('new dp_id = %s', str(dp_id))
@@ -98,9 +92,7 @@ class TestDataProductVersions(IonIntegrationTestCase):
 
         dp2_obj = IonObject(RT.DataProduct,
             name='DP2',
-            description='a second dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='a second dp')
 
         dp2_id = self.client.create_data_product(dp2_obj, ctd_stream_def_id)
         log.debug('second dp_id = %s', dp2_id)

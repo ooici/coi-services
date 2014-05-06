@@ -203,14 +203,10 @@ class TestInstrumentAgentHighVolume(IonIntegrationTestCase, InstrumentAgentTestM
         rrclient = ResourceRegistryServiceClient()
         RR2 = EnhancedResourceRegistryClient(rrclient)
 
-        # Generic time-series data domain creation
-        tdom, sdom = time_series_domain()
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
-            description='some new dp',
-            temporal_domain = tdom.dump(),
-            spatial_domain = sdom.dump())
+            description='some new dp')
 
         dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 10.0
         dp_obj.geospatial_bounds.geospatial_latitude_limit_south = -10.0
@@ -254,13 +250,10 @@ class TestInstrumentAgentHighVolume(IonIntegrationTestCase, InstrumentAgentTestM
         Creates a time-series dataset
         '''
         dataset_management = DatasetManagementServiceClient()
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
         if not parameter_dict_id:
             parameter_dict_id = dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-        dataset_id = dataset_management.create_dataset('test_dataset_', parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
+        dataset_id = dataset_management.create_dataset('test_dataset_', parameter_dictionary_id=parameter_dict_id)
         self.addCleanup(dataset_management.delete_dataset, dataset_id)
         return dataset_id
 

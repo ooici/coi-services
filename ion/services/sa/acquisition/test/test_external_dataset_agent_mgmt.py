@@ -109,17 +109,11 @@ class TestExternalDatasetAgentMgmt(IonIntegrationTestCase):
         log.debug("TestExternalDatasetAgentMgmt: Creating new data product with a stream definition")
         dp_obj = IonObject(RT.DataProduct,name='eoi dataset data',description=' stream test')
 
-        tdom, sdom = time_series_domain()
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='some new dp')
 
         data_product_id1 = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id)
 

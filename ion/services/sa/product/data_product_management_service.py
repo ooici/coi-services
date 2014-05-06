@@ -17,7 +17,6 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.util.time_utils import TimeUtils
 from ion.util.geo_utils import GeoUtils
-from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess, DataProcessTypeEnum
@@ -395,9 +394,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         child_data_product_ids, _ = self.clients.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
 
-        temporal_domain, spatial_domain = time_series_domain()
-        temporal_domain = temporal_domain.dump()
-        spatial_domain = spatial_domain.dump()
 
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
 
@@ -407,11 +403,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         if not dataset_ids:
             # No datasets are currently linked which means we need to create a new one
-            dataset_id = self.clients.dataset_management.create_dataset(   name= 'dataset_%s' % stream_id,
-                                                                            stream_id=stream_id,
-                                                                            parameter_dict=stream_def.parameter_dictionary,
-                                                                            temporal_domain=data_product_obj.temporal_domain or temporal_domain,
-                                                                            spatial_domain=data_product_obj.spatial_domain or spatial_domain)
+            dataset_id = self.clients.dataset_management.create_dataset(name= 'dataset_%s' % stream_id,
+                                                                        stream_id=stream_id,
+                                                                        parameter_dict=stream_def.parameter_dictionary)
 
             # link dataset with data product. This creates the association in the resource registry
             self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)

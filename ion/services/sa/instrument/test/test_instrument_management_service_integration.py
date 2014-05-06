@@ -125,15 +125,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         sensor_model_id #is only a target
 
         #create a parsed product for this instrument output
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
         dp_obj = IonObject(RT.DataProduct,
             name='the parsed data',
             description='ctd stream test',
-            processing_level_code='Parsed_Canonical',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            processing_level_code='Parsed_Canonical')
         pdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
         data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
@@ -402,15 +397,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
 
         #create a parsed product for this instrument output
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
         dp_obj = IonObject(RT.DataProduct,
             name='the parsed data',
             description='ctd stream test',
-            processing_level_code='Parsed_Canonical',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            processing_level_code='Parsed_Canonical')
         pdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
         data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)

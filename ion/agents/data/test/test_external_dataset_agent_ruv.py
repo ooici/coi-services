@@ -122,14 +122,10 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
 
         streamdef_id = pubsub_cli.create_stream_definition(name="ruv", description="stream def for ruv testing", parameter_dictionary_id=pdict_id)
 
-        tdom, sdom = time_series_domain()
-        tdom, sdom = tdom.dump(), sdom.dump()
 
         dprod = IonObject(RT.DataProduct,
             name='ruv_parsed_product',
-            description='parsed ruv product',
-            temporal_domain=tdom,
-            spatial_domain=sdom)
+            description='parsed ruv product')
 
         # Generate the data product and associate it to the ExternalDataset
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,

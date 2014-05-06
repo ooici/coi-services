@@ -896,14 +896,10 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
 
         streamdef_id = pubsub_cli.create_stream_definition(name="dummy", parameter_dictionary_id=pdict_id, description="dummy")
 
-        tdom, sdom = time_series_domain()
-        tdom, sdom = tdom.dump(), sdom.dump()
 
         dprod = DataProduct(
             name='dummy_dataset',
-            description='dummy data product',
-            temporal_domain=tdom,
-            spatial_domain=sdom)
+            description='dummy data product')
 
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,
             stream_definition_id=streamdef_id)

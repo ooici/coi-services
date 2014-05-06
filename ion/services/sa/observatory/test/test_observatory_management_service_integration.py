@@ -605,14 +605,9 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed',
                                                                        parameter_dictionary_id=parsed_pdict_id)
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
         dp_obj = IonObject(RT.DataProduct,
             name='the parsed data',
-            description='ctd stream test',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='ctd stream test')
 
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj,

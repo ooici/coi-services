@@ -46,13 +46,10 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
 
         log.debug('Creating new CDM data product with a stream definition')
 
-        tdom, sdom = time_series_domain()
 
         dp_obj = IonObject(RT.DataProduct,
             name=data_product_name,
-            description='ctd stream test',
-            temporal_domain = tdom.dump(),
-            spatial_domain = sdom.dump())
+            description='ctd stream test')
 
         ctd_parsed_data_product_id = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
         self.addCleanup(self.dataproductclient.delete_data_product, ctd_parsed_data_product_id)

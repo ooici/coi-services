@@ -142,14 +142,10 @@ class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrati
         #create temp streamdef so the data product can create the stream
         streamdef_id = pubsub_cli.create_stream_definition(name="netcdf", description="netcdf", parameter_dictionary_id=pdict_id)
 
-        tdom, sdom = time_series_domain()
-        tdom, sdom = tdom.dump(), sdom.dump()
 
         dprod = IonObject(RT.DataProduct,
             name='usgs_parsed_product',
-            description='parsed usgs product',
-            temporal_domain=tdom,
-            spatial_domain=sdom)
+            description='parsed usgs product')
 
         # Generate the data product and associate it to the ExternalDataset
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,

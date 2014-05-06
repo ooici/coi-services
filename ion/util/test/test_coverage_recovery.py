@@ -143,16 +143,10 @@ class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
         pubsub_management       = PubsubManagementServiceClient()
         data_product_management = DataProductManagementServiceClient()
         resource_registry       = self.container.instance.resource_registry
-
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
         dp_obj = DataProduct(
             name='instrument_data_product_%i' % dset_i,
             description='ctd stream test',
-            processing_level_code='Parsed_Canonical',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            processing_level_code='Parsed_Canonical')
         pdict_id = dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         stream_def_id = pubsub_management.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
         self.addCleanup(pubsub_management.delete_stream_definition, stream_def_id)

@@ -174,14 +174,10 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase,
 
         # Generate the data product and associate it to the ExternalDataset
 
-        tdom, sdom = time_series_domain()
-        tdom, sdom = tdom.dump(), sdom.dump()
 
         dprod = IonObject(RT.DataProduct,
             name='slocum_parsed_product',
-            description='parsed slocum product',
-            temporal_domain=tdom,
-            spatial_domain=sdom)
+            description='parsed slocum product')
 
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,
             stream_definition_id=streamdef_id)

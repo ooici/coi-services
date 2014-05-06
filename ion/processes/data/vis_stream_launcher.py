@@ -98,15 +98,10 @@ class VisStreamLauncher(ImmediateProcess):
             pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
             ctd_stream_def_id = self.pubsubclient.create_stream_definition(name="SBE37_CDM", description="SBE37_CDM", parameter_dictionary_id=pdict_id)
 
-            tdom, sdom = time_series_domain()
-            sdom = sdom.dump()
-            tdom = tdom.dump()
 
             dp_obj = IonObject(RT.DataProduct,
                 name=self.data_source_name,
-                description='Example ctd stream',
-                temporal_domain = tdom,
-                spatial_domain = sdom)
+                description='Example ctd stream')
 
             data_product_id = self.dpclient.create_data_product(dp_obj, stream_definition_id=ctd_stream_def_id)
 

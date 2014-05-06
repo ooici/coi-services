@@ -287,7 +287,6 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         instDevice_id = self._create_instrument_device(instModel_id)
 
         # It is necessary for the instrument device to be associated with atleast one output data product
-        tdom, sdom = time_series_domain()
         parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
@@ -298,15 +297,11 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         # We are creating two data products here, one for parsed and another raw
         dp_obj_parsed = IonObject(RT.DataProduct,
             name='parsed_data_product',
-            description='Parsed output data product for instrument',
-            temporal_domain = tdom.dump(),
-            spatial_domain = sdom.dump())
+            description='Parsed output data product for instrument')
 
         dp_obj_raw = IonObject(RT.DataProduct,
             name='raw_data_prod',
-            description='Raw output data product for instrument',
-            temporal_domain = tdom.dump(),
-            spatial_domain = sdom.dump())
+            description='Raw output data product for instrument')
 
 
         parsed_out_data_prod_id = self.dataproductclient.create_data_product(data_product=dp_obj_parsed, stream_definition_id=parsed_stream_def_id)

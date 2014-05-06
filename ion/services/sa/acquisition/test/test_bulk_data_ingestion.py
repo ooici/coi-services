@@ -335,16 +335,11 @@ class TestBulkIngest(IonIntegrationTestCase):
         pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
         streamdef_id = self.pubsub_client.create_stream_definition(name="temp", parameter_dictionary_id=pdict.identifier)
 
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
 
 
         dprod = IonObject(RT.DataProduct,
                           name='slocum_parsed_product',
-                          description='parsed slocum product',
-                          temporal_domain = tdom,
-                          spatial_domain = sdom)
+                          description='parsed slocum product')
 
         self.dproduct_id = self.dataproductclient.create_data_product(data_product=dprod,
                                                                       stream_definition_id=streamdef_id)
@@ -433,15 +428,10 @@ class BulkIngestBase(object):
         return self.pubsub_management.create_stream_definition(name=name, parameter_dictionary_id=pdict_id)
 
     def create_data_product(self, name='', description='', stream_def_id=''):
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
         dp_obj = DataProduct(
             name=name,
             description=description,
-            processing_level_code='Parsed_Canonical',
-            temporal_domain=tdom,
-            spatial_domain=sdom)
+            processing_level_code='Parsed_Canonical')
 
         data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id)
         self.data_product_management.activate_data_product_persistence(data_product_id)

@@ -146,16 +146,12 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # test creating a new data product w/o a stream definition
         #------------------------------------------------------------------------------------------------
 
-        # Generic time-series data domain creation
-        tdom, sdom = time_series_domain()
 
 
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
-            description='some new dp',
-            temporal_domain = tdom.dump(), 
-            spatial_domain = sdom.dump())
+            description='some new dp')
 
         dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 10.0
         dp_obj.geospatial_bounds.geospatial_latitude_limit_south = -10.0
@@ -189,9 +185,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         log.debug('Creating new data product with a stream definition')
         dp_obj = IonObject(RT.DataProduct,
             name='DP2',
-            description='some new dp',
-            temporal_domain = tdom.dump(),
-            spatial_domain = sdom.dump())
+            description='some new dp')
 
         dp_id2 = self.dpsc_cli.create_data_product(dp_obj, ctd_stream_def_id)
         self.dpsc_cli.activate_data_product_persistence(dp_id2)
@@ -314,16 +308,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=pdict_id)
 
-        tdom, sdom = time_series_domain()
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='some new dp')
         dp_id = self.dpsc_cli.create_data_product(data_product= dp_obj,
             stream_definition_id=ctd_stream_def_id)
 
@@ -336,9 +324,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='ctd parsed', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsubcli.delete_stream_definition, ctd_stream_def_id)
 
-        tdom, sdom = time_series_domain()
 
-        dp = DataProduct(name='Instrument DP', temporal_domain=tdom.dump(), spatial_domain=sdom.dump())
+        dp = DataProduct(name='Instrument DP')
         dp_id = self.dpsc_cli.create_data_product(dp, stream_definition_id=ctd_stream_def_id)
         self.addCleanup(self.dpsc_cli.force_delete_data_product, dp_id)
 
@@ -403,16 +390,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # test creating a new data product w/o a stream definition
         #------------------------------------------------------------------------------------------------
         # Construct temporal and spatial Coordinate Reference System objects
-        tdom, sdom = time_series_domain()
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='some new dp')
 
         log.debug("Created an IonObject for a data product: %s" % dp_obj)
 
@@ -553,9 +534,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.addCleanup(self.pubsubcli.delete_stream_definition, stream_def_id)
 
         data_product = DataProduct(name='lookup data product')
-        tdom, sdom = time_series_domain()
-        data_product.temporal_domain = tdom.dump()
-        data_product.spatial_domain = sdom.dump()
 
         data_product_id = self.dpsc_cli.create_data_product(data_product, stream_definition_id=stream_def_id)
         self.addCleanup(self.dpsc_cli.delete_data_product, data_product_id)

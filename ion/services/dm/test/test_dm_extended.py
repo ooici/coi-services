@@ -386,15 +386,9 @@ class TestDMExtended(DMTestCase):
 
         s.stop()
 
-    @attr('INT')
+    @attr('SMOKE')
     def test_realtime_visualization(self):
-        self.preload_beta()
-
-        # Create the input data product
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_simulator', id_only=True)
-        stream_def_id = self.create_stream_definition('ctd sim L2', parameter_dictionary_id=pdict_id)
-        data_product_id = self.create_data_product('ctd simulator', stream_def_id=stream_def_id)
-        self.activate_data_product(data_product_id)
+        data_product_id = self.make_ctd_data_product()
 
         # Launch the realtime visualization process
         viz_token = self.visualization.initiate_realtime_visualization_data(data_product_id=data_product_id)

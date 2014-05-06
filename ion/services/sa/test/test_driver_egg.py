@@ -242,9 +242,6 @@ class TestDriverEgg(IonIntegrationTestCase):
                                                                                instAgent_id,
                                                                                instDevice_id)
 
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
 
         parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',
@@ -264,9 +261,7 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
                            name='the parsed data',
-                           description='ctd stream test',
-                           temporal_domain = tdom,
-                           spatial_domain = sdom)
+                           description='ctd stream test')
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         print  'new dp_id = %s' % data_product_id1
@@ -290,9 +285,7 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
                            name='the raw data',
-                           description='raw stream test',
-                           temporal_domain = tdom,
-                           spatial_domain = sdom)
+                           description='raw stream test')
 
         data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj,
                                                              stream_definition_id=raw_stream_def_id)
