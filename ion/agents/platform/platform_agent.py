@@ -3536,13 +3536,23 @@ class PlatformAgent(ResourceAgent):
         Method launched in a separate greenlet to run the mission, at the end
         of which EXIT_MISSION is triggered to return to saved state.
         """
-        # TODO any appropriate exception handling
-
+        time_start = time.time()
         log.debug('_run_mission: running...')
         self._mission_manager.run_mission()
 
-        log.debug('_run_mission: completed. triggering EXIT_MISSION')
-        self._fsm.on_event(PlatformAgentEvent.EXIT_MISSION)
+        elapsed_time = time.time() - time_start
+        log.debug('_run_mission: completed. elapsed_time=%s', elapsed_time)
+
+        # check state before attempting the EXIT_MISSION.
+        # (but we could still have a "check-then-act" race condition here)
+        curr_state = self.get_agent_state()
+        if curr_state in [PlatformAgentState.MISSION_COMMAND,
+                          PlatformAgentState.MISSION_STREAMING]:
+            log.debug('_run_mission: triggering EXIT_MISSION')
+            self._fsm.on_event(PlatformAgentEvent.EXIT_MISSION)
+        else:
+            log.warn('_run_mission: not triggering EXIT_MISSION: FSM not in '
+                     'mission substate (%s)', curr_state)
 
     def _handler_mission_run(self, *args, **kwargs):
         """
