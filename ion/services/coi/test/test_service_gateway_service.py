@@ -176,7 +176,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
                     "description": DATA_PRODUCT_DESCRIPTION,
                     "name": DATA_PRODUCT_NAME,
                     'geospatial_bounds': geospatial_bounds,
-                    'temporal_domain': TEMPORAL_DOMAIN
                 }
             }
         }
@@ -233,7 +232,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
                     "description": DATA_PRODUCT_DESCRIPTION,
                     "name": DATA_PRODUCT_NAME,
                     'geospatial_bounds': geospatial_bounds,
-                    'temporal_domain': TEMPORAL_DOMAIN
                 },
                 "stream_definition_id": stream_definition_id
             }
