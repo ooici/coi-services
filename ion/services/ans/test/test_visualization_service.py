@@ -180,7 +180,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
     @patch.dict(CFG, {'user_queue_monitor_timeout': 5})
-    @attr('SMOKE')
     def test_realtime_visualization(self):
 
 #        #Start up multiple vis service workers if not a CEI launch

@@ -187,7 +187,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
     # Test Methods
     #--------------------------------------------------------------------------------
 
-    @attr('SMOKE') 
     def test_dm_end_2_end(self):
         #--------------------------------------------------------------------------------
         # Set up a stream and have a mock instrument (producer) send data
