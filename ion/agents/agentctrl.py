@@ -5,9 +5,9 @@ Control agents and related resources.
 @see https://confluence.oceanobservatories.org/display/CIDev/R2+Agent+Use+Guide
 
 Supports the following ops:
-- start: via DAMS service call, start agent instance and subsequently put it into streaming mode (optionally)
-         can provide start and stop date for instrument agent reachback recover (optionally)
-- stop: via DAMS service call, stop agent instance
+- start_agent (alias start, load): Start agent instance and subsequently put it into streaming mode (optionally)
+        can provide start and stop date for instrument agent reachback recover (optionally)
+- stop_agent (alias stop): Stop agent instance
 - configure_instance: using a config csv lookup file, update the AgentInstance driver_config
 - set_attributes: using a config csv lookup file, update the given resource attributes
 - activate_persistence: activate persistence for the data products of the devices
@@ -26,6 +26,16 @@ Supports the following ops:
 - delete_site: remove site resources
 - activate_deployment: If device has Deployments, activate the current one
 - deactivate_deployment: If device has an active Deployment, deactivate it
+- clone_device: For a given device, create another device with similar associations and data products.
+        The cfg argument can point to a CSV file to immediately set clone attributes.
+- clone_deployment: For a given deployment, create another deployment with similar associations
+        The cfg argument can point to a CSV file to immediately set clone attributes.
+- list_persistence: Prints a report of currently active persistence
+- list_agents: Prints a report of currently active agents
+- list_containers: Prints a report of currently active containers
+- list_services: Prints a report of currently active services
+- show_use: Prints a report of uses for given agent definition or device model
+- show_dataset: Prints a report about a dataset (coverage)
 
 Supports the following arguments:
 - instrument, platform, device_name: name of device. Resource ids (uuid) can be used instead of names.
@@ -38,6 +48,7 @@ Supports the following arguments:
 - autoclean: if True, try to clean up resources directly after failed operations
 - verbose: if True, log more messages for detailed steps
 - dryrun: if True, log attempted actions but don't execute them (use verbose=True to see many details)
+- clone_id: provides suffix for a cloned preload id, e.g. CP02PMUI-WP001_PD -> CP02PMUI-WP001_PD_CLONE1
 
 Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF'
@@ -47,12 +58,11 @@ Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=config_instance cfg=file.csv recurse=True
     bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=set_calibration cfg=file.csv recurse=True
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF' op=recover_data recover_start=0.0 recover_end=1.0
+    bin/pycc -x ion.agents.agentctrl.AgentControl preload_id='CP02PMUI-WF001_PD' op=start
     and others (see above and Confluence page)
 
 TODO:
-- Ability to apply to all platforms (maybe a facility/site), not just one
 - Force terminate agents and clean up
-- Identify devices in CFG files other than by ID or RD
 - Share agent definition or resource in facility
 - Change owner of resource
 - Change contact info, metadata of resource based on spreadsheet
@@ -61,22 +71,29 @@ TODO:
 __author__ = 'Michael Meisinger, Ian Katz, Bill French, Luke Campbell'
 
 import csv
+import datetime
 import os
 import shutil
 import time
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
-from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound, LCS, EventPublisher, dict_merge
+from pyon.core.object import IonObjectBase
+from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound, LCS, EventPublisher, dict_merge, IonObject
 
 from ion.core.includes.mi import DriverEvent
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.util.parse_utils import parse_dict, get_typed_value
+from ion.util.datastore.resuse import ResourceUseInfo
 
-from interface.objects import AgentCommand, Site, TemporalBounds, AgentInstance, Device
+from interface.objects import AgentCommand, Site, TemporalBounds, AgentInstance, AgentDefinition, Device, DeviceModel, \
+    ProcessStateEnum
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceProcessClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceProcessClient
+from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
 
 class AgentControl(ImmediateProcess):
@@ -85,12 +102,14 @@ class AgentControl(ImmediateProcess):
         self.rr = self.container.resource_registry
 
         self.op = self.CFG.get("op", "start")
-        if not self.op or self.op.startswith("_") or (not hasattr(self, self.op) and self.op not in {"start", "stop", "load"}):
+        # Map op aliases to internal names
+        self.op = dict(start="start_agent", load="start_agent", stop="stop_agent").get(self.op, self.op)
+        if not self.op or self.op.startswith("_") or not hasattr(self, self.op):
             raise BadRequest("Operation %s unknown", self.op)
         log.info("OPERATION: %s", self.op)
 
         dataset_name = self.CFG.get("dataset", None)
-        device_name = self.CFG.get("device_name", None) or self.CFG.get("instrument", None) or self.CFG.get("platform", None)
+        device_name = self.CFG.get("device_name", None) or self.CFG.get("instrument", None) or self.CFG.get("platform", None) or self.CFG.get("resource_id", None)
         agent_name = self.CFG.get("agent_name", None)
         resource_name = dataset_name or device_name or agent_name
 
@@ -110,11 +129,19 @@ class AgentControl(ImmediateProcess):
         if preload_id:
             preload_ids = preload_id.split(",")
             for pid in preload_ids:
-                res_objs, _ = self.rr.find_resources_ext(alt_id_ns="PRE", alt_id=pid, id_only=False)
-                if res_objs:
-                    res_obj = res_objs[0]
+                res_obj = self._get_resource_by_alt_id("PRE", pid)
+                if res_obj:
                     log.info("Found preload id=%s as %s '%s' id=%s", pid, res_obj.type_, res_obj.name, res_obj._id)
                     self._execute(res_obj)
+                else:
+                    log.warn("Preload id=%s not found!", pid)
+
+        elif self.op in {"list_persistence", "list_agents", "list_containers", "list_services"}:
+            # None-device operation
+            log.info("--- Executing %s  ---", self.op)
+            if hasattr(self, self.op):
+                opfunc = getattr(self, self.op)
+                opfunc()
 
         else:
             if not resource_name:
@@ -171,7 +198,7 @@ class AgentControl(ImmediateProcess):
         elif isinstance(resource, Site):
             resource_id = resource._id
         else:
-            log.warn("Unexpected resource type: %s", resource.type_)
+            #log.warn("Unexpected resource type: %s", resource.type_)
             resource_id = resource._id
 
         # This does all the work and will recurse if desired
@@ -197,13 +224,9 @@ class AgentControl(ImmediateProcess):
 
             log.info("--- Executing %s on '%s' id=%s agent=%s ---", self.op, res_obj.name, resource_id, agent_instance_id)
 
-            if self.op == "start" or self.op == "load":
-                self.start_agent(agent_instance_id, resource_id)
-            elif self.op == "stop":
-                self.stop_agent(agent_instance_id, resource_id)
-            elif hasattr(self, self.op):
+            if hasattr(self, self.op):
                 opfunc = getattr(self, self.op)
-                opfunc(agent_instance_id, resource_id)
+                opfunc(agent_instance_id=agent_instance_id, resource_id=resource_id)
 
         except Exception:
             self._log_error(agent_instance_id, resource_id, logexc=True,
@@ -230,8 +253,11 @@ class AgentControl(ImmediateProcess):
                     if self.fail_fast:
                         raise
 
-        if self.op == "recover_data":
-            self._recover_data_report()
+        # Post function if existing (signature _opname_post()):
+        post_func = "_%s_post" % self.op
+        if hasattr(self, post_func):
+            opfunc = getattr(self, post_func)
+            opfunc(resource_id=resource_id, agent_instance_id=agent_instance_id)
 
     def _get_agent_instance_id(self, resource_id):
         aids, _ = self.rr.find_objects(subject=resource_id,
@@ -246,6 +272,11 @@ class AgentControl(ImmediateProcess):
 
         log.debug("Agent instance not found for device=%s", resource_id)
         return None
+
+    def _get_resource_by_alt_id(self, alt_id_ns, alt_id):
+        res_objs, _ = self.rr.find_resources_ext(alt_id_ns=alt_id_ns, alt_id=alt_id, id_only=False)
+        if res_objs:
+            return res_objs[0]
 
     def _get_system_actor_headers(self):
         if self.system_actor is None:
@@ -385,25 +416,46 @@ class AgentControl(ImmediateProcess):
         else:
             BadRequest("Attempt to stop unsupported agent type: %s", ai_obj.type_)
 
+    def _get_alt_id(self, res_obj, alt_ns):
+        """Return a resource object's alt id for a given namespace, or None"""
+        # TODO: Move into IonObjectBase
+        alt_ns = alt_ns or "_"
+        alt_ids = [aid[len(alt_ns) + 1:] for aid in res_obj.alt_ids if aid.startswith(alt_ns + ":")]
+        if alt_ids:
+            return alt_ids[0]
+
+    def _set_alt_id(self, res_obj, alt_id):
+        """Set or replace alt_id in given resource. Alt id must be namespaced, e.g. PRE:CP02PMUI-WP001"""
+        # TODO: Move into IonObjectBase
+        alt_id_parts = alt_id.split(":", 1)[0]
+        if len(alt_id_parts) < 2 or not alt_id_parts[0]:
+            raise BadRequest("Illegal alt_id: %s" % alt_id)
+        alt_ns = alt_id_parts[0] + ":"
+        for i, aid in enumerate(res_obj.alt_ids):
+            if aid.startswith(alt_ns):
+                res_obj.alt_ids[i] = alt_id
+                return
+        res_obj.alt_ids.append(alt_id)
+
     def _get_resource_cfg(self, res_obj, cfg_dict):
         """Given a (device) resource object, try to find an associated config entry from the CSV file"""
         # Find config by resource UUID
-        cfg_id = res_obj._id
-        dev_cfg = cfg_dict.get(res_obj._id, None)
+        cfg_id = getattr(res_obj, "_id", "?")
+        dev_cfg = cfg_dict.get(cfg_id, None)
         if not dev_cfg and getattr(res_obj, "ooi_property_number", None):
             # Find config by resource OOI property number, e.g. 12345-54321
             cfg_id = res_obj.ooi_property_number
             dev_cfg = cfg_dict.get(cfg_id, None)
         if not dev_cfg:
-            alt_ids = [aid[4:] for aid in res_obj.alt_ids if aid.startswith("PRE:")]
-            if alt_ids:
+            pre_id = self._get_alt_id(res_obj, "PRE")
+            if pre_id:
                 # Find config by resource's preload ID
-                cfg_id = alt_ids[0]
+                cfg_id = pre_id
                 dev_cfg = cfg_dict.get(cfg_id, None)
                 if not dev_cfg:
                     # Find config by resource's preload ID reference designator
                     # Note: this is bad because devices are not assigned to the same RD over time
-                    cfg_id = alt_ids[0].rsplit("_", 1)[0]
+                    cfg_id = pre_id.rsplit("_", 1)[0]
                     dev_cfg = cfg_dict.get(cfg_id, None)
         if not dev_cfg and getattr(res_obj, "serial_number", None):
             if res_obj.type_ == RT.InstrumentDevice:
@@ -426,7 +478,7 @@ class AgentControl(ImmediateProcess):
         param_value = row["Value"]
         param_type = row.get("Type", "str") or "str"
         if not param_name:
-            log.warn("Row %s value %s has no name", device_id, attr_name, param_value)
+            log.warn("Device %s row %s value %s has no name", device_id, attr_name, param_value)
             return
 
         target_dict = cfg_dict.setdefault(device_id, {})
@@ -445,7 +497,42 @@ class AgentControl(ImmediateProcess):
                 target_dict = target_dict.setdefault(na, {})
         target_dict[param_name] = get_typed_value(param_value, targettype=param_type)
 
+    def _update_attributes(self, res_obj, res_cfg):
+        """Changes resource attributes of given object based on content of the given config dict"""
+        if not res_cfg:
+            return
+        for attr_name, attr_cfg in res_cfg.iteritems():
+            if hasattr(res_obj, attr_name):
+                if attr_name in {"_id", "_rev", "type_", "alt_ids", "lcstate", "availability"}:
+                    log.warn("Attribute %s cannot be modified", attr_name)
+                    continue
+                if isinstance(attr_cfg, dict) and isinstance(res_obj, IonObjectBase):
+                    pass
+                elif type(getattr(res_obj, attr_name)) != type(attr_cfg):
+                    log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(res_obj, attr_name)))
+                    continue
+
+                if isinstance(attr_cfg, dict) and isinstance(res_obj, IonObjectBase):
+                    # TODO: Nested objects
+                    for an, av in attr_cfg.iteritems():
+                        setattr(res_obj, an, av)
+                elif isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
+                    attr_cfg.pop("_replace")
+                    if self.verbose:
+                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), attr_cfg)
+                    setattr(res_obj, attr_name, attr_cfg)
+                elif isinstance(attr_cfg, dict):
+                    attr_val = getattr(res_obj, attr_name)
+                    if self.verbose:
+                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), dict_merge(attr_val, attr_cfg))
+                    dict_merge(attr_val, attr_cfg, inplace=True)
+                else:
+                    if self.verbose:
+                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), attr_cfg)
+                    setattr(res_obj, attr_name, attr_cfg)
+
     def config_instance(self, agent_instance_id, resource_id):
+        """Configure an agent instance"""
         if not agent_instance_id:
             return
 
@@ -501,44 +588,28 @@ class AgentControl(ImmediateProcess):
                               ai.driver_config.get("max_records", None), dev_cfg["max_records"])
                 ai.driver_config["max_records"] = int(dev_cfg["max_records"])
 
-        for attr_name, attr_cfg in dev_cfg.iteritems():
-            if hasattr(ai, attr_name):
-                if attr_name in {"_id", "_rev", "type_"}:
-                    log.warn("Attribute %s cannot be modified", attr_name)
-                    continue
-                if type(getattr(ai, attr_name)) != type(attr_cfg):
-                    log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(ai, attr_name)))
-                    continue
-                if isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
-                    attr_cfg.pop("_replace")
-                    if self.verbose:
-                        log.debug("Change AI %s attribute %s: OLD=%s NEW=%s", ai._id, attr_name, getattr(ai, attr_name), attr_cfg)
-                    setattr(ai, attr_name, attr_cfg)
-                elif isinstance(attr_cfg, dict):
-                    attr_val = getattr(ai, attr_name)
-                    if self.verbose:
-                        log.debug("Change AI %s attribute %s: OLD=%s NEW=%s", ai._id, attr_name, getattr(ai, attr_name), dict_merge(attr_val, attr_cfg))
-                    dict_merge(attr_val, attr_cfg, inplace=True)
-                else:
-                    if self.verbose:
-                        log.debug("Change AI %s attribute %s: OLD=%s NEW=%s", ai._id, attr_name, getattr(ai, attr_name), attr_cfg)
-                    setattr(ai, attr_name, attr_cfg)
+        self._update_attributes(ai, dev_cfg)
 
         if not self.dryrun:
             self.rr.update(ai)
 
-    def set_attributes(self, agent_instance_id, resource_id):
+    def _parse_attributes_cfg(self, require_cfg=True):
+        self.cfg_mappings = {}
+
         cfg_file = self.CFG.get("cfg", None)
         if not cfg_file:
-            raise BadRequest("No cfg argument provided")
+            if require_cfg:
+                raise BadRequest("No cfg argument provided")
+            else:
+                return
 
-        if not self.cfg_mappings:
-            self.cfg_mappings = {}
+        with open(cfg_file, "rU") as f:
+            reader = csv.DictReader(f, delimiter=',')
+            for row in reader:
+                self._add_attribute_row(row, self.cfg_mappings)
 
-            with open(cfg_file, "rU") as f:
-                reader = csv.DictReader(f, delimiter=',')
-                for row in reader:
-                    self._add_attribute_row(row, self.cfg_mappings)
+    def set_attributes(self, agent_instance_id, resource_id):
+        self._parse_attributes_cfg()
 
         res_obj = self.rr.read(resource_id)
         cfg_id, dev_cfg = self._get_resource_cfg(res_obj, self.cfg_mappings)
@@ -549,25 +620,7 @@ class AgentControl(ImmediateProcess):
 
         log.info("Setting attributes for resource %s '%s': %s", cfg_id, res_obj.name, dev_cfg)
 
-        for attr_name, attr_cfg in dev_cfg.iteritems():
-            if hasattr(res_obj, attr_name):
-                if type(getattr(res_obj, attr_name)) != type(attr_cfg):
-                    log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(res_obj, attr_name)))
-                    continue
-                if isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
-                    attr_cfg.pop("_replace")
-                    if self.verbose:
-                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), attr_cfg)
-                    setattr(res_obj, attr_name, attr_cfg)
-                elif isinstance(attr_cfg, dict):
-                    attr_val = getattr(res_obj, attr_name)
-                    if self.verbose:
-                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), dict_merge(attr_val, attr_cfg))
-                    dict_merge(attr_val, attr_cfg, inplace=True)
-                else:
-                    if self.verbose:
-                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), attr_cfg)
-                    setattr(res_obj, attr_name, attr_cfg)
+        self._update_attributes(res_obj, dev_cfg)
 
         if not self.dryrun:
             self.rr.update(res_obj)
@@ -773,7 +826,7 @@ class AgentControl(ImmediateProcess):
             log.warn("Exception: %s", e)
             self._recover_data_status['fail'].append("%s (%s)" % (res_obj.name, e))
 
-    def _recover_data_report(self):
+    def _recover_data_post(self, resource_id, agent_instance_id):
         print "==================== Recover Data Report: ===================="
 
         print "\nSuccessfully started recovery for:"
@@ -845,41 +898,47 @@ class AgentControl(ImmediateProcess):
         res_obj = self.rr.read(resource_id)
         dpms = DataProductManagementServiceProcessClient(process=self)
 
-        # Find data products from device id
         count_ds = 0
-        dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
-        for dp_obj in dp_objs:
-            if dpms.is_persisted(dp_obj._id, headers=self._get_system_actor_headers()):
-                if self.force:
-                    log.warn("DataProduct %s '%s' is currently persisted - continuing", dp_obj._id, dp_obj.name)
-                else:
-                    raise BadRequest("DataProduct %s '%s' is currently persisted. Use force=True to ignore", dp_obj._id, dp_obj.name)
+        if res_obj.type_ == RT.Dataset:
+            self._delete_dataset(resource_id)
+            count_ds += 1
+        elif isinstance(res_obj, Device):
+            # Find data products from device id
+            dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
+            for dp_obj in dp_objs:
+                if dpms.is_persisted(dp_obj._id, headers=self._get_system_actor_headers()):
+                    if self.force:
+                        log.warn("DataProduct %s '%s' is currently persisted - continuing", dp_obj._id, dp_obj.name)
+                    else:
+                        raise BadRequest("DataProduct %s '%s' is currently persisted. Use force=True to ignore", dp_obj._id, dp_obj.name)
 
-            ds_objs, _ = self.rr.find_objects(dp_obj._id, PRED.hasDataset, RT.Dataset, id_only=False)
-            for ds_obj in ds_objs:
-                # Delete coverage
-                cov_path = DatasetManagementService._get_coverage_path(ds_obj._id)
-                if os.path.exists(cov_path):
-                    log.info("Removing coverage tree at %s", cov_path)
-                    if self.verbose:
-                        try:
-                            proc = os.popen('du -h "%s"' % cov_path)
-                            log.debug(proc.read())
-                        except Exception:
-                            pass
-                    if not self.dryrun:
-                        shutil.rmtree(cov_path)
-                else:
-                    log.warn("Coverage path does not exist %s" % cov_path)
-
-                # Delete Dataset and associations
-                if self.verbose:
-                    log.debug("Delete Dataset: %s", ds_obj._id)
-                if not self.dryrun:
-                    self.rr.delete(ds_obj._id)
-                    count_ds += 1
+                ds_ids, _ = self.rr.find_objects(dp_obj._id, PRED.hasDataset, RT.Dataset, id_only=True)
+                for ds_id in ds_ids:
+                    self._delete_dataset(ds_id)
 
         log.info("Datasets and coverages deleted for device %s '%s': %s", resource_id, res_obj.name, count_ds)
+
+    def _delete_dataset(self, dataset_id):
+        # Delete coverage
+        cov_path = DatasetManagementService._get_coverage_path(dataset_id)
+        if os.path.exists(cov_path):
+            log.info("Removing coverage tree at %s", cov_path)
+            if self.verbose:
+                try:
+                    proc = os.popen('du -h "%s"' % cov_path)
+                    log.debug(proc.read())
+                except Exception:
+                    pass
+            if not self.dryrun:
+                shutil.rmtree(cov_path)
+        else:
+            log.warn("Coverage path does not exist %s" % cov_path)
+
+        # Delete Dataset and associations
+        if self.verbose:
+            log.debug("Delete Dataset: %s", dataset_id)
+        if not self.dryrun:
+            self.rr.delete(dataset_id)
 
     def delete_all_data(self, agent_instance_id, resource_id):
         # Delete Dataset and coverage for all original DataProducts
@@ -1001,31 +1060,55 @@ class AgentControl(ImmediateProcess):
         log.info("Site resources deleted for site %s '%s': 1 Site", resource_id, res_obj.name)
 
     def activate_deployment(self, agent_instance_id, resource_id):
-        # For current device, find all deployments. Activate the one that
-        dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
-        if dep_objs:
-            current_dep = self._get_current_deployment(dep_objs, for_activate=True)
-            if current_dep:
-                obs_ms = ObservatoryManagementServiceProcessClient(process=self)
-                if not self.dryrun:
-                    obs_ms.activate_deployment(current_dep._id, headers=self._get_system_actor_headers())
+        obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+        res_obj = self.rr.read(resource_id)
+        if res_obj.type_ == RT.Deployment:
+            obs_ms.activate_deployment(resource_id, headers=self._get_system_actor_headers())
+        elif isinstance(res_obj, Device):
+            # For current device, find all deployments. Activate the one that
+            dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+            if self.verbose:
+                log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
+            if dep_objs:
+                current_dep = self._get_current_deployment(dep_objs, only_deployed=False)
+                if current_dep:
+                    log.info("Activating deployment %s", current_dep._id)
+                    if not self.dryrun:
+                        obs_ms.activate_deployment(current_dep._id, headers=self._get_system_actor_headers())
 
     def deactivate_deployment(self, agent_instance_id, resource_id):
-        dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
-        if dep_objs:
-            current_dep = self._get_current_deployment(dep_objs, for_activate=False)
-            if current_dep:
-                obs_ms = ObservatoryManagementServiceProcessClient(process=self)
-                if not self.dryrun:
-                    obs_ms.deactivate_deployment(current_dep._id, headers=self._get_system_actor_headers())
+        obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+        res_obj = self.rr.read(resource_id)
+        if res_obj.type_ == RT.Deployment:
+            obs_ms.deactivate_deployment(resource_id, headers=self._get_system_actor_headers())
+        elif isinstance(res_obj, Device):
+            dep_objs, _ = self.rr.find_objects(resource_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+            if self.verbose:
+                log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
+            if dep_objs:
+                current_dep = self._get_current_deployment(dep_objs, only_deployed=True)
+                if current_dep:
+                    log.info("Deactivating deployment %s", current_dep._id)
+                    if not self.dryrun:
+                        obs_ms.deactivate_deployment(current_dep._id, headers=self._get_system_actor_headers())
 
-    def _get_current_deployment(self, dep_objs, for_activate=True):
-        # TODO: How to find current deployment - wait for R3 M193
-        # First pass: Eliminate all RETIRED and past deployments (end date before now)
+    def _get_current_deployment(self, dep_objs, only_deployed=False):
+        """Return the most likely current deployment from given list of Deployment resources
+        # TODO: For a better way to find current active deployment wait for R3 M193 and then refactor
+        # Procedure:
+        # 1 Eliminate all RETIRED lcstate
+        # 2 If only_deployed==True, eliminate all that are not DEPLOYED lcstate
+        # 3 Eliminate all with illegal or missing TemporalBounds
+        # 4 Eliminate past deployments (end date before now)
+        # 5 Eliminate known future deployments (start date after now)
+        # 6 Sort the remaining list by start date and return first (ambiguous!!)
+        """
         now = time.time()
         filtered_dep = []
         for dep_obj in dep_objs:
             if dep_obj.lcstate == LCS.RETIRED:
+                continue
+            if only_deployed and dep_obj.lcstate != LCS.DEPLOYED:
                 continue
             temp_const = [c for c in dep_obj.constraint_list if isinstance(c, TemporalBounds)]
             if not temp_const:
@@ -1034,6 +1117,8 @@ class AgentControl(ImmediateProcess):
             if not temp_const.start_datetime or not temp_const.end_datetime:
                 continue
             start_time = int(temp_const.start_datetime)
+            if start_time > now:
+                continue
             end_time = int(temp_const.end_datetime)
             if end_time > now:
                 filtered_dep.append((start_time, end_time, dep_obj))
@@ -1043,8 +1128,360 @@ class AgentControl(ImmediateProcess):
         if len(filtered_dep) == 1:
             return filtered_dep[0][2]
 
-        filtered_dep = sorted(filtered_dep, key=lambda x: x[0])
-        return filtered_dep[-1][2]
+        if self.force:
+            log.warn("Cannot determine current deployment unambiguously - choosing earliest start date")
+            filtered_dep = sorted(filtered_dep, key=lambda x: x[0])
+            return filtered_dep[0][2]
+        else:
+            raise BadRequest("Cannot determine current deployment unambiguously - choosing earliest start date")
 
+    def _clone_res_obj(self, res_obj, clone_id):
+        res_pre_id = self._get_alt_id(res_obj, "PRE")
+        resnew_pre_id = res_pre_id + "_" + clone_id
+        if self._get_resource_by_alt_id("PRE", resnew_pre_id):
+            raise BadRequest("%s %s clone %s already exists", res_obj.type_, res_obj._id, resnew_pre_id)
+
+        res_dict = res_obj.__dict__.copy()
+        res_type = res_dict.pop("type_")
+        for attr in ["_id", "_rev", "lcstate", "availability", "alt_ids"]:
+            res_dict.pop(attr)
+
+        newres_obj = IonObject(res_type, **res_dict)
+        self._set_alt_id(newres_obj, "CLONE:%s" % res_obj._id)
+        if res_pre_id:
+            self._set_alt_id(newres_obj, "PRE:" + resnew_pre_id)
+        newres_obj.name = res_obj.name + " (cloned)"
+        newres_obj.description = "Cloned from %s" % res_obj._id
+
+        return newres_obj, res_pre_id, resnew_pre_id
+
+    def _clone_org_share(self, res_id, newres_id):
+        orgms = OrgManagementServiceProcessClient(process=self)
+        # Share in Orgs
+        org_ids, _ = self.rr.find_subjects(RT.Org, PRED.hasResource, res_id, id_only=True)
+        for org_id in org_ids:
+            if self.verbose:
+                log.debug("Share cloned resource %s in org %s", newres_id, org_id)
+            orgms.share_resource(org_id, newres_id, headers=self._get_system_actor_headers())
+
+    def _clone_device(self, res_obj, clone_id):
+        ims = InstrumentManagementServiceProcessClient(process=self)
+
+        resource_id = res_obj._id
+        newdev_obj, dev_pre_id, devnew_pre_id = self._clone_res_obj(res_obj, clone_id)
+        newdev_obj.serial_number = ""
+        newdev_obj.ooi_property_number = ""
+        if newdev_obj.temporal_bounds:
+            newdev_obj.temporal_bounds.start_datetime = str(int(time.time()))
+        else:
+            newdev_obj.temporal_bounds = IonObject(OT.TemporalBounds)
+            newdev_obj.temporal_bounds.start_datetime = str(int(time.time()))
+            newdev_obj.temporal_bounds.end_datetime = "2650838400"  # 2054-01-01
+
+        cfg_id, dev_cfg = self._get_resource_cfg(newdev_obj, self.cfg_mappings)
+        self._update_attributes(newdev_obj, dev_cfg)
+
+        # Create resource
+        if res_obj.type_ == RT.InstrumentDevice:
+            newdev_id = ims.create_instrument_device(newdev_obj, headers=self._get_system_actor_headers())
+        else:
+            newdev_id = ims.create_platform_device(newdev_obj, headers=self._get_system_actor_headers())
+        self.clone_map[resource_id] = newdev_id
+        log.debug("Cloned device %s %s as: %s %s '%s'", resource_id,
+                  dev_pre_id, newdev_id, devnew_pre_id, newdev_obj.name)
+        if self.verbose:
+            newdev_obj1 = self.rr.read(newdev_id)
+            log.debug("Device details: %s", newdev_obj1)
+
+        # Association to model
+        model_id = self.rr.read_object(resource_id, PRED.hasModel, id_only=True)
+        self.rr.create_association(newdev_id, PRED.hasModel, model_id)
+
+        # Mirror associations to parent device
+        try:
+            parent_id = self.rr.read_subject(RT.PlatformDevice, PRED.hasDevice, resource_id, id_only=True)
+            if parent_id and parent_id in self.clone_map:
+                # This cloned device is a child as part of a recurse
+                self.rr.create_association(self.clone_map[parent_id], PRED.hasDevice, newdev_id)
+        except NotFound:
+            pass  # No parent found
+
+        # Share in Orgs
+        self._clone_org_share(resource_id, newdev_id)
+
+        return newdev_id, newdev_obj
+
+    def _clone_agent_instance(self, ai_obj, clone_id, newdev_id):
+        ims = InstrumentManagementServiceProcessClient(process=self)
+        dams = DataAcquisitionManagementServiceProcessClient(process=self)
+
+        agent_instance_id = ai_obj._id
+        newai_obj, ai_pre_id, ainew_pre_id = self._clone_res_obj(ai_obj, clone_id)
+
+        cfg_id, ai_cfg = self._get_resource_cfg(newai_obj, self.cfg_mappings)
+        self._update_attributes(newai_obj, ai_cfg)
+
+        adef_id = self.rr.read_object(agent_instance_id, PRED.hasAgentDefinition, id_only=True)
+
+        # Create agent instance, association to agent definition and to device
+        if ai_obj.type_ == RT.InstrumentAgentInstance:
+            newai_id = ims.create_instrument_agent_instance(newai_obj,
+                                                            instrument_agent_id=adef_id,
+                                                            instrument_device_id=newdev_id,
+                                                            headers=self._get_system_actor_headers())
+        elif ai_obj.type_ == RT.PlatformAgentInstance:
+            newai_id = ims.create_platform_agent_instance(newai_obj,
+                                                          platform_agent_id=adef_id,
+                                                          platform_device_id=newdev_id,
+                                                          headers=self._get_system_actor_headers())
+        else:
+            newai_id = dams.create_external_dataset_agent_instance(newai_obj,
+                                                                   external_dataset_agent_id=adef_id,
+                                                                   external_dataset_id=None,
+                                                                   headers=self._get_system_actor_headers())
+            # Need to create association to device
+            self.rr.create_association(newdev_id, PRED.hasAgentInstance, newai_id)
+        log.debug("Cloned agent instance %s %s as: %s %s '%s'", agent_instance_id,
+                  ai_pre_id, newai_id, ainew_pre_id, newai_obj.name)
+        if self.verbose:
+            newai_obj1 = self.rr.read(newai_id)
+            log.debug("Agent instance details: %s", newai_obj1)
+
+        # Share in Orgs
+        self._clone_org_share(agent_instance_id, newai_id)
+
+        return newai_id, newai_obj
+
+    def _clone_data_product(self, dp_obj, clone_id, is_output=True, parent_dp_id=None, device_id=None):
+        dpms = DataProductManagementServiceProcessClient(process=self)
+        psms = PubsubManagementServiceProcessClient(process=self)
+
+        newdp_obj, dp_pre_id, dpnew_pre_id = self._clone_res_obj(dp_obj, clone_id)
+
+        cfg_id, dp_cfg = self._get_resource_cfg(newdp_obj, self.cfg_mappings)
+        self._update_attributes(newdp_obj, dp_cfg)
+
+        # Duplicate StreamDefinition
+        sdef_obj = self.rr.read_object(dp_obj._id, PRED.hasStreamDefinition, RT.StreamDefinition, id_only=False)
+        pdict_id = self.rr.read_object(sdef_obj._id, PRED.hasParameterDictionary, RT.ParameterDictionary, id_only=True)
+
+        newsdef_id = psms.create_stream_definition(name=sdef_obj.name + " (cloned)",
+                                                   parameter_dictionary_id=pdict_id,
+                                                   stream_configuration=sdef_obj.stream_configuration,
+                                                   available_fields=sdef_obj.available_fields,
+                                                   headers=self._get_system_actor_headers())
+
+        # Update alt_ids (StreamDefinition has a non-compliant create signature)
+        newsdef_obj = self.rr.read(newsdef_id)
+        newsdef_obj.description = "Cloned from %s" % sdef_obj._id
+        res_pre_id = self._get_alt_id(sdef_obj, "PRE")
+        resnew_pre_id = res_pre_id + "_" + clone_id
+        self._set_alt_id(newsdef_obj, "CLONE:%s" % sdef_obj._id)
+        if res_pre_id:
+            self._set_alt_id(newsdef_obj, "PRE:" + resnew_pre_id)
+        newsdef_obj.addl["stream_use"] = sdef_obj.addl.get("stream_use", "")
+
+        cfg_id, sdef_cfg = self._get_resource_cfg(newsdef_obj, self.cfg_mappings)
+        self._update_attributes(newsdef_obj, sdef_cfg)
+
+        self.rr.update(newsdef_obj)
+
+        log.debug("Cloned StreamDefinition %s %s as: %s %s '%s'", sdef_obj._id,
+                  res_pre_id, newsdef_id, resnew_pre_id, newsdef_obj.name)
+
+        # Create agent instance, association to agent definition and to device
+        newdp_id = dpms.create_data_product(newdp_obj,
+                                            stream_definition_id=newsdef_id,
+                                            parent_data_product_id=parent_dp_id,
+                                            headers=self._get_system_actor_headers())
+
+        log.debug("Cloned data product %s %s as: %s %s '%s'", dp_obj._id,
+                  dp_pre_id, newdp_id, dpnew_pre_id, newdp_obj.name)
+        if self.verbose:
+            newdp_obj1 = self.rr.read(newdp_id)
+            log.debug("Data product details: %s", newdp_obj1)
+
+        # Share in Orgs
+        self._clone_org_share(dp_obj._id, newdp_id)
+
+        # Associations hasOutputProduct
+        if device_id:
+            self.rr.create_association(newdp_id, PRED.hasSource, device_id)
+            if self.verbose:
+                log.debug(" Created association DP %s %s Device %s", newdp_id, PRED.hasSource, device_id)
+            if is_output:
+                self.rr.create_association(device_id, PRED.hasOutputProduct, newdp_id)
+                if self.verbose:
+                    log.debug(" Created association Device %s %s DP %s", device_id, PRED.hasOutputProduct, newdp_id)
+
+        # Association hasSource
+        targ_objs, _ = self.rr.find_objects(dp_obj._id, PRED.hasSource, id_only=False)
+        for targ_obj in targ_objs:
+            if isinstance(targ_obj, Site):
+                self.rr.create_association(newdp_id, PRED.hasSource, targ_obj._id)
+                if self.verbose:
+                    log.debug(" Created association Site %s %s DP %s", newdp_id, PRED.hasSource, targ_obj._id)
+
+        # Create dataset
+        dpms.create_dataset_for_data_product(newdp_id, headers=self._get_system_actor_headers())
+        log.debug(" Created dataset for data product %s %s '%s'", newdp_id, dpnew_pre_id, newdp_obj.name)
+
+        return newdp_id, newdp_obj
+
+    # Potential Issues: Names etc attributes are not final at time of create, but DataProducer, Stream etc
+    # names are derived from these names.
+    # - Stream.routing_key is derived from DP name. Issue?
+    def clone_device(self, agent_instance_id, resource_id):
+        """Clones the given device with its associations and makes a few modifications"""
+        if not hasattr(self, "clone_map"):
+            self.clone_map = {}   # Holds a map of old to new devices
+
+        clone_id = self.CFG.get("clone_id", None)
+        if not clone_id:
+            raise BadRequest("Must provide clone_id argument")
+
+        self._parse_attributes_cfg(require_cfg=False)
+
+        # (1) Clone device and associations
+        res_obj = self.rr.read(resource_id)
+        if not isinstance(res_obj, Device):
+            raise BadRequest("Given resource %s is not a Device: %s" % (resource_id, res_obj.type_))
+
+        newdev_id, newdev_obj = self._clone_device(res_obj, clone_id)
+
+        # (2) Clone agent instance and associations
+        if agent_instance_id:
+            ai_obj = self.rr.read(agent_instance_id)
+            newai_id, newai_obj = self._clone_agent_instance(ai_obj, clone_id, newdev_id)
+
+        # (3) Clone data products: output data products with derived data products
+        dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
+        for dp_obj in dp_objs:
+            newdp_id, newdp_obj = self._clone_data_product(dp_obj, clone_id, device_id=newdev_id)
+
+            # Clone derived data products for an output data product
+            dp_objs1, _ = self.rr.find_objects(resource_id, PRED.hasDataProductParent, RT.DataProduct, id_only=False)
+            for dp_obj1 in dp_objs1:
+                self._clone_data_product(dp_obj1, clone_id, is_output=False, parent_dp_id=newdp_id, device_id=newdev_id)
+
+    def _clone_deployment(self, res_obj, clone_id):
+        oms = ObservatoryManagementServiceProcessClient(process=self)
+
+        resource_id = res_obj._id
+        newdep_obj, dep_pre_id, depnew_pre_id = self._clone_res_obj(res_obj, clone_id)
+        for const in newdep_obj.constraint_list:
+            if const.type_ == OT.TemporalBounds:
+                const.start_datetime = str(int(time.time()))
+
+        cfg_id, dep_cfg = self._get_resource_cfg(newdep_obj, self.cfg_mappings)
+        self._update_attributes(newdep_obj, dep_cfg)
+
+        try:
+            site_id = self.rr.read_subject(RT.PlatformSite, PRED.hasDeployment, resource_id, id_only=True)
+        except NotFound:
+            site_id = self.rr.read_subject(RT.InstrumentSite, PRED.hasDeployment, resource_id, id_only=True)
+        try:
+            device_obj = self.rr.read_subject(RT.PlatformDevice, PRED.hasDeployment, resource_id, id_only=False)
+        except NotFound:
+            device_obj = self.rr.read_subject(RT.InstrumentDevice, PRED.hasDeployment, resource_id, id_only=False)
+
+        # Determine device tree from current deployment device
+        # TODO: This does NOT work if the cloned device assembly was not cloned as a full tree
+        # In this case there is no way guessing which instruments belong to which ports without a mapping csv
+        ou = ObservatoryUtil()
+        dev_child_devices = ou.get_child_devices(device_obj._id)
+        self.clone_map = {}
+        def build_map(dev_id, dev_child_devices):
+            dev_obj = self.rr.read(dev_id)
+            dev_pre_id = self._get_alt_id(dev_obj, "PRE")
+            if dev_pre_id:
+                newdev_obj = self._get_resource_by_alt_id("PRE", dev_pre_id + "_" + clone_id)
+                if newdev_obj:
+                    self.clone_map[dev_id] = newdev_obj._id
+                else:
+                    if self.force:
+                        log.warn("Cannot find cloned device for device %s" % dev_id)
+                    else:
+                        raise BadRequest("Cannot find cloned device for device %s" % dev_id)
+            else:
+                if self.force:
+                    log.warn("Cannot find PRE id of device %s" % dev_id)
+                else:
+                    raise BadRequest("Cannot find PRE id of device %s" % dev_id)
+            for _, ch_id, _ in dev_child_devices.get(dev_id, []):
+                build_map(ch_id, dev_child_devices)
+        build_map(device_obj._id, dev_child_devices)
+
+        newdev_id = self.clone_map[device_obj._id]
+
+        # Revise port assignments
+        new_port_assignments = {}
+        for dev_id, dev_port in res_obj.port_assignments.iteritems():
+            if dev_id in self.clone_map:
+                new_port_assignments[self.clone_map[dev_id]] = dev_port
+                if hasattr(dev_port, "parent_id"):
+                    if dev_port.parent_id in self.clone_map:
+                        dev_port.parent_id = self.clone_map[dev_port.parent_id]
+                    else:
+                        log.warn("Could not find parent device id %s in cloned device tree", dev_port.parent_id)
+            else:
+                if self.force:
+                    log.warn("Could not find device id %s in cloned device tree", dev_id)
+                else:
+                    raise BadRequest("Could not find device id %s in cloned device tree" % dev_id)
+        newdep_obj.port_assignments = new_port_assignments
+        if self.verbose:
+            log.debug("Cloned port_assignments: %s", newdep_obj.port_assignments)
+
+        # Create Deployment resource with associations
+        newdep_id = oms.create_deployment(newdep_obj,
+                                          site_id=site_id,
+                                          device_id=newdev_id,
+                                          headers=self._get_system_actor_headers())
+
+        log.debug("Cloned deployment %s %s as: %s %s '%s'", resource_id,
+                  dep_pre_id, newdep_id, depnew_pre_id, newdep_obj.name)
+
+        # Orgs
+        self._clone_org_share(resource_id, newdep_id)
+
+        return newdep_id, newdep_obj
+
+    def clone_deployment(self, agent_instance_id, resource_id):
+        self._parse_attributes_cfg(require_cfg=False)
+
+        clone_id = self.CFG.get("clone_id", None)
+        if not clone_id:
+            raise BadRequest("Must provide clone_id argument")
+
+        res_obj = self.rr.read(resource_id)
+        if not res_obj.type_ == RT.Deployment:
+            raise BadRequest("Given resource %s is not a Deployment: %s" % (resource_id, res_obj.type_))
+
+        self._clone_deployment(res_obj, clone_id)
+
+    def list_agents(self):
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.list_agents()
+
+    def list_containers(self):
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.list_containers()
+
+    def list_services(self):
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.list_services()
+
+    def list_persistence(self):
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.list_persistence()
+
+    def show_use(self, agent_instance_id, resource_id):
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.show_use(resource_id)
+
+    def show_dataset(self, agent_instance_id, resource_id):
+        res_info = ResourceUseInfo(self.container, self.verbose)
+        res_info.show_dataset(resource_id)
 
 ImportDataset = AgentControl
