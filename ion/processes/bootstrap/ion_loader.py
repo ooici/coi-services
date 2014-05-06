@@ -3188,7 +3188,6 @@ Reason: %s
 
     def _load_DataProduct(self, row, do_bulk=False):
         self.row_count += 1
-        tdom, sdom = time_series_domain()
 
         contacts = self._get_contacts(row, field='contact_ids', type='DataProduct')
         res_obj = self._create_object_from_row("DataProduct", row, "dp/", contacts=contacts, contact_field='contacts')
@@ -3224,8 +3223,6 @@ Reason: %s
                 parent_id = self.resource_ids[row['parent']]
             else:
                 log.warn("DataProduct %s parent reference %s not found", row[COL_ID], parent_id)
-        res_obj.spatial_domain = sdom.dump()
-        res_obj.temporal_domain = tdom.dump()
 
         headers = self._get_op_headers(row)
 

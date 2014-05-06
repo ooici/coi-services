@@ -73,13 +73,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         '''
         Creates a time-series dataset
         '''
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
         if not parameter_dict_id:
             parameter_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-        dataset_id = self.dataset_management.create_dataset('test_dataset_%i'%self.i, parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
+        dataset_id = self.dataset_management.create_dataset('test_dataset_%i'%self.i, parameter_dictionary_id=parameter_dict_id)
         self.addCleanup(self.dataset_management.delete_dataset, dataset_id)
         return dataset_id
     

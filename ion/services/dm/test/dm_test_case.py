@@ -80,12 +80,8 @@ class DMTestCase(IonIntegrationTestCase):
         if not (stream_def_id or param_dict_name or pdict_id):
             raise AssertionError('Attempted to create a Data Product without a parameter dictionary')
 
-        tdom, sdom = time_series_domain()
 
-        dp = DataProduct(name=name,
-                spatial_domain = sdom.dump(),
-                temporal_domain = tdom.dump(),
-                )
+        dp = DataProduct(name=name)
 
         stream_def_id = stream_def_id or self.create_stream_definition('%s stream def' % name, 
                 parameter_dictionary_id=pdict_id or self.RR2.find_resource_by_name(RT.ParameterDictionary,

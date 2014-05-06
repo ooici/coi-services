@@ -131,8 +131,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(self.pubsub_client.delete_stream_definition, self.stream_def_id)
 
         # create the DataProduct that is the input to the data processes
-        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream',
-                                             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream')
         self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
         # retrieve the Stream for this data product
@@ -268,8 +267,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.stream_def_id = self.pubsub_client.create_stream_definition(name='stream_def', parameter_dictionary_id=self.parameter_dict_id)
 
         # create the DataProduct that is the input to the data processes
-        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream',
-            temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream')
         self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
         # retrieve the Stream for this data product
@@ -328,8 +326,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.stream_def_id = self.pubsub_client.create_stream_definition(name='stream_def', parameter_dictionary_id=self.parameter_dict_id)
 
         # create the DataProduct that is the input to the data processes
-        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream',
-            temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream')
         self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
         # retrieve the Stream for this data product
@@ -388,8 +385,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(self.pubsub_client.delete_stream_definition, self.stream_def_id)
 
         # create the DataProduct
-        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream',
-                                             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream')
         self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
         # retrieve the Stream for this data product
@@ -444,8 +440,7 @@ class TestTransformWorker(IonIntegrationTestCase):
         self.addCleanup(self.pubsub_client.delete_stream_definition, self.stream_def_id)
 
         # create the DataProduct that is the input to the data processes
-        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream',
-                                             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product', description='input test stream')
         self.input_dp_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
         # two data processes using one transform and one DPD
@@ -585,9 +580,7 @@ class TestTransformWorker(IonIntegrationTestCase):
 
         dp1_output_dp_obj = IonObject(  RT.DataProduct,
             name='data_process1_data_product',
-            description='output of add array func',
-            temporal_domain = self.time_dom.dump(),
-            spatial_domain = self.spatial_dom.dump())
+            description='output of add array func')
 
         dp1_func_output_dp_id = self.dataproductclient.create_data_product(dp1_output_dp_obj,  dp1_outgoing_stream_id)
         self.addCleanup(self.dataproductclient.delete_data_product, dp1_func_output_dp_id)

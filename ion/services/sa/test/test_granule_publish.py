@@ -78,13 +78,10 @@ class TestGranulePublish(IonIntegrationTestCase):
         stream_definition_id = self.pubsubclient.create_stream_definition('parsed stream', parameter_dictionary_id=pdict_id)
 
 
-        tdom, sdom = time_series_domain()
 
         dp_obj = IonObject(RT.DataProduct,
             name=str(uuid.uuid4()),
-            description='ctd stream test',
-            temporal_domain = tdom.dump(),
-            spatial_domain = sdom.dump())
+            description='ctd stream test')
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=stream_definition_id)
 

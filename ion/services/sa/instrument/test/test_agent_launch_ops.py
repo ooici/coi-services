@@ -136,10 +136,6 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
                                                                                instAgent_id,
                                                                                instDevice_id)
 
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
 
         spdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary_id=spdict_id)
@@ -154,9 +150,7 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
                            name='the parsed data',
-                           description='ctd stream test',
-                           temporal_domain = tdom,
-                           spatial_domain = sdom)
+                           description='ctd stream test')
 
         data_product_id1 = self.DP.create_data_product(data_product=dp_obj,
                                                        stream_definition_id=parsed_stream_def_id)
@@ -183,9 +177,7 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
                            name='the raw data',
-                           description='raw stream test',
-                           temporal_domain = tdom,
-                           spatial_domain = sdom)
+                           description='raw stream test')
 
         data_product_id2 = self.DP.create_data_product(data_product=dp_obj,
                                                        stream_definition_id=raw_stream_def_id)
@@ -288,9 +280,6 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             config_builder.i = InstrumentAgentConfigurationBuilder(clients)
 
 
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
         org_obj = any_old(RT.Org)
         org_id = self.RR2.create(org_obj)
@@ -431,7 +420,7 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             platform_device_id = self.IMS.create_platform_device(any_old(RT.PlatformDevice))
 
             # data product creation
-            dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
+            dp_obj = any_old(RT.DataProduct)
             dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
             self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
@@ -487,7 +476,7 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             instrument_device_id = self.IMS.create_instrument_device(any_old(RT.InstrumentDevice))
 
             # data product creation
-            dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
+            dp_obj = any_old(RT.DataProduct)
             dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
             self.DAMS.assign_data_product(input_resource_id=instrument_device_id, data_product_id=dp_id)
             self.DP.activate_data_product_persistence(data_product_id=dp_id)

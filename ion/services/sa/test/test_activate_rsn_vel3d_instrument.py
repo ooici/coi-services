@@ -237,9 +237,6 @@ class TestActivateRSNVel3DInstrument(IonIntegrationTestCase):
                                                                                instDevice_id)
 
 
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
 
         parsed_sample_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('vel3d_b_sample', id_only=True)
@@ -258,9 +255,7 @@ class TestActivateRSNVel3DInstrument(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
             name='vel3d_b_sample',
-            description='vel3d_b_sample',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='vel3d_b_sample')
 
         sample_data_product_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_sample_stream_def_id)
         log.debug( 'new dp_id = %s' , sample_data_product_id)
@@ -285,9 +280,7 @@ class TestActivateRSNVel3DInstrument(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
             name='vel3d_b_engineering',
-            description='vel3d_b_engineering',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='vel3d_b_engineering')
 
         eng_data_product_id = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_eng_stream_def_id)
         log.debug( 'new dp_id = %s' , eng_data_product_id)
@@ -299,9 +292,7 @@ class TestActivateRSNVel3DInstrument(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
             name='the raw data',
-            description='raw stream test',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='raw stream test')
 
         data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
         log.debug('new dp_id = %s', data_product_id2)

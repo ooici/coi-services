@@ -58,7 +58,6 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
 
-        self.time_dom, self.spatial_dom = time_series_domain()
         self.wait_time = CFG.get_safe('endpoint.receive.timeout', 10)
 
 
@@ -77,12 +76,10 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         self.addCleanup(self.pubsub_client.delete_stream_definition, self.stream_def_id)
 
         # create the DataProduct
-        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product_one', description='input test stream one',
-                                             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product_one', description='input test stream one')
         self.input_dp_one_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
-        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product_two', description='input test stream two',
-                                             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product_two', description='input test stream two')
         self.input_dp_two_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
         #retrieve the Stream for this data product
@@ -179,8 +176,7 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
         self.addCleanup(self.pubsub_client.delete_stream_definition, self.stream_def_id)
 
         # create the DataProduct
-        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product_one', description='input test stream one',
-                                             temporal_domain = self.time_dom.dump(),  spatial_domain = self.spatial_dom.dump())
+        input_dp_obj = IonObject(  RT.DataProduct, name='input_data_product_one', description='input test stream one')
         self.input_dp_one_id = self.dataproductclient.create_data_product(data_product=input_dp_obj,  stream_definition_id=self.stream_def_id)
 
 
@@ -318,9 +314,7 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
 
         dp1_output_dp_obj = IonObject(  RT.DataProduct,
             name='data_process1_data_product',
-            description='output of add array func',
-            temporal_domain = self.time_dom.dump(),
-            spatial_domain = self.spatial_dom.dump())
+            description='output of add array func')
 
         dp1_func_output_dp_id = self.dataproductclient.create_data_product(dp1_output_dp_obj,  dp1_outgoing_stream_id)
         self.addCleanup(self.dataproductclient.delete_data_product, dp1_func_output_dp_id)
@@ -333,9 +327,7 @@ class TestTransformWorkerSubscriptions(IonIntegrationTestCase):
 
         dp2_func_output_dp_obj = IonObject(  RT.DataProduct,
             name='data_process2_data_product',
-            description='output of add array func',
-            temporal_domain = self.time_dom.dump(),
-            spatial_domain = self.spatial_dom.dump())
+            description='output of add array func')
 
         dp2_func_output_dp_id = self.dataproductclient.create_data_product(dp2_func_output_dp_obj,  dp2_func_outgoing_stream_id)
         self.addCleanup(self.dataproductclient.delete_data_product, dp2_func_output_dp_id)

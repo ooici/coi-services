@@ -631,13 +631,9 @@ class TestAssembly(GenericIntHelperTestCase):
     def create_data_product_obj(self):
 
         # Construct temporal and spatial Coordinate Reference System objects
-        tdom, sdom = time_series_domain()
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
         # creates an IonObject of RT.DataProduct and adds custom fields specified by dict
-        return any_old(RT.DataProduct, dict(temporal_domain=tdom, spatial_domain=sdom))
+        return any_old(RT.DataProduct)
 
 
     def create_inst_agent_instance(self, agent_id, device_id):

@@ -580,12 +580,7 @@ class DatasetAgentTestCase(IonIntegrationTestCase):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name(pdict_name, id_only=True)
         stream_def_id = self.pubsub_management.create_stream_definition('%s stream_def' % dp_name, parameter_dictionary_id=pdict_id, available_fields=available_fields or None)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
         dp_obj = DataProduct(name=dp_name)
-        dp_obj.temporal_domain = tdom
-        dp_obj.spatial_domain = sdom
         data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
         return data_product_id

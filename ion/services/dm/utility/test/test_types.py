@@ -416,16 +416,11 @@ class ExhaustiveParameterTest(IonIntegrationTestCase):
             if dp_id: self.dp_ids.append(dp_id)
 
     def make_dp(self, stream_def_id):
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
         stream_def = self.resource_registry.read(stream_def_id)
         dp_obj = DataProduct(
                 name=stream_def.name,
                 description=stream_def.name,
-                processing_level_code='Parsed_Canonical',
-                temporal_domain = tdom,
-                spatial_domain = sdom)
+                processing_level_code='Parsed_Canonical')
 
 
         data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)

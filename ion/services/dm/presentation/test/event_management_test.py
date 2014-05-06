@@ -397,14 +397,10 @@ class EventManagementIntTest(IonIntegrationTestCase):
 
         stream_def_id = self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary_id=param_dict_id)
 
-        tdom, sdom = time_series_domain()
-        tdom, sdom = tdom.dump(), sdom.dump()
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='some new dp')
 
         # Create a data product
         data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id)

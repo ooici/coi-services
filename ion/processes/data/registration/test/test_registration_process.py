@@ -36,7 +36,7 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
         parameter_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
+        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dictionary_id=parameter_dict_id)
         return dataset_id
 
     def test_pydap(self):
@@ -46,11 +46,8 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('example', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
-        tdom, sdom = time_series_domain()
 
         dp = DataProduct(name='example')
-        dp.spatial_domain = sdom.dump()
-        dp.temporal_domain = tdom.dump()
 
         data_product_id = self.data_product_management.create_data_product(dp, stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)

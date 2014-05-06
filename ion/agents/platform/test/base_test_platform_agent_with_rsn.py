@@ -72,7 +72,6 @@ from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentTy
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
-from ion.services.dm.utility.granule_utils import time_series_domain
 
 from gevent.event import AsyncResult
 
@@ -592,9 +591,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                 to the platform.
         """
 
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
         #
         # TODO will each platform have its own param dictionary?
@@ -640,7 +636,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             platform_device_id = self.IMS.create_platform_device(any_old(RT.PlatformDevice))
 
             # data product creation
-            dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
+            dp_obj = any_old(RT.DataProduct)
             parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict')
             dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=self.parsed_stream_def_id, default_stream_configuration=parsed_config)
             self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
@@ -967,9 +963,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         # data products
 
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
 
         org_id = self.RR2.create(org_obj)
 
@@ -982,9 +975,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         dp_obj = IonObject(RT.DataProduct,
                            name='the parsed data for %s' % instr_key,
-                           description='ctd stream test',
-                           temporal_domain=tdom,
-                           spatial_domain=sdom)
+                           description='ctd stream test')
 
         parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict')
         data_product_id1 = self.DP.create_data_product(data_product=dp_obj,
@@ -1005,9 +996,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         dp_obj = IonObject(RT.DataProduct,
                            name='the raw data for %s' % instr_key,
-                           description='raw stream test',
-                           temporal_domain=tdom,
-                           spatial_domain=sdom)
+                           description='raw stream test')
 
         raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict')
         data_product_id2 = self.DP.create_data_product(data_product=dp_obj,

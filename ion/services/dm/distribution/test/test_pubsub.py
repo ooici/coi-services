@@ -254,10 +254,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
-        tdom, sdom = time_series_domain()
         dp = DataProduct(name='ctd parsed')
-        dp.spatial_domain = sdom.dump()
-        dp.temporal_domain = tdom.dump()
 
         data_product_id = self.data_product_management.create_data_product(data_product=dp, stream_definition_id=stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)

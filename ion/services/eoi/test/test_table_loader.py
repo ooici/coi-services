@@ -62,11 +62,8 @@ class DatasetLoadTest(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('example', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
-        tdom, sdom = time_series_domain()
 
         dp = DataProduct(name='example')
-        dp.spatial_domain = sdom.dump()
-        dp.temporal_domain = tdom.dump()
 
         data_product_id = self.data_product_management.create_data_product(dp, stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
@@ -126,11 +123,8 @@ class ServiceTests(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('example', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
-        tdom, sdom = time_series_domain()
 
         dp = DataProduct(name='example')
-        dp.spatial_domain = sdom.dump()
-        dp.temporal_domain = tdom.dump()
 
         data_product_id = self.data_product_management.create_data_product(dp, stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
@@ -174,11 +168,8 @@ class ServiceTests(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('example', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
-        tdom, sdom = time_series_domain()
 
         dp = DataProduct(name='example')
-        dp.spatial_domain = sdom.dump()
-        dp.temporal_domain = tdom.dump()
 
         data_product_id = self.data_product_management.create_data_product(dp, stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
@@ -245,11 +236,8 @@ class ServiceTests(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('example', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
-        tdom, sdom = time_series_domain()
 
         dp = DataProduct(name='example')
-        dp.spatial_domain = sdom.dump()
-        dp.temporal_domain = tdom.dump()
 
         data_product_id = self.data_product_management.create_data_product(dp, stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
@@ -311,11 +299,8 @@ class ServiceTests(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('example', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
-        tdom, sdom = time_series_domain()
 
         dp = DataProduct(name='example')
-        dp.spatial_domain = sdom.dump()
-        dp.temporal_domain = tdom.dump()
 
         data_product_id = self.data_product_management.create_data_product(dp, stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
