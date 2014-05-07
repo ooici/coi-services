@@ -36,9 +36,11 @@ Supports the following ops:
 - list_services: Prints a report of currently active services
 - show_use: Prints a report of uses for given agent definition or device model
 - show_dataset: Prints a report about a dataset (coverage)
+- set_sys_attribute: Sets a system attribute, such as MI version in the directory (use with attr_key, attr_value)
 
 Supports the following arguments:
 - instrument, platform, device_name: name of device. Resource ids (uuid) can be used instead of names.
+- resource_id: Resource id (uuid)
 - agent_name: name of agent instance. Resource ids (uuid) can be used instead of names.
 - preload_id: preload id or list of preload ids of devices
 - recurse: given platform device, execute op on platform and all child platforms and instruments
@@ -49,6 +51,7 @@ Supports the following arguments:
 - verbose: if True, log more messages for detailed steps
 - dryrun: if True, log attempted actions but don't execute them (use verbose=True to see many details)
 - clone_id: provides suffix for a cloned preload id, e.g. CP02PMUI-WP001_PD -> CP02PMUI-WP001_PD_CLONE1
+- attr_key, attr_value: provides a key/value pair of attributes
 
 Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF'
@@ -136,7 +139,7 @@ class AgentControl(ImmediateProcess):
                 else:
                     log.warn("Preload id=%s not found!", pid)
 
-        elif self.op in {"list_persistence", "list_agents", "list_containers", "list_services"}:
+        elif self.op in {"list_persistence", "list_agents", "list_containers", "list_services", "set_sys_attribute"}:
             # None-device operation
             log.info("--- Executing %s  ---", self.op)
             if hasattr(self, self.op):
@@ -471,12 +474,16 @@ class AgentControl(ImmediateProcess):
         return cfg_id, dev_cfg
 
     def _add_attribute_row(self, row, cfg_dict):
-        # Value per row format
+        """Parse a value row from a CSV row dict"""
         device_id = row["ID"]
         attr_name = row["Attribute"]
         param_name = row["Name"]
         param_value = row["Value"]
         param_type = row.get("Type", "str") or "str"
+        ignore_row = row.get("Ignore", "") == "Yes"
+        if ignore_row or not device_id or not (attr_name or param_name):
+            # This is a comment or empty row
+            return
         if not param_name:
             log.warn("Device %s row %s value %s has no name", device_id, attr_name, param_value)
             return
@@ -1483,5 +1490,25 @@ class AgentControl(ImmediateProcess):
     def show_dataset(self, agent_instance_id, resource_id):
         res_info = ResourceUseInfo(self.container, self.verbose)
         res_info.show_dataset(resource_id)
+
+    def set_sys_attribute(self):
+        sys_attrs = self.container.directory.lookup("/System")
+        if self.verbose:
+            log.debug("Current system attributes: %s", sys_attrs)
+        attr_name = self.CFG.get("attr_key", "")
+        if not attr_name:
+            log.warn("System attribute name missing")
+            return
+        attr_val = self.CFG.get("attr_value", None)
+        if attr_val is None:
+            log.warn("System attribute %s value missing", attr_name)
+            return
+        if not sys_attrs:
+            sys_attrs = {}
+        if attr_val == "DELETE":
+            sys_attrs.pop(attr_name, None)
+        else:
+            sys_attrs[attr_name] = attr_val
+        self.container.directory.register("/", "System", **sys_attrs)
 
 ImportDataset = AgentControl
