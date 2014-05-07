@@ -692,6 +692,20 @@ class TestDMExtended(DMTestCase):
 
         bounds = self.dataset_management.dataset_temporal_bounds(dataset_id)
         self.assertEquals(bounds, {})
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        rdt['time'] = np.arange(20,40)
+        rdt['temp'] = np.arange(20)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait(10))
+        
+        breakpoint(locals(), globals())
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['time'], np.arange(20,40))
+        np.testing.assert_array_equal(rdt['test'], np.arange(20))
 
         parameters = self.data_product_management.get_data_product_parameters(data_product_id, id_only=False)
         parameter_names = [p.name for p in parameters]

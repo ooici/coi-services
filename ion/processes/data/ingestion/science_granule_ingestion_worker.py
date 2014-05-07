@@ -8,7 +8,7 @@
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.core.exception import CorruptionError, NotFound
+from pyon.core.exception import CorruptionError, NotFound, BadRequest
 from pyon.ion.event import handle_stream_exception, EventPublisher
 from pyon.ion.event import EventSubscriber
 from pyon.public import log, RT, PRED, CFG, OT
@@ -511,64 +511,45 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
                 rdt[field] = value
 
     def insert_sparse_values(self, coverage, rdt, stream_id):
-
-        self.fill_lookup_values(rdt)
-        for field in rdt.fields:
-            if rdt._rd[field] is None:
-                continue
-            if not isinstance(rdt.context(field).param_type, SparseConstantType):
-                # We only set sparse values before insert
-                continue 
-            value = rdt[field]
-            try:
-                coverage.set_parameter_values(param_name=field, value=value)
-            except ValueError as e:
-                if "'lower_bound' cannot be >= 'upper_bound'" in e.message:
-                    continue
-                else:
-                    raise
-            except IOError as e:
-                log.error("Couldn't insert values for coverage: %s",
-                          coverage.persistence_dir, exc_info=True)
-                try:
-                    coverage.close()
-                finally:
-                    self._bad_coverages[stream_id] = 1
-                    raise CorruptionError(e.message)
+        raise BadRequest("Sparse values aren't supported")
 
     def insert_values(self, coverage, rdt, stream_id):
-        elements = len(rdt)
+        from coverage_model.storage.parameter_data import NumpyParameterData
 
-        start_index = coverage.num_timesteps - elements
+        np_dict = {}
+        time_array = rdt[rdt.temporal_parameter][:]
 
         for k,v in rdt.iteritems():
             if isinstance(v, SparseConstantValue):
                 continue
-            slice_ = slice(start_index, None)
-            try:
-                coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
-            except IOError as e:
-                log.error("Couldn't insert values for coverage: %s",
-                          coverage.persistence_dir, exc_info=True)
-                try:
-                    coverage.close()
-                finally:
-                    self._bad_coverages[stream_id] = 1
-                    raise CorruptionError(e.message)
-            except IndexError as e:
-                log.error("Value set: %s", v[:])
-                data_products, _ = self.container.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream, subject_type=RT.DataProduct)
-                for data_product in data_products:
-                    log.exception("Index exception with %s, trying to insert %s into coverage with shape %s", 
-                                  data_product.name,
-                                  k,
-                                  v.shape)
-
-    
+            value = v[:]
+            np_dict[k] = NumpyParameterData(k, value, time_array)
         if 'ingestion_timestamp' in coverage.list_parameters():
             t_now = time.time()
             ntp_time = TimeUtils.ts_to_units(coverage.get_parameter_context('ingestion_timestamp').uom, t_now)
-            coverage.set_parameter_values(param_name='ingestion_timestamp', tdoa=slice_, value=ntp_time)
+            ntp_time = np.ones_like(time_array) * t_now
+            np_dict['ingestion_timestamp'] = NumpyParameterData('ingestion_timestamp', ntp_time, time_array)
+    
+
+        try:
+            coverage.set_parameter_values(np_dict)
+        except IOError as e:
+            log.error("Couldn't insert values for coverage: %s",
+                      coverage.persistence_dir, exc_info=True)
+            try:
+                coverage.close()
+            finally:
+                self._bad_coverages[stream_id] = 1
+                raise CorruptionError(e.message)
+        except IndexError as e:
+            log.error("Value set: %s", v[:])
+            data_products, _ = self.container.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream, subject_type=RT.DataProduct)
+            for data_product in data_products:
+                log.exception("Index exception with %s, trying to insert %s into coverage with shape %s", 
+                              data_product.name,
+                              k,
+                              v.shape)
+
     
     def add_granule(self,stream_id, rdt):
         ''' Appends the granule's data to the coverage and persists it. '''
@@ -620,7 +601,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         if rdt[rdt.temporal_parameter] is None:
             elements = 0 
 
-        self.insert_sparse_values(coverage,rdt,stream_id)
+        #self.insert_sparse_values(coverage,rdt,stream_id)
         
         if debugging:
             timer.complete_step('checks') # lightweight ops, should be zero
