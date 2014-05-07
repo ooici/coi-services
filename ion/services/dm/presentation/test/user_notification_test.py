@@ -2144,9 +2144,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='some new dp')
 
         data_product_id = data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=streamdef_id)
 
@@ -2295,9 +2293,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='some new dp')
 
         data_product_id = data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=streamdef_id)
 
@@ -2515,9 +2511,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            description='some new dp')
 
         data_product_id = data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=streamdef_id)
 
