@@ -195,6 +195,10 @@ def _collect_resources_from_event_origins(events=None, rr_client=None):
 
 def _get_notification_name(event_id='', notifications_map=None):
     notification_names = ''
+
+    if not notifications_map:
+        return notification_names
+
     names_list = set()
     if event_id in notifications_map:
         for notification_obj in notifications_map[event_id]:
@@ -226,7 +230,7 @@ def send_email(event, msg_recipient, smtp_client, rr_client):
     ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
     smtp_sender = CFG.get_safe('server.smtp.sender', ION_NOTIFICATION_EMAIL_ADDRESS)
 
-    msg = convert_events_to_email_message([event], rr_client)
+    msg = convert_events_to_email_message(events=[event], notifications_map=None, rr_client=rr_client)
     msg['From'] = smtp_sender
     msg['To'] = msg_recipient
     log.debug("UNS sending email from %s to %s for event type: %s", smtp_sender,msg_recipient, event.type_)

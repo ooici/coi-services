@@ -369,7 +369,8 @@ class UserNotificationService(BaseUserNotificationService):
 
         @retval notifications list of NotificationRequest objects
         """
-        notifications = []
+        #todo remove and use self.user_id_to_nr_map
+        self.notifications = []
         user_notif_req_objs, _ = self.clients.resource_registry.find_objects(
             subject=user_info_id, predicate=PRED.hasNotification, object_type=RT.NotificationRequest, id_only=False)
 
@@ -378,9 +379,9 @@ class UserNotificationService(BaseUserNotificationService):
         for notif in user_notif_req_objs:
             # do not include notifications that have expired
             if notif.temporal_bounds.end_datetime == '':
-                    notifications.append(notif)
+                    self.notifications.append(notif)
 
-        return notifications
+        return self.notifications
 
 
     def create_worker(self, number_of_workers=1):
@@ -443,16 +444,18 @@ class UserNotificationService(BaseUserNotificationService):
         self.smtp_client = setting_up_smtp_client()
         outil_client = ObservatoryUtil(self)
 
+        # map the user id to all NotificationRequests resouces for that user
+        self.user_id_to_nr_map = {}
+
         if end_time <= start_time:
             return
 
         # retrieve all users in the system
         users, _ = self.clients.resource_registry.find_resources(restype=RT.UserInfo)
+        #retrieve all the active notifications assoc to every user
+        self.user_id_to_nr_map = self._get_all_user_notifications(user_objs=users)
 
         for user in users:
-
-            #retrieve all the active notifications assoc to this user
-            notifications = self._get_user_notifications(user_info_id=user._id)
 
             # these are lists of all the origins and event types found in the set of Notification resources
             # used to query the events db
@@ -475,8 +478,12 @@ class UserNotificationService(BaseUserNotificationService):
             # map the event ids to the NRs that it is assoc with
             self.event_id_to_nr_map = {}
 
+
             # for each subscription created by this user
-            for notification in notifications:
+            if user._id not in self.user_id_to_nr_map:
+                continue
+
+            for notification in self.user_id_to_nr_map[user._id]:
 
                 #check that this NotificationRequest is active and also has at least one delivery_configuration that is batch delivery
                 #todo are there still notification diasable switch at the UserInfo level?
@@ -544,12 +551,12 @@ class UserNotificationService(BaseUserNotificationService):
                 self.origins.append(origin_id)
 
             if notification.event_type and notification.event_type != '*':
-                tuple = (origin_id, notification.event_type)
+                key_tuple = (origin_id, notification.event_type)
                 # create a map that pairs origins to the corresponding event types
-                if not tuple in self.origin_event_type_map:
-                    self.origin_event_type_map[tuple] = [notification]
+                if not key_tuple in self.origin_event_type_map:
+                    self.origin_event_type_map[key_tuple] = [notification]
                 else:
-                    self.origin_event_type_map[tuple].append(notification)
+                    self.origin_event_type_map[key_tuple].append(notification)
 
             if not notification.event_type or notification.event_type == '*':
                 if origin_id in self.origin_nr_map:
@@ -575,7 +582,7 @@ class UserNotificationService(BaseUserNotificationService):
             else:
                 self.eventtype_nr_map[notification.event_type] = [notification]
 
-    def _get_user_notifications(self, user_info_id=''):
+    def _get_all_user_notifications(self, user_objs=None):
         """
         Get the notification request objects that are subscribed to by the user
 
@@ -583,17 +590,33 @@ class UserNotificationService(BaseUserNotificationService):
 
         @retval notifications list of NotificationRequest objects
         """
-        notifications = []
-        user_notif_req_objs, _ = self.clients.resource_registry.find_objects(
-            subject=user_info_id, predicate=PRED.hasNotification, object_type=RT.NotificationRequest, id_only=False)
 
-        for notif in user_notif_req_objs:
-            # do not include notifications that have expired
-            #todo and method is batch
-            if notif.temporal_bounds.end_datetime == '':
-                    notifications.append(notif)
+        if not user_objs:
+            return {}
 
-        return notifications
+        user_id_list = []
+        user_id_list = [ user_obj._id for user_obj in user_objs ]
+        log.debug('_get_all_user_notifications user_id_list: %s', user_id_list)
+
+        user_id_to_nrs_map = {}
+        # now look for hasProcess associations to determine which Processes are TransformWorkers
+        objects, associations = self.clients.resource_registry.find_objects_mult(subjects=user_id_list, id_only=False)
+        for object, assoc in zip(objects, associations):
+            if assoc.p == PRED.hasNotification:
+                if assoc.s in user_id_to_nrs_map:
+                    user_id_to_nrs_map[assoc.s].append(object)
+                else:
+                    user_id_to_nrs_map[assoc.s] = [object]
+
+        #log.debug('_get_all_user_notifications user_id_to_nrs_map: %s', user_id_to_nrs_map)
+
+        #for notif in user_notif_req_objs:
+        #    # do not include notifications that have expired
+        #    #todo and method is batch
+        #    if notif.temporal_bounds.end_datetime == '':
+        #            notifications.append(notif)
+
+        return user_id_to_nrs_map
 
 
     def _get_user_batch_events(self, start_time='', end_time='', origins=None, event_types=None, origin_types=None ):
@@ -638,12 +661,12 @@ class UserNotificationService(BaseUserNotificationService):
 
     def _process_event(self, event_object=None):
 
-        tuple = (event_object.origin, event_object.type_)
+        key_tuple = (event_object.origin, event_object.type_)
 
         # first check if this is a 'normal' origin and event type subscription
-        if tuple in self.origin_event_type_map:
-            self._define_delivery_configurations_for_event(event_object=event_object, notification_list=self.origin_event_type_map[tuple])
-            self._add_to_event_nr_map(event_object._id, self.origin_event_type_map[tuple])
+        if key_tuple in self.origin_event_type_map:
+            self._define_delivery_configurations_for_event(event_object=event_object, notification_list=self.origin_event_type_map[key_tuple])
+            self._add_to_event_nr_map(event_object._id, self.origin_event_type_map[key_tuple])
 
         # handle the origins map for origin ids that did not have a event type
         if event_object.origin in self.origin_nr_map:
@@ -696,11 +719,11 @@ class UserNotificationService(BaseUserNotificationService):
             for delivery_configuration in notification.delivery_configurations:
                 if delivery_configuration.frequency == NotificationFrequencyEnum.BATCH:
                     email = delivery_configuration.email if delivery_configuration.email else 'default'
-                    tuple = ( email, delivery_configuration.mode )
-                    if not tuple in self.email_mode_to_events_map:
-                        self.email_mode_to_events_map[tuple] = [event_object]
+                    key_tuple = ( email, delivery_configuration.mode )
+                    if not key_tuple in self.email_mode_to_events_map:
+                        self.email_mode_to_events_map[key_tuple] = [event_object]
                     else:
-                        self.email_mode_to_events_map[tuple].append(event_object)
+                        self.email_mode_to_events_map[key_tuple].append(event_object)
 
         log.debug('_define_delivery_configurations_for_event  self.email_mode_to_events_map:  %s', self.email_mode_to_events_map)
 

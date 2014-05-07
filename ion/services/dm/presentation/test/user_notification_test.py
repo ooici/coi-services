@@ -865,7 +865,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 origin="instrument_2",
                 origin_type="type_2",
                 event_type=OT.DetectionEvent)
-            gevent.sleep(3)
+            gevent.sleep(5)
 
         #----------------------------------------------------------------------------------------
         # Create users and get the user_ids
@@ -981,8 +981,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         #use a 10 second range from current time
         current_timestamp = int(time.time() * 1000)
-        test_start_time = str( current_timestamp - 5000 )
-        test_end_time = str( current_timestamp + 5000)
+        test_start_time = str( current_timestamp - 10000 )
+        test_end_time = str( current_timestamp + 8000)
         self.unsc.process_batch(start_time=test_start_time, end_time= test_end_time)
 
         #--------------------------------------------------------------------------------------
@@ -1011,17 +1011,26 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             maps = []
 
             for line in lines:
-
                 maps.extend(line.split(','))
 
+            event_type=''
             event_time = ''
+            notification_request_name = ''
+            # check that required fields are present in description of event
             for map in maps:
                 fields = map.split(":")
-                if fields[0].find("Time of event") > -1:
+                if fields[0].find("Date & Time") > -1:
                     event_time = fields[1].strip(" ")
-                    break
-
+                    #log.debug('test_process_batch event_time: %s', event_time)
+                if fields[0].find("Notification Request Name") > -1:
+                    notification_request_name = fields[1].strip(" ")
+                    #log.debug('test_process_batch nr_name: %s', notification_request_name)
+                if fields[0].find("Event Type") > -1:
+                    event_type = fields[1].strip(" ")
+                    #log.debug('test_process_batch nr_name: %s', event_type)
             self.assertIsNotNone(event_time)
+            self.assertIsNotNone(notification_request_name)
+            self.assertIsNotNone(event_type)
 
 
 
@@ -1102,7 +1111,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user_1  -- default notification preferences  - notifications_disabled and notifications_daily_digest are False
         user_1 = UserInfo()
         user_1.name = 'user_1'
-        user_1.contact.email = 'user_1@hotmail.com'
+        user_1.contact.email = 'user_1@gmail.com'
         user_1.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
                                  {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
@@ -1123,7 +1132,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
 
-        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_1@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_1 = NotificationRequest(   name = "device_notification",
             type=NotificationTypeEnum.PLATFORM,
             origin=platform_device_id,
@@ -1149,7 +1158,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_type="",
             delivery_configurations=[delivery_config1c])
 
-        deliver_emails = ['user_1@gmail.com', 'user_1@yahoo.com', 'user_1@hotmail.com']
+        deliver_emails = ['user_1@gmail.com', 'user_1@yahoo.com']
 
 
         #--------------------------------------------------------------------------------------
@@ -1197,17 +1206,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             for line in lines:
 
                 maps.extend(line.split(','))
-
-            log.debug('test_aggregate_notifications_batch  maps: %s', maps)
-            event_time = ''
+            # validate that Events for for the InstrumentDevice and the InstrumentSite were included in an email
+            instrument_site_event_found = False
+            instrument_device_event_found = False
             for map in maps:
                 fields = map.split(":")
-                if fields[0].find("Date & Time:") > -1:
-                    event_time = fields[1].strip(" ")
-                    log.debug('test_aggregate_notifications_batch  event_time: %s', event_time)
-                    break
+                if fields[0].find("Resource") > -1:
+                    if fields[1].find("InstrumentDevice") > -1:
+                        instrument_device_event_found = True
+                    if fields[1].find("InstrumentSite") > -1:
+                        instrument_site_event_found = True
 
-            self.assertIsNotNone(event_time)
+            self.assertTrue(instrument_site_event_found)
+            self.assertTrue(instrument_device_event_found)
 
 
 
