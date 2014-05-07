@@ -30,7 +30,7 @@ mission:
         eventID: 
     preMissionSequence:
     missionSequence:
-      - command: wait(1)
+      - command: wait(0.2)
         onError:
     postMissionSequence:
       - command: SBE37_SIM_02, execute_resource(STOP_AUTOSAMPLE)

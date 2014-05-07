@@ -92,14 +92,22 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             log.warn('[mm] _await_mission_completion: timeout, elapsed=%s, '
                      'still in state=%s', elapsed, mission_state)
 
-    def _test_simple_mission(self, mission_filename, in_command_state):
+    def _test_simple_mission(self, mission_filename, in_command_state, max_wait=None):
         """
-        Verifies mission execution.
+        Verifies mission execution, mainly as coordinated from platform agent.
+        Verifications regarding the concrete steps in the mission plan itself,
+        or events published from there, and the like, are not done here.
 
         @param mission_filename
         @param in_command_state
                     True to start mission execution in COMMAND state.
                     False to start mission execution in MONITORING state.
+        @param max_wait
+                    maximum wait for mission completion; no effect if None.
+                    Actual argument in the tests is based on local tests plus
+                    some extra time mainly for buildbot. The extra time is rather
+                    large due to the high variability in the execution elapsed
+                    time. In any case, we want to avoid waiting forever.
         """
         self._set_receive_timeout()
 
@@ -151,8 +159,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             # ok, this is the general expected behaviour here as typical
             # mission plans should at least take several seconds to complete;
             # now wait until mission is completed:
-            # (note: not restricting with max_wait for the moment)
-            self._await_mission_completion(mission_state)
+            self._await_mission_completion(mission_state, max_wait)
         # else: mission completed/failed very quickly; we should be
         # back in the base state, as verified below in general.
 
@@ -168,7 +175,8 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         #
         self._test_simple_mission(
             "ion/agents/platform/test/mission_RSN_simulator0C.yml",
-            in_command_state=True)
+            in_command_state=True,
+            max_wait=200 + 300)
 
     def test_simple_mission_streaming_state(self):
         #
@@ -176,4 +184,5 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         #
         self._test_simple_mission(
             "ion/agents/platform/test/mission_RSN_simulator0S.yml",
-            in_command_state=False)
+            in_command_state=False,
+            max_wait=200 + 300)

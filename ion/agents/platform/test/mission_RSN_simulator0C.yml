@@ -29,12 +29,12 @@ mission:
         parentID: 
         eventID: 
     preMissionSequence:
-      - command: SBE37_SIM_02, execute_resource(START_AUTOSAMPLE)
-        onError: retry
       - command: SBE37_SIM_02, set_resource(INTERVAL{3})
         onError: retry
     missionSequence:
-      - command: wait(1)
+      - command: SBE37_SIM_02, execute_resource(START_AUTOSAMPLE)
+        onError: retry
+      - command: wait(0.2)
         onError:
       - command: SBE37_SIM_02, execute_resource(STOP_AUTOSAMPLE)
         onError: retry
