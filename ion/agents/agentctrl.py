@@ -4,65 +4,17 @@
 Control agents and related resources.
 @see https://confluence.oceanobservatories.org/display/CIDev/R2+Agent+Use+Guide
 
-Supports the following ops:
-- start_agent (alias start, load): Start agent instance and subsequently put it into streaming mode (optionally)
-        can provide start and stop date for instrument agent reachback recover (optionally)
-- stop_agent (alias stop): Stop agent instance
-- configure_instance: using a config csv lookup file, update the AgentInstance driver_config
-- set_attributes: using a config csv lookup file, update the given resource attributes
-- activate_persistence: activate persistence for the data products of the devices
-- suspend_persistence: suspend persistence for the data products of the devices
-- cleanup_persistence: Deletes remnant persistent records about activated persistence in the system
-- cleanup_agent: deletes remnant persistent records about running agents in the system
-- recover_data: requires start and stop dates, issues reachback command for instrument agents.  Running this command
-                against other agents will get a warning.
-- set_calibration: add or replace calibration information for devices and their data products
-- clear_saved_state: clear out the saved_agent_state in EDAI resources
-- clear_status: clear out the device status
-- create_dataset: create Dataset resource and coverage, but don't activate ingestion worker
-- delete_dataset: remove Dataset resource and coverage
-- delete_all_data: remove all device related DataProduct, StreamDefinition, Dataset, resources and coverages
-- delete_all_device: remove all device related resources and all from delete_all_data
-- delete_site: remove site resources
-- activate_deployment: If device has Deployments, activate the current one
-- deactivate_deployment: If device has an active Deployment, deactivate it
-- clone_device: For a given device, create another device with similar associations and data products.
-        The cfg argument can point to a CSV file to immediately set clone attributes.
-- clone_deployment: For a given deployment, create another deployment with similar associations
-        The cfg argument can point to a CSV file to immediately set clone attributes.
-- list_persistence: Prints a report of currently active persistence
-- list_agents: Prints a report of currently active agents
-- list_containers: Prints a report of currently active containers
-- list_services: Prints a report of currently active services
-- show_use: Prints a report of uses for given agent definition or device model
-- show_dataset: Prints a report about a dataset (coverage)
-- set_sys_attribute: Sets a system attribute, such as MI version in the directory (use with attr_key, attr_value)
-
-Supports the following arguments:
-- instrument, platform, device_name: name of device. Resource ids (uuid) can be used instead of names.
-- resource_id: Resource id (uuid)
-- agent_name: name of agent instance. Resource ids (uuid) can be used instead of names.
-- preload_id: preload id or list of preload ids of devices
-- recurse: given platform device, execute op on platform and all child platforms and instruments
-- fail_fast: if True, exit after the first exception. Otherwise log errors only
-- recover_start, recover_end: floating point strings representing seconds since 1900-01-01 00:00:00 (NTP64 Epoch)
-- force: if True, ignore some warning conditions and move on or clear up
-- autoclean: if True, try to clean up resources directly after failed operations
-- verbose: if True, log more messages for detailed steps
-- dryrun: if True, log attempted actions but don't execute them (use verbose=True to see many details)
-- clone_id: provides suffix for a cloned preload id, e.g. CP02PMUI-WP001_PD -> CP02PMUI-WP001_PD_CLONE1
-- attr_key, attr_value: provides a key/value pair of attributes
+See help below for available options and arguments.
 
 Invoke via command line like this:
-    bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF'
-    bin/pycc -x ion.agents.agentctrl.AgentControl device_name='uuid' op=start activate=False
+    bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF' op=start
+    bin/pycc -x ion.agents.agentctrl.AgentControl resource_id='uuid' op=start activate=False
     bin/pycc -x ion.agents.agentctrl.AgentControl agent_name='uuid' op=stop
     bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=start recurse=True
     bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=config_instance cfg=file.csv recurse=True
-    bin/pycc -x ion.agents.agentctrl.AgentControl platform='uuid' op=set_calibration cfg=file.csv recurse=True
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF' op=recover_data recover_start=0.0 recover_end=1.0
     bin/pycc -x ion.agents.agentctrl.AgentControl preload_id='CP02PMUI-WF001_PD' op=start
-    and others (see above and Confluence page)
+    and others (see below and Confluence page)
 
 TODO:
 - Force terminate agents and clean up
@@ -98,6 +50,145 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
+ARG_HELP = {
+    "help":         "prints help for operation",
+    "instrument":   "name or resource uuid of instrument device",
+    "platform":     "name or resource uuid of platform device",
+    "device_name":  "name or resource uuid of a device resource",
+    "resource_id":  "resource uuid for any resource in the system",
+    "agent_name":   "name of agent instance. Resource ids (uuid) can be used instead of names.",
+    "preload_id":   "preload (PRE) id or comma separated list of preload ids of resources",
+    "recurse":      "if True, execute op child devices/sites if existing",
+    "fail_fast":    "if True, exit after the first exception. Otherwise log errors only",
+    "recover_start": "floating point string representing seconds since 1900-01-01 00:00:00 (NTP64 Epoch)",
+    "recover_end":  "floating point string representing seconds since 1900-01-01 00:00:00 (NTP64 Epoch)",
+    "force":        "if True, ignore some warning conditions and move on or clear up",
+    "autoclean":    "if True, try to clean up resources directly after failed operations",
+    "verbose":      "if True, log more messages for detailed steps",
+    "dryrun":       "if True, log attempted actions but don't execute them (use verbose=True to see many details)",
+    "clone_id":     "provides suffix for a cloned preload id, e.g. CP02PMUI-WP001_PD -> CP02PMUI-WP001_PD_CLONE1",
+    "attr_key":     "provides the name of an attribute to set",
+    "attr_value":   "provides the value of an attribute to set",
+    "cfg":          "name of a CSV file with lookup values",
+    "activate":     "if True, puts agent into streaming mode after start (default: True)",
+}
+
+RES_ARG_LIST = ["resource_id", "preload_id"]
+DEV_ARG_LIST = RES_ARG_LIST + ["instrument", "platform", "device_name", "agent_name"]
+COMMON_ARG_LIST = ["help", "recurse", "fail_fast", "force", "verbose", "dryrun"]
+
+OP_HELP = [
+    ("start_agent", dict(
+        alias=["start", "load"],
+        opmsg="Start agent instance",
+        opmsg_ext=["must provide a device or agent name or id",
+                   "option: don't put it into streaming mode",
+                   "option: provide start and stop date for instrument agent reachback recover"],
+        args=DEV_ARG_LIST + ["activate"] + COMMON_ARG_LIST)),
+    ("start", dict(
+        opmsg="Alias for start_agent")),
+    ("load", dict(
+        opmsg="Alias for start_agent")),
+    ("stop_agent", dict(
+        alias=["stop"],
+        opmsg="Stop agent instance",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("stop", dict(
+        opmsg="Alias for stop_agent")),
+    ("configure_instance", dict(
+        opmsg="Update the AgentInstance driver_config using a config CSV lookup file",
+        args=DEV_ARG_LIST + ["cfg"] + COMMON_ARG_LIST)),
+    ("set_attributes", dict(
+        opmsg="Update resource attributes using a CSV lookup file",
+        args=DEV_ARG_LIST + ["cfg"] + COMMON_ARG_LIST)),
+    ("activate_persistence", dict(
+        opmsg="Activate persistence for the data products of the device",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("suspend_persistence", dict(
+        opmsg="Suspend persistence for the data products of the device",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("cleanup_persistence", dict(
+        opmsg="Delete remnant persistent records about activated persistence for a device in the system",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("cleanup_agent", dict(
+        opmsg="Delete remnant persistent records about running agents for a device in the system",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("recover_data", dict(
+        opmsg="Issue data reachback command for instrument agents",
+        opmsg_ext=["requires start and stop dates"],
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("set_calibration", dict(
+        opmsg="Add or replace calibration information for a device and its data products",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("clear_saved_state", dict(
+        opmsg="Clear out the saved_agent_state in agent instance resource",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("clear_status", dict(
+        opmsg="Clear out the device status",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("create_dataset", dict(
+        opmsg="Create Dataset resource and coverage for a device, but don't activate ingestion worker",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("delete_dataset", dict(
+        opmsg="Remove Dataset resource and coverage for a device",
+        opmsg_ext=["can also be called on a Dataset resource directly"],
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("delete_all_data", dict(
+        opmsg="Remove all device related DataProduct, StreamDefinition, Dataset, resources and coverages",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("delete_all_device", dict(
+        opmsg="Remove all device related resources and all from delete_all_data",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("delete_all_device", dict(
+        opmsg="Remove all device related resources and all from delete_all_data",
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("delete_site", dict(
+        opmsg="Remove site resources",
+        args=RES_ARG_LIST + COMMON_ARG_LIST)),
+    ("activate_deployment", dict(
+        opmsg="Activate a deployment",
+        opmsg_ext=["if a device is provided, activate the current available deployment"],
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("deactivate_deployment", dict(
+        opmsg="Deactivate a deployment",
+        opmsg_ext=["if a device is provided, deactivate the current deployment"],
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("clone_device", dict(
+        opmsg="Clone a device into a new device with similar associations, new agent instance and new data products.",
+        opmsg_ext=["the clone_id determines the PRE id suffix used to uniquely identify cloned resources",
+                   "a CSV file can provide attribute values for the cloned resources"],
+        args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("clone_deployment", dict(
+        opmsg="Clone a deployment into a new deployment with similar associations.",
+        opmsg_ext=["the clone_id determines the PRE id suffix used to uniquely identify cloned resources",
+                   "a CSV file can provide attribute values for the cloned resources"],
+        args=RES_ARG_LIST + COMMON_ARG_LIST)),
+    ("list_persistence", dict(
+        opmsg="Prints a report of currently active persistence",
+        args=["verbose"])),
+    ("list_agents", dict(
+        opmsg="Prints a report of currently active agents",
+        args=["verbose"])),
+    ("list_containers", dict(
+        opmsg="Prints a report of currently active containers",
+        args=["verbose"])),
+    ("list_services", dict(
+        opmsg="Prints a report of currently active services",
+        args=["verbose"])),
+    ("show_use", dict(
+        opmsg="Shows associations and attributes for a resource",
+        args=DEV_ARG_LIST + ["verbose"])),
+    ("show_dataset", dict(
+        opmsg="Prints a report about a dataset (coverage)",
+        args=RES_ARG_LIST + ["verbose"])),
+    ("set_sys_attribute", dict(
+        opmsg="Sets a system attribute, such as MI version in the directory",
+        opmsg_ext=["must provide attr_key and attr_value"],
+        args=RES_ARG_LIST + ["attr_key", "attr_value"])),
+    ("help", dict(
+        opmsg="Lists available operations",
+        args=["verbose"])),
+]
 
 class AgentControl(ImmediateProcess):
     def on_start(self):
@@ -122,6 +213,7 @@ class AgentControl(ImmediateProcess):
         self.autoclean = self.CFG.get("autoclean", False)
         self.verbose = self.CFG.get("verbose", False)
         self.dryrun = self.CFG.get("dryrun", False)
+        self.show_ophelp = self.CFG.get("help", False)
         self.timeout = self.CFG.get("timeout", 120)
         self.cfg_mappings = {}
         self.system_actor = None
@@ -129,7 +221,13 @@ class AgentControl(ImmediateProcess):
         self._recover_data_status = {'ignored': [], 'success': [], 'fail': []}
 
         preload_id = self.CFG.get("preload_id", None)
-        if preload_id:
+        if self.op == "help":
+            self.help()
+            return
+        elif self.show_ophelp:
+            self._op_help()
+            return
+        elif preload_id:
             preload_ids = preload_id.split(",")
             for pid in preload_ids:
                 res_obj = self._get_resource_by_alt_id("PRE", pid)
@@ -296,6 +394,41 @@ class AgentControl(ImmediateProcess):
 
     # -------------------------------------------------------------------------
     # Control commands
+
+    def help(self):
+        print "HELP for AgentControl operations:"
+        max_wid = max(len(op_name) for op_name, _ in OP_HELP)
+        for op_name, op_help in OP_HELP:
+            op_msg = op_help.get("opmsg", "")
+            print " %s:%s %s" % (op_name, " "*(max_wid-len(op_name)), op_msg)
+            if self.verbose and op_help.get("opmsg_ext", ""):
+                for ext_help in op_help["opmsg_ext"]:
+                    print " "*(max_wid + 4), ext_help
+        if not self.verbose:
+            print "Set verbose=True to show help details."
+        print "Run op=xxx help=True for help for a specific operation."
+
+
+    def _op_help(self):
+        op_helps = [(op_name, op_help) for op_name, op_help in OP_HELP if op_name == self.op]
+        if not op_helps:
+            print "No help found for op=%s" % self.op
+            return
+        op_name, op_help = op_helps[0]
+        print "HELP for operation %s:" % self.op
+        print op_help.get("opmsg", "")
+        for ext_help in op_help.get("opmsg_ext", ""):
+            print " ", ext_help
+        op_args = op_help.get("args", None)
+        if op_args:
+            print "Available arguments:"
+            max_wid = max(len(oa) for oa in op_args)
+            for oa in op_args:
+                arg_help = ARG_HELP.get(oa, "")
+                print "  %s:%s %s" % (oa, " "*(max_wid-len(oa)), arg_help)
+
+        if not self.verbose:
+            print "Set verbose=True to show operation help details."
 
     def start_agent(self, agent_instance_id, resource_id):
         if not agent_instance_id or not resource_id:
