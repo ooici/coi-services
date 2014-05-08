@@ -190,7 +190,7 @@ class ResourceUseInfo(object):
             device_objs = [o for o in targ_objs if isinstance(o, Device)]
             self._print_output("Devices: %s", len(device_objs))
             for targ_obj in sorted(device_objs, key=lambda o: o.name):
-                self._print_output(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
+                self._print_output(" %s %s %s '%s': S#%s P#%s", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name, targ_obj.serial_number, targ_obj.ooi_property_number)
             # Agent Definition
             adef_objs = [o for o in targ_objs if isinstance(o, AgentDefinition)]
             self._print_output("AgentDefinitions: %s", len(adef_objs))
@@ -198,6 +198,8 @@ class ResourceUseInfo(object):
                 self._print_output(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
 
         elif isinstance(res_obj, Device):
+            # Attributes
+            self._print_output(" S#%s P#%s", res_obj.serial_number, res_obj.ooi_property_number)
             # Model
             targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasModel, id_only=False)
             self._print_output("DeviceModels: %s", len(targ_objs))
@@ -239,12 +241,12 @@ class ResourceUseInfo(object):
             device_objs = [o for o in targ_objs if isinstance(o, Device)]
             self._print_output("Parent Device: %s", len(device_objs))
             for targ_obj in sorted(device_objs, key=lambda o: o.name):
-                self._print_output(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
+                self._print_output(" %s %s %s '%s': S#%s P#%s", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name, targ_obj.serial_number, targ_obj.ooi_property_number)
             # Child Device
             targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasDevice, id_only=False)
             self._print_output("Child Devices: %s", len(targ_objs))
             for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                self._print_output(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
+                self._print_output(" %s %s %s '%s': S#%s P#%s", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name, targ_obj.serial_number, targ_obj.ooi_property_number)
 
         elif isinstance(res_obj, Site):
             # Model
@@ -272,7 +274,7 @@ class ResourceUseInfo(object):
             targ_objs, _ = self.rr.find_objects(resource_id, PRED.hasDevice, id_only=False)
             self._print_output("Deployed Device: %s", len(targ_objs))
             for targ_obj in sorted(targ_objs, key=lambda o: o.name):
-                self._print_output(" %s %s %s '%s'", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name)
+                self._print_output(" %s %s %s '%s': S#%s P#%s", targ_obj.type_, self._get_alt_id(targ_obj, "PRE"), targ_obj._id, targ_obj.name, targ_obj.serial_number, targ_obj.ooi_property_number)
             # Parent Site
             targ_objs, _ = self.rr.find_subjects(None, PRED.hasSite, resource_id, id_only=False)
             self._print_output("Parent Site: %s", len(targ_objs))
