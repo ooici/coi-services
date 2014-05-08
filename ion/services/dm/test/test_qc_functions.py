@@ -30,10 +30,12 @@ from pyon.util.log import log
 from ion.services.dm.test.dm_test_case import DMTestCase
 from ion_functions.qc.qc_functions import ntp_to_month
 from uuid import uuid4
+import unittest
 
 import numpy as np
 
-@attr('INT', group='dm')
+
+@unittest.skip("Deprecated")
 class TestQCFunctions(DMTestCase):
     def setUp(self):
         DMTestCase.setUp(self)
