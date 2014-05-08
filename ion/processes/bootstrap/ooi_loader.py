@@ -550,7 +550,11 @@ class OOILoader(object):
         first_avail = row['First Availability']
 
         if len(series) != 1:
-            log.warn("Ignoring Series row %s-%s", code, series)
+            log.warn("Ignoring asset mappings Series row %s-%s - not a valid code", code, series)
+            return
+        if series_rd not in self.get_type_assets("series"):
+            # This will allow OOI Preload spreadsheet to move ahead of current SAF export
+            log.warn("Ignoring asset mappings Series %s-%s - not in current SAF export", code, series)
             return
 
         entry = dict(
@@ -604,15 +608,29 @@ class OOILoader(object):
     def _parse_AgentMap(self, row):
         series = row['Instrument Series']
         node_type = row['Node Type']
+        agent_code = row['Agent Code']
 
-        mapping = [row['Agent Code'], row['RD Prefix']]
+        mapping = [agent_code, row['RD Prefix']]
 
         if series and series in self.get_type_assets("series"):
             self._add_object_attribute('series',
                 series, 'agentmap', mapping, value_is_list=True, list_sort=False)
+
+            if agent_code in self.get_type_assets('dataagent'):
+                self._add_object_attribute('dataagent',
+                                           agent_code, 'series_list', series, value_is_list=True, list_dup_ok=True)
+                self._add_object_attribute('dataagent',
+                                           agent_code, None, None, inst_class=series[:5])
+            if agent_code in self.get_type_assets('instagent'):
+                self._add_object_attribute('instagent',
+                                           agent_code, 'series_list', series, value_is_list=True, list_dup_ok=True)
+                self._add_object_attribute('instagent',
+                                           agent_code, None, None, inst_class=series[:5])
+
         if node_type and node_type in self.get_type_assets("nodetype"):
             self._add_object_attribute('nodetype',
                 node_type, 'agentmap', mapping, value_is_list=True, list_sort=False)
+
 
     def _parse_ModelMap(self, row):
         series = row['Instrument Series']
