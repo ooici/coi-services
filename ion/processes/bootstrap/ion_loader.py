@@ -2307,7 +2307,13 @@ Reason: %s
         needupdate = False
         # Update name if different
         prefix = "id" if instrument else "pd"
-        if self.ooirename and res_obj.name != newrow[prefix+'/name']:
+        if self.ooirename and res_obj.serial_number:
+            if res_obj.serial_number not in res_obj.name:
+                new_name = res_obj.name.split("serial#", 1)[0] + "serial# " + res_obj.serial_number
+                if new_name != res_obj.name:
+                    res_obj.name = new_name
+                    needupdate = True
+        elif self.ooirename and res_obj.name != newrow[prefix+'/name']:
             res_obj.name = newrow[prefix+'/name']
             needupdate = True
         # Update description if different
@@ -3421,6 +3427,7 @@ Reason: %s
             else:
                 log.warn("Could not determine temporal constraint for %s", node_id)
 
+            platres_obj = self._get_resource_obj(node_id + "_PD", silent=True)
             agent_id, agent_obj = self._get_agent_definition(ooi_rd)
 
             if agent_obj:
@@ -3450,6 +3457,10 @@ Reason: %s
                     else:
                         newrow['persist_data'] = 'False'
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+
+                    if platres_obj and platres_obj.serial_number and not "changeme" in platres_obj.serial_number \
+                            and not "serial#" in newrow['dp/name']:
+                        newrow['dp/name'] = newrow['dp/name'] + " (serial# %s)" % platres_obj.serial_number
 
                     pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                     strdef_id = self._create_dp_stream_def(node_id, pdict_id, scfg.stream_name)
@@ -3489,6 +3500,7 @@ Reason: %s
             else:
                 log.warn("Could not determine temporal constraint for %s", node_id)
 
+            instres_obj = self._get_resource_obj(inst_id + "_ID", silent=True)
             inst_unique = self._get_unique_instrument_extension(ooi_rd)
 
             agent_id, agent_obj = self._get_agent_definition(ooi_rd)
@@ -3541,6 +3553,10 @@ Reason: %s
                     newrow['parent'] = ''
                     newrow['lcstate'] = "DEPLOYED_AVAILABLE"
                     newrow['default_stream_configuration'] = scfg
+
+                    if instres_obj and instres_obj.serial_number and not "changeme" in instres_obj.serial_number \
+                            and not "serial#" in newrow['dp/name']:
+                        newrow['dp/name'] = newrow['dp/name'] + " (serial# %s)" % instres_obj.serial_number
 
                     pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                     strdef_id = self._create_dp_stream_def(inst_id, pdict_id, scfg.stream_name)
@@ -3619,6 +3635,10 @@ Reason: %s
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['parent'] = parsed_id
                 newrow['persist_data'] = 'False'
+
+                if instres_obj and instres_obj.serial_number and not "changeme" in instres_obj.serial_number \
+                        and not "serial#" in newrow['dp/name']:
+                    newrow['dp/name'] = newrow['dp/name'] + " (serial# %s)" % instres_obj.serial_number
 
                 parsed_pdict_obj = self._get_resource_obj(parsed_pdict_id, True)
                 if parsed_pdict_obj:

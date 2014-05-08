@@ -36,9 +36,11 @@ Supports the following ops:
 - list_services: Prints a report of currently active services
 - show_use: Prints a report of uses for given agent definition or device model
 - show_dataset: Prints a report about a dataset (coverage)
+- set_sys_attribute: Sets a system attribute, such as MI version in the directory (use with attr_key, attr_value)
 
 Supports the following arguments:
 - instrument, platform, device_name: name of device. Resource ids (uuid) can be used instead of names.
+- resource_id: Resource id (uuid)
 - agent_name: name of agent instance. Resource ids (uuid) can be used instead of names.
 - preload_id: preload id or list of preload ids of devices
 - recurse: given platform device, execute op on platform and all child platforms and instruments
@@ -49,6 +51,7 @@ Supports the following arguments:
 - verbose: if True, log more messages for detailed steps
 - dryrun: if True, log attempted actions but don't execute them (use verbose=True to see many details)
 - clone_id: provides suffix for a cloned preload id, e.g. CP02PMUI-WP001_PD -> CP02PMUI-WP001_PD_CLONE1
+- attr_key, attr_value: provides a key/value pair of attributes
 
 Invoke via command line like this:
     bin/pycc -x ion.agents.agentctrl.AgentControl instrument='CTDPF'
@@ -136,7 +139,7 @@ class AgentControl(ImmediateProcess):
                 else:
                     log.warn("Preload id=%s not found!", pid)
 
-        elif self.op in {"list_persistence", "list_agents", "list_containers", "list_services"}:
+        elif self.op in {"list_persistence", "list_agents", "list_containers", "list_services", "set_sys_attribute"}:
             # None-device operation
             log.info("--- Executing %s  ---", self.op)
             if hasattr(self, self.op):
@@ -242,16 +245,16 @@ class AgentControl(ImmediateProcess):
                     child_res, _ = self.rr.find_objects(resource_id, PRED.hasSite, id_only=False)
             if child_res:
                 log.debug("recurse==True. Executing op=%s on %s child devices", self.op, len(child_res))
-            for ch_obj in child_res:
-                ch_id = ch_obj._id
-                agent_instance_id = None
-                try:
-                    self._execute_op(None, ch_id)
-                except Exception:
-                    self._log_error(agent_instance_id, resource_id, logexc=True,
-                                    msg="Failed op=%s on child device=%s agent=%s" % (self.op, ch_id, agent_instance_id))
-                    if self.fail_fast:
-                        raise
+                for ch_obj in child_res:
+                    ch_id = ch_obj._id
+                    agent_instance_id = None
+                    try:
+                        self._execute_op(None, ch_id)
+                    except Exception:
+                        self._log_error(agent_instance_id, resource_id, logexc=True,
+                                        msg="Failed op=%s on child device=%s agent=%s" % (self.op, ch_id, agent_instance_id))
+                        if self.fail_fast:
+                            raise
 
         # Post function if existing (signature _opname_post()):
         post_func = "_%s_post" % self.op
@@ -455,7 +458,7 @@ class AgentControl(ImmediateProcess):
                 if not dev_cfg:
                     # Find config by resource's preload ID reference designator
                     # Note: this is bad because devices are not assigned to the same RD over time
-                    cfg_id = pre_id.rsplit("_", 1)[0]
+                    cfg_id = pre_id.split("_", 1)[0]
                     dev_cfg = cfg_dict.get(cfg_id, None)
         if not dev_cfg and getattr(res_obj, "serial_number", None):
             if res_obj.type_ == RT.InstrumentDevice:
@@ -464,19 +467,26 @@ class AgentControl(ImmediateProcess):
                 cfg_id = "%s:%s" % (model_obj.series_id, res_obj.serial_number)
                 dev_cfg = cfg_dict.get(cfg_id, None)
             elif res_obj.type_ == RT.PlatformDevice:
-                # Find config by platform serial number, e.g. OOI-231
-                cfg_id = res_obj.serial_number
+                # Find config by platform node type + serial number, e.g. WP:OOI-231
+                model_obj = self.rr.read_object(res_obj._id, PRED.hasModel, id_only=False)
+                ooi_id = self._get_alt_id(model_obj, "OOI") or "?"
+                nodetype = ooi_id.split("_", 1)[0]
+                cfg_id = "%s:%s" % (nodetype, res_obj.serial_number)
                 dev_cfg = cfg_dict.get(cfg_id, None)
 
         return cfg_id, dev_cfg
 
     def _add_attribute_row(self, row, cfg_dict):
-        # Value per row format
+        """Parse a value row from a CSV row dict"""
         device_id = row["ID"]
         attr_name = row["Attribute"]
         param_name = row["Name"]
         param_value = row["Value"]
         param_type = row.get("Type", "str") or "str"
+        ignore_row = row.get("Ignore", "") == "Yes"
+        if ignore_row or not device_id or not (attr_name or param_name):
+            # This is a comment or empty row
+            return
         if not param_name:
             log.warn("Device %s row %s value %s has no name", device_id, attr_name, param_value)
             return
@@ -501,6 +511,7 @@ class AgentControl(ImmediateProcess):
         """Changes resource attributes of given object based on content of the given config dict"""
         if not res_cfg:
             return
+        resource_id = getattr(res_obj, "_id", "")
         for attr_name, attr_cfg in res_cfg.iteritems():
             if hasattr(res_obj, attr_name):
                 if attr_name in {"_id", "_rev", "type_", "alt_ids", "lcstate", "availability"}:
@@ -519,16 +530,16 @@ class AgentControl(ImmediateProcess):
                 elif isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
                     attr_cfg.pop("_replace")
                     if self.verbose:
-                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), attr_cfg)
+                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", resource_id, attr_name, getattr(res_obj, attr_name), attr_cfg)
                     setattr(res_obj, attr_name, attr_cfg)
                 elif isinstance(attr_cfg, dict):
                     attr_val = getattr(res_obj, attr_name)
                     if self.verbose:
-                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), dict_merge(attr_val, attr_cfg))
+                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", resource_id, attr_name, getattr(res_obj, attr_name), dict_merge(attr_val, attr_cfg))
                     dict_merge(attr_val, attr_cfg, inplace=True)
                 else:
                     if self.verbose:
-                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", res_obj._id, attr_name, getattr(res_obj, attr_name), attr_cfg)
+                        log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", resource_id, attr_name, getattr(res_obj, attr_name), attr_cfg)
                     setattr(res_obj, attr_name, attr_cfg)
 
     def config_instance(self, agent_instance_id, resource_id):
@@ -1180,6 +1191,8 @@ class AgentControl(ImmediateProcess):
 
         cfg_id, dev_cfg = self._get_resource_cfg(newdev_obj, self.cfg_mappings)
         self._update_attributes(newdev_obj, dev_cfg)
+        if newdev_obj.serial_number and "serial#" in newdev_obj.name:
+            newdev_obj.name = newdev_obj.name.split("serial#", 1)[0] + "serial# " + newdev_obj.serial_number
 
         # Create resource
         if res_obj.type_ == RT.InstrumentDevice:
@@ -1211,7 +1224,7 @@ class AgentControl(ImmediateProcess):
 
         return newdev_id, newdev_obj
 
-    def _clone_agent_instance(self, ai_obj, clone_id, newdev_id):
+    def _clone_agent_instance(self, ai_obj, clone_id, newdev_id, newdev_obj):
         ims = InstrumentManagementServiceProcessClient(process=self)
         dams = DataAcquisitionManagementServiceProcessClient(process=self)
 
@@ -1220,6 +1233,8 @@ class AgentControl(ImmediateProcess):
 
         cfg_id, ai_cfg = self._get_resource_cfg(newai_obj, self.cfg_mappings)
         self._update_attributes(newai_obj, ai_cfg)
+        if newdev_obj.serial_number and "serial#" in newai_obj.name:
+            newai_obj.name = newai_obj.name.split("serial#", 1)[0] + "serial# " + newdev_obj.serial_number
 
         adef_id = self.rr.read_object(agent_instance_id, PRED.hasAgentDefinition, id_only=True)
 
@@ -1252,7 +1267,7 @@ class AgentControl(ImmediateProcess):
 
         return newai_id, newai_obj
 
-    def _clone_data_product(self, dp_obj, clone_id, is_output=True, parent_dp_id=None, device_id=None):
+    def _clone_data_product(self, dp_obj, clone_id, is_output=True, parent_dp_id=None, device_id=None, newdev_obj=None):
         dpms = DataProductManagementServiceProcessClient(process=self)
         psms = PubsubManagementServiceProcessClient(process=self)
 
@@ -1260,6 +1275,8 @@ class AgentControl(ImmediateProcess):
 
         cfg_id, dp_cfg = self._get_resource_cfg(newdp_obj, self.cfg_mappings)
         self._update_attributes(newdp_obj, dp_cfg)
+        if newdev_obj and newdev_obj.serial_number and "serial#" in newdp_obj.name:
+            newdp_obj.name = newdp_obj.name.split("serial#", 1)[0] + "serial# " + newdev_obj.serial_number + ")"
 
         # Duplicate StreamDefinition
         sdef_obj = self.rr.read_object(dp_obj._id, PRED.hasStreamDefinition, RT.StreamDefinition, id_only=False)
@@ -1352,17 +1369,17 @@ class AgentControl(ImmediateProcess):
         # (2) Clone agent instance and associations
         if agent_instance_id:
             ai_obj = self.rr.read(agent_instance_id)
-            newai_id, newai_obj = self._clone_agent_instance(ai_obj, clone_id, newdev_id)
+            newai_id, newai_obj = self._clone_agent_instance(ai_obj, clone_id, newdev_id, newdev_obj)
 
         # (3) Clone data products: output data products with derived data products
         dp_objs, _ = self.rr.find_objects(resource_id, PRED.hasOutputProduct, RT.DataProduct, id_only=False)
         for dp_obj in dp_objs:
-            newdp_id, newdp_obj = self._clone_data_product(dp_obj, clone_id, device_id=newdev_id)
+            newdp_id, newdp_obj = self._clone_data_product(dp_obj, clone_id, device_id=newdev_id, newdev_obj=newdev_obj)
 
             # Clone derived data products for an output data product
             dp_objs1, _ = self.rr.find_objects(resource_id, PRED.hasDataProductParent, RT.DataProduct, id_only=False)
             for dp_obj1 in dp_objs1:
-                self._clone_data_product(dp_obj1, clone_id, is_output=False, parent_dp_id=newdp_id, device_id=newdev_id)
+                self._clone_data_product(dp_obj1, clone_id, is_output=False, parent_dp_id=newdp_id, device_id=newdev_id, newdev_obj=newdev_obj)
 
     def _clone_deployment(self, res_obj, clone_id):
         oms = ObservatoryManagementServiceProcessClient(process=self)
@@ -1384,6 +1401,11 @@ class AgentControl(ImmediateProcess):
             device_obj = self.rr.read_subject(RT.PlatformDevice, PRED.hasDeployment, resource_id, id_only=False)
         except NotFound:
             device_obj = self.rr.read_subject(RT.InstrumentDevice, PRED.hasDeployment, resource_id, id_only=False)
+
+        if device_obj.serial_number and "serial#" in newdep_obj.name and " to site " in newdep_obj.name:
+            part1 = newdep_obj.name.split("serial#", 1)[0]
+            part2 = newdep_obj.name.split(" to site ", 1)[1]
+            newdep_obj.name = part1 + "serial# " + device_obj.serial_number + " to site " + part2
 
         # Determine device tree from current deployment device
         # TODO: This does NOT work if the cloned device assembly was not cloned as a full tree
@@ -1483,5 +1505,25 @@ class AgentControl(ImmediateProcess):
     def show_dataset(self, agent_instance_id, resource_id):
         res_info = ResourceUseInfo(self.container, self.verbose)
         res_info.show_dataset(resource_id)
+
+    def set_sys_attribute(self):
+        sys_attrs = self.container.directory.lookup("/System")
+        if self.verbose:
+            log.debug("Current system attributes: %s", sys_attrs)
+        attr_name = self.CFG.get("attr_key", "")
+        if not attr_name:
+            log.warn("System attribute name missing")
+            return
+        attr_val = self.CFG.get("attr_value", None)
+        if attr_val is None:
+            log.warn("System attribute %s value missing", attr_name)
+            return
+        if not sys_attrs:
+            sys_attrs = {}
+        if attr_val == "DELETE":
+            sys_attrs.pop(attr_name, None)
+        else:
+            sys_attrs[attr_name] = attr_val
+        self.container.directory.register("/", "System", **sys_attrs)
 
 ImportDataset = AgentControl
