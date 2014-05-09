@@ -1473,8 +1473,9 @@ class AgentControl(ImmediateProcess):
                     log.debug(" Created association Site %s %s DP %s", newdp_id, PRED.hasSource, targ_obj._id)
 
         # Create dataset
-        dpms.create_dataset_for_data_product(newdp_id, headers=self._get_system_actor_headers())
-        log.debug(" Created dataset for data product %s %s '%s'", newdp_id, dpnew_pre_id, newdp_obj.name)
+        if is_output:
+            dpms.create_dataset_for_data_product(newdp_id, headers=self._get_system_actor_headers())
+            log.debug(" Created dataset for data product %s %s '%s'", newdp_id, dpnew_pre_id, newdp_obj.name)
 
         return newdp_id, newdp_obj
 
@@ -1510,7 +1511,7 @@ class AgentControl(ImmediateProcess):
             newdp_id, newdp_obj = self._clone_data_product(dp_obj, clone_id, device_id=newdev_id, newdev_obj=newdev_obj)
 
             # Clone derived data products for an output data product
-            dp_objs1, _ = self.rr.find_objects(resource_id, PRED.hasDataProductParent, RT.DataProduct, id_only=False)
+            dp_objs1, _ = self.rr.find_subjects(RT.DataProduct, PRED.hasDataProductParent, dp_obj._id, id_only=False)
             for dp_obj1 in dp_objs1:
                 self._clone_data_product(dp_obj1, clone_id, is_output=False, parent_dp_id=newdp_id, device_id=newdev_id, newdev_obj=newdev_obj)
 
