@@ -479,6 +479,8 @@ class MissionScheduler(object):
         Set up gevent threads for each mission
         """
 
+        mission_id = "todo"
+
         # Only need the abort sequence once...
         if not self.mission_aborted:
             # For event driven missions, stop event subscribers
@@ -495,7 +497,7 @@ class MissionScheduler(object):
             log.error('[mm] Mission Aborted')
 
             # Publish mission abort event
-            self._publish_mission_aborted_event()
+            self._publish_mission_aborted_event(mission_id)
             # raise Exception('Mission Aborted')
 
     def _kill_all_mission_threads(self):
@@ -511,6 +513,8 @@ class MissionScheduler(object):
         Set up gevent threads for each mission
         """
 
+        mission_id = "todo"
+        mission_thread_id = 0
         for mission in missions:
             start_time = mission['start_time']
 
@@ -522,9 +526,10 @@ class MissionScheduler(object):
                 # Event driven scheduler
                 self.threads.append(gevent.spawn(self._run_event_driven_mission, mission))
             
-            self._publish_mission_thread_started_event()
+            self._publish_mission_thread_started_event(str(mission_thread_id))
+            mission_thread_id += 1
 
-        self._publish_mission_started_event()
+        self._publish_mission_started_event(mission_id)
         
         log.debug('[mm] schedule: waiting for mission to complete')
         gevent.joinall(self.threads)
@@ -657,6 +662,8 @@ class MissionScheduler(object):
         @param mission      Mission dictionary
         """
 
+        mission_id = "todo"
+
         error_code = 0   # False
         loop_count = 0
 
@@ -717,7 +724,7 @@ class MissionScheduler(object):
                     self.abort_mission()
                 else:
                     #TODO Stop event subscribers?
-                    self._publish_mission_complete_event()
+                    self._publish_mission_complete_event(mission_id)
 
     def _run_event_driven_mission(self, mission):
         """
@@ -929,45 +936,46 @@ class MissionScheduler(object):
 
         return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
 
-    def _publish_mission_aborted_event(self):
-        # Create event publisher.
-        event_type = 'MissionLifecycleEvent'
-        event_data = {'execution_status': MissionExecutionStatus.FAILED}
-        self.platform_agent._event_publisher.publish_event(event_type=event_type,
-                                                           mission_id='',
-                                                           sub_type='STOPPED',
-                                                           origin=self.platform_agent.resource_id,
-                                                           **event_data)
+    def _publish_mission_aborted_event(self, mission_id):
+        evt = dict(event_type='MissionLifecycleEvent',
+                   mission_id=mission_id,
+                   sub_type="STOPPED",
+                   origin_type=self.platform_agent.ORIGIN_TYPE,
+                   origin=self.platform_agent.resource_id,
+                   execution_status=MissionExecutionStatus.ABORTED)
+        self.platform_agent._event_publisher.publish_event(**evt)
+        log.debug('[mm] event published: %s', evt)
 
-    def _publish_mission_complete_event(self):
-        # Create event publisher.
-        event_type = 'MissionLifecycleEvent'
-        event_data = {'execution_status': MissionExecutionStatus.OK}
-        self.platform_agent._event_publisher.publish_event(event_type=event_type,
-                                                           mission_id='',
-                                                           sub_type='STOPPED',
-                                                           origin=self.platform_agent.resource_id,
-                                                           **event_data)
+    def _publish_mission_complete_event(self, mission_id):
+        evt = dict(event_type='MissionLifecycleEvent',
+                   mission_id=mission_id,
+                   sub_type="STOPPED",
+                   origin_type=self.platform_agent.ORIGIN_TYPE,
+                   origin=self.platform_agent.resource_id,
+                   execution_status=MissionExecutionStatus.OK)
+        self.platform_agent._event_publisher.publish_event(**evt)
+        log.debug('[mm] event published: %s', evt)
 
-    def _publish_mission_started_event(self):
-        # Create event publisher.
-        event_type = 'MissionLifecycleEvent'
-        event_data = {'execution_status': MissionExecutionStatus.OK}
-        self.platform_agent._event_publisher.publish_event(event_type=event_type,
-                                                           mission_id='',
-                                                           sub_type='STARTED',
-                                                           origin=self.platform_agent.resource_id,
-                                                           **event_data)
+    def _publish_mission_started_event(self, mission_id):
+        evt = dict(event_type='MissionLifecycleEvent',
+                   mission_id=mission_id,
+                   sub_type="STARTED",
+                   origin_type=self.platform_agent.ORIGIN_TYPE,
+                   origin=self.platform_agent.resource_id,
+                   execution_status=MissionExecutionStatus.OK)
+        self.platform_agent._event_publisher.publish_event(**evt)
+        log.debug('[mm] event published: %s', evt)
 
-    def _publish_mission_thread_started_event(self):
-        # Create event publisher.
-        event_type = 'MissionLifecycleEvent'
-        event_data = {'execution_status': MissionExecutionStatus.OK}
-        self.platform_agent._event_publisher.publish_event(event_type=event_type,
-                                                           mission_id='',
-                                                           sub_type='STARTED',
-                                                           origin=self.platform_agent.resource_id,
-                                                           **event_data)
+    def _publish_mission_thread_started_event(self, mission_thread_id):
+        evt = dict(event_type='MissionLifecycleEvent',
+                   mission_id='',
+                   mission_thread_id=mission_thread_id,
+                   sub_type="STARTED",
+                   origin_type=self.platform_agent.ORIGIN_TYPE,
+                   origin=self.platform_agent.resource_id,
+                   execution_status=MissionExecutionStatus.OK)
+        self.platform_agent._event_publisher.publish_event(**evt)
+        log.debug('[mm] event published: %s', evt)
 
 if __name__ == "__main__":  # pragma: no cover
     """
