@@ -119,31 +119,32 @@ class ReplayProcess(BaseReplayProcess):
 
     @classmethod
     def _cov2granule(cls, coverage, start_time=None, end_time=None, stride_time=None, stream_def_id=None, parameters=None, tdoa=None):
+        # Deal with the NTP
+        if start_time:
+            start_time += 2208988800
+        if end_time:
+            end_time += 2208988800
 
         if tdoa is None:
-            if start_time is not None:
-                start_time = cls.convert_time(coverage, start_time)
-            if end_time is not None:
-                end_time = cls.convert_time(coverage, end_time)
-            slice_ = slice(start_time, end_time, stride_time)
-        
+            data_dict = coverage.get_parameter_values(param_names=parameters, time_segment=(start_time, end_time), stride_length=stride_time, fill_empty_params=True).get_data()
+        else:
+            raise NotImplementedError("Index Slicing")
+       
         if stream_def_id:
             rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         else:
             rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
-        if tdoa:
-            vdict = coverage.get_value_dictionary(parameters or rdt.fields, domain_slice=tdoa)
-        else:
-            vdict = coverage.get_value_dictionary(parameters or rdt.fields, temporal_slice=slice_)
-        if not vdict:
+        if data_dict.shape[0] == 0:
             log.warning('Retrieve returning empty set')
             return rdt
-        rdt[coverage.temporal_parameter_name] = vdict[coverage.temporal_parameter_name]
-        for k,v in vdict.iteritems():
-            if k == coverage.temporal_parameter_name:
+
+
+        rdt[coverage.temporal_parameter_name] = data_dict[coverage.temporal_parameter_name]
+        for field in rdt.fields:
+            if field == coverage.temporal_parameter_name:
                 continue
             # The values have already been inside a coverage so we know they're safe and they exist, so they can be inserted directly.
-            rdt._rd[k] = v
+            rdt._rd[field] = data_dict[field]
             #rdt[k] = v
 
         return rdt
