@@ -513,8 +513,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@yahoo.com'
-        user_1.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
-                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
         user_id_1, _ = self.rrc.create(user_1)
 
@@ -525,8 +523,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_2 = UserInfo()
         user_2.name = 'user_2'
         user_2.contact.email = 'user_2@yahoo.com'
-        user_2.variables.extend( [  {'name' : 'notifications_disabled', 'value' : True},
-                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
         user_id_2, _ = self.rrc.create(user_2)
 
@@ -661,7 +657,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         log.debug("REQ: L4-CI-DM-RQ-56 was satisfied here for UNS")
 
-
+    @unittest.skip('Under construction. ')
     def test_user_info_notification_worker(self):
         # Test the user_info and reverse user info dictionary capability of the notification worker
 
@@ -671,8 +667,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user = UserInfo()
         user.name = 'new_user'
         user.contact.email = 'new_user@gmail.com'
-        user.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
-                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
         #--------------------------------------------------------------------------------------
         # Create a user subscribed to BATCH notifications
@@ -681,8 +675,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_batch = UserInfo()
         user_batch.name = 'user_batch'
         user_batch.contact.email = 'user_batch@gmail.com'
-        user_batch.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
-                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
 
         #--------------------------------------------------------------------------------------
@@ -692,8 +684,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_disabled = UserInfo()
         user_disabled.name = 'user_disabled'
         user_disabled.contact.email = 'user_disabled@gmail.com'
-        user_disabled.variables.extend( [  {'name' : 'notifications_disabled', 'value' : True},
-                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
 
         # this part of code is in the beginning to allow enough time for users_index creation
@@ -763,15 +753,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         # read back the registered notification request objects
         notification_request_correct = self.rrc.read(notification_id_1)
-
-        self.assertEquals(reloaded_user_info[user_id]['notifications_daily_digest'], False )
-        self.assertEquals(reloaded_user_info[user_id]['notifications_disabled'], False )
-
-        self.assertEquals(reloaded_user_info[user_batch_id]['notifications_daily_digest'], True )
-        self.assertEquals(reloaded_user_info[user_batch_id]['notifications_disabled'], False )
-
-        self.assertEquals(reloaded_user_info[user_disabled_id]['notifications_daily_digest'], False )
-        self.assertEquals(reloaded_user_info[user_disabled_id]['notifications_disabled'], True )
 
         self.assertEquals(reloaded_user_info[user_id]['user_contact'].email, 'new_user@gmail.com')
 
@@ -865,13 +846,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 origin="instrument_2",
                 origin_type="type_2",
                 event_type=OT.DetectionEvent)
-            gevent.sleep(5)
+
+        gevent.sleep(5)
 
         #----------------------------------------------------------------------------------------
         # Create users and get the user_ids
         #----------------------------------------------------------------------------------------
 
-        # user_1  -- default notification preferences  - notifications_disabled and notifications_daily_digest are False
+        # user_1  -- default notification preferences
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@gmail.com'
@@ -880,8 +862,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_2 = UserInfo()
         user_2.name = 'user_2'
         user_2.contact.email = 'user_2@gmail.com'
-        user_2.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
-                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
+
 
 
         # user_3  --- delivery enabled at default
@@ -889,24 +870,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_3 = UserInfo()
         user_3.name = 'user_3'
         user_3.contact.email = 'user_3@gmail.com'
-        user_3.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
-                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
         # user_4   --- prefers REALTIME notification
 
         user_4 = UserInfo()
         user_4.name = 'user_4'
         user_4.contact.email = 'user_4@gmail.com'
-        user_4.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
-                                 {'name' : 'notifications_daily_digest', 'value' : False}  ] )
 
         # user_5   --- delivery disabled
 
         user_5 = UserInfo()
         user_5.name = 'user_5'
         user_5.contact.email = 'user_5@gmail.com'
-        user_5.variables.extend( [  {'name' : 'notifications_disabled', 'value' : True},
-                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
+
 
         # this part of code is in the beginning to allow enough time for the users_index creation
 
@@ -1108,12 +1084,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create users and get the user_ids
         #----------------------------------------------------------------------------------------
 
-        # user_1  -- default notification preferences  - notifications_disabled and notifications_daily_digest are False
+        # user_1
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@gmail.com'
-        user_1.variables.extend( [  {'name' : 'notifications_disabled', 'value' : False},
-                                 {'name' : 'notifications_daily_digest', 'value' : True}  ] )
 
 
         # this part of code is in the beginning to allow enough time for the users_index creation
@@ -1270,20 +1244,42 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
 
-        notification_request_1 = NotificationRequest(   name = "notification_1",
+        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.REAL_TIME)
+        notification_request_1a = NotificationRequest(   name = "notification_1",
             origin="instrument_1",
             event_type=OT.ResourceLifecycleEvent,
+            delivery_configurations=[delivery_config1a]
         )
 
-        notification_request_2 = NotificationRequest(   name = "notification_2",
+        delivery_config2a = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.REAL_TIME)
+        notification_request_2a = NotificationRequest(   name = "notification_2a",
             origin="instrument_2",
             event_type=OT.DeviceStatusEvent,
+            delivery_configurations=[delivery_config2a]
         )
 
-        notification_request_3 = NotificationRequest(   name = "notification_3",
-            origin="instrument_3",
-            event_type=OT.DeviceCommsEvent,
+        delivery_config2b = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.REAL_TIME)
+        notification_request_2b = NotificationRequest(   name = "notification_2b",
+            origin="instrument_2",
+            event_type=OT.DeviceStatusEvent,
+            delivery_configurations=[delivery_config2b]
         )
+
+        delivery_config3a = IonObject(OT.DeliveryConfiguration, email='user_3@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.DISABLED)
+        notification_request_3a = NotificationRequest(   name = "notification_3a",
+            origin="instrument_2",
+            event_type=OT.DeviceStatusEvent,
+            delivery_configurations=[delivery_config3a]
+        )
+
+
+        delivery_config4a = IonObject(OT.DeliveryConfiguration, email='user_4@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        notification_request_4a = NotificationRequest(   name = "notification_4a",
+            origin="instrument_2",
+            event_type=OT.DeviceStatusEvent,
+            delivery_configurations=[delivery_config4a]
+        )
+
 
         #--------------------------------------------------------------------------------------
         # Create notification workers
@@ -1318,19 +1314,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         q = gevent.queue.Queue()
 
-        id1 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+        id1 = self.unsc.create_notification(notification=notification_request_1a, user_id=user_id_1)
         q.put(id1)
 
-        id2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+        id2 = self.unsc.create_notification(notification=notification_request_2a, user_id=user_id_2)
         q.put(id2)
 
-        id3 = self.unsc.create_notification(notification=notification_request_3, user_id=user_id_2)
+        id3 = self.unsc.create_notification(notification=notification_request_2b, user_id=user_id_2)
         q.put(id3)
 
-        id4 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id_3)
+        id4 = self.unsc.create_notification(notification=notification_request_3a, user_id=user_id_3)
         q.put(id4)
 
-        id5 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id_4)
+        id5 = self.unsc.create_notification(notification=notification_request_4a, user_id=user_id_4)
         q.put(id5)
 
         # Wait till all the notifications have been created....
