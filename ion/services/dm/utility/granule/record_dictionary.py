@@ -406,7 +406,11 @@ class RecordDictionaryTool(object):
         @brief Pretty Print the record dictionary for debug or log purposes.
         """
         from pprint import pformat
-        return pformat(self.__dict__)
+        repr_dict = {}
+        for field in self.fields:
+            if self[field] is not None:
+                repr_dict[field] = self[field][:]
+        return pformat(repr_dict)
 
 
     def __eq__(self, comp):

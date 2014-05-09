@@ -140,18 +140,12 @@ class Handler(BaseHandler):
 
     def get_data(self,cov, name, bitmask):
         #pc = cov.get_parameter_context(name)
-        if isinstance(cov._range_dictionary[name].param_type, ArrayType):
-            try:
-                vdict = cov.get_value_dictionary([name])
-                idxs = np.where(bitmask)[0]
-                data = vdict[name][idxs]
-            except ParameterFunctionException:
-                data = np.empty(cov.num_timesteps, dtype='object')
-        else:
-            try:
-                data = cov._range_value[name][:][bitmask]
-            except ParameterFunctionException:
-                data = np.empty(cov.num_timesteps, dtype='object')
+        try:
+            data = self.get_values(cov, name)
+            data[bitmask]
+            #data = cov._range_value[name][:][bitmask]
+        except ParameterFunctionException:
+            data = np.empty(cov.num_timesteps, dtype='object')
         data = np.asanyarray(data) 
         if not data.shape:
             data.shape = (1,)
@@ -221,11 +215,16 @@ class Handler(BaseHandler):
             field, operator, value = self.parse_selectors(selector)
             if operator is None:
                 continue
-            values = cov._range_value[field][:]
+            values = self.get_values(cov, field)
             expression = ' '.join(['values', operator, value])
             bitmask = bitmask & ne.evaluate(expression)
 
         return bitmask
+
+    def get_values(self, cov, field):
+        data_dict = cov.get_parameter_values(param_names=[field], fill_empty_params=True).get_data()
+        data = data_dict[field]
+        return data
 
     def get_dataset(self, cov, fields, slices, selectors, dataset, response):
         seq = SequenceType('data')
@@ -292,7 +291,7 @@ class Handler(BaseHandler):
 #                        log.error("Unhandled parameter for parameter (%s) type: %s", name, pc.param_type.__class__.__name__)
                     
             except Exception, e:
-                log.exception('Problem reading cov %s %s', cov.name, e)
+                log.exception('Problem reading cov %s %s', cov.name, e.__class__.__name__)
                 continue
             dataset['data'] = seq
         return dataset

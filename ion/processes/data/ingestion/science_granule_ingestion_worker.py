@@ -514,7 +514,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         raise BadRequest("Sparse values aren't supported")
 
     def insert_values(self, coverage, rdt, stream_id):
-        from coverage_model.storage.parameter_data import NumpyParameterData
+        from coverage_model import NumpyParameterData
+        from coverage_model.parameter_types import CategoryType
 
         np_dict = {}
         time_array = rdt[rdt.temporal_parameter][:]
@@ -523,7 +524,11 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
             if isinstance(v, SparseConstantValue):
                 continue
             value = v[:]
+            if isinstance(v.parameter_type, CategoryType):
+                value = np.asarray(value, dtype='S')
+
             np_dict[k] = NumpyParameterData(k, value, time_array)
+
         if 'ingestion_timestamp' in coverage.list_parameters():
             t_now = time.time()
             ntp_time = TimeUtils.ts_to_units(coverage.get_parameter_context('ingestion_timestamp').uom, t_now)
@@ -549,6 +554,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
                               data_product.name,
                               k,
                               v.shape)
+        except Exception as e:
+            print repr(rdt)
+            raise
 
     
     def add_granule(self,stream_id, rdt):

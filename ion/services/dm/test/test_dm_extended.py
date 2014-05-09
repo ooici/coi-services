@@ -461,7 +461,8 @@ class TestDMExtended(DMTestCase):
 
         s = BadSimulator(data_product_id)
 
-        breakpoint(locals())
+        self.strap_erddap(data_product_id)
+        breakpoint(locals(), globals())
 
         s.stop()
 
@@ -606,6 +607,7 @@ class TestDMExtended(DMTestCase):
 
     @attr("UTIL")
     def test_large_perf(self):
+        from coverage_model import NumpyParameterData
         self.preload_ui()
         data_product_id = self.make_ctd_data_product()
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
@@ -616,14 +618,17 @@ class TestDMExtended(DMTestCase):
         value_array = np.arange(size)
         random_array = np.arange(size)
         np.random.shuffle(random_array)
-        cov.set_parameter_values('time', random_array)
-        cov.set_parameter_values('temp', value_array)
-        cov.set_parameter_values('conductivity', value_array)
-        cov.set_parameter_values('pressure', value_array)
+
+        cov.set_parameter_values({'time': random_array, 
+                                  'temp': NumpyParameterData('temp', value_array)})
+        cov.set_parameter_values({'time': random_array, 
+                                  'conductivity': NumpyParameterData('conductivity', value_array)})
+        cov.set_parameter_values({'time': random_array, 
+                                  'pressure': NumpyParameterData('pressure', value_array)})
 
 
         #self.data_retriever.retrieve(dataset_id)
-        self.strap_erddap()
+        self.strap_erddap(data_product_id)
         breakpoint(locals(), globals())
 
 
@@ -662,12 +667,20 @@ class TestDMExtended(DMTestCase):
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
 
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt = self.ph.rdt_for_data_product(data_product_id)
         rdt['time'] = np.arange(20,40)
         rdt['temp'] = np.arange(20)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='1', connection_index='1')
         self.assertTrue(dataset_monitor.wait())
-        dataset_monitor.event.clear()
+        dataset_monitor.reset()
+
+
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.arange(30,50)
+        rdt['temp'] = np.arange(20)
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='1', connection_index='1')
+        self.assertTrue(dataset_monitor.wait())
+        dataset_monitor.reset()
 
         self.preload_ui()
         self.strap_erddap(data_product_id)
@@ -684,9 +697,18 @@ class TestDMExtended(DMTestCase):
         self.activate_data_product(data_product_id)
         breakpoint(locals(), globals())
 
-    @attr("INT")
+    @attr("UTIL")
     def test_empty_dataset(self):
         data_product_id = self.make_ctd_data_product()
+
+        sparse_value = ParameterContext(name='sparseness', 
+                                      parameter_type='sparse',
+                                      value_encoding='float32',
+                                      display_name='Sparseness',
+                                      description='Example of sparseness',
+                                      units='1')
+        sparse_value_id = self.dataset_management.create_parameter(sparse_value)
+        self.data_product_management.add_parameter_to_data_product(sparse_value_id, data_product_id)
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
 
@@ -701,11 +723,14 @@ class TestDMExtended(DMTestCase):
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         self.assertTrue(dataset_monitor.wait(10))
         
+        self.preload_ui()
+        self.launch_ui_facepage(data_product_id)
+        self.strap_erddap(data_product_id, False)
         breakpoint(locals(), globals())
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['time'], np.arange(20,40))
-        np.testing.assert_array_equal(rdt['test'], np.arange(20))
+        np.testing.assert_array_equal(rdt['temp'], np.arange(20))
 
         parameters = self.data_product_management.get_data_product_parameters(data_product_id, id_only=False)
         parameter_names = [p.name for p in parameters]
