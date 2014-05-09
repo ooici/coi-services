@@ -1363,6 +1363,11 @@ class AgentControl(ImmediateProcess):
 
         agent_instance_id = ai_obj._id
         newai_obj, ai_pre_id, ainew_pre_id = self._clone_res_obj(ai_obj, clone_id)
+        if newai_obj.type_ == RT.ExternalDatasetAgentInstance:
+            newai_obj.driver_config = dict(startup_config=dict(parser={}, harvester={}), max_records=50)
+        else:
+            newai_obj.driver_config = {}
+        newai_obj.saved_agent_state = {}
 
         cfg_id, ai_cfg = self._get_resource_cfg(newai_obj, self.cfg_mappings)
         self._update_attributes(newai_obj, ai_cfg)
