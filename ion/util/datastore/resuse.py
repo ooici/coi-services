@@ -172,7 +172,7 @@ class ResourceUseInfo(object):
                 dict(name="Deployments", query=["find_objects", PRED.hasDeployment]),
                 dict(name="Linked DataProducts (via hasSource)", query=["find_subjects", PRED.hasSource, RT.DataProduct]),
                 dict(name="Deployed Device", query=["find_objects", PRED.hasDevice]),
-                dict(name="Parent Device", query=["find_subjects", PRED.hasSite]),
+                dict(name="Parent Site", query=["find_subjects", PRED.hasSite]),
                 dict(name="Child Sites", query=["find_objects", PRED.hasSite]),
             ]
             self._print_scheme(res_obj, scheme)
@@ -189,7 +189,7 @@ class ResourceUseInfo(object):
 
         elif res_obj.type_ == RT.ParameterContext:
             scheme = [
-                dict(name="ParameterDictionarys", query=["find_subjects", PRED.hasParameterContext, RT.ParameterDictionary]),
+                dict(name="ParameterDictionaries", query=["find_subjects", PRED.hasParameterContext, RT.ParameterDictionary]),
             ]
             self._print_scheme(res_obj, scheme)
 
