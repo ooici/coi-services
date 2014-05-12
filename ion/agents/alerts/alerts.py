@@ -343,6 +343,14 @@ class IntervalAlert(StreamValueAlert):
         event_data = super(IntervalAlert, self).make_event_data()
         event_data['description'] =  "Alert triggered by out of range data values: %s " % self._current_value_id
         event_data['values'] = [self._current_value]
+
+        description = "Alert triggered by out of range data values: %s " % self._current_value_id
+        if self._lower_bound and self._lower_rel_op:
+            description =  description + ''.join( [ ' lower bound: ', str(self._lower_bound), ' lower relational operator: ', self._lower_rel_op ] )
+        if self._upper_bound and self._upper_rel_op:
+            description =  description + ''.join( [ ' upper bound: ', str(self._upper_bound), ' upper relational operator: ', self._upper_rel_op ] )
+        event_data['description'] = description
+
         return event_data
 
     def eval_alert(self, stream_name=None, value=None, value_id=None, **kwargs):

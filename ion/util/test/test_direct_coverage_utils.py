@@ -257,11 +257,7 @@ class TestDirectCoverageAccess(DMTestCase):
                 for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
                     np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), want_vals[p])
 
-    @attr('LOCOINT')
     @unittest.skip('Coverage metadata is now stored in Postgres.  Recovery may no longer make sense.')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    @unittest.skipIf(not_have_h5stat, 'h5stat is not accessible in current PATH')
-    @unittest.skipIf(not not_have_h5stat and not h5stat_correct_version, 'HDF is the incorrect version: %s' % version_str)
     def test_run_coverage_doctor(self):
         data_product_id, dataset_id = self.make_ctd_data_product()
 
@@ -309,9 +305,7 @@ class TestDirectCoverageAccess(DMTestCase):
             with dca.get_read_only_coverage(dataset_id) as cov:
                 self.assertIsInstance(cov, AbstractCoverage)
 
-    @attr('LOCOINT')
     @unittest.skip('Complex Coverages not supported in R2')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_fill_temporal_gap(self):
         from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
@@ -385,8 +379,7 @@ class TestDirectCoverageAccess(DMTestCase):
         np.testing.assert_array_equal(aftercovtimes, ntimes[bctl+gctl+1:bctl+gctl+actl+1])
         np.testing.assert_array_equal(agtimes, ntimes[:len(agtimes)])
 
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    @unittest.skip('Coverage metadata is now stored in Postgres.  Recovery may no longer make sense.')
     def test_repair_temporal_geometry(self):
         data_product_id, dataset_id = self.make_ctd_data_product()
 

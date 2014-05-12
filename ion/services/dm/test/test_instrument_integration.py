@@ -29,6 +29,8 @@ from ion.agents.instrument.test.load_test_driver_egg import load_egg
 load_egg()
 
 
+from mock import patch
+@patch.dict(CFG, {'endpoint': {'receive': {'timeout': 120}}})
 @attr('INT', group='dm')
 class TestInstrumentIntegration(DMTestCase):
 

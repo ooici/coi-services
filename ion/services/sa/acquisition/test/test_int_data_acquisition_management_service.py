@@ -57,7 +57,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         datasource_obj = IonObject(RT.DataSource,
                            name='DataSource1',
                            description='instrument based new source' ,
-                            type='sbe37')
+                            data_source_type='sbe37')
         try:
             ds_id = self.client.create_data_source(datasource_obj)
         except BadRequest as ex:
@@ -258,7 +258,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             datasource_obj = IonObject(RT.DataSource,
                                name='DataSource1',
                                description='data source ',
-                               type='DAP')
+                               data_source_type='DAP')
             try:
                 datasource_id = self.client.create_data_source(datasource_obj)
             except BadRequest as ex:

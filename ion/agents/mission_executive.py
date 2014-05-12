@@ -479,6 +479,8 @@ class MissionScheduler(object):
         Set up gevent threads for each mission
         """
 
+        mission_id = "todo"
+
         # Only need the abort sequence once...
         if not self.mission_aborted:
             # For event driven missions, stop event subscribers
@@ -495,7 +497,7 @@ class MissionScheduler(object):
             log.error('[mm] Mission Aborted')
 
             # Publish mission abort event
-            self._publish_mission_aborted_event()
+            self._publish_mission_aborted_event(mission_id)
             # raise Exception('Mission Aborted')
 
     def _kill_all_mission_threads(self):
@@ -511,6 +513,8 @@ class MissionScheduler(object):
         Set up gevent threads for each mission
         """
 
+        mission_id = "todo"
+        mission_thread_id = 0
         for mission in missions:
             start_time = mission['start_time']
 
@@ -522,9 +526,10 @@ class MissionScheduler(object):
                 # Event driven scheduler
                 self.threads.append(gevent.spawn(self._run_event_driven_mission, mission))
             
-            self._publish_mission_thread_started_event()
+            self._publish_mission_thread_started_event(str(mission_thread_id))
+            mission_thread_id += 1
 
-        self._publish_mission_started_event()
+        self._publish_mission_started_event(mission_id)
         
         log.debug('[mm] schedule: waiting for mission to complete')
         gevent.joinall(self.threads)
@@ -657,6 +662,8 @@ class MissionScheduler(object):
         @param mission      Mission dictionary
         """
 
+        mission_id = "todo"
+
         error_code = 0   # False
         loop_count = 0
 
@@ -717,7 +724,7 @@ class MissionScheduler(object):
                     self.abort_mission()
                 else:
                     #TODO Stop event subscribers?
-                    self._publish_mission_complete_event()
+                    self._publish_mission_complete_event(mission_id)
 
     def _run_event_driven_mission(self, mission):
         """
@@ -812,137 +819,6 @@ class MissionScheduler(object):
         pass
         # self.stop_error_event_subscriber(ia_client)
 
-    # #-------------------------------------------------------------------------------------
-    # # Platform commands
-    # #-------------------------------------------------------------------------------------
-    # def _connect_instrument(self, ia_client):
-    #     #
-    #     # TODO more realistic settings for the connection
-    #     #
-    #     port_id = self.PORT_ID
-    #     instrument_id = self.INSTRUMENT_ID
-    #     instrument_attributes = self.INSTRUMENT_ATTRIBUTES_AND_VALUES
-
-    #     kwargs = dict(
-    #         port_id = port_id,
-    #         instrument_id = instrument_id,
-    #         attributes = instrument_attributes
-    #     )
-    #     cmd = AgentCommand(command=RSNPlatformDriverEvent.CONNECT_INSTRUMENT, kwargs=kwargs)
-    #     retval = self.platform_agent.execute_resource(cmd)
-    #     log.info("[mm] CONNECT_INSTRUMENT = %s", retval)
-
-    #     # self.assertIsInstance(result, dict)
-    #     # self.assertIn(port_id, result)
-    #     # self.assertIsInstance(result[port_id], dict)
-    #     # returned_attrs = self._verify_valid_instrument_id(instrument_id, result[port_id])
-    #     # if isinstance(returned_attrs, dict):
-    #     #     for attrName in instrument_attributes:
-    #     #         self.assertIn(attrName, returned_attrs)
-
-    # def platform_inactive_state(self):
-    #     """
-    #     Put platform in the INACTIVE state
-    #     """
-    #     kwargs = dict(recursion=True)
-    #     cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
-    #     self.platform_agent.execute_agent(cmd, timeout=self.receive_timeout)
-
-    # def platform_idle_state(self):
-    #     """
-    #     Put platform in the IDLE state
-    #     """
-    #     kwargs = dict(recursion=True)
-    #     cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE, kwargs=kwargs)
-    #     self.platform_agent.execute_agent(cmd)
-
-    # def platform_command_state(self):
-    #     """
-    #     Put platform in the COMMAND state
-    #     """
-    #     kwargs = dict(recursion=True)
-    #     cmd = AgentCommand(command=PlatformAgentEvent.RUN, kwargs=kwargs)
-    #     self.platform_agent.execute_agent(cmd)
-
-    # def platform_mission_running_state(self):
-    #     """
-    #     Put platform in the MISSION_COMMAND state
-    #     """
-    #     kwargs = dict(recursion=True)
-    #     cmd = AgentCommand(command=PlatformAgentEvent.RUN_MISSION, kwargs=kwargs)
-    #     self.platform_agent.execute_agent(cmd)
-
-    # def platform_go_inactive(self):
-    #     kwargs = dict(recursion=True)
-    #     cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
-    #     self.platform_agent.execute_agent(cmd)
-    #     state = self.platform_agent.get_agent_state()
-    #     log.debug('[mm] Agent state = %s', state)
-
-    # def platform_reset(self):
-    #     kwargs = dict(recursion=True)
-    #     cmd = AgentCommand(command=PlatformAgentEvent.RESET, kwargs=kwargs)
-    #     self.platform_agent.execute_agent(cmd)
-    #     state = self.platform_agent.get_agent_state()
-    #     log.debug('[mm] Agent state = %s', state)
-
-    # def shutdown(self):
-    #     kwargs = dict(recursion=True)
-    #     cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=kwargs)
-    #     self.platform_agent.execute_agent(cmd)
-    #     state = self.platform_agent.get_agent_state()
-    #     log.debug('[mm] Agent state = %s', state)
-
-    # def shutdown_platform(self):
-    #     try:
-    #         self.platform_go_inactive()
-    #         self.platform_reset()
-    #     finally:  # attempt shutdown anyway
-    #         self.shutdown()
-    #         self.stop_error_event_subscriber
-
-    # def startup_platform(self):
-    #     """
-    #     Verify platform is up and running in the MISSION_COMMAND state
-    #     # TODO Error handling if attempt maxes out
-    #     """
-    #     from pyon.public import CFG
-    #     self.receive_timeout = CFG.endpoint.receive.timeout
-
-    #     state = self.platform_agent.get_agent_state()
-
-    #     if state != PlatformAgentState.COMMAND:
-    #         # Initialize platform
-    #         if state == PlatformAgentState.UNINITIALIZED:
-    #             attempt = 0
-    #             while (attempt < self.max_attempts and state != PlatformAgentState.INACTIVE):
-    #                 attempt += 1
-    #                 self.platform_inactive_state()
-    #                 state = self.platform_agent.get_agent_state()
-
-    #         # Go active
-    #         if state == PlatformAgentState.INACTIVE:
-    #             attempt = 0
-    #             while (attempt < self.max_attempts and state != PlatformAgentState.IDLE):
-    #                 attempt += 1
-    #                 self.platform_idle_state()
-    #                 state = self.platform_agent.get_agent_state()
-
-    #         # Run
-    #         if state == PlatformAgentState.IDLE:
-    #             attempt = 0
-    #             while (attempt < self.max_attempts and state != PlatformAgentState.COMMAND):
-    #                 attempt += 1
-    #                 self.platform_command_state()
-    #                 state = self.platform_agent.get_agent_state()
-
-    #         # # Run Mission
-    #         # if state == PlatformAgentState.COMMAND:
-    #         #     attempt = 0
-    #         #     while (attempt < self.max_attempts and state != PlatformAgentState.MISSION_COMMAND):
-    #         #         attempt += 1
-    #         #         self.platform_mission_running_state()
-    #         #         state = self.platform_agent.get_agent_state()
     #-------------------------------------------------------------------------------------
     # Instrument state commands
     #-------------------------------------------------------------------------------------
@@ -1037,63 +913,6 @@ class MissionScheduler(object):
         if state != ResourceAgentState.INACTIVE:
             self._shutdown_instrument_into_inactive(agent_client)
 
-    # #-------------------------------------------------------------------------------------
-    # # Error handling
-    # #-------------------------------------------------------------------------------------
-    # def check_error(self, error_event):
-    #     """
-    #     Error handling
-    #     """
-    #     # print 'Checking error...'
-    #     if error_event['error_code'] == 409:
-    #         # Instrument State exception - do something
-    #         for k, v in self.instruments.items():
-    #             if error_event['origin'] == v.resource_id:
-    #                 ia_client = v
-    #         # print error_event['error_code']
-
-    # #------------------------------------------------------------------------------
-    # # Event helpers. Taken from ion/agents/instrument/test/test_instrument_agent.py
-    # #------------------------------------------------------------------------------
-    # def start_error_event_subscriber(self, _ia_client):
-    #     """
-    #     Start a subscriber to the instrument agent error events.
-    #     @_ia_client Instrument agent client to subsribe to
-    #     """
-
-    #     def get_error_event(*args, **kwargs):
-    #         log.info('[mm] Mission recieved ION event: args=%s, kwargs=%s, event=%s.',
-    #                  str(args), str(kwargs), str(args[0]))
-
-    #         self.error_events_received.append(args[0])
-    #         self.async_error_event_result.set()
-    #         self.check_error(args[0])
-
-    #         # if self.error_event_count > 0 and \
-    #         #         self.error_event_count == len(self.error_events_received):
-    #         #     self.async_event_result.set()
-
-    #     # Event array and async event result.
-    #     # self.error_events_received = []
-    #     self.async_error_event_result = AsyncResult()
-
-    #     self.error_event_subscriber = EventSubscriber(
-    #         event_type='ResourceAgentErrorEvent',
-    #         callback=get_error_event,
-    #         origin=_ia_client.resource_id)
-
-    #     # self.error_event_subscriber.append()
-
-    #     self.error_event_subscriber.start()
-    #     self.error_event_subscriber._ready_event.wait(timeout=5)
-
-    # def _stop_error_event_subscriber(self):
-    #     """
-    #     Stop event subscribers on cleanup.
-    #     """
-    #     self.error_event_subscriber.stop()
-    #     self.error_event_subscriber = None
-
     def _sort_capabilities(self, caps_list):
         agt_cmds = []
         agt_pars = []
@@ -1117,45 +936,46 @@ class MissionScheduler(object):
 
         return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
 
-    def _publish_mission_aborted_event(self):
-        # Create event publisher.
-        event_type = 'MissionLifecycleEvent'
-        event_data = {'execution_status': MissionExecutionStatus.FAILED}
-        self.platform_agent._event_publisher.publish_event(event_type=event_type,
-                                                           mission_id='',
-                                                           sub_type='STOPPED',
-                                                           origin=self.platform_agent.resource_id,
-                                                           **event_data)
+    def _publish_mission_aborted_event(self, mission_id):
+        evt = dict(event_type='MissionLifecycleEvent',
+                   mission_id=mission_id,
+                   sub_type="STOPPED",
+                   origin_type=self.platform_agent.ORIGIN_TYPE,
+                   origin=self.platform_agent.resource_id,
+                   execution_status=MissionExecutionStatus.ABORTED)
+        self.platform_agent._event_publisher.publish_event(**evt)
+        log.debug('[mm] event published: %s', evt)
 
-    def _publish_mission_complete_event(self):
-        # Create event publisher.
-        event_type = 'MissionLifecycleEvent'
-        event_data = {'execution_status': MissionExecutionStatus.OK}
-        self.platform_agent._event_publisher.publish_event(event_type=event_type,
-                                                           mission_id='',
-                                                           sub_type='STOPPED',
-                                                           origin=self.platform_agent.resource_id,
-                                                           **event_data)
+    def _publish_mission_complete_event(self, mission_id):
+        evt = dict(event_type='MissionLifecycleEvent',
+                   mission_id=mission_id,
+                   sub_type="STOPPED",
+                   origin_type=self.platform_agent.ORIGIN_TYPE,
+                   origin=self.platform_agent.resource_id,
+                   execution_status=MissionExecutionStatus.OK)
+        self.platform_agent._event_publisher.publish_event(**evt)
+        log.debug('[mm] event published: %s', evt)
 
-    def _publish_mission_started_event(self):
-        # Create event publisher.
-        event_type = 'MissionLifecycleEvent'
-        event_data = {'execution_status': MissionExecutionStatus.OK}
-        self.platform_agent._event_publisher.publish_event(event_type=event_type,
-                                                           mission_id='',
-                                                           sub_type='STARTED',
-                                                           origin=self.platform_agent.resource_id,
-                                                           **event_data)
+    def _publish_mission_started_event(self, mission_id):
+        evt = dict(event_type='MissionLifecycleEvent',
+                   mission_id=mission_id,
+                   sub_type="STARTED",
+                   origin_type=self.platform_agent.ORIGIN_TYPE,
+                   origin=self.platform_agent.resource_id,
+                   execution_status=MissionExecutionStatus.OK)
+        self.platform_agent._event_publisher.publish_event(**evt)
+        log.debug('[mm] event published: %s', evt)
 
-    def _publish_mission_thread_started_event(self):
-        # Create event publisher.
-        event_type = 'MissionLifecycleEvent'
-        event_data = {'execution_status': MissionExecutionStatus.OK}
-        self.platform_agent._event_publisher.publish_event(event_type=event_type,
-                                                           mission_id='',
-                                                           sub_type='STARTED',
-                                                           origin=self.platform_agent.resource_id,
-                                                           **event_data)
+    def _publish_mission_thread_started_event(self, mission_thread_id):
+        evt = dict(event_type='MissionLifecycleEvent',
+                   mission_id='',
+                   mission_thread_id=mission_thread_id,
+                   sub_type="STARTED",
+                   origin_type=self.platform_agent.ORIGIN_TYPE,
+                   origin=self.platform_agent.resource_id,
+                   execution_status=MissionExecutionStatus.OK)
+        self.platform_agent._event_publisher.publish_event(**evt)
+        log.debug('[mm] event published: %s', evt)
 
 if __name__ == "__main__":  # pragma: no cover
     """

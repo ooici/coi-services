@@ -19,8 +19,8 @@ from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, fin
 from pyon.core.governance.negotiation import Negotiation
 from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.resource import get_object_schema
-from interface.services.cei.iprocess_dispatcher_service import BaseProcessDispatcherService
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.services.coi.idirectory_service import DirectoryServiceProcessClient
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -805,6 +805,15 @@ def get_version_info():
             # @TODO git versions for each?
         except pkg_resources.DistributionNotFound:
             pass
+
+    try:
+        dir_client = DirectoryServiceProcessClient(process=service_gateway_instance)
+        sys_attrs = dir_client.lookup("/System")
+        if sys_attrs and isinstance(sys_attrs, dict):
+            version.update({k: v for (k, v) in sys_attrs.iteritems() if "version" in k.lower()})
+
+    except Exception as ex:
+        log.exception("Could not determine system directory attributes")
 
     return gateway_json_response(version)
 

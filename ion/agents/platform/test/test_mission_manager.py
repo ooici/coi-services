@@ -94,9 +94,9 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
 
     def _test_simple_mission(self, mission_filename, in_command_state, max_wait=None):
         """
-        Verifies mission execution, mainly as coordinated from platform agent.
-        Verifications regarding the concrete steps in the mission plan itself,
-        or events published from there, and the like, are not done here.
+        Verifies mission execution, mainly as coordinated from platform agent
+        and with some verifications related with expected mission event
+        publications.
 
         @param mission_filename
         @param in_command_state
@@ -150,6 +150,14 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         with open(generated_filename, 'w') as f:
             f.write(string)
 
+        # prepare to receive expected mission events:
+        async_event_result, events_received = self._start_event_subscriber2(
+            count=1,
+            event_type="MissionLifecycleEvent",
+            origin_type="PlatformDevice"
+        )
+        log.info('[mm] mission event subscriber started')
+
         # now set and run mission:
         self._set_mission(generated_filename)
         self._run_mission()
@@ -165,6 +173,13 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
 
         # verify we are back to the base_state:
         self._assert_state(base_state)
+
+        # verify reception of event:
+        # NOTE: for initial test at the moment just expect at least one such event.
+        # TODO but there are more that should be verified (started, stopped...)
+        async_event_result.get(timeout=self._receive_timeout)
+        self.assertGreaterEqual(len(events_received), 1)
+        log.info('[mm] mission events received: (%d): %s', len(events_received), events_received)
 
         if not in_command_state:
             self._stop_resource_monitoring()
