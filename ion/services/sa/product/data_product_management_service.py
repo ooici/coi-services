@@ -583,12 +583,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         self.clients.dataset_management.add_parameter_to_dataset(parameter_context_id, dataset_id)
 
-        #TODO: we need a better way of updating the XML files
-        config = DotDict()
-        config.op = 'register_datasets'
-        self.container.spawn_process('refresh_catalog', 'ion.processes.bootstrap.registration_bootstrap', 'RegistrationBootstrap', config)
-
-
+        self.update_catalog_entry(data_product_id) 
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
         #--------------------------------------------------------------------------------
