@@ -52,7 +52,7 @@ class MissionManager(object):
             self._mission_scheduler = None
             return
 
-        mission_loader = MissionLoader()
+        mission_loader = MissionLoader(self._agent)
         mission_loader.load_mission_file(yaml_filename)
         self._mission_entries = mission_loader.mission_entries
 

@@ -100,9 +100,11 @@ class MissionLoader(object):
     MissionLoader class is used to parse a mission file, check the mission logic
     and save the mission as a dict
     """
+    def __init__(self, platform_agent):
 
-    mission_entries = []
-    accepted_error_values = ['abort', 'abortMission', 'retry', 'skip']
+        self.platform_agent = platform_agent
+        self.mission_entries = []
+        self.accepted_error_values = ['abort', 'abortMission', 'retry', 'skip']
 
     def add_entry(self, instrument_id=[], error_handling = {}, start_time=0, loop={}, event = {},
                   premission_cmds=[], mission_cmds=[], postmission_cmds=[]):
@@ -171,6 +173,7 @@ class MissionLoader(object):
                         # raise
 
             except ValueError:
+                self.publish_mission_loader_error_event('MissionLoader: validate_schedule: startTime format error')
                 # log.error("MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
                 log.error("[mm] MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
 
@@ -218,6 +221,7 @@ class MissionLoader(object):
                     for sublist2 in mission_all_times[n]:
                         if (sublist1[0] >= sublist2[0] and sublist1[0] <= sublist2[1]) or (
                                 sublist1[1] >= sublist2[0] and sublist1[1] <= sublist2[1]):
+                            self.publish_mission_loader_error_event('Mission Error: Scheduling conflict')
                             log.error('[mm] Mission Error: Scheduling conflict: ' + str(sublist1) + str(sublist2))
                             raise Exception('Mission Error: Scheduling conflict')
 
@@ -306,6 +310,7 @@ class MissionLoader(object):
                     cmd = rest.split(')')[0]
                     param = None
             else:
+                self.publish_mission_loader_error_event('Error in mission command string')
                 raise Exception('Error in mission command string')
 
             if cmd_method.lower() == 'wait':
@@ -343,9 +348,11 @@ class MissionLoader(object):
         parent_id = event['parentID']
 
         if not event_id:
+            self.publish_mission_loader_error_event('Mission event not specified')
             log.error('[mm] Mission event not specified')
             raise Exception('Mission event not specified')
         elif not parent_id:
+            self.publish_mission_loader_error_event('Mission event parentID not specified')
             log.error('[mm] Mission event parentID not specified')
             raise Exception('Mission event parentID not specified')
 
@@ -376,6 +383,7 @@ class MissionLoader(object):
 
             loop_duration = loop_params['loop_duration']
             if (loop_duration and loop_duration < mission_duration):
+                self.publish_mission_loader_error_event('Mission File Error: Mission duration > scheduled loop duration')
                 log.error('[mm] Mission File Error: Mission duration > scheduled loop duration')
                 raise Exception('Mission Error: Mission duration greater than scheduled loop duration')
 
@@ -408,6 +416,15 @@ class MissionLoader(object):
             return self.check_intersections(indices)
         else:
             return True
+
+    def publish_mission_loader_error_event(self, description):
+        evt = dict(event_type='DeviceMissionEvent',
+                   description=description,
+                   origin_type=self.platform_agent.ORIGIN_TYPE,
+                   origin=self.platform_agent.resource_id)
+
+        self.platform_agent._event_publisher.publish_event(**evt)
+        log.debug('[mm] event published: %s', evt)
 
     def load_mission_file(self, filename):
         """
@@ -525,12 +542,12 @@ class MissionScheduler(object):
             else:
                 # Event driven scheduler
                 self.threads.append(gevent.spawn(self._run_event_driven_mission, mission))
-            
+
             self._publish_mission_thread_started_event(str(mission_thread_id))
             mission_thread_id += 1
 
         self._publish_mission_started_event(mission_id)
-        
+
         log.debug('[mm] schedule: waiting for mission to complete')
         gevent.joinall(self.threads)
 

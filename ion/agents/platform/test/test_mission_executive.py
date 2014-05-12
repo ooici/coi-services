@@ -240,7 +240,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         """
         Load and parse the mission file
         """
-        self.mission = MissionLoader()
+        self.mission = MissionLoader(self._pa_client)
         self.mission.load_mission_file(yaml_filename)
 
     @skip("Deprecated... Use test_mission_manager instead")
