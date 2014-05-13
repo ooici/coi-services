@@ -2323,13 +2323,8 @@ Reason: %s
         needupdate = False
         # Update name if different
         prefix = "id" if instrument else "pd"
-        if self.ooirename and res_obj.serial_number:
-            if res_obj.serial_number not in res_obj.name:
-                new_name = res_obj.name.split("serial#", 1)[0] + "serial# " + res_obj.serial_number
-                if new_name != res_obj.name:
-                    res_obj.name = new_name
-                    needupdate = True
-        elif self.ooirename and res_obj.name != newrow[prefix+'/name']:
+        if self.ooirename and res_obj.name != newrow[prefix+'/name']:
+            # Will always change
             res_obj.name = newrow[prefix+'/name']
             needupdate = True
         # Update description if different
@@ -2576,6 +2571,8 @@ Reason: %s
         """
         self.row_count += 1
         obj = self._create_object_from_row("StreamConfiguration", row, "cfg/")
+        obj.stream_attributes.update({k[5:]: v for (k, v) in row.iteritems() if k.startswith("attr/")})
+        obj.stream_attributes["PRE"] = row['ID']
         self.stream_config[row['ID']] = obj
 
     def _load_PlatformAgent(self, row):
@@ -3385,6 +3382,9 @@ Reason: %s
             if self.ooirename and res_obj.name != newrow['dp/name']:
                 res_obj.name = newrow['dp/name']
                 needupdate = True
+            if res_obj.description != newrow['dp/description']:
+                res_obj.description = newrow['dp/description']
+                needupdate = True
             # Update geospatial bounds if not yet set
             if const_id1 and (not res_obj.geospatial_bounds or not res_obj.geospatial_bounds.geospatial_latitude_limit_north):
                 res_obj.geospatial_bounds = self.constraint_defs[const_id1]
@@ -3408,6 +3408,7 @@ Reason: %s
                 pdict_by_name[obj.name] = pdict_alias
 
         pdict_map = self._get_paramdict_param_map()
+        scfg_map = {sc.stream_name: sc for sc in self.stream_config.itervalues()}  # WARNING: May not be unique
 
         # I. Platforms: Generate one data product for each stream of the node type's agent definition (if existing)
         for node_id in sorted(node_objs.keys()):
@@ -3441,8 +3442,10 @@ Reason: %s
                     dp_id = node_id + "_DPI" + str(index)
                     newrow = {}
                     newrow[COL_ID] = dp_id
-                    newrow['dp/name'] = "Platform %s stream '%s' data product" % (node_id, scfg.stream_name)
-                    newrow['dp/description'] = "Platform %s data product" % node_id
+                    dpstr_name = scfg.stream_attributes.get("display_name", "") or \
+                                 scfg_map[scfg.stream_name].stream_attributes.get("display_name", "") or scfg.stream_name
+                    newrow['dp/name'] = "%s for %s" % (dpstr_name, platres_obj["name"])
+                    newrow['dp/description'] = "For stream '%s'" % scfg.stream_name
                     newrow['dp/ooi_product_name'] = ""
                     newrow['dp/processing_level_code'] = "N/A"
                     newrow['dp/quality_control_level'] = "N/A"
@@ -3518,15 +3521,17 @@ Reason: %s
                     dp_id = inst_id + "_DPI" + str(index)
                     newrow = {}
                     newrow[COL_ID] = dp_id
-                    newrow['dp/name'] = "Instrument %s stream '%s' data product" % (inst_id, scfg.stream_name)
+                    dpstr_name = scfg.stream_attributes.get("display_name", "") or \
+                                 scfg_map[scfg.stream_name].stream_attributes.get("display_name", "") or scfg.stream_name
+                    newrow['dp/name'] = "%s for %s %s" % (dpstr_name, inst_unique, platform_obj['name'])
                     if scfg.stream_type == StreamConfigurationType.RAW:
-                        newrow['dp/description'] = "Instrument %s data product: raw" % inst_id
+                        newrow['dp/description'] = ""
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Raw"
                         newrow['dp/quality_control_level'] = "N/A"
                     elif scfg.stream_type == StreamConfigurationType.PARSED and not parsed_pdict_id:
                         newrow['dp/name'] = "Combined science variables for %s %s" % (inst_unique, platform_obj['name'])
-                        newrow['dp/description'] = "Instrument %s data product: parsed samples" % inst_id
+                        newrow['dp/description'] = ""
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
                         newrow['dp/quality_control_level'] = "a"
@@ -3536,7 +3541,7 @@ Reason: %s
                         if scfg.stream_type == StreamConfigurationType.PARSED:
                             log.warn("Instrument %s (agent %s) has more than one PARSED stream: %s (first pdict id=%s)",
                                      inst_id, agent_id, scfg.stream_name, parsed_pdict_id)
-                        newrow['dp/description'] = "Instrument %s data product: engineering data" % inst_id
+                        newrow['dp/description'] = "For stream '%s'" % scfg.stream_name
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "N/A"
                         newrow['dp/quality_control_level'] = "N/A"
