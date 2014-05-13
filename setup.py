@@ -48,6 +48,7 @@ setup(  name = 'coi-services',
             'apscheduler==2.1.0',
             'pyproj==1.9.3',
             'udunitspy==0.0.6',
+            'beautifulsoup4==4.2.1'
         ],
         entry_points = """
             [pydap.handler]
