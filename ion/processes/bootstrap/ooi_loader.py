@@ -511,16 +511,15 @@ class OOILoader(object):
     def _parse_NodeType(self, row):
         code = row['Code']
         name = row['Name']
+        comp_name = row['Composite Name']
         pa_code = row['PA Code']
         platform_family = row['Platform Family']
         platform_type = row['Platform Type']
 
-        # Only add new stuff from spreadsheet
-        if code not in self.ooi_objects['nodetype']:
-            self._add_object_attribute('nodetype',
-                code, None, None, name=name)
         self._add_object_attribute('nodetype',
-            code, None, None, pa_code=pa_code, platform_family=platform_family, platform_type=platform_type)
+            code, None, None, name=name, change_ok=True)
+        self._add_object_attribute('nodetype',
+            code, None, None, pa_code=pa_code, platform_family=platform_family, platform_type=platform_type, comp_name=comp_name)
 
     def _parse_PlatformAgents(self, row):
         code = row['Code']
