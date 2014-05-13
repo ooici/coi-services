@@ -24,7 +24,7 @@ from pyon.public import log
 from pyon.public import IonObject
 from pyon.public import RT, PRED
 from pyon.util.context import LocalContextMixin
-from pyon.util.breakpoint import breakpoint
+from pyon.util.containers import DotDict
 
 # Ion imports.
 from ion.agents.platform.rsn.simulator.logger import Logger
@@ -47,6 +47,25 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
+# to fake a resource agent client
+class FakeAgent(object):
+
+    def __init__(self):
+        self.cmds = {}
+
+    def get_agent(self, cmds):
+        return dict([(c, self.cmds.get(c, None)) for c in cmds])
+
+    def set_agent(self, key, val):
+        self.cmds[key] = val
+
+    def get_capabilities(self):
+        return [DotDict({"name": k}) for k in self.cmds.keys()]
+
+    def get_agent_state(self):
+        return "FAKE"
+
+
 @attr('UNIT')
 class TestParseMission(PyonTestCase):
     """
@@ -54,7 +73,8 @@ class TestParseMission(PyonTestCase):
     """
 
     def test_load_YAML(self):
-        mission = MissionLoader()
+        p_agent = FakeAgent()
+        mission = MissionLoader(p_agent)
         filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
         self.assertTrue(mission.load_mission_file(filename))
 
