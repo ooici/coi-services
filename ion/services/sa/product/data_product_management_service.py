@@ -802,19 +802,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         return rpc_cli.request({'data_product_id':data_product_id}, op=op)
 
     def create_catalog_entry(self, data_product_id=''):
-        # Stub
         return self._registration_rpc('create_entry',data_product_id) 
 
     def read_catalog_entry(self, data_product_id=''):
-        # Stub
         return self._registration_rpc('read_entry', data_product_id)
 
     def update_catalog_entry(self, data_product_id=''):
-        # Stub
         return self._registration_rpc('update_entry', data_product_id)
 
     def delete_catalog_entry(self, data_product_id=''):
-        # Stub
         return self._registration_rpc('delete_entry', data_product_id)
 
 
