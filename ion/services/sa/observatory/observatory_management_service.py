@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-"""Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
-and the relationships between them"""
+"""Service managing marine facility sites and deployments"""
 
 import string
 import time
@@ -14,11 +13,11 @@ from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
 
-from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.observatory.deployment_activator import DeploymentPlanner
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.processes.event.device_state import DeviceStateManager
 from ion.util.geo_utils import GeoUtils
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
@@ -478,7 +477,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 device_obj.temporal_bounds = constraint
         self.RR.update(device_obj)
 
-    def _update_device_remove_geo_update_temporal(self, device_id='', deployment_obj=''):
+    def _update_device_remove_geo_update_temporal(self, device_id='', temporal_constraint=None):
         """Remove the geo location and update temporal extent (end) from the device
 
         @param device_id    str
@@ -493,9 +492,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                   geospatial_vertical_min=float(0),
                                   geospatial_vertical_max=float(0))
         device_obj.geospatial_bounds = bounds
-        for constraint in deployment_obj.constraint_list:
-            if constraint.type_ == OT.TemporalBounds:
-                device_obj.temporal_bounds = constraint
+        if temporal_constraint:
+            device_obj.temporal_bounds.end_datetime = temporal_constraint.end_datetime
         self.RR.update(device_obj)
 
     def assign_device_to_network_parent(self, child_device_id='', parent_device_id=''):
@@ -627,14 +625,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         else:
             raise BadRequest("Illegal resource type to assign to Deployment: %s" % site.type_)
 
-
-
     def activate_deployment(self, deployment_id='', activate_subscriptions=False):
         """
         Make the devices on this deployment the primary devices for the sites
         """
-        #Verify that the deployment exists
+        dep_util = DeploymentUtil(self.container)
+
+        # Verify that the deployment exists
         deployment_obj = self.RR2.read(deployment_id)
+        log.info("Activating deployment %s '%s'", deployment_id, deployment_obj.name)
+
+        # Find an existing primary deployment
+        dep_site_id, dep_dev_id = dep_util.get_deployment_relations(deployment_id)
+        active_dep = dep_util.get_site_primary_deployment(dep_site_id)
+        if active_dep and active_dep._id == deployment_id:
+            raise BadRequest("Deployment %s already active for site %s" % (deployment_id, dep_site_id))
 
         self.deploy_planner = DeploymentPlanner(self.clients)
 
@@ -664,6 +669,22 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         else:
             log.warn("Deployment %s was already DEPLOYED when activated", deployment_obj._id)
 
+        if active_dep:
+            log.info("activate_deployment(): Deactivating prior Deployment %s at site %s" % (active_dep._id, dep_site_id))
+            # Set Deployment end date
+            olddep_tc = dep_util.get_temporal_constraint(active_dep)
+            newdep_tc = dep_util.get_temporal_constraint(deployment_obj)
+            if float(olddep_tc.end_datetime) > float(newdep_tc.start_datetime):
+                # Set to new deployment start date
+                dep_util.set_temporal_constraint(active_dep, end_time=newdep_tc.start_datetime)
+                self.RR.update(active_dep)
+
+            # Change LCS
+            if active_dep.lcstate == LCS.DEPLOYED:
+                self.RR.execute_lifecycle_transition(active_dep._id, LCE.INTEGRATE)
+            else:
+                log.warn("Prior Deployment %s was not in DEPLOYED lcstate", active_dep._id)
+
 
     def deactivate_deployment(self, deployment_id=''):
         """Remove the primary device designation for the deployed devices at the sites
@@ -675,29 +696,19 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #Verify that the deployment exists
         deployment_obj = self.RR2.read(deployment_id)
+        dep_util = DeploymentUtil(self.container)
 
-#        if LCS.DEPLOYED != deployment_obj.lcstate:
-#            raise BadRequest("This deploment is not active")
+        if deployment_obj.lcstate != LCS.DEPLOYED:
+            log.warn("deactivate_deployment(): Deployment %s is not DEPLOYED" % deployment_id)
+#            raise BadRequest("This deployment is not active")
 
         # get all associated components
-
-        # must only remove from sites that are not deployed under a different active deployment
-        # must only remove    devices that are not deployed under a different active deployment
-        def filter_alternate_deployments(resource_list):
-            # return the list of ids for devices or sites not connected to an alternate lcs.deployed deployment
-            ret = []
-            for r in resource_list:
-                depls, _ = self.RR.find_objects(r, PRED.hasDeployment, RT.Deployment)
-                keep = True
-                for d in depls:
-                    if d._id != deployment_id and LCS.DEPLOYED == d.lcstate:
-                        keep = False
-                if keep:
-                    ret.append(r)
-            return ret
-
         self.deploy_planner = DeploymentPlanner(self.clients)
         site_ids, device_ids = self.deploy_planner.get_deployment_sites_devices(deployment_obj)
+
+        dep_util.set_temporal_constraint(deployment_obj, end_time=DeploymentUtil.DATE_NOW)
+        self.RR.update(deployment_obj)
+        temp_constraint = dep_util.get_temporal_constraint(deployment_obj)
 
         # delete only associations where both site and device have passed the filter
         for s in site_ids:
@@ -707,15 +718,22 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     a = self.RR.get_association(s, PRED.hasDevice, d)
                     self.RR.delete_association(a)
                     log.info("Removing geo and updating temporal attrs for device '%s'", d)
-                    self._update_device_remove_geo_update_temporal(d, deployment_obj)
-                    self.RR.execute_lifecycle_transition(d, LCE.INTEGRATE)
+                    self._update_device_remove_geo_update_temporal(d, temp_constraint)
+                    try:
+                        self.RR.execute_lifecycle_transition(d, LCE.INTEGRATE)
+                    except BadRequest:
+                        log.warn("Could not set device %s lcstate to INTEGRATED", d)
 
         # This should set the deployment resource to retired.
         # Michael needs to fix the RR retire logic so it does not
         # retire all associations before we can use it. Currently we switch
         # back to INTEGRATE.
         #self.RR.execute_lifecycle_transition(deployment_id, LCE.RETIRE)
-        self.RR.execute_lifecycle_transition(deployment_id, LCE.INTEGRATE)
+        # mark deployment as not deployed (developed seems appropriate)
+        if deployment_obj.lcstate == LCS.DEPLOYED:
+            self.RR.execute_lifecycle_transition(deployment_id, LCE.INTEGRATE)
+        else:
+            log.warn("Deployment %s was not in DEPLOYED lcstate", deployment_id)
 
     def prepare_deployment_support(self, deployment_id=''):
         extended_resource_handler = ExtendedResourceContainer(self)

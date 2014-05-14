@@ -1,24 +1,134 @@
 #!/usr/bin/env python
 
-"""
-for a list of deployment IDs,
-generate a dict of dicts with information about the deployments
-suitable for the UI table:
- { deployment_id: { 'ui_column': 'string_value'... } }
-"""
+"""Deployment specific utilities"""
 
 import time
 
 from ooi.logging import log, TRACE, DEBUG
 
-from pyon.ion.resource import RT, PRED, LCS, OT
+from pyon.core import bootstrap
+from pyon.public import RT, PRED, LCS, OT, BadRequest
 
-TIME_FORMAT='%Y-%m-%d %H:%M:%S'
+from interface.objects import TemporalBounds, GeospatialBounds
+
+
+TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+
+
+class DeploymentUtil(object):
+    """Helper class to work with deployments"""
+
+    DATE_NOW = "NOW"
+
+    def __init__(self, container=None):
+        self.container = container or bootstrap.container_instance
+        self.rr = container.resource_registry
+
+    def get_deployment_relations(self, deployment_id, return_objects=False):
+        """Returns a tuple of site id and device id for a deployment"""
+        # Find any existing deployment
+        depsrc_objs, _ = self.rr.find_subjects(None, PRED.hasDeployment, deployment_id, id_only=False)
+        dep_site, dep_dev = None, None
+        for ds in depsrc_objs:
+            if ds.type_ in (RT.PlatformSite, RT.InstrumentSite):
+                dep_site = ds if return_objects else ds._id
+            elif ds.type_ in (RT.PlatformDevice, RT.InstrumentDevice):
+                dep_dev = ds if return_objects else ds._id
+        return dep_site, dep_dev
+
+    def get_site_primary_deployment(self, site_id):
+        """Return the current deployment for given site"""
+        if not site_id:
+            return None
+        dep_list, _ = self.rr.find_objects(site_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+        return self.get_current_deployment(dep_list, only_deployed=True)
+
+    def get_device_primary_deployment(self, device_id):
+        """Return the current deployment for given device"""
+        if not device_id:
+            return None
+        dep_list, _ = self.rr.find_objects(device_id, PRED.hasDeployment, RT.Deployment, id_only=False)
+        return self.get_current_deployment(dep_list, only_deployed=True)
+
+    def get_temporal_constraint(self, deployment_obj):
+        for cons in deployment_obj.constraint_list:
+            if isinstance(cons, TemporalBounds):
+                return cons
+
+    def get_geospatial_constraint(self, deployment_obj):
+        for cons in deployment_obj.constraint_list:
+            if isinstance(cons, GeospatialBounds):
+                return cons
+
+    def set_temporal_constraint(self, deployment_obj, start_time=None, end_time=None):
+        tc = self.get_temporal_constraint(deployment_obj)
+        if tc is None:
+            tc = TemporalBounds()
+            deployment_obj.constraint_list.append(tc)
+        if start_time == "NOW":
+            start_time = str(int(time.time()))
+        if end_time == "NOW":
+            end_time = str(int(time.time()))
+        if start_time is not None:
+            tc.start_datetime = start_time
+        if end_time is not None:
+            tc.end_datetime = end_time
+
+    def get_current_deployment(self, deployment_list, act_time=None, only_deployed=False, best_guess=False):
+        """Return the most likely current deployment from given list of Deployment resources
+        @param deployment_list  list of Deployment resource objects
+        @param act_time  if set use this time (float) instread of time.time() for comparison
+        @param only_deployed  if True, only consider only DEPLOYED lcstate
+        @param best_guess  if True, guess the most likely current deployment (R2 hack)
+        @retval  the Deployment object that matches or None
+
+        # TODO: For a better way to find current active deployment wait for R3 M193 and then refactor
+        # Procedure:
+        # 1 Eliminate all RETIRED lcstate
+        # 2 If only_deployed==True, eliminate all that are not DEPLOYED lcstate
+        # 3 Eliminate all with illegal or missing TemporalBounds
+        # 4 Eliminate past deployments (end date before now)
+        # 5 Eliminate known future deployments (start date after now)
+        # 6 Sort the remaining list by start date and return first (ambiguous!!)
+        """
+        if act_time is None:
+            act_time = time.time()
+        filtered_dep = []
+        for dep_obj in deployment_list:
+            if dep_obj.lcstate == LCS.RETIRED:
+                continue
+            if only_deployed and dep_obj.lcstate != LCS.DEPLOYED:
+                continue
+            temp_const = self.get_temporal_constraint(dep_obj)
+            if not temp_const:
+                continue
+            if not temp_const.start_datetime or not temp_const.end_datetime:
+                continue
+            start_time = int(temp_const.start_datetime)
+            if start_time > act_time:
+                continue
+            end_time = int(temp_const.end_datetime)
+            if end_time > act_time:
+                # TODO: This may not catch a current deployment if it has a past end_time set!
+                filtered_dep.append((start_time, end_time, dep_obj))
+
+        if not filtered_dep:
+            return None
+        if len(filtered_dep) == 1:
+            return filtered_dep[0][2]
+
+        if best_guess:
+            log.warn("Cannot determine current deployment unambiguously - choosing earliest start date")
+            filtered_dep = sorted(filtered_dep, key=lambda x: x[0])
+            return filtered_dep[0][2]
+        else:
+            raise BadRequest("Cannot determine current deployment unambiguously - choosing earliest start date")
 
 
 def describe_deployments(deployments, context, instruments=None, instrument_status=None):
     """
-
+    For a list of deployment IDs, generate a dict of dicts with information about the deployments
+    suitable for the UI table: { deployment_id: { 'ui_column': 'string_value'... } }
     @param deployments  list of Deployment resource objects
     @param context  object to get the resource_registry from (e.g. container)
     @param instruments  list of InstrumentDevice resource objects
@@ -128,3 +238,5 @@ def describe_deployments(deployments, context, instruments=None, instrument_stat
                   sum([0 if 'device_status' in d else 1 for d in descriptions_list]))
 
     return descriptions_list
+
+
