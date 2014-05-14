@@ -396,7 +396,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
             'alerts',
             'aggstatus',
             'rollup_status',
-            'mission',
         ]
         res_pars_all = []
         res_cmds_all = [
