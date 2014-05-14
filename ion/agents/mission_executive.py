@@ -10,6 +10,7 @@ import calendar
 import gevent
 from gevent.event import AsyncResult
 import time
+import yaml
 from time import gmtime
 
 from pyon.agent.agent import ResourceAgentClient
@@ -453,6 +454,23 @@ class MissionLoader(object):
         #     mission_dict = yaml.safe_load(f)
 
         self.raw_mission = mission_dict['mission']
+
+        return self.validate_schedule(self.raw_mission)
+
+    def load_mission(self, mission_id, mission_yml):
+        """
+        Load, parse, and check the mission file contents
+        """
+        self.mission_id = mission_id
+
+        log.debug('[mm] Parsing mission_id %s', self.mission_id)
+
+        # mission_dict = yaml.safe_load(mission_yml)
+
+        # with open(filename) as f:
+        #     mission_dict = yaml.safe_load(f)
+
+        self.raw_mission = mission_yml['mission']
 
         return self.validate_schedule(self.raw_mission)
 
@@ -1149,5 +1167,10 @@ if __name__ == "__main__":  # pragma: no cover
     """
     filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
 
-    mission = MissionLoader()
-    mission.load_mission_file(filename)
+    p_agent = []
+    mission_dict = Config([filename]).data
+
+    mission = MissionLoader(p_agent)
+    mission_id = 0
+
+    mission.load_mission(mission_id, mission_dict)
