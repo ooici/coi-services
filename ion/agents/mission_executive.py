@@ -9,6 +9,7 @@
 import calendar
 import gevent
 from gevent.event import AsyncResult
+import yaml
 import time
 from time import gmtime
 
@@ -416,15 +417,15 @@ class MissionLoader(object):
         """
         Load, parse, and check the mission file contents
         @param mission_id        Mission id from RR
-        @param mission_yml       Mission file contents
+        @param mission_yml       Mission file contents as string
         """
         self.mission_id = mission_id
 
         log.debug('[mm] Parsing mission_id %s', self.mission_id)
 
         self.mission_id = mission_id
-
-        self.raw_mission = mission_yml['mission']
+        mission_dict = yaml.safe_load(mission_yml)
+        self.raw_mission = mission_dict['mission']
 
         return self.validate_schedule(self.raw_mission)
 
@@ -1112,12 +1113,12 @@ if __name__ == "__main__":  # pragma: no cover
     """
     Stand alone to check the mission loading/parsing capabilities
     """
+    p_agent = []
+    mission_id = 0
+    mission = MissionLoader(p_agent)
     filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
 
-    p_agent = []
-    mission_dict = Config([filename]).data
+    with open(filename, 'r') as f:
+        mission_string = f.read()
 
-    mission = MissionLoader(p_agent)
-    mission_id = 0
-
-    mission.load_mission(mission_id, mission_dict)
+    mission.load_mission(mission_id, mission_string)

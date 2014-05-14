@@ -23,8 +23,10 @@ from pyon.event.event import EventPublisher
 from pyon.public import log
 from pyon.public import IonObject
 from pyon.public import RT, PRED
+from pyon.util.config import Config
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
+
 
 # Ion imports.
 from ion.agents.platform.rsn.simulator.logger import Logger
@@ -72,11 +74,22 @@ class TestParseMission(PyonTestCase):
     Unit tests for the mission parser
     """
 
-    def test_load_YAML(self):
+    def test_load_mission_file(self):
         p_agent = FakeAgent()
         mission = MissionLoader(p_agent)
         filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
         self.assertTrue(mission.load_mission_file(filename))
+
+    def test_load_mission(self):
+        p_agent = FakeAgent()
+        mission_id = 0
+        mission = MissionLoader(p_agent)
+        filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
+
+        with open(filename, 'r') as f:
+            mission_string = f.read()
+
+        self.assertTrue(mission.load_mission(mission_id, mission_string))
 
 
 # @unittest.skipIf(os.getenv("OMS") is not None, "OMS environment variable is defined.")
