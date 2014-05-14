@@ -26,6 +26,6 @@ mission:
         eventID: 
     preMissionSequence:
     missionSequence:
-      - command: wait(3)
+      - command: wait(1)
         onError:
     postMissionSequence:
