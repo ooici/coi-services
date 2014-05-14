@@ -2362,8 +2362,12 @@ Reason: %s
             newrow = {}
             platform_id = node_id + "_PD"
             newrow[COL_ID] = platform_id
-            serial = "changeme_%s.001" % (node_id)
-            serial = serial.lower()
+            old_node_obj = self._get_resource_obj(newrow[COL_ID], silent=True)
+            if old_node_obj:
+                serial = old_node_obj.serial_number
+            else:
+                serial = "changeme_%s.001" % (node_id)
+                serial = serial.lower()
             newrow['pd/name'] = "%s serial# %s" % (nodetype_objs[ooi_rd.node_type]["name"], serial)
             newrow['pd/description'] = "Platform device first deployed to %s" % node_id
             newrow['pd/serial_number'] = serial
@@ -2478,8 +2482,12 @@ Reason: %s
             ooi_rd = OOIReferenceDesignator(ooi_id)
             newrow = {}
             newrow[COL_ID] = ooi_id + "_ID"
-            serial = "changeme_%s.001" % (ooi_id)
-            serial = serial.lower()
+            old_inst_obj = self._get_resource_obj(newrow[COL_ID], silent=True)
+            if old_inst_obj:
+                serial = old_inst_obj.serial_number
+            else:
+                serial = "changeme_%s.001" % (ooi_id)
+                serial = serial.lower()
             newrow['id/name'] = "%s serial# %s" % (class_objs[ooi_rd.inst_class]['alt_name'], serial)
             newrow['id/description'] = "Instrument device first deployed to %s" % ooi_id
             newrow['id/serial_number'] = serial
