@@ -2347,7 +2347,7 @@ Reason: %s
             platform_id = node_id + "_PD"
             newrow[COL_ID] = platform_id
             old_node_obj = self._get_resource_obj(newrow[COL_ID], silent=True)
-            if old_node_obj:
+            if old_node_obj and old_node_obj.serial_number:
                 serial = old_node_obj.serial_number
             else:
                 serial = "changeme_%s.001" % (node_id)
@@ -2467,7 +2467,7 @@ Reason: %s
             newrow = {}
             newrow[COL_ID] = ooi_id + "_ID"
             old_inst_obj = self._get_resource_obj(newrow[COL_ID], silent=True)
-            if old_inst_obj:
+            if old_inst_obj and old_inst_obj.serial_number:
                 serial = old_inst_obj.serial_number
             else:
                 serial = "changeme_%s.001" % (ooi_id)
