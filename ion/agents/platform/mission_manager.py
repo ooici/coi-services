@@ -54,12 +54,16 @@ class MissionManager(object):
 
         mission_scheduler = self._create_mission_scheduler(mission_id, mission_yml)
         self._running_missions[mission_id] = mission_scheduler
+        log.debug('[mm] starting mission_id=%r (#running missions=%s)',
+                  mission_id, len(self._running_missions))
         try:
             mission_scheduler.run_mission()
         except Exception as ex:
             log.exception('[mm] run_mission mission_id=%r', mission_id)
         finally:
             del self._running_missions[mission_id]
+            log.debug('[mm] completed mission_id=%r (#running missions=%s)',
+                      mission_id, len(self._running_missions))
 
     def abort_mission(self, mission_id):
         if mission_id not in self._running_missions:

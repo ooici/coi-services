@@ -3791,10 +3791,14 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GO_INACTIVE, self._handler_lost_connection_go_inactive)
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
 
-        # MISSION state event handlers.
+        # MISSION_COMMAND state event handlers.
+        self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.RUN_MISSION, self._handler_mission_run)
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.EXIT_MISSION, self._handler_mission_exit)
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.ABORT_MISSION, self._handler_mission_abort)
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.KILL_MISSION, self._handler_mission_kill)
+
+        # MISSION_STREAMING state event handlers.
+        self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.RUN_MISSION, self._handler_mission_run)
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.EXIT_MISSION, self._handler_mission_exit)
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.ABORT_MISSION, self._handler_mission_abort)
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.KILL_MISSION, self._handler_mission_kill)
