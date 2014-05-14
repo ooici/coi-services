@@ -101,11 +101,7 @@ class MissionManager(object):
         log.debug('[mm] _create_mission_scheduler: mission_id=%r', mission_id)
 
         mission_loader = MissionLoader(self._agent)
-
-        # TODO: for the moment passing the filename still while load_mission is implemented
-        mission_loader.load_mission_file(mission_yml)
-        # mission_loader.load_mission(mission_id, mission_yml)
-
+        mission_loader.load_mission(mission_id, mission_yml)
         self._mission_entries = mission_loader.mission_entries
 
         log.debug('[mm] _create_mission_scheduler: _ia_clients=\n%s',

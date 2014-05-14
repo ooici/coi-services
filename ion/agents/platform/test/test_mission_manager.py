@@ -122,7 +122,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         if not in_command_state:
             self._start_resource_monitoring()
 
-        # now prepare, set, and run mission:
+        # now prepare and run mission:
 
         # TODO determine appropriate instrument identification mechanism as the
         # instrument keys (like SBE37_SIM_02) are basically only known in
@@ -130,16 +130,14 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # file so the instrument keys are replaced by the corresponding
         # instrument_device_id's:
 
-        string = open(mission_filename).read()
+        with open(mission_filename) as f:
+            mission_yml = f.read()
         for instr_key in instr_keys:
             i_obj = self._get_instrument(instr_key)
             resource_id = i_obj.instrument_device_id
             log.debug('[mm] replacing %s to %s', instr_key, resource_id)
-            string = string.replace(instr_key, resource_id)
-
-        generated_filename = mission_filename.replace(".yml", "_GENERATED.yml")
-        with open(generated_filename, 'w') as f:
-            f.write(string)
+            mission_yml = mission_yml.replace(instr_key, resource_id)
+        log.debug('[mm] mission_yml=%s', mission_yml)
 
         # prepare to receive expected mission events:
         async_event_result, events_received = self._start_event_subscriber2(
@@ -150,9 +148,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         log.info('[mm] mission event subscriber started')
 
         # now run mission:
-        mission_id = generated_filename
-        mission_yml = generated_filename # TODO: change to actual contents
-        # once underlying method is implemented
+        mission_id = mission_filename
         self._run_mission(mission_id, mission_yml)
 
         state = self._get_state()
