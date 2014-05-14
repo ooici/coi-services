@@ -9,6 +9,7 @@
 import calendar
 import gevent
 from gevent.event import AsyncResult
+import yaml
 import time
 from time import gmtime
 
@@ -61,53 +62,6 @@ class MissionErrorCode(BaseEnum):
     ABORT_MISSION = 2
 
 
-class MissionCommands(BaseEnum):
-    """
-    Acceptable mission commands and associated parameters
-    """
-    # General commands
-    WAIT = 'wait'
-    SAMPLE = 'sample'
-    CALIBRATE = 'calibrate'
-
-    # HD Camera commands
-    ZOOM = 'zoom'
-    PAN = 'pan'
-    TILT = 'tilt'
-    LIGHTS = 'lights'
-    LASERS = 'lasers'
-
-    # Shallow Profiler
-    LOAD = 'loadmission'
-    RUN = 'runmission'
-    SET_ASCENT_SPEED = 'setascentspeed'
-    SET_DESCENT_SPEED = 'setdescentspeed'
-    SET_DEPTH_ALARM = 'setdepthalarm'
-    GO_TO_DEPTH = 'gotodepth'
-    GET_STATUS = 'getstatus'
-    GET_LIMITS = 'getlimits'
-
-    # Create dict of associations
-    all_cmds = {
-        CALIBRATE: [],
-        SAMPLE: ['duration', 'units', 'interval'],
-        WAIT: ['duration', 'units'],
-        LASERS: ['power'],
-        LIGHTS: ['power'],
-        PAN: ['angle', 'rate'],
-        TILT: ['angle', 'rate'],
-        ZOOM: ['level'],
-        LOAD: ['missionIndex'],
-        RUN: ['missionIndex'],
-        GO_TO_DEPTH: ['depth'],
-        SET_ASCENT_SPEED: ['speed'],
-        SET_DESCENT_SPEED: ['speed'],
-        SET_DEPTH_ALARM: ['depth'],
-        GET_LIMITS: [],
-        GET_STATUS: [],
-        }
-
-
 class MissionLoader(object):
     """
     MissionLoader class is used to parse a mission file, check the mission logic
@@ -117,12 +71,14 @@ class MissionLoader(object):
 
         self.platform_agent = platform_agent
         self.mission_entries = []
+        self.mission_id = None
         self.accepted_error_values = ['abort', 'abortMission', 'retry', 'skip']
 
     def add_entry(self, instrument_id=[], error_handling = {}, start_time=0, loop={}, event = {},
                   premission_cmds=[], mission_cmds=[], postmission_cmds=[]):
 
-        self.mission_entries.append({"instrument_id": instrument_id,
+        self.mission_entries.append({"mission_id": self.mission_id,
+                                    "instrument_id": instrument_id,
                                     "error_handling": error_handling,
                                     "start_time": start_time,
                                     "loop": loop,
@@ -244,12 +200,12 @@ class MissionLoader(object):
         """
         Verify that specified command is defined.
         """
-
-        if cmd not in MissionCommands.all_cmds:
-            raise Exception('Mission Error: %s Mission command not recognized' % cmd)
-        for param in params:
-            if param not in MissionCommands.all_cmds[cmd]:
-                raise Exception('Mission Error: %s Mission parameter not recognized' % param)
+        pass
+        # if cmd not in MissionCommands.all_cmds:
+        #     raise Exception('Mission Error: %s Mission command not recognized' % cmd)
+        # for param in params:
+        #     if param not in MissionCommands.all_cmds[cmd]:
+        #         raise Exception('Mission Error: %s Mission parameter not recognized' % param)
 
     def parse_loop_parameters(self, schedule):
         """
@@ -433,6 +389,7 @@ class MissionLoader(object):
     def publish_mission_loader_error_event(self, description):
         evt = dict(event_type='DeviceMissionEvent',
                    description=description,
+                   mission_id=self.mission_id,
                    origin_type=self.platform_agent.ORIGIN_TYPE,
                    origin=self.platform_agent.resource_id)
 
@@ -456,6 +413,22 @@ class MissionLoader(object):
 
         return self.validate_schedule(self.raw_mission)
 
+    def load_mission(self, mission_id, mission_yml):
+        """
+        Load, parse, and check the mission file contents
+        @param mission_id        Mission id from RR
+        @param mission_yml       Mission file contents as string
+        """
+        self.mission_id = mission_id
+
+        log.debug('[mm] Parsing mission_id %s', self.mission_id)
+
+        self.mission_id = mission_id
+        mission_dict = yaml.safe_load(mission_yml)
+        self.raw_mission = mission_dict['mission']
+
+        return self.validate_schedule(self.raw_mission)
+
 
 class MissionScheduler(object):
     """
@@ -473,7 +446,7 @@ class MissionScheduler(object):
         self.platform_agent = platform_agent
         self.instruments = instruments
         self.mission = mission
-
+        self.mission_id = mission[0]['mission_id']
         log.debug('[mm] MissionScheduler: instruments=%s\nmission=%s',
                   pformat(instruments), pformat(mission))
 
@@ -517,11 +490,9 @@ class MissionScheduler(object):
         main mission sequence and then running the post-mission sequence
         """
 
-        mission_id = "todo"
-
         # Only need the abort sequence once...
         if not self.mission_aborted:
-            self._publish_mission_abort_event(mission_id)
+            self._publish_mission_abort_event(self.mission_id)
 
             self.mission_aborted = True
 
@@ -538,7 +509,7 @@ class MissionScheduler(object):
             log.error('[mm] Mission Aborted')
 
             # Publish mission abort event
-            self._publish_mission_aborted_event(mission_id)
+            self._publish_mission_aborted_event(self.mission_id)
             # raise Exception('Mission Aborted')
 
     def kill_mission(self):
@@ -547,12 +518,10 @@ class MissionScheduler(object):
         it stops all mission threads as soon as possible.
         """
 
-        mission_id = "todo"
-
         # Only need the abort sequence once...
         if not self.mission_aborted:
 
-            self._publish_mission_kill_event(mission_id)
+            self._publish_mission_kill_event(self.mission_id)
             self.mission_aborted = True
             # For event driven missions, stop event subscribers
             for subscriber in self.mission_event_subscribers:
@@ -563,7 +532,7 @@ class MissionScheduler(object):
 
             # Publish mission abort event
             # TODO: Wait until all treads are stopped before publishing
-            self._publish_mission_killed_event(mission_id)
+            self._publish_mission_killed_event(self.mission_id)
             # raise Exception('Mission Aborted')
 
     def _kill_all_mission_threads(self):
@@ -579,8 +548,7 @@ class MissionScheduler(object):
         Set up gevent threads for each mission
         """
 
-        mission_id = "todo"
-        self._publish_mission_start_event(mission_id)
+        self._publish_mission_start_event(self.mission_id)
 
         for mission in missions:
             start_time = mission['start_time']
@@ -593,7 +561,7 @@ class MissionScheduler(object):
                 # Event driven scheduler
                 self.threads.append(gevent.spawn(self._run_event_driven_mission, mission))
 
-        self._publish_mission_started_event(mission_id)
+        self._publish_mission_started_event(self.mission_id)
 
         log.debug('[mm] schedule: waiting for mission to complete')
         gevent.joinall(self.threads)
@@ -725,8 +693,6 @@ class MissionScheduler(object):
         Run a timed mission
         @param mission      Mission dictionary
         """
-
-        mission_id = "todo"
 
         current_mission_thread = self.mission_thread_id
         self.mission_thread_id += 1
@@ -1147,7 +1113,12 @@ if __name__ == "__main__":  # pragma: no cover
     """
     Stand alone to check the mission loading/parsing capabilities
     """
+    p_agent = []
+    mission_id = 0
+    mission = MissionLoader(p_agent)
     filename = "ion/agents/platform/test/mission_RSN_simulator1.yml"
 
-    mission = MissionLoader()
-    mission.load_mission_file(filename)
+    with open(filename, 'r') as f:
+        mission_string = f.read()
+
+    mission.load_mission(mission_id, mission_string)
