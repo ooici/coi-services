@@ -56,20 +56,11 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         finally:  # attempt shutdown anyway
             self._shutdown(True)  # NOTE: shutdown always with recursion=True
 
-    def _set_mission(self, yaml_filename):
-        log.debug('[mm] _set_mission: setting agent param mission = %s', yaml_filename)
-        self._pa_client.set_agent({'mission': yaml_filename})
-
-    def _get_mission(self):
-        mission = self._pa_client.get_agent(['mission'])['mission']
-        self.assertIsNotNone(mission)
-        log.debug('[mm] _get_mission: agent param mission = %s', mission)
-        return mission
-
-    def _run_mission(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.RUN_MISSION)
+    def _run_mission(self, mission_id, mission_yml):
+        kwargs = dict(mission_id=mission_id, mission_yml=mission_yml)
+        cmd = AgentCommand(command=PlatformAgentEvent.RUN_MISSION, kwargs=kwargs)
         retval = self._execute_agent(cmd)
-        log.debug('[mm] _run_mission: RUN_MISSION return: %s', retval)
+        log.debug('[mm] _run_mission mission_id=%s: RUN_MISSION return: %s', mission_id, retval)
 
     def _await_mission_completion(self, mission_state, max_wait=None):
         """
@@ -158,9 +149,11 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         )
         log.info('[mm] mission event subscriber started')
 
-        # now set and run mission:
-        self._set_mission(generated_filename)
-        self._run_mission()
+        # now run mission:
+        mission_id = generated_filename
+        mission_yml = generated_filename # TODO: change to actual contents
+        # once underlying method is implemented
+        self._run_mission(mission_id, mission_yml)
 
         state = self._get_state()
         if state == mission_state:
