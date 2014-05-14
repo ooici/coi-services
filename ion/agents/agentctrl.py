@@ -37,6 +37,7 @@ from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFoun
 
 from ion.core.includes.mi import DriverEvent
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.util.parse_utils import parse_dict, get_typed_value
 from ion.util.datastore.resuse import ResourceUseInfo
@@ -1205,6 +1206,7 @@ class AgentControl(ImmediateProcess):
 
     def activate_deployment(self, agent_instance_id, resource_id):
         obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+        dep_util = DeploymentUtil(self.container)
         res_obj = self.rr.read(resource_id)
         if res_obj.type_ == RT.Deployment:
             obs_ms.activate_deployment(resource_id, headers=self._get_system_actor_headers())
@@ -1214,7 +1216,7 @@ class AgentControl(ImmediateProcess):
             if self.verbose:
                 log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
             if dep_objs:
-                current_dep = self._get_current_deployment(dep_objs, only_deployed=False)
+                current_dep = dep_util.get_current_deployment(dep_objs, only_deployed=False, best_guess=self.force)
                 if current_dep:
                     log.info("Activating deployment %s", current_dep._id)
                     if not self.dryrun:
@@ -1222,6 +1224,7 @@ class AgentControl(ImmediateProcess):
 
     def deactivate_deployment(self, agent_instance_id, resource_id):
         obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+        dep_util = DeploymentUtil(self.container)
         res_obj = self.rr.read(resource_id)
         if res_obj.type_ == RT.Deployment:
             obs_ms.deactivate_deployment(resource_id, headers=self._get_system_actor_headers())
@@ -1230,54 +1233,11 @@ class AgentControl(ImmediateProcess):
             if self.verbose:
                 log.debug("Device %s has %s deployments", resource_id, len(dep_objs))
             if dep_objs:
-                current_dep = self._get_current_deployment(dep_objs, only_deployed=True)
+                current_dep = dep_util.get_current_deployment(dep_objs, only_deployed=True, best_guess=self.force)
                 if current_dep:
                     log.info("Deactivating deployment %s", current_dep._id)
                     if not self.dryrun:
                         obs_ms.deactivate_deployment(current_dep._id, headers=self._get_system_actor_headers())
-
-    def _get_current_deployment(self, dep_objs, only_deployed=False):
-        """Return the most likely current deployment from given list of Deployment resources
-        # TODO: For a better way to find current active deployment wait for R3 M193 and then refactor
-        # Procedure:
-        # 1 Eliminate all RETIRED lcstate
-        # 2 If only_deployed==True, eliminate all that are not DEPLOYED lcstate
-        # 3 Eliminate all with illegal or missing TemporalBounds
-        # 4 Eliminate past deployments (end date before now)
-        # 5 Eliminate known future deployments (start date after now)
-        # 6 Sort the remaining list by start date and return first (ambiguous!!)
-        """
-        now = time.time()
-        filtered_dep = []
-        for dep_obj in dep_objs:
-            if dep_obj.lcstate == LCS.RETIRED:
-                continue
-            if only_deployed and dep_obj.lcstate != LCS.DEPLOYED:
-                continue
-            temp_const = [c for c in dep_obj.constraint_list if isinstance(c, TemporalBounds)]
-            if not temp_const:
-                continue
-            temp_const = temp_const[0]
-            if not temp_const.start_datetime or not temp_const.end_datetime:
-                continue
-            start_time = int(temp_const.start_datetime)
-            if start_time > now:
-                continue
-            end_time = int(temp_const.end_datetime)
-            if end_time > now:
-                filtered_dep.append((start_time, end_time, dep_obj))
-
-        if not filtered_dep:
-            return None
-        if len(filtered_dep) == 1:
-            return filtered_dep[0][2]
-
-        if self.force:
-            log.warn("Cannot determine current deployment unambiguously - choosing earliest start date")
-            filtered_dep = sorted(filtered_dep, key=lambda x: x[0])
-            return filtered_dep[0][2]
-        else:
-            raise BadRequest("Cannot determine current deployment unambiguously - choosing earliest start date")
 
     def _clone_res_obj(self, res_obj, clone_id):
         res_pre_id = self._get_alt_id(res_obj, "PRE")

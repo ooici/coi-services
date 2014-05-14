@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-"""Observatory Management Service to keep track of observatories sites, logical platform sites, instrument sites,
-and the relationships between them"""
+"""Service managing marine facility sites and deployments"""
 
 import string
 import time
@@ -14,11 +13,11 @@ from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
 
-from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.processes.event.device_state import DeviceStateManager
 from ion.util.geo_utils import GeoUtils
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
@@ -608,15 +607,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         else:
             raise BadRequest("Illegal resource type to assign to Deployment: %s" % site.type_)
 
-
-
     def activate_deployment(self, deployment_id='', activate_subscriptions=False):
         """
         Make the devices on this deployment the primary devices for the sites
         """
-        #Verify that the deployment exists
+        dep_util = DeploymentUtil(self.container)
+
+        # Verify that the deployment exists
         depl_obj = self.RR2.read(deployment_id)
-        log.debug("Activating deployment '%s' (%s)", depl_obj.name, deployment_id)
+        log.info("Activating deployment %s '%s'", deployment_id, depl_obj.name)
+
+        # Find an existing primary deployment
+        dep_site_id, dep_dev_id = dep_util.get_deployment_relations(deployment_id)
+        active_dep = dep_util.get_site_primary_deployment(dep_site_id)
+        if active_dep and active_dep._id == deployment_id:
+            raise BadRequest("Deployment %s already active for site %s" % (deployment_id, dep_site_id))
 
         deployment_activator_factory = DeploymentActivatorFactory(self.clients)
         deployment_activator = deployment_activator_factory.create(depl_obj)
@@ -637,6 +642,22 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         else:
             log.warn("Deployment %s was already DEPLOYED when activated", depl_obj._id)
 
+        if active_dep:
+            log.info("activate_deployment(): Deactivating prior Deployment %s at site %s" % (active_dep._id, dep_site_id))
+            # Set Deployment end date
+            olddep_tc = dep_util.get_temporal_constraint(active_dep)
+            newdep_tc = dep_util.get_temporal_constraint(depl_obj)
+            if float(olddep_tc.end_datetime) > float(newdep_tc.start_datetime):
+                # Set to new deployment start date
+                dep_util.set_temporal_constraint(active_dep, end_time=newdep_tc.start_datetime)
+                self.RR.update(active_dep)
+
+            # Change LCS
+            if active_dep.lcstate == LCS.DEPLOYED:
+                self.RR.execute_lifecycle_transition(active_dep._id, LCE.INTEGRATE)
+            else:
+                log.warn("Prior Deployment %s was not in DEPLOYED lcstate", active_dep._id)
+
 
     def deactivate_deployment(self, deployment_id=''):
         """Remove the primary device designation for the deployed devices at the sites
@@ -648,9 +669,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #Verify that the deployment exists
         deployment_obj = self.RR2.read(deployment_id)
+        dep_util = DeploymentUtil(self.container)
 
-#        if LCS.DEPLOYED != deployment_obj.lcstate:
-#            raise BadRequest("This deploment is not active")
+        if deployment_obj.lcstate != LCS.DEPLOYED:
+            log.warn("deactivate_deployment(): Deployment %s is not DEPLOYED" % deployment_id)
+#            raise BadRequest("This deployment is not active")
 
         # get all associated components
         collector_factory = DeploymentResourceCollectorFactory(self.clients)
@@ -682,9 +705,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 if d in device_ids:
                     a = self.RR.get_association(s, PRED.hasDevice, d)
                     self.RR.delete_association(a)
-#
-#        # mark deployment as not deployed (developed seems appropriate)
-#        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
+
+        dep_util.set_temporal_constraint(deployment_obj, end_time=DeploymentUtil.DATE_NOW)
+        self.RR.update(deployment_obj)
+
+        # mark deployment as not deployed (developed seems appropriate)
+        if deployment_obj.lcstate == LCS.DEPLOYED:
+            self.RR.execute_lifecycle_transition(deployment_id, LCE.INTEGRATE)
+        else:
+            log.warn("Deployment %s was not in DEPLOYED lcstate", deployment_id)
+
 
     def prepare_deployment_support(self, deployment_id=''):
         extended_resource_handler = ExtendedResourceContainer(self)
