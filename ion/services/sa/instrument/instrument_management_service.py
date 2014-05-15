@@ -34,8 +34,8 @@ from ion.services.sa.instrument.agent_configuration_builder import InstrumentAge
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.sa.instrument.flag import KeywordFlag
 
+from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
-from ion.services.sa.observatory.deployment_util import describe_deployments
 from ion.util.agent_launcher import AgentLauncher
 from ion.util.module_uploader import RegisterModulePreparerEgg
 from ion.util.qa_doc_parser import QADocParser
@@ -1632,7 +1632,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         try:
 
-            statuses = outil.get_status_roll_ups(instrument_device_id)
+            statuses = outil.get_status_roll_ups(instrument_device_id, include_structure=True)
 
             comms_rollup = statuses.get(instrument_device_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
             power_rollup = statuses.get(instrument_device_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
@@ -1650,9 +1650,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 t.complete_step('ims.instrument_device_extension.rollup')
 
             # add UI details for deployments in same order as deployments
-            extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients,
-                                                                       instruments=[extended_instrument.resource],
-                                                                       instrument_status=[aggstatus])
+            dep_util = DeploymentUtil(self.container)
+            extended_instrument.deployment_info = dep_util.describe_deployments(extended_instrument.deployments,
+                                                                                status_map=statuses)
             if t:
                 t.complete_step('ims.instrument_device_extension.deploy')
                 stats.add(t)
@@ -1977,7 +1977,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug('have portal instruments %s', [i._id if i else "None" for i in extended_platform.portal_instruments])
 
 
-        statuses = outil.get_status_roll_ups(platform_device_id)
+        statuses = outil.get_status_roll_ups(platform_device_id, include_structure=True)
 
         comms_rollup = statuses.get(platform_device_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
         power_rollup = statuses.get(platform_device_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
@@ -2021,8 +2021,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             extended_platform.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.NOTAVAILABLE)
 
         # add UI details for deployments
-        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients,
-                instruments=extended_platform.instrument_devices, instrument_status=extended_platform.computed.instrument_status.value)
+        dep_util = DeploymentUtil(self.container)
+        extended_platform.deployment_info = dep_util.describe_deployments(extended_platform.deployments,
+                                                                          status_map=statuses)
+
         if t:
             t.complete_step('ims.platform_device_extension.deploy')
             stats.add(t)

@@ -9,6 +9,7 @@ from pyon.core.governance import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE, INSTRUMENT_O
 
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message, \
     get_event_computed_attributes, calculate_reverse_user_info
+from ion.util.datastore.resources import ResourceRegistryUtil
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
@@ -821,22 +822,16 @@ class UserNotificationService(BaseUserNotificationService):
         ret.computed_list = [get_event_computed_attributes(event, include_event=include_events) for event in events]
         ret.status = ComputedValueAvailability.PROVIDED
 
+        rr_util = ResourceRegistryUtil(self.container)
+
         if add_usernames:
             try:
                 actor_ids = {evt.actor_id for evt in events if evt.actor_id}
                 log.debug("Looking up UserInfo for actors: %s" % actor_ids)
                 if actor_ids:
-                    #userinfo_list, assoc_list = self.clients.resource_registry.find_objects_mult(actor_ids, id_only=False)
-                    actor_map = {}
-                    for actor_id in actor_ids:
-                        # NOTE: This is an O(n) algorithm. Cannot use find_subjects_mult because it does not support
-                        # filter by predicate. Would get too many results
-                        uinfo_list, _ = self.clients.resource_registry.find_objects(actor_id, predicate=PRED.hasInfo, id_only=False)
-                        if uinfo_list:
-                            actor_map[actor_id] = uinfo_list[0]
-
+                    actor_ui_map = rr_util.get_actor_user_map(actor_ids)
                     for evt, evt_cmp in zip(events, ret.computed_list):
-                        ui = actor_map.get(evt.actor_id, None)
+                        ui = actor_ui_map.get(evt.actor_id, None)
                         if ui:
                             evt_cmp["event_summary"] += " [%s %s]" % (ui.contact.individual_names_given, ui.contact.individual_name_family)
 
