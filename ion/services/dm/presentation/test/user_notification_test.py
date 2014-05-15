@@ -372,6 +372,7 @@ class UserNotificationEventsTest(PyonTestCase):
     def test_get_recent_events(self):
         self.uns.CFG = Mock()
         self.uns.CFG.get_safe = Mock(return_value=1000)
+        self.uns.container = Mock()
         self._load_mock_events(self.event_list1)
 
         res_list = self.uns.get_recent_events(resource_id="ID_1")
