@@ -4,7 +4,7 @@
 @file ion/processes/data/upload/upload_calibration_processing.py
 '''
 
-from pyon.public import OT
+from pyon.public import OT, RT
 from pyon.core.exception import BadRequest
 from pyon.ion.process import ImmediateProcess
 from pyon.event.event import EventPublisher
@@ -35,13 +35,17 @@ class UploadCalibrationProcessing(ImmediateProcess):
 
         # Clients
         self.object_store = self.container.object_store
+        self.resource_registry = self.container.resource_registry
         self.event_publisher = EventPublisher(OT.ResetQCEvent)
+        self.create_map()
 
         # run process
         self.process(fuc_id)
 
         # cleanup
         self.event_publisher.close()
+
+
 
     def process(self,fuc_id):
 
@@ -53,6 +57,44 @@ class UploadCalibrationProcessing(ImmediateProcess):
             #self.process_zip(fuc)
         else:
             self.process_csv(fuc)
+
+    def create_map(self):
+        '''
+        Creates a map from property numbers to datasets
+        '''
+        self.property_map = {}
+
+        for instrument_device in self.resource_registry.find_resources(restype=RT.InstrumentDevice)[0]:
+            print instrument_device.name
+            print instrument_device.ooi_property_number
+            if instrument_device.ooi_property_number:
+                self.property_map[instrument_device.ooi_property_number] = self.data_products_for_device(instrument_device)
+
+    def data_products_for_device(self, device):
+        return ['dp0', 'dp1']
+
+    def do_something_with_the_update(self, updates):
+        for property_no, entry in updates.iteritems():
+            print "Property Number:", property_no
+            # Check to see if we even have an instrument with this property number
+            if property_no not in self.property_map:
+                continue
+
+            # Get the data product listings for this instrument
+            data_products = self.property_map[property_no]
+            # Go through each data product and update the data IF
+            #  - There is a set of parameters that match those in the calibration
+
+            for data_product in data_products:
+                print "Data Product Update:", data_product
+                self.update_data_product(data_product, entry)
+
+    def update_data_product(self, data_product, entry):
+        print "Updating", data_product
+        for cal_name, entries in entry.iteritems():
+            print "    Calibration:", cal_name
+            for entry in entries:
+                print " " * 8 + str(entry['value'])
 
     def process_csv(self, fuc):
 
@@ -102,6 +144,7 @@ class UploadCalibrationProcessing(ImmediateProcess):
                 
                 nupdates = nupdates + 1
 
+        self.do_something_with_the_update(updates)
         # insert the updates into object store
         self.update_object_store(updates)
 
@@ -137,3 +180,16 @@ class UploadCalibrationProcessing(ImmediateProcess):
             self.object_store.update_doc(ipn)
             # publish ResetQCEvent event (one for each instrument_property_number [AKA ipn])
             self.event_publisher.publish_event(origin=i)
+
+
+'''
+{
+    "property" : {
+        "cc_black" : [(start, value)],
+        "cc_white" : [(start, value), (start, value)]
+    },
+    "property" : { 
+        ...
+    }
+}
+'''

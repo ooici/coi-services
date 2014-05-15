@@ -118,7 +118,7 @@ class UploadDataProcessing(ImmediateProcess):
                     for ds_id in ds_id_list: # could be multiple Datasets for this DataProduct
                         with dca.get_editable_coverage(ds_id) as cov: # <-- This pauses ingestion
                             # times in this Dataset
-                            cov_time = cov._range_value['time'][:]
+                            cov_time = cov.get_parameter_values(['time']).get_data()['time']
                             # subset nc_time (only where nc_time matches cov_time)
                             nc_indicies = [i for i,x in enumerate(nc_time) if x in cov_time]
                             subset_nc_time = nc_time[nc_indicies] + 2208988800 # TODO REMOVE THIS? ERDAP 1970 vs NTP 1900

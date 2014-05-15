@@ -20,10 +20,13 @@ from ion.util.stored_values import StoredValueManager
 from interface.services.dm.iingestion_worker import BaseIngestionWorker
 from pyon.ion.stream import StreamSubscriber
 from gevent.coros import RLock
+from gevent import event
 
 
 from coverage_model.parameter_values import SparseConstantValue
 from coverage_model import SparseConstantType
+from coverage_model import NumpyParameterData, ConstantOverTime
+from coverage_model.parameter_types import CategoryType
 
 from ooi.timer import Timer, Accumulator
 from ooi.logging import TRACE
@@ -91,15 +94,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
 
         self.lookup_docs = self.CFG.get_safe('process.lookup_docs',[])
         self.input_product = self.CFG.get_safe('process.input_product','')
-        self.qc_enabled = self.CFG.get_safe('process.qc_enabled', True)
-        self.ignore_gaps = self.CFG.get_safe('service.ingestion.ignore_gaps', True)
-        if not self.ignore_gaps:
-            log.warning("Gap handling is not supported in release 2")
-        self.ignore_gaps = True
         self.new_lookups = Queue()
         self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent, callback=self._add_lookups, auto_delete=True)
         self.add_endpoint(self.lookup_monitor)
-        self.qc_publisher = EventPublisher(event_type=OT.ParameterQCEvent)
         self.connection_id = ''
         self.connection_index = None
         
@@ -107,7 +104,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
 
     def on_quit(self): #pragma no cover
         self.event_publisher.close()
-        self.qc_publisher.close()
         if self.subscriber_thread:
             self.stop_listener()
         for stream, coverage in self._coverages.iteritems():
@@ -168,6 +164,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         data_products, _ = rr_client.find_subjects(object=dataset_id, predicate=PRED.hasDataset, subject_type=RT.DataProduct, id_only=False)
         return data_products
 
+
+    #--------------------------------------------------------------------------------
+    # Metadata Handlers
+    #--------------------------------------------------------------------------------
 
     def initialize_metadata(self, dataset_id, rdt):
         '''
@@ -251,6 +251,11 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
 
 
     def update_time(self, data_product, t):
+        '''
+        Sets the nominal_datetime for a data product correctly
+        Accounts for things like NTP and out of order data
+        '''
+
         t0, t1 = self.get_datetime_bounds(data_product)
         #TODO: Account for non NTP-based timestamps
         min_t = np.min(t) - 2208988800
@@ -300,6 +305,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
 
 
     def update_geo(self, data_product, rdt):
+        '''
+        Finds the maximum bounding box
+        '''
         lat = None
         lon = None
         for p in rdt:
@@ -319,8 +327,11 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
             data_product.geospatial_bounds.geospatial_longitude_limit_east = lon
             data_product.geospatial_bounds.geospatial_longitude_limit_west = lon
 
-
     
+    #--------------------------------------------------------------------------------
+    # Cache managemnt
+    #--------------------------------------------------------------------------------
+
     def get_dataset(self,stream_id):
         '''
         Memoization (LRU) of _new_dataset
@@ -355,79 +366,18 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         self._coverages[stream_id] = result
         return result
 
-    def gap_coverage(self,stream_id):
-        try:
-            old_cov = self._coverages.pop(stream_id)
-            dataset_id = self.get_dataset(stream_id)
-            sdom, tdom = time_series_domain()
-            new_cov = DatasetManagementService._create_simplex_coverage(dataset_id, old_cov.parameter_dictionary, sdom, tdom, old_cov._persistence_layer.inline_data_writes)
-            old_cov.close()
-            result = new_cov
-        except KeyError:
-            result = self.get_coverage(stream_id)
-        self._coverages[stream_id] = result
-        return result
 
+    #--------------------------------------------------------------------------------
+    # Granule Parsing and Handling
+    #--------------------------------------------------------------------------------
 
-    def dataset_changed(self, dataset_id, extents, window):
-        self.event_publisher.publish_event(origin=dataset_id, author=self.id, extents=extents, window=window)
-
-    def evaluate_qc(self, rdt, dataset_id):
-        if self.qc_enabled:
-            for field in rdt.fields:
-                if not (field.endswith('glblrng_qc') or field.endswith('loclrng_qc')):
-                    continue
-                try:
-                    values = rdt[field]
-                    if values is not None:
-                        if not all(values):
-                            topology = np.where(values==0)
-                            timestamps = rdt[rdt.temporal_parameter][topology[0]]
-                            self.flag_qc_parameter(dataset_id, field, timestamps.tolist(), {})
-                except:
-                    continue
-    def flag_qc_parameter(self, dataset_id, parameter, temporal_values, configuration):
-        data_product_ids, _ = self.container.resource_registry.find_subjects(object=dataset_id, predicate=PRED.hasDataset, subject_type=RT.DataProduct, id_only=True)
-        for data_product_id in data_product_ids:
-            description = 'Automated Quality Control Alerted on %s' % parameter
-            self.qc_publisher.publish_event(origin=data_product_id, qc_parameter=parameter, temporal_values=temporal_values, configuration=configuration, description=description)
-
-    def update_connection_index(self, connection_id, connection_index):
-        self.connection_id = connection_id
-        try:
-            connection_index = int(connection_index)
-            self.connection_index = connection_index
-        except ValueError:
-            pass
-
-    def has_gap(self, connection_id, connection_index):
-        if connection_id:
-            if not self.connection_id:
-                self.update_connection_index(connection_id, connection_index)
-                return False
-            else:
-                if connection_id != self.connection_id:
-                    return True
-        if connection_index:
-            if self.connection_index is None:
-                self.update_connection_index(connection_id, connection_index)
-                return False
-            try:
-                connection_index = int(connection_index)
-                if connection_index != self.connection_index+1:
-                    return True
-            except ValueError:
-                pass
-
-        return False
-
-    def splice_coverage(self, dataset_id, coverage):
-        log.info('Splicing new coverage')
-        DatasetManagementService._splice_coverage(dataset_id, coverage)
 
     @handle_stream_exception()
     def recv_packet(self, msg, stream_route, stream_id):
-        ''' receive packet for ingestion '''
+        '''
+        The consumer callback to parse and manage the granule.
+        The message is ACK'd once the function returns
+        '''
         log.trace('received granule for stream %s', stream_id)
 
         if msg == {}:
@@ -450,90 +400,84 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         self.persist_or_timeout(stream_id, rdt)
 
     def persist_or_timeout(self, stream_id, rdt):
-        """ retry writing coverage multiple times and eventually time out """
+        '''
+        A loop that tries to parse and store a granule for up to five minutes,
+        and waits an increasing amount of time each iteration.
+        '''
         done = False
         timeout = 2
         start = time.time()
         while not done:
-            try:
-                self.add_granule(stream_id, rdt)
-                done = True
-            except:
-                log.exception('An issue with coverage, retrying after a bit')
-                if (time.time() - start) > MAX_RETRY_TIME: # After an hour just give up
-                    dataset_id = self.get_dataset(stream_id)
-                    log.error("We're giving up, the coverage needs to be inspected %s", DatasetManagementService._get_coverage_path(dataset_id))
-                    raise
+            if self.parse_granule(stream_id, rdt, start, done):
+                return # We're all done, everything worked
 
-                if stream_id in self._coverages:
-                    log.info('Popping coverage for stream %s', stream_id)
-                    self._coverages.pop(stream_id)
+            if (time.time() - start) > MAX_RETRY_TIME: # After a while, give up
+                dataset_id = self.get_dataset(stream_id)
+                log.error("We're giving up, the coverage needs to be inspected %s", DatasetManagementService._get_coverage_path(dataset_id))
+                raise
 
-                gevent.sleep(timeout)
-                if timeout > (60 * 5):
-                    timeout = 60 * 5
-                else:
-                    timeout *= 2
+            if stream_id in self._coverages:
+                log.info('Popping coverage for stream %s', stream_id)
+                self._coverages.pop(stream_id)
+
+            gevent.sleep(timeout)
+
+            timeout = min(60 * 5, timeout * 2)
 
 
-    def expand_coverage(self, coverage, elements, stream_id):
+    def parse_granule(self, stream_id, rdt, start, done):
         try:
-            coverage.insert_timesteps(elements, oob=False)
-        except IOError as e:
-            log.error("Couldn't insert time steps for coverage: %s",
-                      coverage.persistence_dir, exc_info=True)
+            self.add_granule(stream_id, rdt)
+            return True 
+        except Exception as e:
+            log.exception('An issue with coverage, retrying after a bit')
+            return False
+        return True # never reaches here, Added for clarity
+
+
+    def dataset_changed(self, dataset_id, window):
+        self.event_publisher.publish_event(origin=dataset_id, author=self.id, window=window)
+
+    def build_data_dict(self, rdt):
+        np_dict = {}
+        
+        time_array = rdt[rdt.temporal_parameter]
+        if time_array is None:
+            raise ValueError("A granule needs a time array")
+        for k,v in rdt.iteritems():
+            # Sparse values are different and aren't constructed using NumpyParameterData
+            if isinstance(rdt.param_type(k), SparseConstantType):
+                value = v[0]
+                if hasattr(value, 'dtype'):
+                    value = np.asscalar(value)
+                time_start = np.asscalar(time_array[0])
+                np_dict[k] = ConstantOverTime(k, value, time_start=time_start, time_end=None) # From now on
+                continue
+            elif isinstance(rdt.param_type(k), CategoryType):
+                value = np.asarray(v, dtype='S')
+            else:
+                value = v
+
             try:
-                coverage.close()
-            finally:
-                self._bad_coverages[stream_id] = 1
-                raise CorruptionError(e.message)
-    
-    def get_stored_values(self, lookup_value):
-        if not self.new_lookups.empty():
-            new_values = self.new_lookups.get()
-            self.lookup_docs = new_values + self.lookup_docs
-        lookup_value_document_keys = self.lookup_docs
-        for key in lookup_value_document_keys:
-            try:
-                document = self.stored_value_manager.read_value(key)
-                if lookup_value in document:
-                    return document[lookup_value] 
-            except NotFound:
-                log.warning('Specified lookup document does not exist')
-        return None
+                np_dict[k] = NumpyParameterData(k, value, time_array)
+            except:
+                raise
 
-
-    def fill_lookup_values(self, rdt):
-        rdt.fetch_lookup_values()
-        for field in rdt.lookup_values():
-            value = self.get_stored_values(rdt.context(field).lookup_value)
-            if value:
-                rdt[field] = value
-
-    def insert_sparse_values(self, coverage, rdt, stream_id):
-        raise BadRequest("Sparse values aren't supported")
+        return np_dict
 
     def insert_values(self, coverage, rdt, stream_id):
-        from coverage_model import NumpyParameterData
-        from coverage_model.parameter_types import CategoryType
-
-        np_dict = {}
-        time_array = rdt[rdt.temporal_parameter][:]
-
-        for k,v in rdt.iteritems():
-            if isinstance(v, SparseConstantValue):
-                continue
-            value = v[:]
-            if isinstance(v.parameter_type, CategoryType):
-                value = np.asarray(value, dtype='S')
-
-            np_dict[k] = NumpyParameterData(k, value, time_array)
+        
+        np_dict = self.build_data_dict(rdt)
 
         if 'ingestion_timestamp' in coverage.list_parameters():
             t_now = time.time()
             ntp_time = TimeUtils.ts_to_units(coverage.get_parameter_context('ingestion_timestamp').uom, t_now)
-            ntp_time = np.ones_like(time_array) * t_now
-            np_dict['ingestion_timestamp'] = NumpyParameterData('ingestion_timestamp', ntp_time, time_array)
+            ntp_time = np.ones_like(rdt[rdt.temporal_parameter]) * rdt[rdt.temporal_parameter]
+            np_dict['ingestion_timestamp'] = NumpyParameterData('ingestion_timestamp', ntp_time, rdt[rdt.temporal_parameter])
+
+        # If it's sparse only
+        if self.sparse_only(rdt):
+            del np_dict[rdt.temporal_parameter]
     
 
         try:
@@ -546,14 +490,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
             finally:
                 self._bad_coverages[stream_id] = 1
                 raise CorruptionError(e.message)
-        except IndexError as e:
-            log.error("Value set: %s", v[:])
-            data_products, _ = self.container.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream, subject_type=RT.DataProduct)
-            for data_product in data_products:
-                log.exception("Index exception with %s, trying to insert %s into coverage with shape %s", 
-                              data_product.name,
-                              k,
-                              v.shape)
+        except KeyError as e:
+            if 'has not been initialized' in e.message:
+                coverage.refresh()
+            raise
         except Exception as e:
             print repr(rdt)
             raise
@@ -561,23 +501,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
     
     def add_granule(self,stream_id, rdt):
         ''' Appends the granule's data to the coverage and persists it. '''
-        debugging = log.isEnabledFor(DEBUG)
-        timer = Timer() if debugging else None
         if stream_id in self._bad_coverages:
             log.info('Message attempting to be inserted into bad coverage: %s',
                      DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
             
-        #--------------------------------------------------------------------------------
-        # Gap Analysis
-        #--------------------------------------------------------------------------------
-        if not self.ignore_gaps:
-            gap_found = self.has_gap(rdt.connection_id, rdt.connection_index)
-            if gap_found:
-                log.warning('Gap Found!   New connection: (%s,%s)\tOld Connection: (%s,%s)', rdt.connection_id, rdt.connection_index, self.connection_id, self.connection_index)
-                self.gap_coverage(stream_id)
-
-
-
         #--------------------------------------------------------------------------------
         # Coverage determiniation and appending
         #--------------------------------------------------------------------------------
@@ -593,11 +520,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
                       DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
             raise CorruptionError(e.message)
 
-        if debugging:
-            path = DatasetManagementService._get_coverage_path(dataset_id)
-            log.debug('%s: add_granule stream %s dataset %s coverage %r file %s',
-                      self._id, stream_id, dataset_id, coverage, path)
-
         if not coverage:
             log.error('Could not persist coverage from granule, coverage is None')
             return
@@ -605,57 +527,42 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         # Actual persistence
         #--------------------------------------------------------------------------------
 
-        elements = len(rdt)
         if rdt[rdt.temporal_parameter] is None:
-            elements = 0 
-
-        #self.insert_sparse_values(coverage,rdt,stream_id)
-        
-        if debugging:
-            timer.complete_step('checks') # lightweight ops, should be zero
-        
-        self.expand_coverage(coverage, elements, stream_id)
-        
-        if debugging:
-            timer.complete_step('insert')
-
-        self.insert_values(coverage, rdt, stream_id)
-        
-        if debugging:
-            timer.complete_step('keys')
-        
-        DatasetManagementService._save_coverage(coverage)
-        
-        if debugging:
-            timer.complete_step('save')
-        
-        start_index = coverage.num_timesteps - elements
-
-        if not self.ignore_gaps and gap_found:
-            self.splice_coverage(dataset_id, coverage)
-
-        self.evaluate_qc(rdt, dataset_id)
-        
-        if debugging:
-            timer.complete_step('notify')
-            self._add_timing_stats(timer)
-
-        self.update_connection_index(rdt.connection_id, rdt.connection_index)
-
-        self.update_metadata(dataset_id, rdt)
-        self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
-
-    def _add_timing_stats(self, timer):
-        """ add stats from latest coverage operation to Accumulator and periodically log results """
-        self.time_stats.add(timer)
-        if self.time_stats.get_count() % REPORT_FREQUENCY>0:
+            log.warning("Empty granule received")
             return
 
-        if log.isEnabledFor(TRACE):
-            # report per step
-            for step in 'checks', 'insert', 'keys', 'save', 'notify':
-                log.debug('%s step %s times: %s', self._id, step, self.time_stats.to_string(step))
-        # report totals
-        log.debug('%s total times: %s', self._id, self.time_stats)
+        # Parse the RDT and set hte values in the coverage
+        self.insert_values(coverage, rdt, stream_id)
+        
+        # Force the data to be flushed
+        DatasetManagementService._save_coverage(coverage)
 
+        self.update_metadata(dataset_id, rdt)
+
+        try:
+            window = rdt[rdt.temporal_parameter][[0,-1]]
+            window = window.tolist()
+        except (ValueError, IndexError):
+            window = None
+        self.dataset_changed(dataset_id, window)
+
+    def sparse_only(self, rdt):
+        '''
+        A sparse only rdt will have only a time array AND sparse values, no other data
+        '''
+        if rdt[rdt.temporal_parameter] is None:
+            return False # No time, so it's just empty
+
+        at_least_one = False
+
+        for key in rdt.iterkeys():
+            # Skip time, that needs to be there
+            if key == rdt.temporal_parameter:
+                continue
+            if not isinstance(rdt.param_type(key), SparseConstantType):
+                return False
+            else:
+                at_least_one = True
+
+        return at_least_one
 

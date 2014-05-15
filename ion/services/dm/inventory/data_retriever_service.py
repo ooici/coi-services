@@ -148,17 +148,17 @@ class DataRetrieverService(BaseDataRetrieverService):
             coverage = cls._get_coverage(dataset_id)
             if coverage is None:
                 raise BadRequest('no such coverage')
-            if coverage.num_timesteps == 0:
+            if coverage.is_empty():
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else:
                 rdt = ReplayProcess._cov2granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
-        except:
+        except Exception as e:
             cls._eject_cache(dataset_id)
             data_products, _ = Container.instance.resource_registry.find_subjects(object=dataset_id, predicate=PRED.hasDataset, subject_type=RT.DataProduct)
             for data_product in data_products:
-                log.exception("Data Product %s (%s) had issues reading from the coverage model\nretrieve_oob(dataset_id='%s', query=%s, delivery_format=%s)", data_product.name, data_product._id, dataset_id, query, delivery_format)
-            log.exception('Problems reading from the coverage')
+                log.error("Data Product %s (%s) had issues reading from the coverage model\nretrieve_oob(dataset_id='%s', query=%s, delivery_format=%s)", data_product.name, data_product._id, dataset_id, query, delivery_format)
+            log.error("Problems reading from the coverage", exc_info=True)
             raise BadRequest('Problems reading from the coverage')
         return rdt.to_granule()
 
@@ -186,7 +186,8 @@ class DataRetrieverService(BaseDataRetrieverService):
         return retrieve_data
 
     def retrieve_last_data_points(self, dataset_id='', number_of_points=100, delivery_format=''):
-        return ReplayProcess.get_last_values(dataset_id, number_of_points, delivery_format)
+        rdt = ReplayProcess.get_last_values(dataset_id, number_of_points, delivery_format)
+        return rdt.to_granule()
 
     def retrieve_last_granule(self, dataset_id='', delivery_format=''):
         return self.retrieve_last_data_points(dataset_id,10,delivery_format)

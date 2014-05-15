@@ -12,7 +12,7 @@ from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model.parameter_types import QuantityType, ArrayType 
+from coverage_model.parameter_types import QuantityType, ArrayType, TextType
 from coverage_model.parameter_types import RecordType, CategoryType 
 from coverage_model.parameter_types import ConstantType, ConstantRangeType
 from coverage_model.parameter_functions import AbstractFunction
@@ -116,7 +116,7 @@ class TypesManager(object):
     def get_parameter_type(self,parameter_type, encoding, code_set=None, pfid=None, pmap=None):
         if parameter_type == 'quantity':
             return self.get_quantity_type(parameter_type,encoding)
-        elif re.match(r'array<.*>', parameter_type):
+        elif re.match(r'array<?.*>?', parameter_type):
             return self.get_array_type(parameter_type, encoding)
         elif re.match(r'category<.*>', parameter_type):
             return self.get_category_type(parameter_type, encoding, code_set)
@@ -127,7 +127,7 @@ class TypesManager(object):
         elif parameter_type == 'boolean':
             return self.get_boolean_type()
         elif re.match(r'range<.*>', parameter_type):
-            return self.get_range_type(parameter_type, encoding)
+            return self.get_array_type(parameter_type, encoding)
         elif re.match(r'record<.*>', parameter_type):
             return self.get_record_type()
         elif parameter_type == 'function':
@@ -499,7 +499,7 @@ class TypesManager(object):
         return RecordType()
 
     def get_string_type(self):
-        return self.get_array_type()
+        return TextType()
 
     def get_unit(self, uom):
         return Unit(uom, system=self.system)

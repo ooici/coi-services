@@ -2047,7 +2047,7 @@ Reason: %s
                         context.lookup_value = name
                         context.document_key = lookup_value
             
-            self._manage_qc(context, qc, row, sname, tm)
+            #self._manage_qc(context, qc, row, sname, tm)
 
         except TypeError as e:
             log.exception(e.message)

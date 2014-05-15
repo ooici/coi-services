@@ -32,6 +32,7 @@ import gevent
 import numpy as np
 from datetime import datetime
 import calendar
+from pyon.util.breakpoint import debug_wrapper
 
 class ReplayProcess(BaseReplayProcess):
 
@@ -118,18 +119,7 @@ class ReplayProcess(BaseReplayProcess):
         return corrected_time
 
     @classmethod
-    def _cov2granule(cls, coverage, start_time=None, end_time=None, stride_time=None, stream_def_id=None, parameters=None, tdoa=None):
-        # Deal with the NTP
-        if start_time:
-            start_time += 2208988800
-        if end_time:
-            end_time += 2208988800
-
-        if tdoa is None:
-            data_dict = coverage.get_parameter_values(param_names=parameters, time_segment=(start_time, end_time), stride_length=stride_time, fill_empty_params=True).get_data()
-        else:
-            raise NotImplementedError("Index Slicing")
-       
+    def _data_dict_to_rdt(cls, data_dict, stream_def_id, coverage):
         if stream_def_id:
             rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         else:
@@ -144,93 +134,34 @@ class ReplayProcess(BaseReplayProcess):
             if field == coverage.temporal_parameter_name:
                 continue
             # The values have already been inside a coverage so we know they're safe and they exist, so they can be inserted directly.
-            rdt._rd[field] = data_dict[field]
+            if field in data_dict.dtype.names:
+                rdt._rd[field] = data_dict[field]
             #rdt[k] = v
 
         return rdt
 
-
     @classmethod
-    def _coverage_to_granule(cls, coverage, start_time=None, end_time=None, stride_time=None, fuzzy_stride=True, parameters=None, stream_def_id=None, tdoa=None):
-        slice_ = slice(None) # Defaults to all values
+    @debug_wrapper
+    def _cov2granule(cls, coverage, start_time=None, end_time=None, stride_time=None, stream_def_id=None, parameters=None, tdoa=None):
+        # Deal with the NTP
+        if start_time:
+            start_time += 2208988800
+        if end_time:
+            end_time += 2208988800
 
-
-        # Validations
-        if start_time is not None:
-            validate_is_instance(start_time, Number, 'start_time must be a number for striding.')
-        if end_time is not None:
-            validate_is_instance(end_time, Number, 'end_time must be a number for striding.')
-        if stride_time is not None:
-            validate_is_instance(stride_time, Number, 'stride_time must be a number for striding.')
-
-        if tdoa is not None and isinstance(tdoa,slice):
-            slice_ = tdoa
-        
-        elif stride_time is not None and not fuzzy_stride: # SLOW 
-            ugly_range = np.arange(start_time, end_time, stride_time)
-            idx_values = [cls.get_time_idx(coverage,i) for i in ugly_range]
-            idx_values = list(set(idx_values)) # Removing duplicates - also mixes the order of the list!!!
-            idx_values.sort()
-            slice_ = [idx_values]
-
-
-        elif not (start_time is None and end_time is None):
-            if start_time is not None:
-                start_time = cls.get_time_idx(coverage,start_time)
-            if end_time is not None:
-                end_time = cls.get_time_idx(coverage,end_time)
-
-            slice_ = slice(start_time,end_time,stride_time)
-            log.info('Slice: %s', slice_)
-
-        if stream_def_id:
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        if tdoa is None:
+            data_dict = coverage.get_parameter_values(param_names=parameters, time_segment=(start_time, end_time), stride_length=stride_time, fill_empty_params=True).get_data()
+        elif isinstance(tdoa, slice):
+            log.warning("Using tdoa argument on large datasets can consume too much memory")
+            data_dict = coverage.get_parameter_values(param_names=parameters, fill_empty_params=True).get_data()
+            data_dict = data_dict[tdoa]
         else:
-            rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
-        if parameters is not None:
-            # TODO: Improve efficiency here
-            fields = list(set(parameters).intersection(rdt.fields))
-        else:
-            fields = rdt.fields
+            raise TypeError("tdoa is incorrect type: %s" % type(tdoa))
 
-        if slice_.start == slice_.stop and slice_.start is not None:
-            log.warning('Requested empty set of data.  %s', slice_)
-            return rdt
-        
-        # Do time first
-        tname = coverage.temporal_parameter_name
-        cls.map_cov_rdt(coverage,rdt,tname, slice_)
+        return cls._data_dict_to_rdt(data_dict, stream_def_id, coverage)
+       
 
-        for field in fields:
-            if field == tname:
-                continue
-            cls.map_cov_rdt(coverage,rdt,field, slice_)
-        return rdt
 
-    @classmethod
-    def map_cov_rdt(cls, coverage, rdt, field, slice_):
-        log.trace( 'Slice is %s' , slice_)
-        try:
-            n = coverage.get_parameter_values(field,tdoa=slice_)
-        except ParameterFunctionException:
-            log.exception('Parameter Function Exception')
-            # Just don't fill it in 
-            return
-        if n is None:
-            rdt[field] = [n]
-        elif isinstance(n,np.ndarray):
-            if coverage.get_data_extents(field)[0] < coverage.num_timesteps:
-                log.error("Misformed coverage detected, padding with fill_value")
-                arr_len = utils.slice_shape(slice_, (coverage.num_timesteps,))[0]
-                fill_arr = np.empty(arr_len - n.shape[0] , dtype=n.dtype)
-                fill_arr.fill(coverage.get_parameter_context(field).fill_value)
-                n = np.append(n,fill_arr)
-            elif coverage.get_data_extents(field)[0] > coverage.num_timesteps:
-                raise CorruptionError('The coverage is corrupted:\n\tfield: %s\n\textents: %s\n\ttimesteps: %s' % (field, coverage.get_data_extents(field), coverage.num_timesteps))
-            rdt[field] = np.atleast_1d(n)
-        else:
-            rdt[field] = [n]
-    
     def execute_retrieve(self):
         '''
         execute_retrieve Executes a retrieval and returns the result 
@@ -238,11 +169,17 @@ class ReplayProcess(BaseReplayProcess):
         '''
         try: 
             coverage = DatasetManagementService._get_coverage(self.dataset_id,mode='r')
-            if coverage.num_timesteps == 0:
+            if coverage.is_empty():
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else: 
-                rdt = self._coverage_to_granule(coverage=coverage,start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters,tdoa=self.tdoa)
+                rdt = ReplayProcess._cov2granule(coverage=coverage, 
+                        start_time=self.start_time, 
+                        end_time=self.end_time,
+                        stride_time=self.stride_time, 
+                        parameters=self.parameters, 
+                        stream_def_id=self.delivery_format, 
+                        tdoa=self.tdoa)
         except:
             log.exception('Problems reading from the coverage')
             raise BadRequest('Problems reading from the coverage')
@@ -250,6 +187,29 @@ class ReplayProcess(BaseReplayProcess):
             coverage.close(timeout=5)
         return rdt.to_granule()
 
+    @classmethod
+    def get_last_values(cls, dataset_id, number_of_points=100, delivery_format=''):
+        stream_def_id = delivery_format
+        try:
+            cov = DatasetManagementService._get_coverage(dataset_id, mode='r')
+            if cov.is_empty():
+                rdt = RecordDictionaryTool(param_dictionary=cov.parameter_dictionary)
+            else:
+                time_array = cov.get_parameter_values([cov.temporal_parameter_name], sort_parameter=cov.temporal_parameter_name).get_data()
+                time_array = time_array[cov.temporal_parameter_name][-number_of_points:]
+
+                t0 = np.asscalar(time_array[0])
+                t1 = np.asscalar(time_array[-1])
+
+                data_dict = cov.get_parameter_values(time_segment=(t0, t1), fill_empty_params=True).get_data()
+                rdt = cls._data_dict_to_rdt(data_dict, stream_def_id, cov)
+        except:
+            log.exception('Problems reading from the coverage')
+            raise BadRequest('Problems reading from the coverage')
+        finally:
+            if cov is not None:
+                cov.close(timeout=5)
+        return rdt
 
 
     def execute_replay(self):
@@ -281,25 +241,9 @@ class ReplayProcess(BaseReplayProcess):
     def stop(self):
         self.end.set()
 
-
-
-
-    @classmethod
-    def get_last_values(cls, dataset_id, number_of_points, delivery_format):
-        coverage = DatasetManagementService._get_coverage(dataset_id,mode='r')
-        if coverage.num_timesteps < number_of_points:
-            if coverage.num_timesteps == 0:
-                rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
-                return rdt.to_granule()
-            number_of_points = coverage.num_timesteps
-        rdt = cls._coverage_to_granule(coverage,tdoa=slice(-number_of_points,None),stream_def_id=delivery_format)
-        coverage.close(timeout=5)
-        
-        return rdt.to_granule()
-
     def _replay(self):
         coverage = DatasetManagementService._get_coverage(self.dataset_id,mode='r')
-        rdt = self._coverage_to_granule(coverage=coverage, start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters, stream_def_id=self.stream_def_id)
+        rdt = self._cov2granule(coverage=coverage, start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters, stream_def_id=self.stream_def_id)
         elements = len(rdt)
         
         for i in xrange(elements / self.publish_limit):
