@@ -253,9 +253,6 @@ class RSNPlatformDriver(PlatformDriver):
                got unexpected response.
         """
         log.debug("%r: pinging OMS...", self._platform_id)
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot ping: _rsn_oms object required (created via connect() call)")
-
         try:
             retval = self._rsn_oms.hello.ping()
         except Exception as e:
@@ -328,8 +325,6 @@ class RSNPlatformDriver(PlatformDriver):
     def get_metadata(self):
         """
         """
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot get_platform_metadata: _rsn_oms object required (created via connect() call)")
         try:
             retval = self._rsn_oms.config.get_platform_metadata(self._platform_id)
         except Exception as e:
@@ -358,9 +353,6 @@ class RSNPlatformDriver(PlatformDriver):
         if not isinstance(attrs, (list, tuple)):
             raise PlatformException('get_attribute_values: attrs argument must be a '
                                     'list [(attrName, from_time), ...]. Given: %s', attrs)
-
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot get_platform_attribute_values: _rsn_oms object required (created via connect() call)")
 
         # convert the ION system time from_time to NTP, as this is the time
         # format used by the RSN OMS interface:
@@ -462,9 +454,6 @@ class RSNPlatformDriver(PlatformDriver):
         """
         """
         log.debug("set_attribute_values: attrs = %s", attrs)
-
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot set_platform_attribute_values: _rsn_oms object required (created via connect() call)")
 
         error_vals = self._validate_set_attribute_values(attrs)
         if len(error_vals) > 0:
@@ -574,9 +563,6 @@ class RSNPlatformDriver(PlatformDriver):
         log.debug("%r: connect_instrument: port_id=%r instrument_id=%r attributes=%s",
                   self._platform_id, port_id, instrument_id, attributes)
 
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot connect_instrument: _rsn_oms object required (created via connect() call)")
-
         try:
             response = self._rsn_oms.instr.connect_instrument(self._platform_id,
                                                               port_id,
@@ -609,9 +595,6 @@ class RSNPlatformDriver(PlatformDriver):
         log.debug("%r: disconnect_instrument: port_id=%r instrument_id=%r",
                   self._platform_id, port_id, instrument_id)
 
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot disconnect_instrument: _rsn_oms object required (created via connect() call)")
-
         try:
             response = self._rsn_oms.instr.disconnect_instrument(self._platform_id,
                                                                  port_id,
@@ -641,9 +624,6 @@ class RSNPlatformDriver(PlatformDriver):
         log.debug("%r: get_connected_instruments: port_id=%s",
                   self._platform_id, port_id)
 
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot get_connected_instruments: _rsn_oms object required (created via connect() call)")
-
         try:
             response = self._rsn_oms.instr.get_connected_instruments(self._platform_id,
                                                                      port_id)
@@ -662,9 +642,6 @@ class RSNPlatformDriver(PlatformDriver):
         log.debug("%r: turning on port: port_id=%s",
                   self._platform_id, port_id)
 
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot turn_on_platform_port: _rsn_oms object required (created via connect() call)")
-
         try:
             response = self._rsn_oms.port.turn_on_platform_port(self._platform_id,
                                                                 port_id)
@@ -682,9 +659,6 @@ class RSNPlatformDriver(PlatformDriver):
     def turn_off_port(self, port_id):
         log.debug("%r: turning off port: port_id=%s",
                   self._platform_id, port_id)
-
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot turn_off_platform_port: _rsn_oms object required (created via connect() call)")
 
         try:
             response = self._rsn_oms.port.turn_off_platform_port(self._platform_id,
@@ -708,10 +682,6 @@ class RSNPlatformDriver(PlatformDriver):
         Registers given url for all event types.
         """
         log.debug("%r: registering event listener: %s", self._platform_id, url)
-
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot _register_event_listener: _rsn_oms object required (created via connect() call)")
-
         try:
             already_registered = self._rsn_oms.event.get_registered_event_listeners()
         except Exception as e:
@@ -735,10 +705,6 @@ class RSNPlatformDriver(PlatformDriver):
         Unregisters given url for all event types.
         """
         log.debug("%r: unregistering event listener: %s", self._platform_id, url)
-
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot _unregister_event_listener: _rsn_oms object required (created via connect() call)")
-
         try:
             result = self._rsn_oms.event.unregister_event_listener(url)
         except Exception as e:
@@ -803,10 +769,6 @@ class RSNPlatformDriver(PlatformDriver):
         @return SHA1 hash value as string of hexadecimal digits.
         """
         log.debug("%r: get_checksum...", self._platform_id)
-
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot get_checksum: _rsn_oms object required (created via connect() call)")
-
         try:
             response = self._rsn_oms.config.get_checksum(self._platform_id)
         except Exception as e:
