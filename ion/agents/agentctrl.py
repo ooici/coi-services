@@ -18,7 +18,6 @@ Invoke via command line like this:
 
 TODO:
 - Force terminate agents and clean up
-- Share agent definition or resource in facility
 - Change owner of resource
 - Change contact info, metadata of resource based on spreadsheet
 """
@@ -33,12 +32,14 @@ import time
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from pyon.core.object import IonObjectBase
-from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound, LCS, EventPublisher, dict_merge, IonObject
+from pyon.public import RT, log, PRED, OT, ImmediateProcess, BadRequest, NotFound, LCS, AS, EventPublisher, dict_merge, IonObject
 
 from ion.core.includes.mi import DriverEvent
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+from ion.services.sa.observatory.deployment_util import DeploymentUtil
+
 from ion.util.parse_utils import parse_dict, get_typed_value
 from ion.util.datastore.resuse import ResourceUseInfo
 
@@ -72,6 +73,11 @@ ARG_HELP = {
     "attr_value":   "provides the value of an attribute to set",
     "cfg":          "name of a CSV file with lookup values",
     "activate":     "if True, puts agent into streaming mode after start (default: True)",
+    "lcstate":      "target lcstate",
+    "availability": "target availability state",
+    "facility":     "a facility (Org) identified by governance name, preload id, name or uuid",
+    "role":         "a user role identified by governance name, preload id, name or uuid within the facility (Org)",
+    "user":         "a user or actor identified by name, preload ir or uuid",
 }
 
 RES_ARG_LIST = ["resource_id", "preload_id"]
@@ -127,6 +133,39 @@ OP_HELP = [
     ("clear_status", dict(
         opmsg="Clear out the device status",
         args=DEV_ARG_LIST + COMMON_ARG_LIST)),
+    ("set_lcstate", dict(
+        opmsg="Set resource lifecycle state",
+        args=RES_ARG_LIST + ["lcstate"] + COMMON_ARG_LIST)),
+    ("set_availability", dict(
+        opmsg="Set resource availability state",
+        args=RES_ARG_LIST + ["availability"] + COMMON_ARG_LIST)),
+    ("share_resource", dict(
+        opmsg="Share resource in given facility",
+        args=RES_ARG_LIST + ["facility"] + COMMON_ARG_LIST)),
+    ("unshare_resource", dict(
+        opmsg="Remove resource from given facility",
+        args=RES_ARG_LIST + ["facility"] + COMMON_ARG_LIST)),
+    ("enroll_member", dict(
+        opmsg="Add user as member to a facility (Org)",
+        args=RES_ARG_LIST + ["facility"] + COMMON_ARG_LIST)),
+    ("remove_member", dict(
+        opmsg="Remove user as member of a facility (Org)",
+        args=RES_ARG_LIST + ["facility"] + COMMON_ARG_LIST)),
+    ("grant_role", dict(
+        opmsg="For given user, grant a role in a facility (Org)",
+        args=RES_ARG_LIST + ["facility", "role"] + COMMON_ARG_LIST)),
+    ("revoke_role", dict(
+        opmsg="For given user, revoke a role in a facility (Org)",
+        args=RES_ARG_LIST + ["facility", "role"] + COMMON_ARG_LIST)),
+    ("create_commitment", dict(
+        opmsg="Set a commitment for a user and a resource in a facility (Org)",
+        args=RES_ARG_LIST + ["facility"] + COMMON_ARG_LIST)),
+    ("retire_commitment", dict(
+        opmsg="Retire a commitment for a user and a resource in a facility (Org)",
+        args=RES_ARG_LIST + ["facility"] + COMMON_ARG_LIST)),
+    ("set_owner", dict(
+        opmsg="Set the owner user/actor for given resource, replacing current owner if existing",
+        args=RES_ARG_LIST + ["user"] + COMMON_ARG_LIST)),
     ("create_dataset", dict(
         opmsg="Create Dataset resource and coverage for a device, but don't activate ingestion worker",
         args=DEV_ARG_LIST + COMMON_ARG_LIST)),
@@ -1021,6 +1060,232 @@ class AgentControl(ImmediateProcess):
             self.rr.update(ai)
         if existed:
             log.info("Saved state cleared for device %s '%s'", resource_id, res_obj.name)
+
+    def set_lcstate(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        target_lcs = self.CFG.get("lcstate", None)
+        if target_lcs not in LCS:
+            raise BadRequest("Illegal lcstate: %s" % target_lcs)
+        if self.verbose:
+            log.debug("Current resource %s '%s' lcstate: %s", resource_id, res_obj.name, res_obj.lcstate)
+            log.debug("Setting resource %s '%s' lcstate: %s", resource_id, res_obj.name, target_lcs)
+        if not self.dryrun:
+            self.rr.set_lifecycle_state(resource_id, target_lcs)
+
+    def set_availability(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        target_as = self.CFG.get("availability", None)
+        if target_as not in AS:
+            raise BadRequest("Illegal availability: %s" % target_as)
+        if self.verbose:
+            log.debug("Current resource %s '%s' availability: %s", resource_id, res_obj.name, res_obj.availability)
+            log.debug("Setting resource %s '%s' availability: %s", resource_id, res_obj.name, target_as)
+        if not self.dryrun:
+            self.rr.set_lifecycle_state(resource_id, target_as)
+
+    def _get_org(self, facility):
+        """Return an org_id for a given Org identifying string, or None if not found"""
+        # Org governance name
+        res_list, _ = self.rr.find_resources_ext(restype=RT.Org, attr_name="org_governance_name", attr_value=facility, id_only=False)
+        if res_list and res_list[0].type_ == RT.Org:
+            return res_list[0]._id
+        # Org resource name
+        res_list, _ = self.rr.find_resources(restype=RT.Org, name=facility, id_only=False)
+        if res_list and res_list[0].type_ == RT.Org:
+            return res_list[0]._id
+        # Preload ID
+        res_list, _ = self.rr.find_resources_ext(restype=RT.Org, alt_id_ns="PRE", alt_id=facility, id_only=False)
+        if res_list and res_list[0].type_ == RT.Org:
+            return res_list[0]._id
+        # resource uuid
+        try:
+            res_obj = self.rr.read(facility)
+            if res_obj.type_ == RT.Org:
+                return res_obj._id
+        except NotFound:
+            pass
+
+    def share_resource(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        facility = self.CFG.get("facility", None)
+        org_id = self._get_org(facility)
+        if not org_id:
+            raise BadRequest("Facility (Org) %s not found" % facility)
+        if self.verbose:
+            log.debug("Sharing resource %s '%s' in facility: %s '%s'", resource_id, res_obj.name, org_id, facility)
+        if not self.dryrun:
+            obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+            obs_ms.assign_resource_to_observatory_org(resource_id, org_id, headers=self._get_system_actor_headers())
+
+    def unshare_resource(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        facility = self.CFG.get("facility", None)
+        org_id = self._get_org(facility)
+        if not org_id:
+            raise BadRequest("Facility (Org) %s not found" % facility)
+        if self.verbose:
+            log.debug("Removing resource %s '%s' from facility: %s '%s'", resource_id, res_obj.name, org_id, facility)
+        if not self.dryrun:
+            obs_ms = ObservatoryManagementServiceProcessClient(process=self)
+            obs_ms.unassign_resource_from_observatory_org(resource_id, org_id, headers=self._get_system_actor_headers())
+
+    def enroll_member(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        if res_obj.type_ == RT.UserInfo:
+            actor_obj = self.rr.read_subject(RT.ActorIdentity, PRED.hasInfo, resource_id, id_only=False)
+        elif res_obj.type_ == RT.ActorIdentity:
+            actor_obj = res_obj
+        else:
+            raise BadRequest("Resource not a user or actor: %s %s", resource_id, res_obj.type_)
+        facility = self.CFG.get("facility", None)
+        org_id = self._get_org(facility)
+        if not org_id:
+            raise BadRequest("Facility (Org) %s not found" % facility)
+        if self.verbose:
+            log.debug("Adding user/actor %s '%s' to facility: %s '%s'", resource_id, res_obj.name, org_id, facility)
+        if not self.dryrun:
+            orgms = OrgManagementServiceProcessClient(process=self)
+            orgms.enroll_member(org_id, actor_obj._id, headers=self._get_system_actor_headers())
+
+    def remove_member(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        if res_obj.type_ == RT.UserInfo:
+            actor_obj = self.rr.read_subject(RT.ActorIdentity, PRED.hasInfo, resource_id, id_only=False)
+        elif res_obj.type_ == RT.ActorIdentity:
+            actor_obj = res_obj
+        else:
+            raise BadRequest("Resource not a user or actor: %s %s", resource_id, res_obj.type_)
+        facility = self.CFG.get("facility", None)
+        org_id = self._get_org(facility)
+        if not org_id:
+            raise BadRequest("Facility (Org) %s not found" % facility)
+        if self.verbose:
+            log.debug("Removing user/actor %s '%s' from facility: %s '%s'", resource_id, res_obj.name, org_id, facility)
+        if not self.dryrun:
+            orgms = OrgManagementServiceProcessClient(process=self)
+            orgms.cancel_member_enrollment(org_id, actor_obj._id, headers=self._get_system_actor_headers())
+
+    def _get_role_in_org(self, role, org_id):
+        """Return a role governance name for a given role identifying string, or None if not found"""
+        role_list, _ = self.rr.find_objects(org_id, PRED.hasRole, RT.UserRole, id_only=False)
+        if not role_list:
+            return
+        for ur in role_list:
+            if ur.governance_name == role:
+                return ur.governance_name
+            elif ur.name == role:
+                return ur.governance_name
+            elif ur._id == role:
+                return ur.governance_name
+            elif self._get_alt_id(ur, "PRE") == role:
+                return ur.governance_name
+
+    def grant_role(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        if res_obj.type_ == RT.UserInfo:
+            actor_obj = self.rr.read_subject(RT.ActorIdentity, PRED.hasInfo, resource_id, id_only=False)
+        elif res_obj.type_ == RT.ActorIdentity:
+            actor_obj = res_obj
+        else:
+            raise BadRequest("Resource not a user or actor: %s %s", resource_id, res_obj.type_)
+        facility = self.CFG.get("facility", None)
+        org_id = self._get_org(facility)
+        if not org_id:
+            raise BadRequest("Facility (Org) %s not found" % facility)
+        role = self.CFG.get("role", None)
+        role_id = self._get_role_in_org(role, org_id)
+        if not role_id:
+            raise BadRequest("Role %s not found in facility %s" % (role, facility))
+        if self.verbose:
+            log.debug("Granting role %s to user/actor %s '%s' in facility: %s '%s'", role, resource_id, res_obj.name, org_id, facility)
+        if not self.dryrun:
+            orgms = OrgManagementServiceProcessClient(process=self)
+            orgms.grant_role(org_id, actor_obj._id, role_id, headers=self._get_system_actor_headers())
+
+    def revoke_role(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        if res_obj.type_ == RT.UserInfo:
+            actor_obj = self.rr.read_subject(RT.ActorIdentity, PRED.hasInfo, resource_id, id_only=False)
+        elif res_obj.type_ == RT.ActorIdentity:
+            actor_obj = res_obj
+        else:
+            raise BadRequest("Resource not a user or actor: %s %s", resource_id, res_obj.type_)
+        facility = self.CFG.get("facility", None)
+        org_id = self._get_org(facility)
+        if not org_id:
+            raise BadRequest("Facility (Org) %s not found" % facility)
+        role = self.CFG.get("role", None)
+        role_id = self._get_role_in_org(role, org_id)
+        if not role_id:
+            raise BadRequest("Role %s not found in facility %s" % (role, facility))
+        if self.verbose:
+            log.debug("Revoking role %s for user/actor %s '%s' in facility: %s '%s'", role, resource_id, res_obj.name, org_id, facility)
+        if not self.dryrun:
+            orgms = OrgManagementServiceProcessClient(process=self)
+            orgms.revoke_role(org_id, actor_obj._id, role_id, headers=self._get_system_actor_headers())
+
+    def create_commitment(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        facility = self.CFG.get("facility", None)
+        org_id = self._get_org(facility)
+        if not org_id:
+            raise BadRequest("Facility (Org) %s not found" % facility)
+
+        # Need actor, commitment type, additional: validity
+        raise NotImplemented()
+
+    def retire_commitment(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        facility = self.CFG.get("facility", None)
+        org_id = self._get_org(facility)
+        if not org_id:
+            raise BadRequest("Facility (Org) %s not found" % facility)
+        raise NotImplemented()
+
+    def _get_actor(self, user):
+        """Return an actor id for given user or actor identifying string, or None if not found"""
+        def get_actor_from_list(rlist):
+            for res in rlist:
+                if res.type_ == RT.UserInfo:
+                    actor_obj = self.rr.read_subject(RT.ActorIdentity, PRED.hasInfo, res._id, id_only=False)
+                    return actor_obj._id
+                elif res.type_ == RT.ActorIdentity:
+                    return res._id
+        # User/actor resource preload id
+        res_list, _ = self.rr.find_resources_ext(alt_id_ns="PRE", alt_id=user, id_only=False)
+        actor_id = get_actor_from_list(res_list)
+        if actor_id:
+            return actor_id
+        # User/actor resource name
+        res_list, _ = self.rr.find_resources(name=user, id_only=False)
+        actor_id = get_actor_from_list(res_list)
+        if actor_id:
+            return actor_id
+        # resource uuid
+        try:
+            res_obj = self.rr.read(user)
+            actor_id = get_actor_from_list([res_obj])
+            if actor_id:
+                return actor_id
+        except NotFound:
+            pass
+
+    def set_owner(self, agent_instance_id, resource_id):
+        res_obj = self.rr.read(resource_id)
+        user = self.CFG.get("user", None)
+        actor_id = self._get_actor(user)
+        if not actor_id:
+            raise BadRequest("User/actor %s not found" % user)
+        owner_list, _ = self.rr.find_objects(resource_id, PRED.hasOwner, id_only=False)
+        if self.verbose:
+            if owner_list:
+                log.debug("Current resource %s '%s' owners: %s", resource_id, res_obj.name, [o._id for o in owner_list])
+            log.debug("Setting owner %s '%s' for resource: %s '%s'", user, actor_id, resource_id, res_obj.name)
+        if not self.dryrun:
+            for owner in owner_list:
+                assoc = self.rr.get_association(resource_id, PRED.hasOwner, owner._id)
+                self.rr.delete_association(assoc)
+            self.rr.create_association(resource_id, PRED.hasOwner, actor_id)
 
     def create_dataset(self, agent_instance_id, resource_id):
         # Find hasOutputProduct DataProducts
