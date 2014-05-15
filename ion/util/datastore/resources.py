@@ -20,8 +20,34 @@ from ooi.timer import get_accumulators
 from pyon.core import bootstrap
 from pyon.core.bootstrap import CFG, get_sys_name
 from pyon.datastore.datastore import DatastoreManager, DataStore
-from pyon.core.exception import BadRequest, NotFound, Inconsistent
-from pyon.public import log, RT
+from pyon.public import log, RT, PRED, BadRequest, NotFound, Inconsistent
+
+
+class ResourceRegistryUtil(object):
+    def __init__(self, container = None):
+        self.container = container or bootstrap.container_instance
+        self.sysname = get_sys_name()
+        self.rr = self.container.resource_registry
+
+    def get_actor_users(self, actors):
+        actor_ids = {a if isinstance(a, basestring) else a._id for a in actors}
+        # TODO: Restrict to subjects in actor_ids only
+        uinfo_assocs = self.rr.find_associations(predicate=PRED.hasInfo, id_only=False)
+        uinfo_assocs = [uia for uia in uinfo_assocs if uia.ot == RT.UserInfo and uia.s in actor_ids]
+        uinfo_ids = list({uia.o for uia in uinfo_assocs})
+        uinfo_objs = self.rr.read_mult(uinfo_ids)
+        return uinfo_objs
+
+    def get_actor_user_map(self, actors):
+        actor_ids = {a if isinstance(a, basestring) else a._id for a in actors}
+        # TODO: Restrict to subjects in actor_ids only
+        uinfo_assocs = self.rr.find_associations(predicate=PRED.hasInfo, id_only=False)
+        uinfo_assocs = [uia for uia in uinfo_assocs if uia.ot == RT.UserInfo and uia.s in actor_ids]
+        uinfo_ids = list({uia.o for uia in uinfo_assocs})
+        uinfo_objs = self.rr.read_mult(uinfo_ids)
+        uinfo_map = {rid: robj for rid, robj in zip(uinfo_ids, uinfo_objs)}
+        actor_ui_map = {uia.s: uinfo_map[uia.o] for uia in uinfo_assocs}
+        return actor_ui_map
 
 """
 from ion.util.datastore.resources import ResourceRegistryHelper

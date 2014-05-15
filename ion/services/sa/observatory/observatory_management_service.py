@@ -21,7 +21,7 @@ from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.processes.event.device_state import DeviceStateManager
 from ion.util.geo_utils import GeoUtils
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
-from ion.services.sa.observatory.deployment_util import describe_deployments
+from ion.util.datastore.resources import ResourceRegistryUtil
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue, AggregateStatusType, DeviceStatusType
@@ -1145,7 +1145,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
             context["site_resources"], context["site_children"], context["device_relations"], context["outil"]
 
-        statuses = outil.get_status_roll_ups(site_id)
+        statuses = outil.get_status_roll_ups(site_id, include_structure=True)
         portal_status = []
         if extended_site.portal_instruments:
             for x in extended_site.portal_instruments:
@@ -1210,9 +1210,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
         extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
 
-        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients,
-                                                             instruments=extended_site.instrument_devices,
-                                                             instrument_status=extended_site.computed.instrument_status.value)
+        dep_util = DeploymentUtil(self.container)
+        extended_site.deployment_info = dep_util.describe_deployments(extended_site.deployments,
+                                                                      status_map=statuses)
 
         return extended_site
 
@@ -1223,7 +1223,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             context["extended_site"], context["enhanced_RR"], context["site_device_id"], \
             context["site_resources"], context["site_children"], context["device_relations"], context["outil"]
 
-        statuses = outil.get_status_roll_ups(site_id)
+        statuses = outil.get_status_roll_ups(site_id, include_structure=True)
 
         comms_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
         power_rollup = statuses.get(site_id,{}).get(AggregateStatusType.AGGREGATE_POWER,DeviceStatusType.STATUS_UNKNOWN)
@@ -1250,10 +1250,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
         extended_site.computed.portal_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
 
-        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients,
-                                                             instruments=extended_site.instrument_devices,
-                                                             instrument_status=extended_site.computed.instrument_status.value)
-
+        dep_util = DeploymentUtil(self.container)
+        extended_site.deployment_info = dep_util.describe_deployments(extended_site.deployments,
+                                                                      status_map=statuses)
 
         return extended_site
 
@@ -1414,22 +1413,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             'skip': 0
         }
 
-
-        # clients.resource_registry may return us the container's resource_registry instance
-        self._rr = self.clients.resource_registry
-
-        # extended object contains list of member actors, so need to change to user info
-        actors_list = extended_org.members
-        user_list = []
-        for actor in actors_list:
-            log.debug("get_marine_facility_extension: actor:  %s ", actor)
-            user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
-            if user_info_objs:
-                log.debug("get_marine_facility_extension: user_info_obj  %s ", user_info_objs[0])
-                user_list.append( user_info_objs[0] )
-
-        extended_org.members = user_list
-
+        # extended object contains list of member ActorIdentity, so need to change to user info
+        rr_util = ResourceRegistryUtil(self.container)
+        extended_org.members = rr_util.get_actor_users(extended_org.members)
 
         #Convert Negotiations to OrgUserNegotiationRequest
         extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
@@ -1456,7 +1442,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.platform_models = retrieve_model_objs(extended_org.platforms, RT.PlatformDevice)
 
 
-        statuses = outil.get_status_roll_ups(org_id)
+        statuses = outil.get_status_roll_ups(org_id, include_structure=True)
 
         site_status = []
         if extended_org.sites:
@@ -1519,7 +1505,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=data_rollup)
         extended_org.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=location_rollup)
 
-        extended_org.deployment_info = describe_deployments(extended_org.deployments, self.clients, instruments=extended_org.instruments, instrument_status=extended_org.computed.instrument_status.value)
+        dep_util = DeploymentUtil(self.container)
+        extended_org.deployment_info = dep_util.describe_deployments(extended_org.deployments,
+                                                                     status_map=statuses)
 
         from ion.util.extresource import strip_resource_extension, get_matchers, matcher_DataProduct, matcher_DeviceModel, \
             matcher_Device, matcher_UserInfo
