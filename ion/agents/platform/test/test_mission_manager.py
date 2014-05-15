@@ -84,12 +84,15 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             log.warn('[mm] _await_mission_completion: timeout, elapsed=%s, '
                      'still in state=%s', elapsed, mission_state)
 
-    def _test_simple_mission(self, mission_filename, in_command_state, max_wait=None):
+    def _test_simple_mission(self, instr_keys, mission_filename, in_command_state, max_wait=None):
         """
         Verifies mission execution, mainly as coordinated from platform agent
         and with some verifications related with expected mission event
         publications.
 
+        @param instr_keys
+                    Instruments to associate with parent platform; these
+                    should be ones referenced in the mission plan.
         @param mission_filename
         @param in_command_state
                     True to start mission execution in COMMAND state.
@@ -111,9 +114,6 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             mission_state = PlatformAgentState.MISSION_STREAMING
 
         # start everything up to platform agent in COMMAND state.
-        # Instruments launched here are the ones referenced in the mission
-        # file below.
-        instr_keys = ['SBE37_SIM_02']
         p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
@@ -229,6 +229,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # With mission plan to be started in COMMAND state.
         #
         self._test_simple_mission(
+            ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator0C.yml",
             in_command_state=True,
             max_wait=200 + 300)
@@ -238,6 +239,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # With mission plan to be started in MONITORING state.
         #
         self._test_simple_mission(
+            ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator0S.yml",
             in_command_state=False,
             max_wait=200 + 300)
