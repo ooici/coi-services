@@ -54,12 +54,16 @@ class MissionManager(object):
 
         mission_scheduler = self._create_mission_scheduler(mission_id, mission_yml)
         self._running_missions[mission_id] = mission_scheduler
+        log.debug('[mm] starting mission_id=%r (#running missions=%s)',
+                  mission_id, len(self._running_missions))
         try:
             mission_scheduler.run_mission()
         except Exception as ex:
             log.exception('[mm] run_mission mission_id=%r', mission_id)
         finally:
             del self._running_missions[mission_id]
+            log.debug('[mm] completed mission_id=%r (#running missions=%s)',
+                      mission_id, len(self._running_missions))
 
     def abort_mission(self, mission_id):
         if mission_id not in self._running_missions:
@@ -101,11 +105,7 @@ class MissionManager(object):
         log.debug('[mm] _create_mission_scheduler: mission_id=%r', mission_id)
 
         mission_loader = MissionLoader(self._agent)
-
-        # TODO: for the moment passing the filename still while load_mission is implemented
-        mission_loader.load_mission_file(mission_yml)
-        # mission_loader.load_mission(mission_id, mission_yml)
-
+        mission_loader.load_mission(mission_id, mission_yml)
         self._mission_entries = mission_loader.mission_entries
 
         log.debug('[mm] _create_mission_scheduler: _ia_clients=\n%s',

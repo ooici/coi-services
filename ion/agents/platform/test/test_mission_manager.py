@@ -12,6 +12,7 @@ __license__ = 'Apache 2.0'
 
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_command_state
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_streaming_state
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_multiple_missions
 
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
@@ -122,7 +123,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         if not in_command_state:
             self._start_resource_monitoring()
 
-        # now prepare, set, and run mission:
+        # now prepare and run mission:
 
         # TODO determine appropriate instrument identification mechanism as the
         # instrument keys (like SBE37_SIM_02) are basically only known in
@@ -130,16 +131,14 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # file so the instrument keys are replaced by the corresponding
         # instrument_device_id's:
 
-        string = open(mission_filename).read()
+        with open(mission_filename) as f:
+            mission_yml = f.read()
         for instr_key in instr_keys:
             i_obj = self._get_instrument(instr_key)
             resource_id = i_obj.instrument_device_id
             log.debug('[mm] replacing %s to %s', instr_key, resource_id)
-            string = string.replace(instr_key, resource_id)
-
-        generated_filename = mission_filename.replace(".yml", "_GENERATED.yml")
-        with open(generated_filename, 'w') as f:
-            f.write(string)
+            mission_yml = mission_yml.replace(instr_key, resource_id)
+        log.debug('[mm] mission_yml=%s', mission_yml)
 
         # prepare to receive expected mission events:
         async_event_result, events_received = self._start_event_subscriber2(
@@ -150,9 +149,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         log.info('[mm] mission event subscriber started')
 
         # now run mission:
-        mission_id = generated_filename
-        mission_yml = generated_filename # TODO: change to actual contents
-        # once underlying method is implemented
+        mission_id = mission_filename
         self._run_mission(mission_id, mission_yml)
 
         state = self._get_state()
@@ -177,6 +174,56 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         if not in_command_state:
             self._stop_resource_monitoring()
 
+    def _test_multiple_missions(self, instr_keys, mission_filenames, max_wait=None):
+        """
+        Verifies platform agent can dispatch execution of multiple missions.
+        No explicit verifications in the test, but the logs should show lines
+        like the following where the number of running missions is included:
+
+        DEBUG Dummy-204 ion.agents.platform.mission_manager:58 [mm] starting mission_id='ion/agents/platform/test/multi_mission_1.yml' (#running missions=1)
+        ...
+        DEBUG Dummy-205 ion.agents.platform.mission_manager:58 [mm] starting mission_id='ion/agents/platform/test/multi_mission_2.yml' (#running missions=2)
+
+        @param instr_keys
+                    Instruments to associate with parent platform; these
+                    should be ones references in the mission plans.
+        @param mission_filenames
+                    List of filenames
+        @param max_wait
+                    maximum wait for mission completion; no effect if None.
+        """
+        self._set_receive_timeout()
+
+        base_state    = PlatformAgentState.COMMAND
+        mission_state = PlatformAgentState.MISSION_COMMAND
+
+        # start everything up to platform agent in COMMAND state.
+        # Instruments launched here are the ones referenced in the mission
+        # file below.
+        p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+        self._run_startup_commands()
+
+        for mission_filename in mission_filenames:
+            with open(mission_filename) as f:
+                mission_yml = f.read()
+            for instr_key in instr_keys:
+                i_obj = self._get_instrument(instr_key)
+                resource_id = i_obj.instrument_device_id
+                log.debug('[mm] replacing %s to %s', instr_key, resource_id)
+                mission_yml = mission_yml.replace(instr_key, resource_id)
+            log.debug('[mm] mission_yml=%s', mission_yml)
+            self._run_mission(mission_filename, mission_yml)
+
+        state = self._get_state()
+        if state == mission_state:
+            self._await_mission_completion(mission_state, max_wait)
+
+        # verify we are back to the base_state:
+        self._assert_state(base_state)
+
     def test_simple_mission_command_state(self):
         #
         # With mission plan to be started in COMMAND state.
@@ -193,4 +240,14 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         self._test_simple_mission(
             "ion/agents/platform/test/mission_RSN_simulator0S.yml",
             in_command_state=False,
+            max_wait=200 + 300)
+
+    def test_multiple_missions(self):
+        #
+        # Verifies the PA can execute multiple missions plans concurrently.
+        #
+        self._test_multiple_missions(
+            ['SBE37_SIM_02', 'SBE37_SIM_03'],
+            ["ion/agents/platform/test/multi_mission_1.yml",
+             "ion/agents/platform/test/multi_mission_2.yml"],
             max_wait=200 + 300)
