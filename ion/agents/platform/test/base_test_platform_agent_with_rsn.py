@@ -304,7 +304,12 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             pnode = self._network_definition.pnodes[platform_id]
             dic = {}
             for port_id, port in pnode.ports.iteritems():
-                dic[port_id] = dict(port_id=port_id)
+                instr_dict = {}
+                for i in port.instruments.itervalues():
+                    attrs = i.attrs.copy()
+                    attrs['instrument_id'] = i.instrument_id
+                    instr_dict[i.instrument_id] = attrs
+                dic[port_id] = dict(port_id=port_id, instruments=instr_dict)
             self._platform_ports[platform_id] = dic
         log.trace("_platform_ports: %s", self._pp.pformat(self._platform_ports))
 

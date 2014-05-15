@@ -12,6 +12,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log, CFG
+from pyon.core.exception import BadRequest
 import logging
 
 from copy import deepcopy
@@ -90,6 +91,8 @@ class RSNPlatformDriver(PlatformDriver):
         self._active_ports = []
         """
 
+        self._instr_port_map = {}
+
         # URL for the event listener registration/unregistration (based on
         # web server launched by ServiceGatewayService, since that's the
         # service in charge of receiving/relaying the OMS events).
@@ -111,6 +114,26 @@ class RSNPlatformDriver(PlatformDriver):
         if not 'oms_uri' in driver_config:
             log.error("'oms_uri' not present in driver_config = %s", driver_config)
             raise PlatformDriverException(msg="driver_config does not indicate 'oms_uri'")
+
+        # validate and process ports
+        if not 'ports' in driver_config:
+            log.error("port information not present in driver_config = %s", driver_config)
+            raise PlatformDriverException(msg="driver_config does not indicate 'ports'")
+
+        self._instr_port_map = {}
+        ports = driver_config['ports']
+        for port_id, port_attrs in ports.iteritems():
+            if 'instruments' not in port_attrs:
+                continue
+            instruments = port_attrs['instruments']
+            for instr_id, instr_attrs in instruments.iteritems():
+                if instr_id in self._instr_port_map:
+                    msg = "%r: instrument=%r already associated with port=%r" % (
+                        self._platform_id, instr_id, port_id)
+                    log.error(msg)
+                    raise PlatformDriverException(msg=msg)
+                self._instr_port_map[instr_id] = port_id
+        log.debug("%r: _instr_port_map: %s", self._platform_id, self._instr_port_map)
 
         # TODO(OOIION-1495) review the following added logic Commented out
         # for the moment. We need to determine where and how exactly port
@@ -638,9 +661,29 @@ class RSNPlatformDriver(PlatformDriver):
 
         return dic_plat  # note: return the dic for the platform
 
-    def turn_on_port(self, port_id):
-        log.debug("%r: turning on port: port_id=%s",
-                  self._platform_id, port_id)
+    def _resolve_port_id(self, port_id=None, instrument_id=None):
+        if port_id is not None:
+            return port_id
+
+        if instrument_id in self._instr_port_map:
+            return self._instr_port_map[instrument_id]
+
+        msg = "%r: unknown port associated with instrument=%r" % (self._platform_id, instrument_id)
+        log.error(msg)
+        raise BadRequest(msg=msg)
+
+    def turn_on_port(self, port_id=None, instrument_id=None):
+        """
+        Turns on a port.
+        @param port_id
+                    Port ID; if None, then specify instrument_id
+        @param instrument_id
+                    Instrument ID, which must be given if port_id is None.
+        """
+        log.debug("%r: turning on port: port_id=%s instrument_id=%s",
+                  self._platform_id, port_id, instrument_id)
+
+        port_id = self._resolve_port_id(port_id, instrument_id)
 
         try:
             response = self._rsn_oms.port.turn_on_platform_port(self._platform_id,
@@ -656,9 +699,18 @@ class RSNPlatformDriver(PlatformDriver):
 
         return dic_plat  # note: return the dic for the platform
 
-    def turn_off_port(self, port_id):
-        log.debug("%r: turning off port: port_id=%s",
-                  self._platform_id, port_id)
+    def turn_off_port(self, port_id=None, instrument_id=None):
+        """
+        Turns off a port.
+        @param port_id
+                    Port ID; if None, then specify instrument_id
+        @param instrument_id
+                    Instrument ID, which must be given if port_id is None.
+        """
+        log.debug("%r: turning off port: port_id=%s instrument_id=%s",
+                  self._platform_id, port_id, instrument_id)
+
+        port_id = self._resolve_port_id(port_id, instrument_id)
 
         try:
             response = self._rsn_oms.port.turn_off_platform_port(self._platform_id,
@@ -976,11 +1028,13 @@ class RSNPlatformDriver(PlatformDriver):
                       str(args), str(kwargs)))
 
         port_id = kwargs.get('port_id', None)
-        if port_id is None:
-            raise FSMError('turn_on_port: missing port_id argument')
+        instrument_id = kwargs.get('instrument_id', None)
+        if port_id is None and instrument_id is None:
+            raise FSMError('turn_on_port: at least one of port_id and '
+                           'instrument_id argument must be given')
 
         try:
-            result = self.turn_on_port(port_id)
+            result = self.turn_on_port(port_id=port_id, instrument_id=instrument_id)
             return None, result
 
         except PlatformConnectionException as e:
@@ -999,8 +1053,14 @@ class RSNPlatformDriver(PlatformDriver):
         if port_id is None:
             raise FSMError('turn_off_port: missing port_id argument')
 
+        port_id = kwargs.get('port_id', None)
+        instrument_id = kwargs.get('instrument_id', None)
+        if port_id is None and instrument_id is None:
+            raise FSMError('turn_off_port: at least one of port_id and '
+                           'instrument_id argument must be given')
+
         try:
-            result = self.turn_off_port(port_id)
+            result = self.turn_off_port(port_id=port_id, instrument_id=instrument_id)
             return None, result
 
         except PlatformConnectionException as e:
