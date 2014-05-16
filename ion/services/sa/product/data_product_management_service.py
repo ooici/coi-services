@@ -19,7 +19,7 @@ from ion.util.time_utils import TimeUtils
 from ion.util.geo_utils import GeoUtils
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess, DataProcessTypeEnum
+from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess, DataProcessTypeEnum, Device
 from interface.objects import ComputedValueAvailability
 
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
@@ -985,13 +985,15 @@ class DataProductManagementService(BaseDataProductManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
-        #Loop through any attachments and remove the actual content since we don't need
-        #   to send it to the front end this way
-        #TODO - see if there is a better way to do this in the extended resource frame work.
-        if hasattr(extended_product, 'attachments'):
-            for att in extended_product.attachments:
-                if hasattr(att, 'content'):
-                    delattr(att, 'content')
+        # Set data product source device (WARNING: may not be unique)
+        extended_product.source_device = None
+        dp_source, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasSource, id_only=False)
+        for dps  in dp_source:
+            if isinstance(dps, Device):
+                if extended_product.source_device == None:
+                    extended_product.source_device = dps
+                else:
+                    log.warn("DataProduct %s has additional source device: %s", data_product_id, dps._id)
 
         #extract the list of upstream data products from the provenance results
 #        dp_list = []
