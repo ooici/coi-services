@@ -1314,11 +1314,11 @@ class IONLoader(ImmediateProcess):
         if instrument:
             pass
         else:
-            if res_obj.platform_family != newrow['pm//platform_family']:
-                res_obj.platform_family = newrow['pm//platform_family']
+            if res_obj.platform_family != newrow['pm/platform_family']:
+                res_obj.platform_family = newrow['pm/platform_family']
                 needupdate = True
             if res_obj.platform_type != newrow['pm/platform_type']:
-                res_obj.platform_type = newrow['pm//platform_type']
+                res_obj.platform_type = newrow['pm/platform_type']
                 needupdate = True
             if res_obj.node_type_id != newrow['pm/node_type_id']:
                 res_obj.node_type_id = newrow['pm/node_type_id']
