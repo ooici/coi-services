@@ -288,7 +288,8 @@ class MissionLoader(object):
                 if '{' in rest and '}' in rest:
                     cmd, rest = rest.split('{')
                     param = rest.split('}')[0]
-                    param = float(param) if '.' in param else int(param)
+                    # Leave as string, doesn't have to be numeric
+                    #param = float(param) if '.' in param else int(param)
                 else:
                     cmd = rest.split(')')[0]
                     param = None
@@ -459,6 +460,7 @@ class MissionScheduler(object):
 
         self.platform_agent = platform_agent
         self.instruments = instruments
+
         self.mission = mission
         self.mission_id = mission[0]['mission_id']
 
@@ -635,29 +637,30 @@ class MissionScheduler(object):
 
         log.debug('[mm] Send mission command =  %s - %s', method, command)
 
-        retval = agent_client.get_capabilities()
-        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = self._sort_capabilities(retval)
-
-        # RSN_PLATFORM_DRIVER_TURN_ON_PORT
-        # Get ports
-
-        # kwargs = dict(ports=None)
-        # cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
-        # retval = self.platform_agent.execute_agent(cmd)
-
-        # Turn on port
-        # kwargs = dict(
-        #     port_id = port_id
-        # )
-        # cmd = AgentCommand(command=RSNPlatformDriverEvent.TURN_OFF_PORT, kwargs=kwargs)
-        # result = self.platform_agent.execute_resource(cmd)
-
         # Check that the method is legitimate
         # if method not in res_iface and method != 'wait':
         #     log.error('Mission Error: Method ' + method + ' not recognized')
         #     raise Exception('Mission Error: Method ' + method + ' not recognized')
 
         # Check that the command is legitimate
+        if agent_client is None:
+            # This indicates platform agent command
+            # RSN_PLATFORM_DRIVER_TURN_ON_PORT
+            if command in RSNPlatformDriverEvent.__dict__.keys():
+                if parameters in self.instruments:
+                    # Parameter must be the instrument id of the port to toggle
+                    self.platform_agent._plat_driver._fsm.on_event(getattr(RSNPlatformDriverEvent, command), instrument_id=parameters)
+                else:
+                    log.error('[mm] Mission Error: Instrument %s not recognized', parameters)
+                    raise Exception('Mission Error: Instrument %s not recognized', parameters)
+            else:
+                log.error('[mm] Mission Error: Command %s not recognized', command)
+                raise Exception('Mission Error: Command %s not recognized', command)
+            return
+
+        retval = agent_client.get_capabilities()
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = self._sort_capabilities(retval)
+
         if command in ResourceAgentEvent.__dict__.keys():
             cmd = AgentCommand(command=getattr(ResourceAgentEvent, command))
             reply = getattr(agent_client, method)(cmd)
@@ -676,6 +679,7 @@ class MissionScheduler(object):
             log.debug('[mm] %s = %s', command, str(reply[command]))
 
             if parameters and parameters != reply[command]:
+                parameters = float(parameters) if '.' in parameters else int(parameters)
                 getattr(agent_client, method)({command: parameters})
                 reply = getattr(agent_client, 'get_resource')(command)
                 log.debug('[mm] %s = %s', command, str(reply[command]))
@@ -692,8 +696,8 @@ class MissionScheduler(object):
                 gevent.sleep(1)
 
         else:
-            log.error('[mm] Mission Error: Command ' + command + ' not recognized')
-            raise Exception('Mission Error: Command ' + command + ' not recognized')
+            log.error('[mm] Mission Error: Command %s not recognized', command)
+            raise Exception('Mission Error: Command %s not recognized', command)
 
         state = agent_client.get_agent_state()
         log.debug('[mm] Agent State = %s', state)
@@ -708,13 +712,21 @@ class MissionScheduler(object):
         for cmd in mission_cmds:
             attempt = 0
             instrument_id = cmd['instrument_id']
-            if instrument_id not in self.instruments:
+            if instrument_id in self.instruments:
+                # This command is for a child instrument
+                ia_client = self.instruments[instrument_id]
+
+            elif instrument_id == self.platform_agent._platform_id:
+                # This command is for the parent platform agent
+                ia_client = None
+
+            else:
                 # TODO we can remove this verification or handle it in a
                 # different way -- it was added while playing with possible
                 # ways to select an instrument identification mechanism.
                 log.warn('[mm] instrument_id=%s not present in instruments dict', instrument_id)
                 continue
-            ia_client = self.instruments[instrument_id]
+
             error_handling = cmd['error']
 
             if not error_handling:

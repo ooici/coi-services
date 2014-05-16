@@ -253,3 +253,13 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             ["ion/agents/platform/test/multi_mission_1.yml",
              "ion/agents/platform/test/multi_mission_2.yml"],
             max_wait=200 + 300)
+
+    def test_simple_mission_ports_on_off(self):
+        #
+        # With mission plan to be started in COMMAND state.
+        #
+        self._test_simple_mission(
+            ['SBE37_SIM_02'],
+            "ion/agents/platform/test/mission_RSN_simulator_ports.yml",
+            in_command_state=True,
+            max_wait=200 + 300)
