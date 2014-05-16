@@ -1308,6 +1308,18 @@ class IONLoader(ImmediateProcess):
         if res_obj.description != newrow[prefix+'/description']:
             res_obj.description = newrow[prefix+'/description']
             needupdate = True
+        if instrument:
+            pass
+        else:
+            if res_obj.platform_family != newrow['pm//platform_family']:
+                res_obj.platform_family = newrow['pm//platform_family']
+                needupdate = True
+            if res_obj.platform_type != newrow['pm/platform_type']:
+                res_obj.platform_type = newrow['pm//platform_type']
+                needupdate = True
+            if res_obj.node_type_id != newrow['pm/node_type_id']:
+                res_obj.node_type_id = newrow['pm/node_type_id']
+                needupdate = True
         if needupdate:
             self._update_resource_obj(model_id)
 
@@ -1325,6 +1337,7 @@ class IONLoader(ImmediateProcess):
             newrow['pm/alt_ids'] = "['OOI:" + ooi_id + "_PM" + "']"
             newrow['pm/platform_family'] = ooi_obj['platform_family'] or ooi_obj['name']
             newrow['pm/platform_type'] = ooi_obj['platform_type']
+            newrow['pm/node_type_id'] = ooi_id
             newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
 
             if not self._resource_exists(newrow[COL_ID]):
