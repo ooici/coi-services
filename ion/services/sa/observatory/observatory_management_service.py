@@ -1100,6 +1100,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             deployment_objs = RR2.read_mult(list(set(deployment_ids)))
             extended_site.deployments = deployment_objs
 
+            # Get current active deployment. May be site or parent sites
+            dep_util = DeploymentUtil(self.container)
+            extended_site.deployment = dep_util.get_active_deployment(site_id, is_site=True, rr2=RR2)
+
             # Set data products
             RR2.cache_predicate(PRED.hasSource)
             dataproduct_assocs = RR2.filter_cached_associations(PRED.hasSource, lambda a: a.o in site_ids)
@@ -1139,8 +1143,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             extended_site.platform_component_sites = fs(RT.PlatformSite, lambda s: s.alt_resource_type == "PlatformComponentSite")
             extended_site.platform_assembly_sites  = fs(RT.PlatformSite, lambda s: s.alt_resource_type == "PlatformAssemblySite")
             extended_site.instrument_sites         = fs(RT.InstrumentSite, lambda _: True)
-
-            #from pyon.util.breakpoint import breakpoint; breakpoint(locals())
 
             context = dict(
                 extended_site=extended_site,
