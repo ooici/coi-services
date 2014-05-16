@@ -1,0 +1,31 @@
+#
+# One of the simple plans used to test the execution of multiple missions.
+#
+
+name: OMS Simulator Mission
+version: 0.4
+description: Sample OMS Simulator Mission
+
+platform:
+  platformID: LJ01D
+
+mission:
+  - missionThread:
+    instrumentID: [SBE37_SIM_02]
+    errorHandling:
+      default: retry
+      maxRetries: 1
+    schedule:
+      startTime: 05/01/2014 00:00:00
+      loop:
+        quantity: 1
+        value: 3
+        units: mins
+      event:
+        parentID: 
+        eventID: 
+    preMissionSequence:
+    missionSequence:
+      - command: wait(1)
+        onError:
+    postMissionSequence:

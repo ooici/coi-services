@@ -9,6 +9,7 @@ from pyon.core.governance import ORG_MEMBER_ROLE, ORG_MANAGER_ROLE, INSTRUMENT_O
 
 from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, convert_events_to_email_message, \
     get_event_computed_attributes, calculate_reverse_user_info
+from ion.util.datastore.resources import ResourceRegistryUtil
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
@@ -1099,6 +1100,8 @@ class UserNotificationService(BaseUserNotificationService):
         ret.value = events
         ret.computed_list = [get_event_computed_attributes(event, include_event=include_events) for event in events]
         ret.status = ComputedValueAvailability.PROVIDED
+
+        rr_util = ResourceRegistryUtil(self.container)
 
         if add_usernames:
             try:

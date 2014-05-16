@@ -45,8 +45,8 @@ from ion.core.includes.mi import DriverEvent
 
 from pyon.util.containers import DotDict
 
-from pyon.agent.common import BaseEnum
 from pyon.agent.instrument_fsm import FSMStateError
+from pyon.agent.instrument_fsm import FSMError
 
 from ion.agents.platform.launcher import Launcher
 
@@ -192,12 +192,6 @@ class PlatformAgent(ResourceAgent):
 
         # MissionManager created on_start:
         self._mission_manager = None
-
-        # currently loaded mission
-        self.aparam_mission = None
-
-        # method set by MissionManager
-        self.aparam_set_mission = None
 
         # state to return to after mission termination
         self._pre_mission_state = None
@@ -3531,46 +3525,65 @@ class PlatformAgent(ResourceAgent):
     # mission related handlers
     ##############################################################
 
-    def _run_mission(self):
+    def _run_mission(self, mission_id, mission_yml):
         """
-        Method launched in a separate greenlet to run the mission, at the end
-        of which EXIT_MISSION is triggered to return to saved state.
+        Method launched in a separate greenlet to run a mission, at the end
+        of which, if no remaining missions are executing, EXIT_MISSION is
+        triggered to return to saved state.
         """
         time_start = time.time()
-        log.debug('_run_mission: running...')
-        self._mission_manager.run_mission()
+        log.debug('[mm] _run_mission: running mission_id=%r ...', mission_id)
+        self._mission_manager.run_mission(mission_id, mission_yml)
 
         elapsed_time = time.time() - time_start
-        log.debug('_run_mission: completed. elapsed_time=%s', elapsed_time)
+        log.debug('[mm] _run_mission: completed mission_id=%s. elapsed_time=%s',
+                  mission_id, elapsed_time)
 
-        # check state before attempting the EXIT_MISSION.
-        # (but we could still have a "check-then-act" race condition here)
-        curr_state = self.get_agent_state()
-        if curr_state in [PlatformAgentState.MISSION_COMMAND,
-                          PlatformAgentState.MISSION_STREAMING]:
-            log.debug('_run_mission: triggering EXIT_MISSION')
-            self._fsm.on_event(PlatformAgentEvent.EXIT_MISSION)
-        else:
-            log.warn('_run_mission: not triggering EXIT_MISSION: FSM not in '
-                     'mission substate (%s)', curr_state)
+        remaining = self._mission_manager.get_number_of_running_missions()
+        if remaining == 0:
+            # check state before attempting the EXIT_MISSION.
+            # (but we could still have a "check-then-act" race condition here)
+            curr_state = self.get_agent_state()
+            if curr_state in [PlatformAgentState.MISSION_COMMAND,
+                              PlatformAgentState.MISSION_STREAMING]:
+                log.debug('[mm] _run_mission: triggering EXIT_MISSION')
+                self._fsm.on_event(PlatformAgentEvent.EXIT_MISSION)
+            else:
+                log.warn('[mm] _run_mission: not triggering EXIT_MISSION: FSM not in '
+                         'mission substate (%s)', curr_state)
 
     def _handler_mission_run(self, *args, **kwargs):
         """
-        Saves current state to return to upon mission termination.
-        Starts the mission execution in a separate thread.
-        Transitions to the appropriate mission substate.
+        In a separate thread, starts the execution of the mission indicated
+        with the kwargs 'mission_id' and 'mission_yml'.
+        If not already in a mission state, it saves current state to return to
+        upon all mission executions are completed, and transitions to the
+        appropriate mission substate.
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                       self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        curr_state = self.get_agent_state()
-        next_state = PlatformAgentState.MISSION_COMMAND if curr_state == \
-            PlatformAgentState.COMMAND else PlatformAgentState.MISSION_STREAMING
+        mission_id = kwargs.get('mission_id', None)
+        if mission_id is None:
+            raise FSMError('mission_run: missing mission_id argument')
+        mission_yml = kwargs.get('mission_yml', None)
+        if mission_yml is None:
+            raise FSMError('mission_run: missing mission_yml argument')
 
-        self._pre_mission_state = curr_state
-        self._mission_greenlet = spawn(self._run_mission)
-        log.info("%r: started mission execution", self._platform_id)
+        curr_state = self.get_agent_state()
+        if curr_state in [PlatformAgentState.COMMAND, PlatformAgentState.MISSION_STREAMING]:
+            # save state to return to when all mission executions are completed
+            self._pre_mission_state = curr_state
+
+            next_state = PlatformAgentState.MISSION_COMMAND if curr_state == \
+                PlatformAgentState.COMMAND else PlatformAgentState.MISSION_STREAMING
+        else:
+            # just stay in the current state:
+            next_state = None
+
+        self._mission_greenlet = spawn(self._run_mission, mission_id, mission_yml)
+        log.info("%r: started mission execution, mission_id=%r", self._platform_id, mission_id)
 
         result = None
         return next_state, result
@@ -3591,39 +3604,49 @@ class PlatformAgent(ResourceAgent):
 
     def _handler_mission_abort(self, *args, **kwargs):
         """
-        Aborts the ongoing mission execution. Transitions to saved state prior
-        to the execution.
+        Aborts the execution of the mission indicated with the kwarg 'mission_id'.
+        Transitions to saved state if no remaining missions are left running.
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                       self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = self._pre_mission_state
-        result = self._mission_manager.abort_mission()
-        if result is not None:
-            # problems; do not make transition:
-            next_state = None
-        else:
+        mission_id = kwargs.get('mission_id', None)
+        if mission_id is None:
+            raise FSMError('mission_run: missing mission_id argument')
+
+        result = self._mission_manager.abort_mission(mission_id)
+
+        remaining = self._mission_manager.get_number_of_running_missions()
+        if remaining == 0:
+            next_state = self._pre_mission_state
             self._pre_mission_state = None
+        else:
+            next_state = None
 
         return next_state, result
 
     def _handler_mission_kill(self, *args, **kwargs):
         """
-        Kills the ongoing mission execution. Transitions to saved state prior
-        to the execution.
+        Kills the execution of the mission indicated with the kwarg 'mission_id'.
+        Transitions to saved state if no remaining missions are left running.
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                       self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = self._pre_mission_state
-        result = self._mission_manager.kill_mission()
-        if result is not None:
-            # problems; do not make transition:
-            next_state = None
-        else:
+        mission_id = kwargs.get('mission_id', None)
+        if mission_id is None:
+            raise FSMError('mission_run: missing mission_id argument')
+
+        result = self._mission_manager.kill_mission(mission_id)
+
+        remaining = self._mission_manager.get_number_of_running_missions()
+        if remaining == 0:
+            next_state = self._pre_mission_state
             self._pre_mission_state = None
+        else:
+            next_state = None
 
         return next_state, result
 
@@ -3768,10 +3791,14 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GO_INACTIVE, self._handler_lost_connection_go_inactive)
         self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
 
-        # MISSION state event handlers.
+        # MISSION_COMMAND state event handlers.
+        self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.RUN_MISSION, self._handler_mission_run)
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.EXIT_MISSION, self._handler_mission_exit)
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.ABORT_MISSION, self._handler_mission_abort)
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.KILL_MISSION, self._handler_mission_kill)
+
+        # MISSION_STREAMING state event handlers.
+        self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.RUN_MISSION, self._handler_mission_run)
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.EXIT_MISSION, self._handler_mission_exit)
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.ABORT_MISSION, self._handler_mission_abort)
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.KILL_MISSION, self._handler_mission_kill)

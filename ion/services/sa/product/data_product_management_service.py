@@ -583,12 +583,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         self.clients.dataset_management.add_parameter_to_dataset(parameter_context_id, dataset_id)
 
-        #TODO: we need a better way of updating the XML files
-        config = DotDict()
-        config.op = 'register_datasets'
-        self.container.spawn_process('refresh_catalog', 'ion.processes.bootstrap.registration_bootstrap', 'RegistrationBootstrap', config)
-
-
+        self.update_catalog_entry(data_product_id) 
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
         #--------------------------------------------------------------------------------
@@ -807,19 +802,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         return rpc_cli.request({'data_product_id':data_product_id}, op=op)
 
     def create_catalog_entry(self, data_product_id=''):
-        # Stub
         return self._registration_rpc('create_entry',data_product_id) 
 
     def read_catalog_entry(self, data_product_id=''):
-        # Stub
         return self._registration_rpc('read_entry', data_product_id)
 
     def update_catalog_entry(self, data_product_id=''):
-        # Stub
         return self._registration_rpc('update_entry', data_product_id)
 
     def delete_catalog_entry(self, data_product_id=''):
-        # Stub
         return self._registration_rpc('delete_entry', data_product_id)
 
 

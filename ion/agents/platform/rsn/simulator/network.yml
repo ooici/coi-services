@@ -211,7 +211,11 @@ network:
             monitor_cycle_seconds: 10
           ports:
           - port_id: Node1D_port_1
+            instruments:
+            - instrument_id: SBE37_SIM_01
           - port_id: Node1D_port_2
+            instruments:
+            - instrument_id: SBE37_SIM_02
           subplatforms:
           - platform_id: MJ01C
             platform_types: []
@@ -297,7 +301,12 @@ network:
                 monitor_cycle_seconds: 4
               ports:
               - port_id: 1
+                instruments:
+                - instrument_id: SBE37_SIM_02
+                - instrument_id: SBE37_SIM_03
               - port_id: 2
+                instruments:
+                - instrument_id: SBE37_SIM_04
         - platform_id: LV01C
           platform_types: []
           attrs:
