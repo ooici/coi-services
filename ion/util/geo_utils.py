@@ -3,6 +3,8 @@ from pyon.public import  log, IonObject, OT
 from pyon.core.exception import BadRequest
 from pyproj import Geod
 
+from interface.objects import GeospatialBounds, TemporalBounds
+
 
 class GeoUtils(object):
     DISTANCE_SHORTEST = "shortest"
@@ -79,7 +81,22 @@ class GeoUtils(object):
         return rlat, rlon
 
     @staticmethod
-    def calc_bounding_box_for_boxes(obj_list, key_mapping=None):
+    def calc_geo_bounds_for_geo_bounds_list(geo_bounds_list):
+        key_mapping = dict(lat_north="geospatial_latitude_limit_north",
+                           lat_south="geospatial_latitude_limit_south",
+                           lon_east="geospatial_longitude_limit_east",
+                           lon_west="geospatial_longitude_limit_west",
+                           depth_min="geospatial_vertical_min",
+                           depth_max="geospatial_vertical_max")
+
+        gb_box = GeoUtils.calc_bounding_box_for_boxes([gb.__dict__ for gb in geo_bounds_list],
+                                                      key_mapping=key_mapping, map_output=True)
+
+        geo_bounds = GeospatialBounds(**gb_box)
+        return geo_bounds
+
+    @staticmethod
+    def calc_bounding_box_for_boxes(obj_list, key_mapping=None, map_output=False):
         """Calculates the geospatial bounding box for a list of geospatial bounding boxes.
         The input list is represented as a list of dicts.
         This function assumes that bounding boxes do not span poles or datelines."""
@@ -98,14 +115,14 @@ class GeoUtils(object):
         depth_max_list = [float(o[depth_max_key]) for o in obj_list if depth_max_key in o and o[depth_max_key]]
 
         res_bb = {}
-        res_bb['lat_north'] = max(lat_north_list) if lat_north_list else 0.0
-        res_bb['lat_south'] = min(lat_south_list) if lat_south_list else 0.0
+        res_bb[lat_north_key if map_output else 'lat_north'] = max(lat_north_list) if lat_north_list else 0.0
+        res_bb[lat_south_key if map_output else 'lat_south'] = min(lat_south_list) if lat_south_list else 0.0
 
-        res_bb['lon_west'] = min(lon_west_list) if lon_west_list else 0.0
-        res_bb['lon_east'] = max(lon_east_list) if lon_east_list else 0.0
+        res_bb[lon_east_key if map_output else 'lon_west'] = min(lon_west_list) if lon_west_list else 0.0
+        res_bb[lon_west_key if map_output else 'lon_east'] = max(lon_east_list) if lon_east_list else 0.0
 
-        res_bb['depth_max'] = max(depth_min_list) if depth_min_list else 0.0
-        res_bb['depth_min'] = min(depth_max_list) if depth_max_list else 0.0
+        res_bb[depth_min_key if map_output else 'depth_max'] = max(depth_min_list) if depth_min_list else 0.0
+        res_bb[depth_max_key if map_output else 'depth_min'] = min(depth_max_list) if depth_max_list else 0.0
 
         return res_bb
 
@@ -133,3 +150,12 @@ class GeoUtils(object):
         res_bb['depth_min'] = min(depth_list) if depth_list else 0.0
 
         return res_bb
+
+    @staticmethod
+    def calc_temp_bounds_for_temp_bounds_list(temp_bounds_list):
+        startval_list = [float(tb.start_datetime) for tb in temp_bounds_list if tb.start_datetime]
+        start_min = str(int(min(startval_list))) if startval_list else ""
+        endval_list = [float(tb.end_datetime) for tb in temp_bounds_list if tb.end_datetime]
+        end_max = str(int(max(endval_list))) if endval_list else ""
+        temp_bounds = TemporalBounds(start_datetime=start_min, end_datetime=end_max)
+        return temp_bounds

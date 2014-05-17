@@ -471,10 +471,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         site_obj = self.RR.read(site_id)
         for constraint in site_obj.constraint_list:
             if constraint.type_ == OT.GeospatialBounds:
-                device_obj.geospatial_bounds = constraint
+                device_obj.geospatial_bounds = GeoUtils.calc_geo_bounds_for_geo_bounds_list(
+                    [device_obj.geospatial_bounds, constraint])
         for constraint in deployment_obj.constraint_list:
             if constraint.type_ == OT.TemporalBounds:
-                device_obj.temporal_bounds = constraint
+                device_obj.temporal_bounds = GeoUtils.calc_temp_bounds_for_temp_bounds_list(
+                    [device_obj.temporal_bounds, constraint])
         self.RR.update(device_obj)
 
     def _update_device_remove_geo_update_temporal(self, device_id='', temporal_constraint=None):
@@ -493,7 +495,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                   geospatial_vertical_max=float(0))
         device_obj.geospatial_bounds = bounds
         if temporal_constraint:
-            device_obj.temporal_bounds.end_datetime = temporal_constraint.end_datetime
+            device_obj.temporal_bounds.end_datetime = GeoUtils.calc_temp_bounds_for_temp_bounds_list(
+                [device_obj.temporal_bounds, temporal_constraint])
         self.RR.update(device_obj)
 
     def assign_device_to_network_parent(self, child_device_id='', parent_device_id=''):
@@ -650,12 +653,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if not pairs_to_add:
             log.warning('No Site and Device pairs were added to activate this deployment')
 
+        temp_constraint = dep_util.get_temporal_constraint(deployment_obj)
+
         # process any removals
         for site_id, device_id in pairs_to_remove:
             log.info("Unassigning hasDevice; device '%s' from site '%s'", device_id, site_id)
             self.unassign_device_from_site(device_id, site_id)
             log.info("Removing geo and updating temporal attrs for device '%s'", device_id)
-            self._update_device_remove_geo_update_temporal(device_id, deployment_obj)
+            self._update_device_remove_geo_update_temporal(device_id, temp_constraint)
 
         # process the additions
         for site_id, device_id in pairs_to_add:

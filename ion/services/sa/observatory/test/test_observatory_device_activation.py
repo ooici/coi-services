@@ -420,6 +420,9 @@ class TestDeviceActivation(IonIntegrationTestCase):
 
         deployment_id = self._retrieve_ooi_asset(CGSN_MOORING_DEPLOYMENT_ALT_ID)['_id']
         deployment = self.container.resource_registry.read(deployment_id)
+        if deployment.lcstate != LCS.INTEGRATED:
+            self.container.resource_registry.execute_lifecycle_transition(deployment_id, LCE.INTEGRATE)
+        deployment = self.container.resource_registry.read(deployment_id)
 
         inst_id = self._retrieve_ooi_asset(CGSN_RISER_INSTRUMENT_ALT_ID)['_id']
         inst = self.container.resource_registry.read(inst_id)
