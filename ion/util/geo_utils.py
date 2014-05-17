@@ -89,7 +89,7 @@ class GeoUtils(object):
                            depth_min="geospatial_vertical_min",
                            depth_max="geospatial_vertical_max")
 
-        gb_box = GeoUtils.calc_bounding_box_for_boxes([gb.__dict__ for gb in geo_bounds_list],
+        gb_box = GeoUtils.calc_bounding_box_for_boxes([gb.__dict__ for gb in geo_bounds_list if gb],
                                                       key_mapping=key_mapping, map_output=True)
 
         geo_bounds = GeospatialBounds(**gb_box)
@@ -153,9 +153,9 @@ class GeoUtils(object):
 
     @staticmethod
     def calc_temp_bounds_for_temp_bounds_list(temp_bounds_list):
-        startval_list = [float(tb.start_datetime) for tb in temp_bounds_list if tb.start_datetime]
+        startval_list = [float(tb.start_datetime) for tb in temp_bounds_list if tb and tb.start_datetime]
         start_min = str(int(min(startval_list))) if startval_list else ""
-        endval_list = [float(tb.end_datetime) for tb in temp_bounds_list if tb.end_datetime]
+        endval_list = [float(tb.end_datetime) for tb in temp_bounds_list if tb and tb.end_datetime]
         end_max = str(int(max(endval_list))) if endval_list else ""
         temp_bounds = TemporalBounds(start_datetime=start_min, end_datetime=end_max)
         return temp_bounds
