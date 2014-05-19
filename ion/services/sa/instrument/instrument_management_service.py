@@ -1055,8 +1055,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-
-
     ##########################################################################
     #
     # PLATFORM AGENT
@@ -1606,7 +1604,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.instrument_device_extension.container')
 
         try:
-
+            if extended_instrument.platform_device:
+                extended_instrument.platform_model = RR2.read_object(extended_instrument.platform_device._id, PRED.hasModel, RT.PlatformModel, id_only=False)
+            else:
+                extended_instrument.platform_model = None
             statuses = outil.get_status_roll_ups(instrument_device_id, include_structure=True)
 
             comms_rollup = statuses.get(instrument_device_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
@@ -1628,6 +1629,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             dep_util = DeploymentUtil(self.container)
             extended_instrument.deployment_info = dep_util.describe_deployments(extended_instrument.deployments,
                                                                                 status_map=statuses)
+
+            # Get current active deployment. May be site or parent sites
+            extended_instrument.deployment = dep_util.get_active_deployment(instrument_device_id, is_site=False, rr2=RR2)
+
             if t:
                 t.complete_step('ims.instrument_device_extension.deploy')
                 stats.add(t)
@@ -1904,6 +1909,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         dep_util = DeploymentUtil(self.container)
         extended_platform.deployment_info = dep_util.describe_deployments(extended_platform.deployments,
                                                                           status_map=statuses)
+
+        # Get current active deployment. May be site or parent sites
+        extended_platform.deployment = dep_util.get_active_deployment(platform_device_id, is_site=False, rr2=RR2)
 
         if t:
             t.complete_step('ims.platform_device_extension.deploy')

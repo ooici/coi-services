@@ -791,17 +791,19 @@ def _process_cmd_sites(resource_id, res_obj=None):
             device_info = dict(zip([res._id for res in dev_list], dev_list))
 
         def stat(status, stype):
-            stat = status.get(stype, 4)
-            stat_str = ['', "<span style='color:green'>OK</span>","<span style='color:orange'>WARN</span>","<span style='color:red'>ERROR</span>",'?']
+            stat = status.get(stype, 1)
+            stat_str = ['BAD', '--', "<span style='color:green'>OK</span>","<span style='color:orange'>WARN</span>","<span style='color:red'>ERROR</span>"]
             return stat_str[stat]
 
-        def status_table(parent_id, level):
+        def status_table(parent_id, level, recurse=True):
             fragments.append("<tr>")
             par_detail = child_sites.get(parent_id, None) or device_info.get(parent_id, None)
             par_status = statuses.get(parent_id, {})
             entryname = "&nbsp;"*level + build_link(par_detail.name if par_detail else parent_id, "/view/%s" % parent_id)
             if parent_id == resource_id:
                 entryname = "<b>" + entryname + "</b>"
+            if par_detail and par_detail.type_.endswith("Device"):
+                entryname = "<i>" + entryname + "</i>"
             fragments.append("<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>" % (
                 entryname,
                 par_detail._get_type() if par_detail else "?",
@@ -809,15 +811,16 @@ def _process_cmd_sites(resource_id, res_obj=None):
                 stat(par_status, objects.AggregateStatusType.AGGREGATE_COMMS), stat(par_status, objects.AggregateStatusType.AGGREGATE_DATA),
                 stat(par_status, objects.AggregateStatusType.AGGREGATE_LOCATION)))
             fragments.append("</tr>")
-            device = devices.get(parent_id, None)
-            if device and len(device) > 1:
-                status_table(device[1], level+1)
+            if recurse:
+                devs = devices.get(parent_id, None) or []
+                for dev in devs:
+                    status_table(dev[1], level+1, recurse=False)
 
-            ch_ids = ancestors.get(parent_id, None) or []
-            for ch_id in ch_ids:
-                if type(ch_id) in (list, tuple):
-                    ch_id = ch_id[1]  # TODO: Check why content type is different
-                status_table(ch_id, level+1)
+                ch_ids = ancestors.get(parent_id, None) or []
+                for ch_id in ch_ids:
+                    if type(ch_id) in (list, tuple):
+                        ch_id = ch_id[1]  # TODO: Check why content type is different site/device
+                    status_table(ch_id, level+1)
 
         status_table(root_id, 0)
         fragments.append("</table></p>")
