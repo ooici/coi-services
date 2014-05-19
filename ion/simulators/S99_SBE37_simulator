@@ -1,55 +1,36 @@
 #!/bin/sh
 #
-# substitute whatever user you want for simulator, and change the path to where you installed it to.
+# service for starting SBE37 simulators
 #
 
-
+# switch to simulator folder in git coi-services repository 
 cd /opt/simulator/coi-services/ion/simulators
+echo -n $"changed working directory to "
+pwd
 
 # rm logs on restart....
-rm simulator.[0-9].log
-
-
-# remove next line to use FRESH simulators
-#cd /opt/simulator/good
-
+# in general don't want to do this because you loose any of the debugging info in them
+#rm simulator.[0-9].log
  
 start() {
-   echo $"Updating simulator: "
+   echo $"Updating SBE37_SMP_simulator.py python file (by doing git pull on coi-services repository): "
    su simulator -c "git pull"
-   echo $"Starting simulator 1: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4001 >& simulator.1.log; sleep 60; w | Mail -s 'sim 4001 died' roger.unwin@gmail.com ; done" &
-   echo $"Starting simulator 2: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4002 --class SBE37_sine >& simulator.2.log; sleep 60; w | Mail -s 'sim 4002 died' roger.unwin@gmail.com ; done" &
-   echo $"Starting simulator 3: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4003 --class SBE37_sine >& simulator.3.log; sleep 60; w | Mail -s 'sim 4003 died' roger.unwin@gmail.com ; done" &
-   echo $"Starting simulator 4: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4004 --class SBE37_sine >& simulator.4.log; sleep 60; w | Mail -s 'sim 4004 died' roger.unwin@gmail.com ; done" &
-   echo $"Starting simulator 5: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4005 --class SBE37_sine >& simulator.5.log; sleep 60; w | Mail -s 'sim 4005 died' roger.unwin@gmail.com ; done" &
-   echo $"Starting simulator 6: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4006 --class SBE37_sine >& simulator.6.log; sleep 60; w | Mail -s 'sim 4006 died' roger.unwin@gmail.com ; done" &
-   echo $"Starting simulator 7: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4007 --class SBE37_sine >& simulator.7.log; sleep 60; w | Mail -s 'sim 4007 died' roger.unwin@gmail.com ; done" &
-   echo $"Starting simulator 8: "
-   su simulator -c "while [ true ] ; do python2.7 /opt/simulator/coi-services.save/ion/simulators/SBE37_SMP_simulator.py --port=4008 --lag=20 --sec=60 >& simulator.8.log; sleep 60; w | Mail -s 'sim 4008 died' roger.unwin@gmail.com ; done" &
-   echo $"Starting simulator 9: "
-   cd /opt/simulator/coi-services.save/ion/simulators/
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator_dev.py --port=4009 >& simulator.9.log; sleep 60; w | Mail -s 'sim 4009 died' roger.unwin@gmail.com ; done" &
+   
+   echo $"Starting SBE37 simulator 1: "
+   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4001 &>> simulator.1.log; sleep 60; w | Mail -s 'sim 4001 died' wbollenbacher@ucsd.edu ; done" &
+   echo $"Starting SBE37 simulator 2: "
+   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4002 --class SBE37_sine &>> simulator.2.log; sleep 60; w | Mail -s 'sim 4002 died' wbollenbacher@ucsd.edu ; done" &
+   echo $"Starting SBE37 simulator 3: "
+   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4003 --class SBE37_sine &>> simulator.3.log; sleep 60; w | Mail -s 'sim 4003 died' wbollenbacher@ucsd.edu ; done" &
+   echo $"Starting SBE37 simulator 4: "
+   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4004 --class SBE37_sine &>> simulator.4.log; sleep 60; w | Mail -s 'sim 4004 died' wbollenbacher@ucsd.edu ; done" &
+   echo $"Starting SBE37 simulator 5: "
+   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4005 --class SBE37_sine &>> simulator.5.log; sleep 60; w | Mail -s 'sim 4005 died' wbollenbacher@ucsd.edu ; done" &
+
    sleep 10
    su simulator -c "ps aux | grep python" 
    netstat -lpn | grep 400
-   echo $"complete"
-
-   #su simulator -c "nohup python2.7 SBE37_SMP_simulator.py --class SBE37_sine --port=4002 >& simulator.2.log &" &
-   #su simulator -c "nohup python2.7 SBE37_SMP_simulator.py --class SBE37_sine --port=4003 >& simulator.3.log &" &
-   #su simulator -c "nohup python2.7 SBE37_SMP_simulator.py --class SBE37_sine --port=4004 >& simulator.4.log &" &
-   #su simulator -c "nohup python2.7 SBE37_SMP_simulator.py --class SBE37_sine --port=4005 >& simulator.5.log &" &
-   #su simulator -c "nohup python2.7 SBE37_SMP_simulator.py --class SBE37_sine --port=4006 >& simulator.6.log &" &
-   #su simulator -c "nohup python2.7 SBE37_SMP_simulator.py --class SBE37_sine --port=4007 >& simulator.7.log &" &
-   #su simulator -c "nohup python2.7 /opt/simulator/coi-services.save/ion/simulators/SBE37_SMP_simulator.py --port=4008 --lag=20 --sec=60 &" &
-   #su simulator -c "nohup python2.7 SBE37_SMP_simulator.py --port=4008 --rate=90 >& simulator.8.log &" &
-   #nohup python2.7 SBE37_SMP_simulator_dev.py --port=4009 >& simulator.9.log &
+   echo $"completed starting SBE37 simulators"
 
    return
 }      
