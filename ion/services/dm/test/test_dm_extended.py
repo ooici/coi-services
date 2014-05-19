@@ -991,6 +991,12 @@ class TestDMExtended(DMTestCase):
         bounds = self.dataset_management.dataset_temporal_bounds(dataset_id)
         self.assertEquals(bounds, {})
 
+        parameters = self.data_product_management.get_data_product_parameters(data_product_id, id_only=False)
+        parameter_names = [p.name for p in parameters]
+        self.assertIn('time', parameter_names)
+        self.assertIn('temp', parameter_names)
+        self.assertIn('conductivity', parameter_names)
+
     @attr("UTIL")
     def test_overlapping_repeating(self):
         data_product_id, stream_def_id = self.make_array_data_product()

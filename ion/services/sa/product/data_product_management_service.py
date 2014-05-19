@@ -789,6 +789,30 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return provenance_image.getvalue()
 
+    def get_data_product_parameters(self, data_product_id='', id_only=False):
+        stream_defs, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
+        if not stream_defs:
+            raise BadRequest("No Stream Definition Found for data product %s" % data_product_id)
+        stream_def = stream_defs[0]
+
+        pdicts, _ = self.clients.resource_registry.find_objects(stream_def._id, PRED.hasParameterDictionary, id_only=True)
+        if not pdicts:
+            raise BadRequest("No Parameter Dictionary Found for data product %s" % data_product_id)
+        pdict_id = pdicts[0]
+        parameters, _ = self.clients.resource_registry.find_objects(pdict_id, PRED.hasParameterContext, id_only=False)
+        if not parameters:
+            raise NotFound("No parameters are associated with this data product")
+
+        # too complicated for one line of code
+        #retval = { p.name : p._id for p in parameters if not filtered or (filtered and p in stream_def.available_fields) }
+        param_id = lambda x, id_only : x._id if id_only else x
+        retval = []
+        for p in parameters:
+            if (stream_def.available_fields and p.name in stream_def.available_fields) or not stream_def.available_fields:
+                retval.append(param_id(p, id_only))
+        return retval
+
+
     def _registration_rpc(self, op, data_product_id):
         procs,_ = self.clients.resource_registry.find_resources(restype=RT.Process, id_only=True)
         pid = None
