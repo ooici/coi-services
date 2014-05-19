@@ -1055,8 +1055,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
 
-
-
     ##########################################################################
     #
     # PLATFORM AGENT
@@ -1631,7 +1629,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.instrument_device_extension.container')
 
         try:
-
+            if extended_instrument.platform_device:
+                extended_instrument.platform_model = RR2.read_object(extended_instrument.platform_device._id, PRED.hasModel, RT.PlatformModel, id_only=False)
+            else:
+                extended_instrument.platform_model = None
             statuses = outil.get_status_roll_ups(instrument_device_id, include_structure=True)
 
             comms_rollup = statuses.get(instrument_device_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
@@ -1653,6 +1654,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             dep_util = DeploymentUtil(self.container)
             extended_instrument.deployment_info = dep_util.describe_deployments(extended_instrument.deployments,
                                                                                 status_map=statuses)
+
+            # Get current active deployment. May be site or parent sites
+            extended_instrument.deployment = dep_util.get_active_deployment(instrument_device_id, is_site=False, rr2=RR2)
+
             if t:
                 t.complete_step('ims.instrument_device_extension.deploy')
                 stats.add(t)
@@ -1713,98 +1718,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             retval.value = 'UNKNOWN'
             retval.status = ComputedValueAvailability.NOTAVAILABLE
             retval.reason = "State event not available in object store."
-
-        """
-        [{'_rev': '4-4f40a511ef24d3564ea7dcde9205a1a4',
-        'dev_alert': {
-            'status': 0,
-            'stream_name': '',
-            'name': '',
-            'time_stamps': [],
-            'valid_values': [],
-            'values': [],
-            'value_id': '',
-            'ts_changed': ''},
-        'ts_updated': '1386467082377',
-        'state': {
-            'current': 'RESOURCE_AGENT_STATE_COMMAND',
-            'prior': 'RESOURCE_AGENT_STATE_IDLE',
-            'ts_changed': '1386467081759'},
-        'dev_status': {
-            'status': 1,
-            'ts_changed': '',
-            'valid_values': [],
-            'values': [],
-            'time_stamps': []},
-        'res_state': {
-            'current': 'DRIVER_STATE_COMMAND',
-            'prior': 'DRIVER_STATE_UNKNOWN',
-            'ts_changed': '1386467081655'},
-            'agg_status': {
-                '1': {
-                    'status': 2,
-                    'time_stamps': [],
-                    'prev_status': 1,
-                    'roll_up_status': False,
-                    'valid_values': [],
-                    'values': [],
-                    'ts_changed': '1386467072222'},
-                '3': {
-                    'status': 2,
-                    'time_stamps': [],
-                    'prev_status': 1,
-                    'roll_up_status': False,
-                    'valid_values': [],
-                    'values': [],
-                    'ts_changed': '1386467072241'},
-                '2': {
-                    'status': 2,
-                    'time_stamps': [],
-                    'prev_status': 1,
-                    'roll_up_status': False,
-                    'valid_values': [],
-                    'values': [],
-                    'ts_changed': '1386467072228'},
-                '4': {
-                    'status': 2,
-                    'time_stamps': [],
-                    'prev_status': 1,
-                    'roll_up_status': False,
-                    'valid_values': [],
-                    'values': [],
-                    'ts_changed': '1386467072257'}},
-            '_id': 'state_c51098af6f7d48648ab30aa35283688e',
-            'ts_created': '1386467073154',
-            'device_id': 'c51098af6f7d48648ab30aa35283688e'}]
-        """
-
-
-        """
-        ia_client, reason = self.agent_status_builder.get_device_agent(taskable_resource_id)
-
-        # early exit for no client
-        if ia_client is None:
-            retval.value = 'UNKNOWN'
-            retval.status = ComputedValueAvailability.NOTAVAILABLE
-            retval.reason = reason
-            return retval
-
-        try:
-            state = ia_client.get_agent_state()
-            if resource_agent_state_labels.has_key(state):
-                retval.value = resource_agent_state_labels[ state ]
-                retval.status = ComputedValueAvailability.PROVIDED
-            else:
-                log.warning('IMS:get_operational_state label map has no value for this state:  %s', state)
-                retval.value = 'UNKNOWN'
-                retval.status = ComputedValueAvailability.NOTAVAILABLE
-                retval.reason = "State not returned in agent response"
-
-        except Unauthorized:
-            retval.value = 'UNKNOWN'
-            retval.status = ComputedValueAvailability.NOTAVAILABLE
-            retval.reason = "The requester does not have the proper role to access the status of this agent"
-        """
 
         return retval
 
@@ -2024,6 +1937,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         dep_util = DeploymentUtil(self.container)
         extended_platform.deployment_info = dep_util.describe_deployments(extended_platform.deployments,
                                                                           status_map=statuses)
+
+        # Get current active deployment. May be site or parent sites
+        extended_platform.deployment = dep_util.get_active_deployment(platform_device_id, is_site=False, rr2=RR2)
 
         if t:
             t.complete_step('ims.platform_device_extension.deploy')

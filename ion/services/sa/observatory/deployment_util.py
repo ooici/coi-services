@@ -149,6 +149,17 @@ class DeploymentUtil(object):
         else:
             raise BadRequest("Cannot determine current deployment unambiguously - choosing earliest start date")
 
+    def get_active_deployment(self, res_id, is_site=True, rr2=None):
+        dep_objs = rr2.find_objects(res_id, PRED.hasDeployment, id_only=False)
+        if dep_objs:
+            return self.get_current_deployment(dep_objs, only_deployed=True)
+        if is_site:
+            parent_res = rr2.find_subjects(RT.PlatformSite, PRED.hasSite, res_id, id_only=True)
+        else:
+            parent_res = rr2.find_subjects(RT.PlatformDevice, PRED.hasDevice, res_id, id_only=True)
+        if parent_res:
+            return self.get_active_deployment(parent_res[0], is_site=is_site, rr2=rr2)
+
     def describe_deployments(self, deployments, status_map=None):
         """
         For a list of deployment IDs, generate a list of dicts with information about the deployments
