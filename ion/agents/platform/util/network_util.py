@@ -18,8 +18,8 @@ from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.util.network import NetworkDefinition
 from ion.agents.platform.exceptions import PlatformDefinitionException
 
-# serialization/deserialization based on YAML
 import yaml
+from collections import OrderedDict
 
 
 class NetworkUtil(object):
@@ -28,73 +28,12 @@ class NetworkUtil(object):
     """
 
     @staticmethod
-    def create_node_network(network_map):
-        """
-        Creates a node network according to the given map (this map is
-        the format used by the CI-OMS interface to represent the topology).
-        Various verifications are performed here resulting in an exception
-        being thrown if the definition is invalid:
-         - no duplicate platform_id
-         - dummy root (with id '') is present
-         - only one regular root node.
-
-        @param network_map [(platform_id, parent_platform_id), ...]
-
-        @return { platform_id: PlatformNode }
-
-        @raise PlatformDefinitionException
-        """
-        pnodes = {}
-        for platform_id, parent_platform_id in network_map:
-            if not platform_id:
-                raise PlatformDefinitionException(
-                    "platform_id in tuple can not be %r" % platform_id)
-
-            if parent_platform_id is None:
-                parent_platform_id = ''
-
-            if parent_platform_id in pnodes:
-                parent = pnodes[parent_platform_id]
-            else:
-                parent = pnodes[parent_platform_id] = PlatformNode(parent_platform_id)
-
-            if platform_id in pnodes:
-                platform = pnodes[platform_id]
-                previous_parent = platform.parent
-            else:
-                platform = pnodes[platform_id] = PlatformNode(platform_id)
-                previous_parent = None
-
-            if previous_parent is not None and previous_parent.platform_id != parent_platform_id:
-                raise PlatformDefinitionException(
-                    "Duplicate tuple for platform_id=%r but different "
-                    "parent_platform_ids: %r and %r" % (
-                        platform_id,
-                        platform.parent.platform_id, parent_platform_id))
-
-            if platform_id not in parent._subplatforms:
-                parent.add_subplatform(platform)
-
-        if not '' in pnodes:
-            raise PlatformDefinitionException("Expecting dummy root in node network dict")
-        dummy_root = pnodes['']
-        if len(dummy_root.subplatforms) != 1:
-            raise PlatformDefinitionException(
-                "Expecting a single root in node network dict, but got %s" % (
-                dummy_root.subplatforms))
-
-        return pnodes
-
-    @staticmethod
     def deserialize_network_definition(ser):
         """
         Creates a NetworkDefinition object by deserializing the given argument.
 
         @param ser representation of the given serialization
         @return A NetworkDefinition object
-        
-        Since this static method is only called by the OMS simulator used for 
-        testing the asserts have been left in the code
         """
 
         ndef = NetworkDefinition()
@@ -104,57 +43,57 @@ class NetworkUtil(object):
             Constructs:
               - ndef._platform_types, {platform_type : description} dict
             """
-            assert 'platform_types' in pyobj
             ndef._platform_types = {}
-            for ptypeObj in pyobj["platform_types"]:
-                assert 'platform_type' in ptypeObj
-                assert 'description' in ptypeObj
-                platform_type = ptypeObj['platform_type']
-                description = ptypeObj['description']
-                ndef._platform_types[platform_type] = description
+            if 'platform_types' in pyobj:
+                for ptypeObj in pyobj["platform_types"]:
+                    if 'platform_type' in ptypeObj:
+                        platform_type = ptypeObj['platform_type']
+                        description = ptypeObj.get('description', '')
+                        ndef._platform_types[platform_type] = description
 
         def _build_network(pyobj):
             """
             Constructs:
               - ndef._pnodes: {platform_id : PlatformNode} dict
             """
-            assert 'network' in pyobj
 
             def create_node(platform_id, platform_types=None):
-                assert not platform_id in ndef.pnodes
+                _require(not platform_id in ndef.pnodes)
                 pn = PlatformNode(platform_id, platform_types)
                 ndef.pnodes[platform_id] = pn
                 return pn
 
             def build_and_add_ports_to_node(ports, pn):
                 for port_info in ports:
-                    assert 'port_id' in port_info
+                    _require('port_id' in port_info)
                     port_id = port_info['port_id']
                     port = PortNode(port_id)
                     port.set_state(port_info.get('state', None))
                     if 'instruments' in port_info:
                         for instrument in port_info['instruments']:
                             instrument_id = instrument['instrument_id']
-                            if instrument_id in port.instruments:
-                                raise Exception('port_id=%r: duplicate instrument ID %r' % (
-                                    port_id, instrument_id))
+                            _require(not instrument_id in port.instruments,
+                                     'port_id=%r: duplicate instrument ID %r' % (
+                                     port_id, instrument_id))
                             port.add_instrument(InstrumentNode(instrument_id))
                     pn.add_port(port)
 
             def build_and_add_attrs_to_node(attrs, pn):
                 for attr_defn in attrs:
                     attr_id = _get_attr_id(attr_defn)
-                    assert 'monitor_cycle_seconds' in attr_defn
-                    assert 'units' in attr_defn
+                    _require('monitor_cycle_seconds' in attr_defn)
+                    _require('units' in attr_defn)
+                    if isinstance(attr_defn, OrderedDict):
+                        attr_defn = dict(attr_defn)
                     pn.add_attribute(AttrNode(attr_id, attr_defn))
 
             def build_node(platObj, parent_node):
-                assert 'platform_id' in platObj
-                assert 'platform_types' in platObj
+                _require('platform_id' in platObj)
+                _require('platform_types' in platObj)
                 platform_id = platObj['platform_id']
                 platform_types = platObj['platform_types']
                 for platform_type in platform_types:
-                    assert platform_type in ndef._platform_types
+                    _require(platform_type in ndef._platform_types)
                 ports = platObj['ports'] if 'ports' in platObj else []
                 attrs = platObj['attrs'] if 'attrs' in platObj else []
                 pn = create_node(platform_id, platform_types)
@@ -164,9 +103,9 @@ class NetworkUtil(object):
                 if 'subplatforms' in platObj:
                     for subplat in platObj['subplatforms']:
                         subplat_id = subplat['platform_id']
-                        if subplat_id in pn.subplatforms:
-                            raise Exception('%s: duplicate subplatform ID for parent %s' % (
-                                subplat_id, platform_id))
+                        _require(not subplat_id in pn.subplatforms,
+                                 '%s: duplicate subplatform ID for parent %s' % (
+                                 subplat_id, platform_id))
                         build_node(subplat, pn)
                 return pn
 
@@ -174,6 +113,7 @@ class NetworkUtil(object):
 
             ndef._dummy_root = create_node(platform_id='')
 
+            _require('network' in pyobj, "'network' undefined")
             for platObj in pyobj["network"]:
                 build_node(platObj, ndef._dummy_root)
 
@@ -431,46 +371,36 @@ class NetworkUtil(object):
 
         # verify CFG corresponds to PlatformDevice:
         device_type = CFG.get("device_type", None)
-        if 'PlatformDevice' != device_type:
-            raise PlatformDefinitionException("Expecting device_type to be "
-                                              "'PlatformDevice'. Got %r" % device_type)
+        _require('PlatformDevice' == device_type,
+                 "Expecting device_type to be 'PlatformDevice'. Got %r" % device_type)
 
         ndef = NetworkDefinition()
         ndef._pnodes = {}
 
         def create_platform_node(platform_id, platform_types=None, CFG=None):
-            if platform_id in ndef.pnodes:
-                raise PlatformDefinitionException("create_platform_node(): platform_id %r not in ndef.pnodes" % platform_id)
+            _require(not platform_id in ndef.pnodes,
+                     "create_platform_node(): platform_id %r not in ndef.pnodes" % platform_id)
             pn = PlatformNode(platform_id, platform_types, CFG)
             ndef.pnodes[platform_id] = pn
             return pn
 
         ndef._dummy_root = create_platform_node(platform_id='')
 
-        def _get_platform_types(CFG):
-            """
-            Constructs:
-              - ndef._platform_types, {platform_type : description} dict
-            """
-            ndef._platform_types = {}
-            #
-            # TODO implement once this information is provided in the CI config
-
-        _get_platform_types(CFG)
+        ndef._platform_types = {}   # TODO platform types to be removed
 
         def _add_attrs_to_platform_node(attrs, pn):
             for attr_defn in attrs:
                 attr_id = _get_attr_id(attr_defn)
-                if not 'monitor_cycle_seconds' in attr_defn:
-                    raise PlatformDefinitionException("_add_attrs_to_platform_node(): 'monitor_cycle_seconds' not in attr_defn")
-                if not 'units' in attr_defn:
-                    raise PlatformDefinitionException("_add_attrs_to_platform_node(): 'units' not in attr_defn")
+                _require('monitor_cycle_seconds' in attr_defn,
+                         "_add_attrs_to_platform_node(): 'monitor_cycle_seconds' not in attr_defn")
+                _require('units' in attr_defn,
+                         "_add_attrs_to_platform_node(): 'units' not in attr_defn")
                 pn.add_attribute(AttrNode(attr_id, attr_defn))
 
         def _add_ports_to_platform_node(ports, pn):
             for port_info in ports:
-                if not 'port_id' in port_info:
-                    raise PlatformDefinitionException("_add_ports_to_platform_node(): 'port_id' not in port_info")
+                _require('port_id' in port_info,
+                         "_add_ports_to_platform_node(): 'port_id' not in port_info")
                 port_id = port_info['port_id']
                 port = PortNode(port_id)
                 pn.add_port(port)
@@ -484,17 +414,14 @@ class NetworkUtil(object):
             attributes     = driver_config.get('attributes', {})
             ports          = driver_config.get('ports', {})
 
-            if not platform_id:
-                raise PlatformDefinitionException("missing CFG.platform_config.platform_id")
+            _require(platform_id, "missing CFG.platform_config.platform_id")
 
-            if not driver_config:
-                raise PlatformDefinitionException("missing CFG.driver_config")
+            _require(driver_config, "missing CFG.driver_config")
 
             for platform_type in platform_types:
-                if not platform_type in ndef._platform_types:
-                    raise PlatformDefinitionException(
-                        "%r not in defined platform types: %s" %(
-                        platform_type, ndef._platform_types))
+                _require(platform_type in ndef._platform_types,
+                         "%r not in defined platform types: %s" %(
+                         platform_type, ndef._platform_types))
 
             pn = create_platform_node(platform_id, platform_types, CFG)
             parent_node.add_subplatform(pn)
@@ -525,8 +452,7 @@ class NetworkUtil(object):
             agent = CFG.get('agent', {})
             instrument_id = agent.get('resource_id', None)
 
-            if not instrument_id:
-                raise PlatformDefinitionException("missing CFG.agent.resource_id for instrument")
+            _require(instrument_id, "missing CFG.agent.resource_id for instrument")
 
             inn = InstrumentNode(instrument_id, CFG=CFG)
             parent_node.add_instrument(inn)
@@ -548,3 +474,8 @@ def _get_attr_id(attr_defn):
             "attr_defn = %s" % attr_defn)
 
     return attr_id
+
+
+def _require(cond, msg=""):
+    if not cond:
+        raise PlatformDefinitionException(msg)
