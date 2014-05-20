@@ -112,13 +112,17 @@ class RSNPlatformDriver(PlatformDriver):
         Driver config must include 'oms_uri' entry.
         """
         if not 'oms_uri' in driver_config:
-            log.error("'oms_uri' not present in driver_config = %s", driver_config)
-            raise PlatformDriverException(msg="driver_config does not indicate 'oms_uri'")
+            msg = "%r: 'oms_uri' not present in driver_config = %s" % (
+                  self._platform_id, driver_config)
+            log.error(msg)
+            raise PlatformDriverException(msg=msg)
 
         # validate and process ports
         if not 'ports' in driver_config:
-            log.error("port information not present in driver_config = %s", driver_config)
-            raise PlatformDriverException(msg="driver_config does not indicate 'ports'")
+            msg = "%r: 'ports' not present in driver_config = %s" % (
+                self._platform_id, driver_config)
+            log.error(msg)
+            raise PlatformDriverException(msg=msg)
 
         self._instr_port_map = {}
         ports = driver_config['ports']

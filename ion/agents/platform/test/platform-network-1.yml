@@ -1,0 +1,56 @@
+#
+# LJ01D with couple instruments
+#
+
+platform_types:   # To be removed
+  - platform_type: UPS
+    description: description of platform type UPS
+
+network:
+- platform_id: LJ01D
+  platform_types: []
+  attrs:
+  - attr_id: input_voltage
+    type: float
+    units: Volts
+    min_val: -500
+    max_val: 500
+    precision: 1
+    read_write: read
+    group: power
+    monitor_cycle_seconds: 2.5
+  - attr_id: input_bus_current
+    type: float
+    units: Amps
+    min_val: -50
+    max_val: 50
+    precision: 0.1
+    read_write: write  # just for testing
+    group: power
+    monitor_cycle_seconds: 5
+  - attr_id: MVPC_temperature
+    type: float
+    units: Degrees C
+    min_val: -1.5
+    max_val: 58.5
+    precision: 0.06
+    read_write: read
+    group: temperature
+    monitor_cycle_seconds: 4
+  - attr_id: MVPC_pressure_1
+    type: float
+    units: PSI
+    min_val: -3.8
+    max_val: 33.8
+    precision: 0.04
+    read_write: read
+    group: pressure
+    monitor_cycle_seconds: 4
+  ports:
+  - port_id: 1
+    instruments:
+    - instrument_id: SBE37_SIM_02
+    - instrument_id: SBE37_SIM_03
+  - port_id: 2
+    instruments:
+    - instrument_id: SBE37_SIM_04

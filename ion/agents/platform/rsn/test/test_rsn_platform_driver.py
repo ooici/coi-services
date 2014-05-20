@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.rsn.test.test_oms_platform_driver
+@package ion.agents.platform.rsn.test.test_rsn_platform_driver
 @file    ion/agents/platform/rsn/test/test_rsn_platform_driver.py
 @author  Carlos Rueda
 @brief   Some basic and direct tests to RSNPlatformDriver.
@@ -41,11 +41,10 @@ DVR_CONFIG = {
     'oms_uri': oms_uri  # see setUp for possible update of this entry
 }
 
-DVR_CONFIG = {
-    'oms_uri': 'launchsimulator',
-}
+from unittest import skip
 
-
+@skip("No critical test; functionality covered by other more comprehensive "
+      "tests. To be removed")
 @attr('INT', group='sa')
 class TestRsnPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
 
