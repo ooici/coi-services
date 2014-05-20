@@ -21,6 +21,7 @@ __license__ = 'Apache 2.0'
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
 from ion.agents.platform.platform_agent_enums import PlatformAgentState
+from ion.agents.platform.util.network_util import NetworkUtil
 
 from interface.objects import AgentCommand
 
@@ -36,11 +37,39 @@ import os
 class TestPlatformAgentMission(BaseIntTestPlatform):
     """
     """
+    def _get_network_definition(self):
+        """
+        Overriden to retrieve the network definition directly from a yaml file.
+        No functional change; direct yaml resources is intended to be the
+        general mechanism for the static definition of the platform network,
+        while the CI-OMS interface would be basically only for dynamic operations.
+        @return NetworkDefinition object
+        """
+        # yaml_filename = 'ion/agents/platform/rsn/simulator/network.yml'
+        yaml_filename = "ion/agents/platform/test/platform-network-1.yml"
+        log.debug("retrieving network definition from %s", yaml_filename)
+        network_definition = NetworkUtil.deserialize_network_definition(file(yaml_filename))
+        return network_definition
+
     def _run_startup_commands(self, recursion=True):
         self._ping_agent()
         self._initialize(recursion)
         self._go_active(recursion)
         self._run(recursion)
+
+    def _go_inactive(self, recursion=True):
+        """
+        Temporary more permissive _go_inactive while we handle more internal
+        coordination with instruments.
+        """
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        state = self._get_state()
+        if state == PlatformAgentState.INACTIVE:
+            return retval
+        else:
+            log.warn("Expecting INACTIVE but got: %s", state)
 
     def _run_shutdown_commands(self, recursion=True):
         """
