@@ -280,10 +280,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.instModel_id = self.IMS.create_instrument_model(instModel_obj)
         log.debug('new InstrumentModel id = %s ', self.instModel_id)
 
-        # Use the network definition provided by RSN OMS directly.
-        rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
-        self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
-        CIOMSClientFactory.destroy_instance(rsn_oms)
+        self._network_definition = self._get_network_definition()
 
         if log.isEnabledFor(logging.TRACE):
             # show serialized version for the network definition:
@@ -332,6 +329,19 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         # see _set_receive_timeout
         self._receive_timeout = 177
+
+    def _get_network_definition(self):
+        """
+        Called by setUp to get the network definition to be used.
+        In this base class, this is retrieved from the OMS. Subclasses can
+        build the network definition from other sources a needed.
+        @return NetworkDefinition object
+        """
+        log.debug("retrieving network definition from OMS")
+        rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
+        network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
+        CIOMSClientFactory.destroy_instance(rsn_oms)
+        return network_definition
 
     def _set_receive_timeout(self):
         """
