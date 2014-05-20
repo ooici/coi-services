@@ -4,11 +4,15 @@
 @file ion/processes/data/upload/upload_calibration_processing.py
 '''
 
-from pyon.public import OT, RT
+from pyon.public import OT, RT, PRED
 from pyon.core.exception import BadRequest
 from pyon.ion.process import ImmediateProcess
 from pyon.event.event import EventPublisher
 from pyon.util.log import log
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.util.time_utils import TimeUtils
+from coverage_model import ConstantOverTime
 import time
 import re
 import os
@@ -37,6 +41,7 @@ class UploadCalibrationProcessing(ImmediateProcess):
         self.object_store = self.container.object_store
         self.resource_registry = self.container.resource_registry
         self.event_publisher = EventPublisher(OT.ResetQCEvent)
+        self.data_product_management = DataProductManagementServiceProcessClient(process=self)
         self.create_map()
 
         # run process
@@ -65,17 +70,19 @@ class UploadCalibrationProcessing(ImmediateProcess):
         self.property_map = {}
 
         for instrument_device in self.resource_registry.find_resources(restype=RT.InstrumentDevice)[0]:
-            print instrument_device.name
-            print instrument_device.ooi_property_number
             if instrument_device.ooi_property_number:
                 self.property_map[instrument_device.ooi_property_number] = self.data_products_for_device(instrument_device)
 
     def data_products_for_device(self, device):
-        return ['dp0', 'dp1']
+        data_products, _ = self.resource_registry.find_objects(device, PRED.hasOutputProduct, id_only=True)
+        return data_products
+
+    def dataset_for_data_product(self, data_product):
+        datasets, _ = self.resource_registry.find_objects(data_product, PRED.hasDataset, id_only=True)
+        return datasets[0]
 
     def do_something_with_the_update(self, updates):
-        for property_no, entry in updates.iteritems():
-            print "Property Number:", property_no
+        for property_no, calibration_update in updates.iteritems():
             # Check to see if we even have an instrument with this property number
             if property_no not in self.property_map:
                 continue
@@ -86,15 +93,53 @@ class UploadCalibrationProcessing(ImmediateProcess):
             #  - There is a set of parameters that match those in the calibration
 
             for data_product in data_products:
-                print "Data Product Update:", data_product
-                self.update_data_product(data_product, entry)
+                self.update_data_product(data_product, calibration_update)
 
-    def update_data_product(self, data_product, entry):
-        print "Updating", data_product
-        for cal_name, entries in entry.iteritems():
-            print "    Calibration:", cal_name
-            for entry in entries:
-                print " " * 8 + str(entry['value'])
+    def update_data_product(self, data_product, calibration_update):
+        parameters = [p.name for p in self.data_product_management.get_data_product_parameters(data_product)]
+
+        dataset_updates = []
+        for cal_name in calibration_update.iterkeys():
+            if cal_name in parameters:
+                dataset_id = self.dataset_for_data_product(data_product)
+                dataset_updates.append(dataset_id)
+
+
+        for dataset in dataset_updates:
+            self.apply_to_dataset(dataset, calibration_update)
+
+    def apply_to_dataset(self, dataset, calibration_update):
+        cov = DatasetManagementService._get_coverage(dataset, mode='r+')
+        try:
+            self.set_sparse_values(cov, calibration_update)
+            self.publish_calibration_event(dataset, calibration_update.keys())
+
+        finally:
+            cov.close()
+
+    def set_sparse_values(self, cov, calibration_update):
+        for calibration_name, updates in calibration_update.iteritems():
+            if calibration_name not in cov.list_parameters():
+                continue
+
+            for update in updates:
+                np_dict = {}
+                self.check_units(cov, calibration_name, update['units'])
+                start_date = self.ntp_from_iso(update['start_date'])
+                np_dict[calibration_name] = ConstantOverTime(calibration_name, update['value'], time_start=start_date)
+
+                cov.set_parameter_values(np_dict)
+
+
+    def check_units(self, cov, calibration_name, units):
+        pass
+
+    def publish_calibration_event(self, dataset, calibrations):
+        publisher = EventPublisher(OT.DatasetCalibrationEvent)
+        publisher.publish_event(origin=dataset, calibrations=calibrations)
+
+    def ntp_from_iso(self, iso):
+        return TimeUtils.ntp_from_iso(iso)
 
     def process_csv(self, fuc):
 

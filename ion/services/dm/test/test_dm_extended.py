@@ -1509,8 +1509,45 @@ def rotate_v(u,v,theta):
     def test_cal_stuff(self):
         testapp = TestApp(service_gateway_app)
         data_product_id = self.make_instrument_data_product()
+        parameter = ParameterContext(name='cc_a0',
+                                     display_name='Calibration a0',
+                                     description='Calibration for a0',
+                                     value_encoding='float32',
+                                     parameter_type='sparse')
+        parameter_id = self.dataset_management.create_parameter(parameter)
+        self.data_product_management.add_parameter_to_data_product(parameter_id, data_product_id)
+
+
+        verified = Event()
+        event_subscriber = EventSubscriber(event_type=OT.DatasetCalibrationEvent, callback=lambda *args, **kwargs : verified.set(), auto_delete=True)
+        event_subscriber.start()
+        self.addCleanup(event_subscriber.stop)
+
 
         upload_files = [('file', 'test_data/sample_calibrations.csv')]
         result = testapp.post('/ion-service/upload/calibration', upload_files=upload_files, status=200)
-        breakpoint(locals(), globals())
+        python_dict = result.json
+        self.assertIn('fuc_id', python_dict['data']['GatewayResponse'])
+
+        self.assertTrue(verified.wait(10))
+
+
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        feb1 = calendar.timegm(datetime(2014,2,1).timetuple()) + 2208988800
+        rdt['time'] = np.arange(feb1, feb1+20)
+        rdt['temp'] = np.arange(20)
+
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+
+        dataset_id = self.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)[0][0]
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(granule)
+
+        np.testing.assert_allclose(rdt_out['time'], rdt['time'])
+        np.testing.assert_allclose(rdt_out['temp'], rdt['temp'])
+        np.testing.assert_allclose(rdt_out['cc_a0'], np.array([1.13e2] * 20))
+
 

@@ -57,7 +57,13 @@ class TimeUtils(object):
             return calendar.timegm(dtg.timetuple())
         else:
             raise TypeError('Unknown time units')
-        
+
+    @classmethod
+    def ntp_from_iso(cls, iso_str):
+        dtg = dateutil.parser.parse(iso_str)
+        unix_ts = calendar.timegm(dtg.timetuple())
+        ntp_ts = unix_ts + 2208988800
+        return ntp_ts
 
 
     @classmethod
