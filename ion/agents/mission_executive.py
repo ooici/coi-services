@@ -532,7 +532,7 @@ class MissionScheduler(object):
             # For event driven missions, stop event subscribers
             for subscriber in self.mission_event_subscribers:
                 subscriber.stop()
-            self.mission_event_subscribers = None
+            self.mission_event_subscribers = []
 
             # Start abort sequence
             for instrument, client in self.instruments.iteritems():
@@ -582,7 +582,7 @@ class MissionScheduler(object):
 
         log.error('[mm] Mission thread aborted')
 
-    def _check_mission_complete(self):
+    def _check_mission_running(self):
         """
         This method checks all mission threads and if complete, stop any event subscribers
         and publish event
@@ -590,16 +590,16 @@ class MissionScheduler(object):
 
         for thread in self.mission_threads:
             if thread['status'] != MissionThreadStatus.DONE:
-                return False
+                return True
 
         # For event driven missions, stop event subscribers
         for subscriber in self.mission_event_subscribers:
             subscriber.stop()
-        self.mission_event_subscribers = None
+        self.mission_event_subscribers = []
 
-        log.debug('[mm] Mission completed successfully!')
+        log.debug('[mm] Mission completed!')
 
-        self._publish_mission_complete_event(self.mission_id)
+        return False
 
     def _schedule(self, missions):
         """
@@ -785,7 +785,7 @@ class MissionScheduler(object):
             if instrument_id not in self.instruments:
                 continue
             ia_client = self.instruments[instrument_id]
-            self._check_preconditions(ia_client)
+            # self._check_preconditions(ia_client)
 
         # First execute premission if necessary
         if mission['premission_cmds']:
@@ -833,6 +833,8 @@ class MissionScheduler(object):
 
             if error_code == MissionErrorCode.ABORT_MISSION_THREAD:
                 self._abort_mission_thread(instrument_ids)
+                if not self._check_mission_running():
+                    self._publish_mission_aborted_event(self.mission_id)
 
             elif error_code == MissionErrorCode.ABORT_MISSION:
                 self.abort_mission()
@@ -849,6 +851,8 @@ class MissionScheduler(object):
                 if error_code == MissionErrorCode.ABORT_MISSION_THREAD:
                     self._publish_mission_thread_failed_event(str(current_mission_thread))
                     self._abort_mission_thread(instrument_ids)
+                    if not self._check_mission_running():
+                        self._publish_mission_aborted_event(self.mission_id)
 
                 elif error_code == MissionErrorCode.ABORT_MISSION:
                     self._publish_mission_thread_failed_event(str(current_mission_thread))
@@ -856,10 +860,12 @@ class MissionScheduler(object):
 
                 else:
                     self._publish_mission_thread_complete_event(str(current_mission_thread))
-                    self._check_mission_complete()
+                    if not self._check_mission_running():
+                        self._publish_mission_complete_event(self.mission_id)
             else:
                 self._publish_mission_thread_complete_event(str(current_mission_thread))
-                self._check_mission_complete()
+                if not self._check_mission_running():
+                    self._publish_mission_complete_event(self.mission_id)
 
     def _run_event_driven_mission(self, mission):
         """
@@ -887,7 +893,7 @@ class MissionScheduler(object):
             if instrument_id not in self.instruments:
                 continue
             ia_client = self.instruments[instrument_id]
-            self._check_preconditions(ia_client)
+            # self._check_preconditions(ia_client)
 
         # Execute premission
         if mission['premission_cmds']:
@@ -942,19 +948,23 @@ class MissionScheduler(object):
                         self._publish_mission_thread_failed_event(str(current_mission_thread))
                         self.mission_event_subscribers[mission_event_id].stop()
                         self._abort_mission_thread(instrument_ids)
+                        if not self._check_mission_running():
+                            self._publish_mission_aborted_event(self.mission_id)
 
                     elif error_code == MissionErrorCode.ABORT_MISSION:
                         self._publish_mission_thread_failed_event(str(current_mission_thread))
                         self.abort_mission()
 
-                    else:
-                        # self._publish_mission_thread_complete_event(str(current_mission_thread))
-                        self._check_mission_complete()
+                    elif not self._check_mission_running():
+                            self._publish_mission_thread_complete_event(str(current_mission_thread))
+                            self._publish_mission_complete_event(self.mission_id)
 
         if error_code:
             if error_code == MissionErrorCode.ABORT_MISSION_THREAD:
                 self._publish_mission_thread_failed_event(str(current_mission_thread))
                 self._abort_mission_thread(instrument_ids)
+                if not self._check_mission_running():
+                    self._publish_mission_aborted_event(self.mission_id)
 
             elif error_code == MissionErrorCode.ABORT_MISSION:
                 self._publish_mission_thread_failed_event(str(current_mission_thread))

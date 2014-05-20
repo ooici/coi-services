@@ -13,7 +13,10 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_command_state
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_streaming_state
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_multiple_missions
-
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_ports_on_off
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_mission_abort
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_mission_multiple_instruments
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_event_driven_mission
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
@@ -256,10 +259,44 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
 
     def test_simple_mission_ports_on_off(self):
         #
-        # With mission plan to be started in COMMAND state.
+        # Test TURN_ON_PORT and TURN_OFF_PORT
+        # Mission plan to be started in COMMAND state.
         #
         self._test_simple_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator_ports.yml",
+            in_command_state=True,
+            max_wait=200 + 300)
+
+    def test_mission_abort(self):
+        #
+        # Intentially invalid mission file
+        # Mission plan to be started in COMMAND state.
+        #
+        self._test_simple_mission(
+            ['SBE37_SIM_02'],
+            "ion/agents/platform/test/mission_RSN_simulator_abort.yml",
+            in_command_state=True,
+            max_wait=200 + 300)
+
+    def test_mission_multiple_instruments(self):
+        #
+        # Multiple instruments example
+        # Mission plan to be started in COMMAND state.
+        #
+        self._test_simple_mission(
+            ['SBE37_SIM_02', 'SBE37_SIM_03'],
+            "ion/agents/platform/test/mission_RSN_simulator_multiple_threads.yml",
+            in_command_state=True,
+            max_wait=200 + 300)
+
+    def test_simple_event_driven_mission(self):
+        #
+        # Event driven mission example
+        # Mission plan to be started in COMMAND state.
+        #
+        self._test_simple_mission(
+            ['SBE37_SIM_02'],
+            "ion/agents/platform/test/mission_RSN_simulator_event.yml",
             in_command_state=True,
             max_wait=200 + 300)
