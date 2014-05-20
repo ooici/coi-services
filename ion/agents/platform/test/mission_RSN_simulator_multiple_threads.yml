@@ -1,0 +1,71 @@
+#
+# Example RSN platform simulator mission to demonstrate multiple mission
+# threads for multiple instruments. Two CTD simulators execute the same mission
+# simultaneously.
+#
+# In this case, mission to be started by platform in COMMAND state.
+#
+
+name: OMS Simulator Mission
+version: 0.4
+description: Sample OMS Simulator Mission
+
+platform:
+  platformID: LJ01D
+
+mission:
+  - missionThread:
+    instrumentID: [SBE37_SIM_02]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:
+      startTime: 05/01/2014 00:00:00
+      loop:
+        quantity: 1
+        value: 3
+        units: mins
+      event:
+        parentID: 
+        eventID: 
+    preMissionSequence:
+      - command: SBE37_SIM_02, set_resource(INTERVAL{1})
+        onError: retry
+    missionSequence:
+      - command: SBE37_SIM_02, execute_resource(START_AUTOSAMPLE)
+        onError: retry
+      - command: wait(0.2)
+        onError:
+      - command: SBE37_SIM_02, execute_resource(STOP_AUTOSAMPLE)
+        onError: retry
+    postMissionSequence:
+      - command: SBE37_SIM_02, execute_agent(RESET)
+        onError: retry
+
+  - missionThread:
+    instrumentID: [SBE37_SIM_03]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:
+      startTime: 05/01/2014 00:00:00
+      loop:
+        quantity: 1
+        value: 3
+        units: mins
+      event:
+        parentID: 
+        eventID: 
+    preMissionSequence:
+      - command: SBE37_SIM_03, set_resource(INTERVAL{1})
+        onError: retry
+    missionSequence:
+      - command: SBE37_SIM_03, execute_resource(START_AUTOSAMPLE)
+        onError: retry
+      - command: wait(0.2)
+        onError:
+      - command: SBE37_SIM_03, execute_resource(STOP_AUTOSAMPLE)
+        onError: retry
+    postMissionSequence:
+      - command: SBE37_SIM_03, execute_agent(RESET)
+        onError: retry

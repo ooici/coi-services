@@ -1,6 +1,7 @@
 #
-# Based on mission_RSN_simulator1.yml, but includes TURN_ON_PORT/TURN_OFF_PORT
-# commands.
+# Simple event driven mission using RSN platform simulator
+# SBE37_SIM_03 will perform its mission once the STOP_AUTOSAMPLE command
+# is given to SBE37_SIM_02 in the main scheduler based mission
 #
 # In this case, mission to be started by platform in COMMAND state.
 #
@@ -14,7 +15,7 @@ platform:
 
 mission:
   - missionThread:
-    instrumentID: [LJ01D SBE37_SIM_02]
+    instrumentID: [SBE37_SIM_02]
     errorHandling:
       default: retry
       maxRetries: 3
@@ -28,8 +29,6 @@ mission:
         parentID: 
         eventID: 
     preMissionSequence:
-      - command: LJ01D, execute_resource(TURN_ON_PORT{SBE37_SIM_02})
-        onError: abort
       - command: SBE37_SIM_02, set_resource(INTERVAL{3})
         onError: retry
     missionSequence:
@@ -42,5 +41,27 @@ mission:
     postMissionSequence:
       - command: SBE37_SIM_02, execute_agent(RESET)
         onError: retry
-      - command: LJ01D, execute_resource(TURN_OFF_PORT{SBE37_SIM_02})
+
+  - missionThread:
+    instrumentID: [SBE37_SIM_03]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:
+      startTime: 
+      loop:
+        quantity:
+        value:
+        units:
+      event:
+        parentID: SBE37_SIM_02
+        eventID: STOP_AUTOSAMPLE
+    preMissionSequence:
+      - command: SBE37_SIM_02, set_resource(INTERVAL{1})
+        onError: retry
+    missionSequence:
+      - command: SBE37_SIM_02, execute_resource(ACQUIRE_SAMPLE)
+        onError: retry
+    postMissionSequence:
+      - command: SBE37_SIM_02, execute_agent(RESET)
         onError: retry
