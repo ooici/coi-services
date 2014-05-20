@@ -46,3 +46,4 @@ coverage_results
 *.cov
 tags
 *.DS_Store
+dsadriver
