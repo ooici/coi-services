@@ -35,6 +35,38 @@ import unittest
 @attr('UNIT', group='sa')
 class Test(IonUnitTestCase):
 
+    def test_create_node_network(self):
+
+        # small valid map:
+        plat_map = [('R', ''), ('a', 'R'), ]
+        pnodes = NetworkUtil.create_node_network(plat_map)
+        for p, q in plat_map: self.assertTrue(p in pnodes and q in pnodes)
+
+        # duplicate 'a' but valid (same parent)
+        plat_map = [('R', ''), ('a', 'R'), ('a', 'R')]
+        NetworkUtil.create_node_network(plat_map)
+        for p, q in plat_map: self.assertTrue(p in pnodes and q in pnodes)
+
+        with self.assertRaises(PlatformDefinitionException):
+            # invalid empty map
+            plat_map = []
+            NetworkUtil.create_node_network(plat_map)
+
+        with self.assertRaises(PlatformDefinitionException):
+            # no dummy root (id = '')
+            plat_map = [('R', 'x')]
+            NetworkUtil.create_node_network(plat_map)
+
+        with self.assertRaises(PlatformDefinitionException):
+            # multiple regular roots
+            plat_map = [('R1', ''), ('R2', ''), ]
+            NetworkUtil.create_node_network(plat_map)
+
+        with self.assertRaises(PlatformDefinitionException):
+            # duplicate 'a' but invalid (diff parents)
+            plat_map = [('R', ''), ('a', 'R'), ('a', 'x')]
+            NetworkUtil.create_node_network(plat_map)
+
     def test_serialization_deserialization(self):
         # create NetworkDefinition object by de-serializing the simulated network:
         ndef = NetworkUtil.deserialize_network_definition(
