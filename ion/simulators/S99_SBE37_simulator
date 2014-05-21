@@ -17,17 +17,17 @@ start() {
    su simulator -c "git pull"
    
    echo $"Starting SBE37 simulator 1: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4001 &>> simulator.1.log; sleep 60; w | Mail -s 'sim 4001 died' wbollenbacher@ucsd.edu ; done" &
+   su simulator -c "while [ true ] ; do python2.7 -u SBE37_SMP_simulator.py --port=4001 &>> simulator.1.log; sleep 60; w | Mail -s 'sim 4001 died' wbollenbacher@ucsd.edu ; done" &
    echo $"Starting SBE37 simulator 2: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4002 --class SBE37_sine &>> simulator.2.log; sleep 60; w | Mail -s 'sim 4002 died' wbollenbacher@ucsd.edu ; done" &
+   su simulator -c "while [ true ] ; do python2.7 -u SBE37_SMP_simulator.py --port=4002 --class SBE37_sine &>> simulator.2.log; sleep 60; w | Mail -s 'sim 4002 died' wbollenbacher@ucsd.edu ; done" &
    echo $"Starting SBE37 simulator 3: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4003 --class SBE37_sine &>> simulator.3.log; sleep 60; w | Mail -s 'sim 4003 died' wbollenbacher@ucsd.edu ; done" &
+   su simulator -c "while [ true ] ; do python2.7 -u SBE37_SMP_simulator.py --port=4003 --class SBE37_sine &>> simulator.3.log; sleep 60; w | Mail -s 'sim 4003 died' wbollenbacher@ucsd.edu ; done" &
    echo $"Starting SBE37 simulator 4: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4004 --class SBE37_sine &>> simulator.4.log; sleep 60; w | Mail -s 'sim 4004 died' wbollenbacher@ucsd.edu ; done" &
+   su simulator -c "while [ true ] ; do python2.7 -u SBE37_SMP_simulator.py --port=4004 --class SBE37_sine &>> simulator.4.log; sleep 60; w | Mail -s 'sim 4004 died' wbollenbacher@ucsd.edu ; done" &
    echo $"Starting SBE37 simulator 5: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4005 --class SBE37_sine &>> simulator.5.log; sleep 60; w | Mail -s 'sim 4005 died' wbollenbacher@ucsd.edu ; done" &
+   su simulator -c "while [ true ] ; do python2.7 -u SBE37_SMP_simulator.py --port=4005 --class SBE37_sine &>> simulator.5.log; sleep 60; w | Mail -s 'sim 4005 died' wbollenbacher@ucsd.edu ; done" &
    echo $"Starting SBE37 simulator 6: "
-   su simulator -c "while [ true ] ; do python2.7 SBE37_SMP_simulator.py --port=4006 &>> simulator.6.log; sleep 60; w | Mail -s 'sim 4006 died' wbollenbacher@ucsd.edu ; done" &
+   su simulator -c "while [ true ] ; do python2.7 -u SBE37_SMP_simulator.py --port=4006 &>> simulator.6.log; sleep 60; w | Mail -s 'sim 4006 died' wbollenbacher@ucsd.edu ; done" &
 
    sleep 10
    su simulator -c "ps aux | grep python" 
