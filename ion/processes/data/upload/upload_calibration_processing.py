@@ -45,7 +45,8 @@ class UploadCalibrationProcessing(ImmediateProcess):
         self.create_map()
 
         # run process
-        self.process(fuc_id)
+        if fuc_id:
+            self.process(fuc_id)
 
         # cleanup
         self.event_publisher.close()

@@ -72,7 +72,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.coverage_version = 'UNSET'
         dataset_id, rev = self.clients.resource_registry.create(dataset)
         try:
-
             if dataset.coverage_type == CoverageTypeEnum.SIMPLEX:
                 cov = self._create_coverage(dataset_id, dataset.description or dataset_id, parameter_dict)
                 self._save_coverage(cov)
@@ -122,11 +121,13 @@ class DatasetManagementService(BaseDatasetManagementService):
     def read_dataset(self, dataset_id=''):
         retval = self.clients.resource_registry.read(dataset_id)
         validate_is_instance(retval,Dataset)
+        retval.parameter_dictionary = self.numpy_walk(retval.parameter_dictionary)
         return retval
 
     def update_dataset(self, dataset=None):
         if not (dataset and dataset._id):
             raise BadRequest('%s: Dataset either not provided or malformed.' % self.logging_name)
+        dataset.parameter_dictionary = self.numpy_walk(dataset.parameter_dictionary)
         self.clients.resource_registry.update(dataset)
         #@todo: Check to make sure retval is boolean
         log.debug('DM:update dataset: dataset_id: %s', dataset._id)
@@ -227,8 +228,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         """
 
         context = self.get_coverage_parameter(parameter_context)
-        parameter_context.parameter_context = context.dump()
-        parameter_context = self.numpy_walk(parameter_context)
+        parameter_context.parameter_context = self.numpy_walk(context.dump())
         parameter_context_id, _ = self.clients.resource_registry.create(parameter_context)
         if parameter_context.parameter_function_id:
             self.read_parameter_function(parameter_context.parameter_function_id)

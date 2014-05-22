@@ -1550,4 +1550,108 @@ def rotate_v(u,v,theta):
         np.testing.assert_allclose(rdt_out['temp'], rdt['temp'])
         np.testing.assert_allclose(rdt_out['cc_a0'], np.array([1.13e2] * 20))
 
+    def make_calibration_params(self, data_product_id):
 
+        parameter_functions = DotDict({
+            'identity' : {
+                'function_type' : PFT.NUMEXPR,
+                'function' : 'x',
+                'args':['x']
+            }
+        })
+
+        for pf_name, pf in parameter_functions.iteritems():
+            parameter_function = ParameterFunction(name=pf_name, **pf)
+            parameter_function_id = self.dataset_management.create_parameter_function(parameter_function)
+            parameter_functions[pf_name]['_id'] = parameter_function_id
+
+
+
+        parameters = DotDict({
+            'tempwat_pd_cal' : {
+                'parameter_type':'sparse',
+                'value_encoding' : 'float32',
+                'display_name' : 'Temperature Calibration',
+                'description' : 'Post-Deployment Calibration',
+                'fill_value' : 'nan',
+                'units' : '1'
+            },
+            'tempwat_pr_cal' : {
+                'parameter_type' : 'sparse',
+                'value_encoding' : 'float32',
+                'display_name' : 'Temperature Calibration',
+                'description' : 'Post-Recovery Calibration',
+                'fill_value' : 'nan',
+                'units' : '1'
+            },
+            'tempwat_pd_start' : {
+                'parameter_type' : 'sparse',
+                'value_encoding' : 'float64',
+                'display_name' : 'Post-Deployment Start Date',
+                'description' : 'Start Date for the Post-Deployment Calibrations',
+                'units' : 'seconds since 1900-01-01'
+            },
+            'tempwat_pd_end' : { 
+                'parameter_type' : 'sparse',
+                'value_encoding' : 'float64',
+                'display_name' : 'Post-Deployment End Date',
+                'description' : 'End Date for the Post-Deployment Calibrations',
+                'units' : 'seconds since 1900-01-01',
+            },
+            'tempat_l1b_pd' : {
+                'display_name':'TEMPWAT L1b PD',
+                'description' : 'TEMPWAT L1b Post-Deployment (Calibrated)',
+                'parameter_type' : 'function',
+                'parameter_function_id' : parameter_functions.identity._id,
+                'units':'1',
+                'value_encoding':'float32',
+                'parameter_function_map':{
+                    'x' : 'temp'
+                }
+            },
+            'tempwat_l1b_pr' : {
+                'display_name' : 'TEMPWAT L1b PR',
+                'description' : 'TEMPWAT L1b Post-Recovery (Calibrated)',
+                'parameter_type':'function',
+                'parameter_function_id' : parameter_functions.identity._id,
+                'units':'1',
+                'value_encoding':'float32',
+                'parameter_function_map':{
+                    'x' : 'temp'
+                }
+            },
+            'tempwat_l1b_interp' : {
+                'display_name' : 'TEMPWAT L1b Interpolated',
+                'description' : 'TEMPWAT L1b Interpolated',
+                'parameter_type' : 'function',
+                'parameter_function_id' : parameter_functions.identity._id,
+                'units' : '1',
+                'value_encoding' : 'float32',
+                'parameter_function_map' : {
+                    'x' : 'temp'
+                }
+            }
+
+        })
+
+        for param_name, param_def in parameters.iteritems():
+            param = ParameterContext(name=param_name, **param_def)
+            param_id = self.dataset_management.create_parameter(param)
+            self.data_product_management.add_parameter_to_data_product(param_id, data_product_id)
+
+    @attr("UTIL")
+    def test_secondary_cals(self):
+        data_product_id = self.make_instrument_data_product()
+        self.make_calibration_params(data_product_id)
+
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        ntp_now = time.time() + 2208988800
+        rdt['time'] = np.arange(ntp_now, ntp_now+20)
+        rdt['temp'] = np.arange(20)
+        self.ph.publish_rdt_to_data_product(data_product_id,rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        self.preload_ui()
+        self.launch_ui_facepage(data_product_id)
+        breakpoint(locals(), globals())

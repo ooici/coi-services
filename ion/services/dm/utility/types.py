@@ -492,7 +492,10 @@ class TypesManager(object):
             raise TypeError('Unsupported Constant Range Type: %s' % groups[2])
 
     def get_sparse_type(self, parameter_type, encoding):
-        return SparseConstantType(value_encoding=encoding)
+        if encoding:
+            return SparseConstantType(value_encoding=encoding)
+        else:
+            return SparseConstantType()
 
 
     def get_record_type(self):
