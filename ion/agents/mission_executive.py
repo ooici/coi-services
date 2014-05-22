@@ -8,24 +8,18 @@
 # import yaml
 import calendar
 import gevent
-from gevent.event import AsyncResult
 import yaml
 import time
 from time import gmtime
 
-from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.common import BaseEnum
 from pyon.event.event import EventSubscriber
 from pyon.public import log
-from pyon.util.breakpoint import breakpoint
 from pyon.util.config import Config
 
-from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
-from ion.agents.platform.platform_agent_enums import PlatformAgentState
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
-
 from ion.core.includes.mi import DriverEvent
 
 from interface.objects import AgentCommand
@@ -260,6 +254,7 @@ class MissionLoader(object):
         """
         Check the mission commands and parameters for duration
         """
+
         mission_duration = 0
         mission_params = []
 
@@ -278,9 +273,18 @@ class MissionLoader(object):
             if ',' in command:
                 # Instrument ID is explicitly stated
                 instrument, command = command.strip().split(',')
+                if instrument not in instrument_id:
+                    log.warn('[mm] instrument_id not recognized from instrumentID list: %s', instrument)
             else:
-                if len(instrument_id) == 1:
+                #First quick check for a wait command
+                cmd_method, rest = command.strip().split('(')
+                if cmd_method.lower() == 'wait':
+                    instrument = None
+                elif len(instrument_id) == 1:
                     instrument = instrument_id[0]
+                else:
+                    log.error('[mm] instrument_id not given in command: %s', command)
+                    raise Exception('Error in mission command string: instrument_id not specified in command: %s', command)
 
             # self.verify_command_and_params(command, params)
             if '(' in command and ')' in command:
@@ -628,7 +632,7 @@ class MissionScheduler(object):
         """
         Send agent command
         @param agent_client         Instrument/platform agent client
-        @param cmd                  Mission command to be parsed
+        @param cmd                  Mission command
         """
 
         method = cmd['method']
@@ -637,70 +641,68 @@ class MissionScheduler(object):
 
         log.debug('[mm] Send mission command =  %s - %s', method, command)
 
-        # Check that the method is legitimate
-        # if method not in res_iface and method != 'wait':
-        #     log.error('Mission Error: Method ' + method + ' not recognized')
-        #     raise Exception('Mission Error: Method ' + method + ' not recognized')
-
-        # Check that the command is legitimate
-        if agent_client is None:
-            # This indicates platform agent command
-            # RSN_PLATFORM_DRIVER_TURN_ON_PORT
-            if command in RSNPlatformDriverEvent.__dict__.keys():
-                if parameters in self.instruments:
-                    # Parameter must be the instrument id of the port to toggle
-                    self.platform_agent._plat_driver._fsm.on_event(getattr(RSNPlatformDriverEvent, command), instrument_id=parameters)
-                else:
-                    log.error('[mm] Mission Error: Instrument %s not recognized', parameters)
-                    raise Exception('Mission Error: Instrument %s not recognized', parameters)
-            else:
-                log.error('[mm] Mission Error: Command %s not recognized', command)
-                raise Exception('Mission Error: Command %s not recognized', command)
-            return
-
-        retval = agent_client.get_capabilities()
-        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = self._sort_capabilities(retval)
-
-        if command in ResourceAgentEvent.__dict__.keys():
-            cmd = AgentCommand(command=getattr(ResourceAgentEvent, command))
-            reply = getattr(agent_client, method)(cmd)
-
-        elif command in DriverEvent.__dict__.keys():
-            cmd = AgentCommand(command=getattr(DriverEvent, command))
-            reply = getattr(agent_client, method)(cmd)
-
-        elif command in RSNPlatformDriverEvent.__dict__.keys():
-            cmd = AgentCommand(command=getattr(RSNPlatformDriverEvent, command), kwargs=dict(port_id=parameters))
-            reply = getattr(agent_client, method)(cmd)
-
-        elif command in res_pars:
-            # Set parameters - check parameter first, then set if necessary
-            reply = getattr(agent_client, 'get_resource')(command)
-            log.debug('[mm] %s = %s', command, str(reply[command]))
-
-            if parameters and parameters != reply[command]:
-                parameters = float(parameters) if '.' in parameters else int(parameters)
-                getattr(agent_client, method)({command: parameters})
-                reply = getattr(agent_client, 'get_resource')(command)
-                log.debug('[mm] %s = %s', command, str(reply[command]))
-
-                if parameters != reply[command]:
-                    log.error('[mm] Mission Error: Parameter ' + parameters + ' not set')
-                    raise Exception('Mission Error: Parameter ' + parameters + ' not set')
-
-        elif command == 'wait':
+        # Three types of commands: wait, platform cmd, and instrument cmd
+        if command == 'wait':
             wait_duration = parameters * 60
             now = time.time()
             wait_end = now + wait_duration
             while (time.time() < wait_end and not self.mission_aborted):
                 gevent.sleep(1)
 
-        else:
-            log.error('[mm] Mission Error: Command %s not recognized', command)
-            raise Exception('Mission Error: Command %s not recognized', command)
+        elif agent_client is None:
+            # This indicates platform agent command
+            if command in RSNPlatformDriverEvent.__dict__.keys():
+                if parameters in self.instruments:
+                    # Parameter must be the instrument id of the port to toggle
+                    parameters = 'SBE37_SIM_02'
+                    kwargs = dict(instrument_id=parameters)
+                    cmd = AgentCommand(command=getattr(RSNPlatformDriverEvent, command), kwargs=kwargs)
+                    reply = getattr(self.platform_agent, method)(command=cmd)
+                else:
+                    log.error('[mm] Mission Error: Instrument %s not recognized', parameters)
+                    raise Exception('Mission Error: Instrument %s not recognized', parameters)
+            else:
+                log.error('[mm] Mission Error: Command %s not recognized', command)
+                raise Exception('Mission Error: Command %s not recognized', command)
 
-        state = agent_client.get_agent_state()
-        log.debug('[mm] Agent State = %s', state)
+        else:
+            # This indicates instrument agent command
+            retval = agent_client.get_capabilities()
+            agt_cmds, agt_pars, res_cmds, res_iface, res_pars = self._sort_capabilities(retval)
+
+            if command in ResourceAgentEvent.__dict__.keys():
+                cmd = AgentCommand(command=getattr(ResourceAgentEvent, command))
+                reply = getattr(agent_client, method)(cmd)
+
+            elif command in DriverEvent.__dict__.keys():
+                cmd = AgentCommand(command=getattr(DriverEvent, command))
+                reply = getattr(agent_client, method)(cmd)
+
+            elif command in RSNPlatformDriverEvent.__dict__.keys():
+                cmd = AgentCommand(command=getattr(RSNPlatformDriverEvent, command), kwargs=dict(port_id=parameters))
+                reply = getattr(agent_client, method)(cmd)
+
+            elif command in res_pars:
+                # Set parameters - check parameter first, then set if necessary
+                reply = getattr(agent_client, 'get_resource')(command)
+                log.debug('[mm] %s = %s', command, str(reply[command]))
+
+                if parameters and parameters != reply[command]:
+                    parameters = float(parameters) if '.' in parameters else int(parameters)
+                    getattr(agent_client, method)({command: parameters})
+                    reply = getattr(agent_client, 'get_resource')(command)
+                    log.debug('[mm] %s = %s', command, str(reply[command]))
+
+                    if parameters != reply[command]:
+                        log.error('[mm] Mission Error: Parameter ' + parameters + ' not set')
+                        raise Exception('Mission Error: Parameter ' + parameters + ' not set')
+
+            else:
+                log.error('[mm] Mission Error: Command %s not recognized', command)
+                raise Exception('Mission Error: Command %s not recognized', command)
+
+            state = agent_client.get_agent_state()
+            log.debug('[mm] Agent State = %s', state)
 
     def _execute_mission_commands(self, mission_cmds):
         """
@@ -716,8 +718,8 @@ class MissionScheduler(object):
                 # This command is for a child instrument
                 ia_client = self.instruments[instrument_id]
 
-            elif instrument_id == self.platform_agent._platform_id:
-                # This command is for the parent platform agent
+            elif instrument_id == self.platform_agent._platform_id or instrument_id is None:
+                # This command is for the parent platform agent or a 'wait'
                 ia_client = None
 
             else:
@@ -744,7 +746,7 @@ class MissionScheduler(object):
                     self._send_command(ia_client, cmd)
                 except:
                     if error_handling == 'skip':
-                        log.debug('[mm] Mission command %s skipped on error', cmd['command'])
+                        log.warn('[mm] Mission command %s skipped on error', cmd['command'])
                         break
 
                     elif (error_handling == 'abort' or attempt >= self.max_attempts):
@@ -752,6 +754,11 @@ class MissionScheduler(object):
 
                     elif error_handling == 'abortMission':
                         return MissionErrorCode.ABORT_MISSION
+
+                    elif error_handling == 'retry':
+                        # Wait 5 seconds before retrying
+                        gevent.sleep(5)
+
                 else:
                     break
 
