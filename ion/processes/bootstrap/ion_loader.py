@@ -92,7 +92,7 @@ from coverage_model import NumexprFunction, PythonFunction, QuantityType, Parame
 
 from interface import objects
 from interface.objects import StreamAlertType, PortTypeEnum, StreamConfigurationType, ParameterFunction as ParameterFunctionResource
-from interface.objects import DataProcessDefinition, DataProcessTypeEnum, StreamConfiguration
+from interface.objects import DataProcessDefinition, DataProcessTypeEnum, StreamConfiguration, StreamDefinition, DataProduct, DataProductTypeEnum
 
 from ooi.timer import Accumulator, Timer
 stats = Accumulator(persist=True)
@@ -1649,11 +1649,17 @@ class IONLoader(ImmediateProcess):
     def _load_PlatformSite(self, row):
         constraints = self._get_constraints(row, type='PlatformSite')
         coordinate_name = row['coordinate_system']
+        coordinate_reference_system = self.resource_ids[coordinate_name] if coordinate_name else None
+        # Get StreamConfiguration objects by the ID in stream_configurations row
+        stream_configurations = []
+        if "stream_configurations" in row and row['stream_configurations']:
+            stream_configurations = map(lambda x: self.stream_config[x], row['stream_configurations'].split(","))
 
         res_id = self._basic_resource_create(row, "PlatformSite", "ps/",
             "observatory_management", "create_platform_site",
             constraints=constraints, constraint_field='constraint_list',
-            set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None,
+            set_attributes=dict(coordinate_reference_system=coordinate_reference_system,
+                                stream_configurations=stream_configurations),
             support_bulk=True)
 
         if self.bulk:
@@ -1819,11 +1825,17 @@ class IONLoader(ImmediateProcess):
     def _load_InstrumentSite(self, row):
         constraints = self._get_constraints(row, type='InstrumentSite')
         coordinate_name = row['coordinate_system']
+        coordinate_reference_system = self.resource_ids[coordinate_name] if coordinate_name else None
+        # Get StreamConfiguration objects by the ID in stream_configurations row
+        stream_configurations = []
+        if "stream_configurations" in row and row['stream_configurations']:
+            stream_configurations = map(lambda x: self.stream_config[x], row['stream_configurations'].split(","))
 
         res_id = self._basic_resource_create(row, "InstrumentSite", "is/",
             "observatory_management", "create_instrument_site",
             constraints=constraints, constraint_field='constraint_list',
-            set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None,
+            set_attributes=dict(coordinate_reference_system=coordinate_reference_system,
+                                stream_configurations=stream_configurations),
             support_bulk=True)
 
         if self.bulk:
@@ -3305,7 +3317,8 @@ Reason: %s
             pdef_aliases = [aid[4:] for aid in pdef.alt_ids if aid.startswith("PRE:")]
             if len(pdef_aliases) < 1:
                 # Case: generated QC/CC parameter - has not PRE id. But we fetched it before and registered it
-                mapping.setdefault(pdict.name, []).append(pdef._id)
+                if hasattr(pdef, "_id"):
+                    mapping.setdefault(pdict.name, []).append(pdef._id)
             else:
                 # Case: human defined parameter with PRE id
                 pdef_alias = pdef_aliases[0]
@@ -3449,6 +3462,7 @@ Reason: %s
             else:
                 log.warn("Could not determine temporal constraint for %s", node_id)
 
+            # Create Platform Device Products for each Stream in an AgentDefinition
             platres_obj = self._get_resource_obj(node_id + "_PD", silent=True)
             agent_id, agent_obj = self._get_agent_definition(ooi_rd)
 
@@ -3500,6 +3514,44 @@ Reason: %s
                         log.debug(" ...generated DataProduct %s level %s: %s", newrow['dp/name'], newrow['dp/processing_level_code'], newrow[COL_ID])
                     elif self.ooiupdate:
                         update_data_product(dp_id, newrow, const_id1, const_id2)
+
+        # Iterate over objects and find Platform and Instrument Sites and
+        # setup SideDataProduct rows based on their stream_configurations column
+        newrows = []
+        for obj in self.resource_objs.values():
+            if obj.type_ in [RT.PlatformSite, RT.InstrumentSite]:
+                if hasattr(obj, "stream_configurations") and obj.stream_configurations:
+                    for index, scfg in enumerate(obj.stream_configurations):
+                        sdp_id = obj._id + "_SDP" + str(index)
+                        newrow = {}
+                        newrow[COL_ID] = sdp_id
+                        newrow['dp/name'] = "SiteDataProduct %s on site '%s' with stream '%s'" % (sdp_id, obj._id, scfg.stream_name)
+                        newrow['dp/description'] = "SiteDataProduct %s on site '%s' with stream '%s'" % (sdp_id, obj._id, scfg.stream_name)
+                        newrow['dp/ooi_product_name'] = ""
+                        newrow['dp/processing_level_code'] = "N/A"
+                        newrow['dp/quality_control_level'] = "N/A"
+                        newrow['dp/category'] = DataProductTypeEnum._str_map[DataProductTypeEnum.SITE]
+                        newrow['org_ids'] = ""
+                        newrow['contact_ids'] = ""
+                        newrow['geo_constraint_id'] = ""
+                        newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
+                        newrow['parent'] = ''
+                        newrow['default_stream_configuration'] = scfg
+                        newrow['persist_data'] = 'True'
+                        newrow['lcstate'] = "DEPLOYED_AVAILABLE"
+                        newrows.append((obj._id, newrow))
+
+        # Create the SiteDataProducts (outside of the resource loop)
+        for site_id, newrow in newrows:
+            scfg = newrow['default_stream_configuration']
+            pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
+            strdef_id = self._create_dp_stream_def(newrow[COL_ID], pdict_id, scfg.stream_name)
+            newrow['stream_def_id'] = strdef_id
+            if not self._resource_exists(newrow[COL_ID]):
+                self._load_DataProduct(newrow, do_bulk=False)
+                new_obj_id = self._get_resource_id(newrow[COL_ID])
+                self._create_association(site_id, PRED.hasOutputProduct, new_obj_id)
+                log.debug(" ...generated SiteDataProduct %s: %s", newrow['dp/name'], newrow[COL_ID])
 
         # ---------------------------------------------------------------------
         # II. Instruments: Generate data products (raw, parsed, engineering, derived science L0, L1, L2)
@@ -3858,6 +3910,7 @@ Reason: %s
         self._resource_advance_lcs(row, deployment_id)
 
         if get_typed_value(row['activate'], targettype="bool"):
+            log.info("Activating deployment: %s" % deployment_id)
             oms.activate_deployment(deployment_id, headers=headers)
 
 
