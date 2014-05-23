@@ -91,9 +91,11 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def delete_association(self, association=''):
         return self.resource_registry.delete_association(association=association)
 
-    def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False, limit=0, skip=0, descending=False):
-        return self.resource_registry.find_associations(subject=subject, predicate=predicate,
-            object=object, assoc_type=assoc_type, id_only=id_only, limit=limit, skip=skip, descending=descending)
+    def find_associations(self, subject='', predicate='', object='', assoc_type=None, id_only=False,
+                          anyside='', limit=0, skip=0, descending=False):
+        return self.resource_registry.find_associations(subject=subject, predicate=predicate, object=object,
+                                                        assoc_type=assoc_type, id_only=id_only, anyside=anyside,
+                                                        limit=limit, skip=skip, descending=descending)
 
     def get_association(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
         return self.resource_registry.get_association(subject=subject, predicate=predicate,
@@ -129,12 +131,12 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.find_resources(restype=restype, lcstate=lcstate, name=name, id_only=id_only)
 
     def find_resources_ext(self, restype='', lcstate='', name='', keyword='', nested_type='', attr_name='', attr_value='',
-                           alt_id='', alt_id_ns='', limit=0, skip=0, descending=False, id_only=False):
+                           alt_id='', alt_id_ns='', limit=0, skip=0, descending=False, id_only=False, query=None):
         return self.resource_registry.find_resources_ext(restype=restype, lcstate=lcstate, name=name,
             keyword=keyword, nested_type=nested_type, attr_name=attr_name, attr_value=attr_value,
             alt_id=alt_id, alt_id_ns=alt_id_ns,
             limit=limit, skip=skip, descending=descending,
-            id_only=id_only)
+            id_only=id_only, query=query)
 
 
     # -------------------------------------------------------------------------

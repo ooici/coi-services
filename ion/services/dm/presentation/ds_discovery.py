@@ -12,7 +12,9 @@ import pprint
 from pyon.datastore.datastore import DataStore
 from pyon.datastore.datastore_query import DatastoreQueryBuilder, DQ
 from pyon.ion.resource import create_access_args
-from pyon.public import PRED, CFG, RT, log, BadRequest, get_ion_actor_id
+from pyon.public import PRED, CFG, RT, log, BadRequest, get_ion_actor_id, ResourceQuery, EventQuery
+
+from interface.objects import View
 
 DATASTORE_MAP = {"resources_index": DataStore.DS_RESOURCES,
                  "data_products_index": DataStore.DS_RESOURCES,
@@ -28,6 +30,7 @@ COL_MAP = {"_all": DQ.RA_NAME,
            "_id": DQ.ATT_ID,
            "type_": DQ.ATT_TYPE,
            "lcstate": DQ.RA_LCSTATE,
+           "availability": DQ.RA_AVAILABILITY,
            "ts_created": DQ.RA_TS_CREATED,
            "ts_updated": DQ.RA_TS_UPDATED,
            "origin": DQ.EA_ORIGIN,
@@ -54,22 +57,34 @@ class DatastoreDiscovery(object):
                            self._qmatcher_geo_vert,
                           ]
 
-    def execute_query(self, discovery_query, id_only=True):
+    def execute_query(self, discovery_query, id_only=True, query_args=None, query_params=None):
         try:
             if "QUERYEXP" in discovery_query:
-                ds_query, ds_name = discovery_query, discovery_query["query_exp"].get("datastore", DataStore.DS_RESOURCES)
+                ds_query, ds_name = discovery_query, discovery_query["query_args"].get("datastore", DataStore.DS_RESOURCES)
             else:
                 log.info("DatastoreDiscovery.execute_query(): discovery_query=\n%s", pprint.pformat(discovery_query))
                 ds_query, ds_name = self._build_ds_query(discovery_query, id_only=id_only)
+
+            current_actor_id=get_ion_actor_id(self.process)
+            ds_query.setdefault("query_params", {})
+            if query_params:
+                ds_query["query_params"].update(query_params)
+            ds_query["query_params"]["current_actor"] = current_actor_id
+
             log.debug("DatastoreDiscovery.execute_query(): ds_query=\n%s", pprint.pformat(ds_query))
 
             ds = self._get_datastore(ds_name)
-            access_args = create_access_args(current_actor_id=get_ion_actor_id(self.process),
+            access_args = create_access_args(current_actor_id=current_actor_id,
                                              superuser_actor_ids=self.container.resource_registry.get_superuser_actors())
-            res = ds.find_by_query(ds_query, access_args=access_args)
-            log.info("Datastore discovery query resulted in %s rows", len(res))
+            query_results = ds.find_by_query(ds_query, access_args=access_args)
+            log.info("Datastore discovery query resulted in %s rows", len(query_results))
 
-            return res
+            if query_args and query_args.get("query_info", False):
+                query_info = dict(_query_info=True, query=ds_query, access_args=access_args, ds_name=ds_name)
+                query_info.update(ds_query.get("_result", {}))
+                query_results.append(query_info)
+
+            return query_results
         except Exception as ex:
             log.exception("DatastoreDiscovery.execute_query() failed")
         return []
@@ -287,10 +302,21 @@ class DatastoreDiscovery(object):
         else:
             return qb.overlaps_range(geom_col, vertical_bounds.get("from", 0), vertical_bounds.get("to", 0))
 
-
-    # TODO
-    # Site containment (simple: name contains)
-    # Reference designator (altids?)
-    # Organization (simple: name contains)
-    # Status?
-    # Type Event?
+    def get_builtin_view(self, view_name):
+        view_obj = View(name=view_name)
+        if view_name == "resources_index":
+            rq = ResourceQuery()
+            view_obj.view_definition = rq.get_query()
+            return view_obj
+        elif view_name == "data_products_index":
+            rq = ResourceQuery()
+            rq.set_filter(rq.filter_type(["DataProduct", "DataProcess", "Deployment", "InstrumentDevice", "InstrumentModel",
+                            "InstrumentAgentInstance", "InstrumentAgent", "PlatformDevice", "PlatformModel",
+                            "PlatformAgentInstance", "PlatformAgent", "PlatformSite", "Observatory", "UserRole",
+                            "Org", "Attachment", "ExternalDatasetAgent", "ExternalDatasetAgentInstance"]))
+            view_obj.view_definition = rq.get_query()
+            return view_obj
+        elif view_name == "events_index":
+            eq = EventQuery()
+            view_obj.view_definition = eq.get_query()
+            return view_obj
