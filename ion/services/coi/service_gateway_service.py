@@ -356,25 +356,27 @@ def process_oms_event():
         log.debug('ServiceGatewayService:process_oms_event request.data:  %s', json_params)
 
     #validate payload
-    if 'platform_id' not in json_params or 'message' not in json_params:
-        log.warning('Invalid OMS event format. payload_data: %s', json_params)
+    for k in ['event_id', 'platform_id', 'message']:
+        if k not in json_params:
+            log.warning('process_oms_event: invalid OMS event payload: %r missing. '
+                        'Received payload: %s', k, json_params)
         #return gateway_json_response(OMS_BAD_REQUEST_RESPONSE)
 
-    #prepare the event information
+    # relay OMS event into the system as DeviceEvent
+    evt = dict(
+        event_type     = 'OMSDeviceStatusEvent',
+        origin_type    = 'OMS Platform',
+        origin         = json_params.get('platform_id', 'platform_id NOT PROVIDED'),
+        sub_type       = json_params.get('event_id', 'event_id NOT PROVIDED'),
+        description    = json_params.get('message', ''),
+        status_details = json_params)
     try:
-        #create a publisher to relay OMS events into the system as DeviceEvents
         event_publisher = EventPublisher()
+        event_publisher.publish_event(**evt)
+        log.debug('process_oms_event: published: %s', evt)
 
-        event_publisher.publish_event(
-            event_type='OMSDeviceStatusEvent',
-            origin_type='OMS Platform',
-            origin=json_params.get('platform_id', 'NOT PROVIDED'),
-            sub_type='',
-            description = json_params.get('message', ''),
-            status_details = json_params)
-    except Exception, e:
-        log.error('Could not publish OMS  event: %s. Event data: %s', e.message, json_params)
-
+    except Exception as e:
+        log.exception('process_oms_event: could not publish OMS event: %s', evt)
 
     return gateway_json_response(OMS_ACCEPTED_RESPONSE)
 
