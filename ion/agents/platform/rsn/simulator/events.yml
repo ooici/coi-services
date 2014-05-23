@@ -1,0 +1,14 @@
+#
+# Some fake events published by the RSN OMS simulator.
+# See EventGenerator in oms_events.py
+#
+- event_id: OMS_EVENT_ID_A
+  platform_id: LJ01D
+- event_id: OMS_EVENT_ID_B
+  platform_id: LJ01D
+- event_id: OMS_EVENT_ID_C
+  platform_id: LJ01D
+- event_id: OMS_EVENT_ID_D
+  platform_id: LJ01D
+- event_id: OMS_EVENT_ID_E
+  platform_id: LJ01D
