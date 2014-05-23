@@ -139,10 +139,22 @@ class EventGenerator(object):
     Simple helper to generate and trigger event notifications.
     """
 
-    def __init__(self, notifier):
+    def __init__(self, notifier, events_filename=None):
         self._notifier = notifier
+
+        self._events = None
+        if events_filename:
+            try:
+                with open(events_filename, 'r') as f:
+                    log.info('loading events from: %s', events_filename)
+                    pyobj = yaml.load(f)
+                    self._events = [dict(obj) for obj in pyobj]
+            except Exception as ex:
+                log.warn('could not load events from %s. Continuing with '
+                         'hard-coded event', events_filename)
+
         self._keep_running = True
-        self._index = 0  # in EventInfo.EVENT_TYPES
+        self._index = 0  # in EventInfo.EVENT_TYPES or self._events
 
         # self._runnable set depending on whether we're under pyon or not
         if 'pyon' in sys.modules:
@@ -156,19 +168,35 @@ class EventGenerator(object):
             log.debug("!!!! EventGenerator: pyon not detected: using Thread")
 
     def generate_and_notify_event(self):
-        if self._index >= len(EventInfo.EVENT_TYPES):
-            self._index = 0
+        if self._events:
+            if self._index >= len(self._events):
+                self._index = 0
 
-        event_type = EventInfo.EVENT_TYPES.values()[self._index]
-        self._index += 1
+            event = self._events[self._index]
+            self._index += 1
 
-        platform_id = "TODO_some_platform_id"
-        message = "%s (synthetic event generated from simulator)" % event_type['name']
-        group = event_type['group']
+            event_id    = event['event_id']
+            platform_id = event['platform_id']
+            message     = event.get('message', "%s's message" % event_id)
+            group       = event.get('group', '')
+            severity    = event.get('severity', 3)
+
+        else:
+            if self._index >= len(EventInfo.EVENT_TYPES):
+                self._index = 0
+            event_type = EventInfo.EVENT_TYPES.values()[self._index]
+            self._index += 1
+
+            event_id    = "TODO_some_event_id"
+            platform_id = "TODO_some_platform_id"
+            message = "%s (synthetic event generated from simulator)" % event_type['name']
+            group = event_type['group']
+            severity = event_type['severity']
+
         timestamp = ntplib.system_to_ntp_time(time.time())
         first_time_timestamp = timestamp
-        severity = event_type['severity']
         event_instance = {
+            'event_id':              event_id,
             'message':               message,
             'platform_id':           platform_id,
             'timestamp':             timestamp,
@@ -258,6 +286,7 @@ $ bin/python  ion/agents/platform/rsn/simulator/oms_events.py listener
 localhost:8000: listening for event notifications...
 
 TERMINAL 2:
+$ bin/python  ion/agents/platform/rsn/simulator/oms_events.py notifier
 oms_simulator: setting log level to: logging.WARN
 registered listener to event_type='ALL'
 generating events for 15 seconds ...

@@ -844,8 +844,11 @@ class TestPlatformAgent(BaseIntTestPlatform):
         # verify reception of the external event:
         log.info("waiting for external event notification... (timeout=%s)", self._receive_timeout)
         async_event_result.get(timeout=self._receive_timeout)
-        self.assertEquals(len(events_received), 1)
-        log.info("external events received: (%d): %s", len(events_received), events_received)
+        self.assertGreaterEqual(len(events_received), 1)
+        event_received = events_received[0]
+        log.info("external events received: %s", event_received)
+        self.assertIn('event_id', event_received.status_details)
+        self.assertIn('platform_id', event_received.status_details)
 
     def test_connect_disconnect_instrument(self):
         self._create_network_and_start_root_platform()

@@ -59,7 +59,8 @@ class CIOMSSimulator(CIOMSClient):
         """
         cls._raise_exception = False
 
-    def __init__(self, yaml_filename='ion/agents/platform/rsn/simulator/network.yml'):
+    def __init__(self, yaml_filename='ion/agents/platform/rsn/simulator/network.yml',
+                 events_filename='ion/agents/platform/rsn/simulator/events.yml'):
         self._ndef = NetworkUtil.deserialize_network_definition(file(yaml_filename))
         self._platform_types = self._ndef.platform_types
         self._pnodes = self._ndef.pnodes
@@ -72,10 +73,11 @@ class CIOMSSimulator(CIOMSClient):
         self._event_notifier = EventNotifier()
         # EventGenerator only kept while there are listeners registered
         self._event_generator = None
+        self._events_filename = events_filename
 
     def _start_event_generator_if_listeners(self):
         if not self._event_generator and len(self._reg_event_listeners):
-            self._event_generator = EventGenerator(self._event_notifier)
+            self._event_generator = EventGenerator(self._event_notifier, self._events_filename)
             self._event_generator.start()
             log.debug("event generator started (%s listeners registered)",
                       len(self._reg_event_listeners))
