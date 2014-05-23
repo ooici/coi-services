@@ -33,6 +33,7 @@ from ion.agents.platform.platform_agent_enums import ResourceInterfaceCapability
 from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
+from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
@@ -831,7 +832,9 @@ class PlatformAgent(ResourceAgent):
         try:
             module = __import__(driver_module, fromlist=[driver_class])
             classobj = getattr(module, driver_class)
-            driver = classobj(self._pnode, self.evt_recv)
+            driver = classobj(self._pnode, self.evt_recv,
+                              self._create_event_subscriber,
+                              self._destroy_event_subscriber)
 
         except Exception as e:
             msg = '%r: could not import/construct driver: module=%r, class=%r' % (
@@ -909,6 +912,10 @@ class PlatformAgent(ResourceAgent):
             self._asp.handle_attribute_value_event(driver_event)
             return
 
+        if isinstance(driver_event, ExternalEventDriverEvent):
+            self._handle_external_event_driver_event(driver_event)
+            return
+
         if isinstance(driver_event, StateChangeDriverEvent):
             self._async_driver_event_state_change(driver_event.state)
             return
@@ -951,6 +958,21 @@ class PlatformAgent(ResourceAgent):
                           self._platform_id, stream_name, param_name, value)
                 self._aam.process_alerts(stream_name=stream_name,
                                          value=value, value_id=param_name)
+
+    def _handle_external_event_driver_event(self, driver_event):
+        """
+        Dispatches any needed handling arising from the external the event.
+        At the moment it only notifies the mission manager for any handling
+        there.
+        """
+        # TODO any additional handling
+
+        evt = driver_event.event_instance
+
+        log.debug("%r: handling external platform event: %s", self._platform_id, evt)
+
+        if self._mission_manager:
+            self._mission_manager.external_event_received(evt)
 
     def _async_driver_event_agent_event(self, event):
         """
