@@ -881,7 +881,8 @@ class OOILoader(object):
             inst_rd = OOIReferenceDesignator(inst_id)
             # Parse override date if available or set to SAF date
             inst_obj['SAF_deploy_date'] = self._parse_date(inst_obj.get('First Deployment Date', None), DEFAULT_MAX_DATE)
-            inst_obj['deploy_date'] = inst_obj['SAF_deploy_date']
+            #inst_obj['deploy_date'] = inst_obj['SAF_deploy_date']
+            inst_obj['deploy_date'] = node_objs[inst_rd.node_rd]['deploy_date']
 
             # Set instrument connection info based on node platform agent connection and instrument agent
             series_obj = series_objs[inst_rd.series_rd]

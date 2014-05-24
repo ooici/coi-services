@@ -329,6 +329,9 @@ class IONLoader(ImmediateProcess):
             self.parseooi = config.get("parseooi", False)
             self.ooiupdate = config.get("ooiupdate", False)      # Support update to existing OOI generated resources
             self.ooirename = config.get("ooirename", True)       # Support update of names for existing OOI resources
+            self.ooifilter = config.get("ooifilter", None)       # Comma separated list of RD prefixes
+            if self.ooifilter:
+                self.ooifilter = self.ooifilter.split(",")
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
 
@@ -839,6 +842,14 @@ class IONLoader(ImmediateProcess):
             return False
         else:
             return True
+
+    def _in_filter(self, rdstr):
+        if not self.ooifilter:
+            return True
+        for fi in self.ooifilter:
+            if rdstr.startswith(fi):
+                return True
+        return False
 
     def _is_deployed(self, ooi_obj):
         deploy_date = ooi_obj.get("deploy_date", None)
@@ -2466,6 +2477,8 @@ Reason: %s
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         node_objs = self.ooi_loader.get_type_assets("node")
         class_objs = self.ooi_loader.get_type_assets("class")
+        series_objs = self.ooi_loader.get_type_assets("series")
+        makemodel_objs = self.ooi_loader.get_type_assets("makemodel")
 
         for ooi_id, inst_obj in inst_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(ooi_id)
@@ -2485,7 +2498,15 @@ Reason: %s
             else:
                 serial = "changeme_%s.001" % (ooi_id)
                 serial = serial.lower()
-            newrow['id/name'] = "%s serial# %s" % (class_objs[ooi_rd.inst_class]['alt_name'], serial)
+
+            series_obj = series_objs[ooi_rd.series_rd]
+            makemodel_obj = makemodel_objs[series_obj['makemodel']] if series_obj.get('makemodel', None) else None
+            if makemodel_obj:
+                instname = "%s %s" % (makemodel_obj['Manufacturer'], makemodel_obj['name'])
+            else:
+                instname = class_objs[ooi_rd.inst_class]['alt_name']
+            newrow['id/name'] = "%s (%s-%s) serial# %s" % (instname,
+                                                           ooi_rd.inst_class, ooi_rd.inst_series, serial)
             newrow['id/description'] = "Instrument device first deployed to %s" % ooi_id
             newrow['id/serial_number'] = serial
             newrow['id/reference_urls'] = ''
@@ -3438,6 +3459,8 @@ Reason: %s
 
             if not self._before_cutoff(node_obj):
                 continue
+            if not self._in_filter(node_id):
+                continue
 
             const_id1, const_id2 = '', ''
             if node_id + "_const1" in self.constraint_defs:
@@ -3512,6 +3535,8 @@ Reason: %s
             platform_obj = node_objs[node_obj['platform_id']]
 
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
+                continue
+            if not self._in_filter(inst_id):
                 continue
 
             const_id1, const_id2 = '', ''
@@ -3593,8 +3618,9 @@ Reason: %s
                             log.debug("No data product for %s:%s - dataset agent not enabled", inst_id, scfg.stream_name)
                             continue
                     else:
-                        if not series_obj.get("ia_exists", False) or not agent_id in instagent_objs or not instagent_objs[agent_id]["active"]:
-                            log.debug("No data product for %s:%s - instrument agent not enabled", inst_id, scfg.stream_name)
+                        # agent_id for IA has IA_ prefix, but row IDs in instagent_objs don't have this prefix
+                        if not series_obj.get("ia_exists", False) or agent_id[3:] not in instagent_objs or not instagent_objs[agent_id[3:]]["active"]:
+                            log.debug("No data product for %s:%s - instrument agent not defined or enabled", inst_id, scfg.stream_name)
                             continue
 
                     if not self._resource_exists(dp_id):
