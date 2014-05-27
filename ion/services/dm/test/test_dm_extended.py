@@ -1652,6 +1652,13 @@ def rotate_v(u,v,theta):
         self.ph.publish_rdt_to_data_product(data_product_id,rdt)
         self.assertTrue(dataset_monitor.wait())
 
+        from ion.services.dm.utility.secondary_calibrations import SecondaryCalibrations
+        sc = SecondaryCalibrations(self.data_product_management, self.dataset_management)
+        sc.add_post_deployment(data_product_id, 'conductivity')
+        sc.add_post_recovery(data_product_id, 'conductivity')
+        sc.add_post_interpolated(data_product_id, 'conductivity')
+
         self.preload_ui()
         self.launch_ui_facepage(data_product_id)
         breakpoint(locals(), globals())
+        
