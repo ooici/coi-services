@@ -68,6 +68,7 @@ class OOILoader(object):
                        'MAP:Subsites',
                        'MAP:NodeType',
                        'MAP:Nodes',
+                       'MAP:Instruments',
                        'MAP:PlatformAgents',
                        'MAP:Series',
                        'MAP:InstAgents',
@@ -465,6 +466,7 @@ class OOILoader(object):
                                    name, None, None, **coord_dict)
 
     def _parse_Nodes(self, row):
+        """Asset mappings override for SAF nodes"""
         if row.get('Ignore', None) == "Yes":
             return
         ooi_rd = row['Reference ID']
@@ -481,10 +483,11 @@ class OOILoader(object):
             self_port=row['Self Port'],
             uplink_node=row['Uplink Node'],
             uplink_port=row['Uplink Port'],
-            deployment_start=row['Start Deployment Cruise'],
+            deployment_start=row['Start Deployment Cruise'],  # The column type is date. We get it as yyyy-mm-dd
+            clone_rd=row.get('Clone', None),
             in_mapping=True,
         )
-        if row['Push'] == "Yes":  # Make it break if run with an outdated preload sheet!!
+        if row['Push'] == "Yes" and not row.get('Clone', None):  # Make it break if run with an outdated preload sheet!!
             node_entry["deployment_start"] = "2019-01-01"   # This pushes the node out in deploy date (different from unset)
 
         self._add_object_attribute('node',
@@ -520,6 +523,34 @@ class OOILoader(object):
             code, None, None, name=name, change_ok=True)
         self._add_object_attribute('nodetype',
             code, None, None, pa_code=pa_code, platform_family=platform_family, platform_type=platform_type, comp_name=comp_name)
+
+    def _parse_Instruments(self, row):
+        """Asset mappings override for SAF instruments (reference designators)"""
+        if row.get('Ignore', None) == "Yes":
+            return
+        ooi_rd = row['Reference ID']
+        entry = dict(
+            deployment_start=row['First Deploy Date'],  # Column data type is date. Parsed in yyyy-mm-dd
+            clone_rd=row.get('Clone', None),
+        )
+        if row['Push'] == "Yes":
+            entry["deployment_start"] = "2019-02-01"
+
+        self._add_object_attribute('instrument',
+            ooi_rd, None, None, **entry)
+
+        entry = {}
+        if row["lat"] or row["lon"] or row["depth_min"] or row["depth_max"]:
+            if row["lat"]:
+                entry["latitude"] = row["lat"]
+            if row["lon"]:
+                entry["longitude"] = row["lon"]
+            if row["depth_min"]:
+                entry["depth_port_min"] = row["depth_min"]
+            if row["depth_max"]:
+                entry["depth_port_max"] = row["depth_max"]
+            self._add_object_attribute('instrument',
+                ooi_rd, None, None, change_ok=True, **entry)
 
     def _parse_PlatformAgents(self, row):
         code = row['Code']
@@ -881,8 +912,7 @@ class OOILoader(object):
             inst_rd = OOIReferenceDesignator(inst_id)
             # Parse override date if available or set to SAF date
             inst_obj['SAF_deploy_date'] = self._parse_date(inst_obj.get('First Deployment Date', None), DEFAULT_MAX_DATE)
-            #inst_obj['deploy_date'] = inst_obj['SAF_deploy_date']
-            inst_obj['deploy_date'] = node_objs[inst_rd.node_rd]['deploy_date']
+            inst_obj['deploy_date'] = self._parse_date(inst_obj.get('deployment_start', None), inst_obj['SAF_deploy_date'])
 
             # Set instrument connection info based on node platform agent connection and instrument agent
             series_obj = series_objs[inst_rd.series_rd]
@@ -897,6 +927,65 @@ class OOILoader(object):
             inst_obj['longitude'] = inst_obj['longitude'] or node_obj['longitude']
             inst_obj['depth_port_min'] = inst_obj['depth_port_min'] or node_obj['depth_subsite'].split(",", 1)[0]
             inst_obj['depth_port_max'] = inst_obj['depth_port_max'] or node_obj['depth_subsite'].split(",", 1)[-1]
+
+        # Create SAF node clones with all instruments
+        new_nodes, new_insts = [], []
+        for node_id, node_obj in node_objs.iteritems():
+            clone_rdstr = node_obj.get("clone_rd", None)
+            if not clone_rdstr:
+                continue
+            node_rd = OOIReferenceDesignator(node_id)
+            # The parent clone object is already in the node list because of the assetmappings row
+            clone_obj = node_objs.get(clone_rdstr, None)
+            if not clone_obj:
+                log.warn("Node %s: clone node %s not found!", node_id, clone_rdstr)
+                continue
+            log.info("Cloning node %s from %s, recursively", node_id, clone_rdstr)
+            # Set attributes from clone unless already present
+            node_obj.update({k: v for k, v in clone_obj.iteritems() if not node_obj.get(k, None)})
+            # Recursively clone child devices
+            def clone_child(chdev):
+                if chdev in inst_objs:
+                    chdev_obj = inst_objs[chdev]
+                    clonech_obj = chdev_obj.copy()
+                    new_insts.append(clonech_obj)
+                elif chdev in node_objs:
+                    # chdev_obj = node_objs[chdev]
+                    # clonech_obj = chdev_obj.copy()
+                    # new_nodes.append(clonech_obj)
+                    raise BadRequest("Cannot clone platform with child nodes")
+                else:
+                    raise BadRequest("Child device not found: %s" % chdev)
+                # Build new child RD - not trivial
+                clonech_rdstr = "%s-%s" % (node_rd.node_rd, clonech_obj["id"][15:])
+                clonech_obj["id"] = clonech_rdstr
+                log.debug("Cloning %s into %s", chdev, clonech_rdstr)
+
+                # Recurse child devices
+                for chdev1 in self.child_devices.get(chdev, []):
+                    clone_child(chdev1)
+            for chdev in self.child_devices.get(clone_rdstr, []):
+                clone_child(chdev)
+
+        # Create SAF instrument clones
+        for inst_id, inst_obj in inst_objs.iteritems():
+            clone_rdstr = inst_obj.get("clone_rd", None)
+            if not clone_rdstr:
+                continue
+            inst_rd = OOIReferenceDesignator(inst_id)
+            # The clone object is already in the node list because of the assetmappings row
+            clone_obj = inst_objs.get(clone_rdstr, None)
+            if not clone_obj:
+                log.warn("Instrument %s: clone instrument %s not found!", inst_id, clone_rdstr)
+                continue
+            log.info("Cloning instrument %s from %s", inst_id, clone_rdstr)
+            inst_obj.update({k: v for k, v in clone_obj.iteritems() if not inst_obj.get(k, None)})
+
+        # Add clones to list of instruments
+        if new_nodes or new_insts:
+            node_objs.update({no["id"]: no for no in new_nodes})
+            inst_objs.update({io["id"]: io for io in new_insts})
+            self.child_devices = self._get_child_devices()
 
     def get_marine_io(self, ooi_rd_str):
         ooi_rd = OOIReferenceDesignator(ooi_rd_str)
