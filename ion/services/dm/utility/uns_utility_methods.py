@@ -519,3 +519,57 @@ def get_event_summary(event):
     #        elif event.description:
     #            summary = event.description
     return summary
+
+
+# TODO: get_notifications method for any or all users? have this "load" call grab all?
+# TODO: can we use resource_registry from util or must be passed in?
+def load_notifications(rr, notifications = None):
+    """
+    result is dict:
+        key: tuple(origin,origin_type,event_type,event_subtype), matches Event to NotificationRequest
+        value: set() containing tuple(notification,user_info)
+    """
+
+    current_datetime = get_ion_ts() # time when we're loading, used for expired notifications
+
+    if notifications is None:
+        notifications = {}
+
+    # all users
+    users, _ = rr.find_resources(restype=RT.UserInfo)
+
+    # subject: UserInfo
+    subjects = [u._id for u in users] # TODO can this be full user objects so association.s below is object?
+    # hasNotification associations only way to NotificationRequests, load all associations
+    objects, associations = rr.find_objects_mult(subjects=subjects, id_only=False)
+    # object: NotificationRequest
+    # association.p: hasNotification
+    # association.s: UserInfo
+    for object,association in zip(objects, associations):
+
+        if association.p == PRED.hasNotification:
+
+            # NotificationRequest disabled?
+            for delivery_configuration in object.delivery_configurations:
+                if delivery_configuration.frequency == OT.NotificationFrequencyEnum.DISABLED:
+                    continue
+
+            # NotificationRequest expired? (note this is relative to current time)
+            if int(object.temporal_bounds.end_datetime) < current_datetime:
+                continue
+
+            # create tuple key (origin,origin_type,event_type,event_subtype)
+            origin = object.origin
+            origin_type = object.origin_type
+            event_type = object.event_type
+            event_subtype = object.event_subtype
+            key = (origin,origin_type,event_type,event_subtype)
+
+            # store tuple by key containing set of (notification,user_info)
+            if key not in notifications:
+                notifications[key] = set()
+            value = (object,association.s) # TODO can this be full UserInfo object or just id? (same TODO above)
+            notifications[key].add(value)
+
+    return notifications
+

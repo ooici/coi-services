@@ -24,164 +24,100 @@ class NotificationWorker(TransformEventListener):
     Instances of this class acts as a Notification Worker.
     """
     def on_init(self):
-        self.user_info = {}
-        self.resource_registry = ResourceRegistryServiceClient()
-        self.q = gevent.queue.Queue()
+
+        # clients needed
+        self.resource_registry = ResourceRegistryServiceClient() # TODO proper way to do this now?
+
+        #TODO SMTP client
+        self.smtp_client = None #TODO
+        self.smtp_from = None # TODO CFG or hardcoded default?
 
         super(NotificationWorker, self).on_init()
 
-    def test_hook(self, user_info, reverse_user_info ):
-        '''
-        This method exists only to facilitate the testing of the reload of the user_info dictionary
-        '''
-        self.q.put((user_info, reverse_user_info))
-
     def on_start(self):
+
         super(NotificationWorker,self).on_start()
 
-        self.reverse_user_info = None
-        self.user_info = None
+        _load_notifications()
 
-        #------------------------------------------------------------------------------------
-        # Start by loading the user info and reverse user info dictionaries
-        #------------------------------------------------------------------------------------
-
-        try:
-            self.user_info = self.load_user_info()
-            self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
-
-            log.debug("On start up, notification workers loaded the following user_info dictionary: %s" % self.user_info)
-            log.debug("The calculated reverse user info: %s" % self.reverse_user_info )
-
-        except NotFound as exc:
-            if exc.message.find('users_index') > -1:
-                log.warning("Notification workers found on start up that users_index have not been loaded yet.")
-            else:
-                raise NotFound(exc.message)
-
-        #------------------------------------------------------------------------------------
-        # Create an event subscriber for Reload User Info events
-        #------------------------------------------------------------------------------------
-
-        def reload_user_info(event_msg, headers):
-            '''
-            Callback method for the subscriber to ReloadUserInfoEvent
-            '''
-
-            try:
-                self.user_info = self.load_user_info()
-            except NotFound:
-                log.warning("ElasticSearch has not yet loaded the user_index.")
-
-            self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
-            self.test_hook(self.user_info, self.reverse_user_info)
-
-            #log.debug("After a reload, the user_info: %s" % self.user_info)
-            #log.debug("The recalculated reverse_user_info: %s" % self.reverse_user_info)
-
-        # the subscriber for the ReloadUSerInfoEvent
+        # reload notifications (new subscriber, subscription deleted, notifications changed, etc)
+        # the subscriber for the ReloadUserInfoEvent
         self.reload_user_info_subscriber = EventSubscriber(
             event_type=OT.ReloadUserInfoEvent,
             origin='UserNotificationService',
-            callback=reload_user_info
+            callback=_load_notifications
         )
-
         self.add_endpoint(self.reload_user_info_subscriber)
-
 
         # the subscriber for the UserInfo resource update events
         self.userinfo_rsc_mod_subscriber = EventSubscriber(
             event_type=OT.ResourceModifiedEvent,
             sub_type="UPDATE",
             origin_type="UserInfo",
-            callback=reload_user_info
+            callback=_load_notifications
         )
-
         self.add_endpoint(self.userinfo_rsc_mod_subscriber)
 
     def process_event(self, msg, headers):
         """
-        Callback method for the subscriber listening for all events
+        callback for the subscriber listening for all events
         """
-        #------------------------------------------------------------------------------------
-        # From the reverse user info dict find out which users have subscribed to that event
-        #------------------------------------------------------------------------------------
 
-        user_ids = []
-        if self.reverse_user_info:
-            user_ids = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
+        # create tuple key (origin,origin_type,event_type,event_subtype) to match against known notifications
+        # TODO: make sure these are None if not present?
+        origin = msg.origin
+        origin_type = msg.origin_type
+        event_type = msg.type_
+        event_subtype = msg.sub_type
+        key = (origin,origin_type,event_type,event_subtype)
 
-            #log.debug('process_event  user_ids: %s', user_ids)
+        # users to notify with the notifications that have triggered the notification
+        users = {} # users to be notified
+        # loop the combinations of keys #TODO method for key_combinations (combinatorics)
+        for k in key_combinations(key):
+            for (notification, user) in self.notifications.get(k, []):
+                if user not in users:
+                    users[user] = []
+                users[user].append(notification)
+        # we now have a dict, keyed by users that will be notified, each has a list of notifications that match this event        
 
-            #log.debug("Notification worker found interested users %s" % user_ids)
-
-        #------------------------------------------------------------------------------------
-        # Send email to the users
-        #------------------------------------------------------------------------------------
-
-        for user_id in user_ids:
-            msg_recipient = self.user_info[user_id]['user_contact'].email
-            self.smtp_client = setting_up_smtp_client()
-            send_email(event=msg,
-                       msg_recipient=msg_recipient,
-                       smtp_client=self.smtp_client,
-                       rr_client=self.resource_registry)
-            self.smtp_client.quit()
-
-    def get_user_notifications(self, user_info_id=''):
-        """
-        Get the notification request objects that are subscribed to by the user
-
-        @param user_info_id str
-
-        @retval notifications list of NotificationRequest objects
-        """
-        notifications = []
-        user_notif_req_objs, _ = self.resource_registry.find_objects(
-            subject=user_info_id, predicate=PRED.hasNotification, object_type=RT.NotificationRequest, id_only=False)
-
-        #log.debug("get_user_notifications Got %s notifications, for the user: %s", len(user_notif_req_objs), user_info_id)
-
-        for notif in user_notif_req_objs:
-            # do not include notifications that have expired
-            if notif.temporal_bounds.end_datetime == '':
-                notifications.append(notif)
-
-        return notifications
-
-    def load_user_info(self):
-        '''
-        Method to load the user info dictionary used by the notification workers and the UNS
-
-        @retval user_info dict
-        '''
-
-        users, _ = self.resource_registry.find_resources(restype= RT.UserInfo)
-
-        user_info = {}
-
-        if not users:
-            return {}
-
+        # send email
         for user in users:
-            notifications_disabled = False
-            notifications_daily_digest = False
 
-            notifications = self.get_user_notifications(user_info_id=user)
+            # message from Jinja2 template (email or SMS) [we have the Event, the NotificationRequest and UserInfo]
+            msg = _to_mimetext(event, notification, user_info) #TODO: are these params avail? TODO: notification could be a list (is a list?)
 
-            for variable in user.variables:
-                if type(variable) is dict and variable.has_key('name'):
+            # who's getting the message?
+            smtp_to = user['user_contact'].email # TODO should we first look at or also send to the delivery_configurations.email?
+            msg['To'] = smtp_to
 
-                    if variable['name'] == 'notifications_daily_digest':
-                        notifications_daily_digest = variable['value']
+            # TODO: the 2nd parameter to sendmail below is array of 'TO addresses', this should be array of user email plus delivery_configurations.email?
+            try:
+                self.smtp_client.sendmail(self.smtp_from, [smtp_to], msg.as_string())
+            except: # Can be due to a broken connection... try to create a connection (TODO - is this a HACK?)
+                self.smtp_client = setting_up_smtp_client() # reconnect
+                log.debug("Connect again...message received after ehlo exchange: %s", str(smtp_client.ehlo()))
+                self.smtp_client.sendmail(self.smtp_from, [smtp_to], msg.as_string())
 
-                    if variable['name'] == 'notifications_disabled':
-                        notifications_disabled = variable['value']
-                else:
-                    log.warning('Invalid variables attribute on UserInfo instance. UserInfo: %s', user)
+            # TODO publish NotificationSentEvent (if successful?)
 
-            user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications,
-                                    'notifications_daily_digest' : notifications_daily_digest, 'notifications_disabled' : notifications_disabled}
+    def _to_mimetext(event, notification, user_info):
 
+        # TODO subject
+        subject = None
 
-        return user_info
+        # message from Jinja2 template (email or SMS) [we have the Event, the NotificationRequest and UserInfo]
+        body = None # Jinja2 this!
+
+        # TODO maybe move to utility
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = self.smtp_from
+        msg['To'] = msg_recipient
+
+        return msg
+
+    def _load_notifications(self):
+        """ local method so can be used as callback in EventSubscribers """
+        self.notifications = load_notifications() # from uns_utility_methods
+
