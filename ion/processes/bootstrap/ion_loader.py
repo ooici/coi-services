@@ -3593,8 +3593,9 @@ Reason: %s
                             log.debug("No data product for %s:%s - dataset agent not enabled", inst_id, scfg.stream_name)
                             continue
                     else:
-                        if not series_obj.get("ia_exists", False) or not agent_id in instagent_objs or not instagent_objs[agent_id]["active"]:
-                            log.debug("No data product for %s:%s - instrument agent not enabled", inst_id, scfg.stream_name)
+                        # agent_id for IA has IA_ prefix, but row IDs in instagent_objs don't have this prefix
+                        if not series_obj.get("ia_exists", False) or agent_id[3:] not in instagent_objs or not instagent_objs[agent_id[3:]]["active"]:
+                            log.debug("No data product for %s:%s - instrument agent not defined or enabled", inst_id, scfg.stream_name)
                             continue
 
                     if not self._resource_exists(dp_id):
