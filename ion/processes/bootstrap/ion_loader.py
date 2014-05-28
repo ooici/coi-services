@@ -3408,6 +3408,7 @@ Reason: %s
         instagent_objs = self.ooi_loader.get_type_assets("instagent")
         series_objs = self.ooi_loader.get_type_assets("series")
         data_products = self.ooi_loader.get_type_assets("data_product")
+        datalink_objs = self.ooi_loader.get_type_assets("datalink")
 
         def create_dp_link(dp_id, source_id="", res_type="", do_bulk=self.bulk):
             newrow = {}
@@ -3426,6 +3427,9 @@ Reason: %s
                 needupdate = True
             if res_obj.description != newrow['dp/description']:
                 res_obj.description = newrow['dp/description']
+                needupdate = True
+            if "dp/reference_urls" in newrow and newrow['dp/reference_urls'] and len(res_obj.reference_urls) != newrow['dp/reference_urls'].split(","):
+                res_obj.reference_urls = newrow['dp/reference_urls'].split(",")
                 needupdate = True
             # Update geospatial bounds if not yet set
             if const_id1 and (not res_obj.geospatial_bounds or not res_obj.geospatial_bounds.geospatial_latitude_limit_north):
@@ -3581,6 +3585,13 @@ Reason: %s
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
                         newrow['dp/quality_control_level'] = "a"
+
+                        flow_data = [v for k, v in datalink_objs.iteritems() if ooi_rd.series_rd.startswith(k)]
+                        if flow_data:
+                            flow_urls = []
+                            [flow_urls.extend(fd.get("Flow", [])) for fd in flow_data]
+                            newrow['dp/reference_urls'] = repr(flow_urls)
+
                         parsed_pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                         parsed_id = dp_id
                     else:
@@ -3686,6 +3697,8 @@ Reason: %s
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['parent'] = parsed_id
                 newrow['persist_data'] = 'False'
+                if dp_obj['code'] in datalink_objs:
+                    newrow['dp/reference_urls'] = repr(datalink_objs[dp_obj['code']].get("DPS", []))
 
                 if instres_obj and instres_obj.serial_number and not "changeme" in instres_obj.serial_number \
                         and not "serial#" in newrow['dp/name']:

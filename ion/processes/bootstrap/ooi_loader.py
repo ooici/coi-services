@@ -75,6 +75,7 @@ class OOILoader(object):
                        'MAP:DataAgents',
                        'MAP:AgentMap',
                        'MAP:ModelMap',
+                       'MAP:DPS',
         ]
 
         # Holds the object representations of parsed OOI assets by type
@@ -156,12 +157,8 @@ class OOILoader(object):
         The kwargs are static attributes"""
         if not objid:
             raise Exception("Empty ID")
-        if objtype not in self.ooi_objects:
-            self.ooi_objects[objtype] = {}
-        ot_objects = self.ooi_objects[objtype]
-        if objtype not in self.ooi_obj_attrs:
-            self.ooi_obj_attrs[objtype] = set()
-        ot_obj_attrs = self.ooi_obj_attrs[objtype]
+        ot_objects = self.ooi_objects.setdefault(objtype, {})
+        ot_obj_attrs = self.ooi_obj_attrs.setdefault(objtype, set())
 
         if objid not in ot_objects:
             ot_objects[objid] = dict(id=objid)
@@ -667,6 +664,17 @@ class OOILoader(object):
         self._add_object_attribute('modelmap',
                                    series, None, None,
                                    primary_series=row['Primary Series'])
+
+    def _parse_DPS(self, row):
+        code = row['Code']
+        ref_type=row['Ref Type']
+        document_name=row['Document Name']
+        variant=row['Variant']
+        if ref_type and code:
+            self._add_object_attribute('datalink',
+                                       code, ref_type, row['URL'], value_is_list=True)
+            self._add_object_attribute('datalink',
+                                       code, ref_type + "_doc", document_name, value_is_list=True)
 
     # ---- Post-processing and validation ----
 
