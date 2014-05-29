@@ -27,17 +27,17 @@ class NotificationSentScanner(object):
             if e.type_ not in NOTIFICATION_EVENTS:
                 continue
             user_id = e.user_id
-            notification_request_id = e.notification_request_id
-            notification_request_max = e.notification_request_max
+            notification_id = e.notification_id
+            notification_max = e.notification_max
             # initialize user_id if necessary
             if user_id not in self.counts:
-                self.counts[user_id] = Counter() # TODO:will Counter persist?
+                self.counts[user_id] = Counter() # TODO:will Counter persist in ObjectStore?
             # increment counts
             self.counts[user_id]['all'] += 1 # tracks total notifications by user
-            self.counts[user_id][notification_request_id] += 1
+            self.counts[user_id][notification_id] += 1
             # disable notifications if max_notifications reached
-            if self.counts[user_id][notification_request_id] >= notification_request_max:
-                _disable_notification_request(notification_request_id) #TODO
+            if self.counts[user_id][notification_id] >= notification_max:
+                _disable_notification(notification_id) #TODO implement _disable
 
     def _initalize_counts(self):
         """ initialize the volatile (memory only) counts """

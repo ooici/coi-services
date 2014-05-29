@@ -1,21 +1,17 @@
 #!/usr/bin/env python
 
 '''
-@package ion.processes.data.presentation
+@package ion.processes.data.transforms
 @file ion/processes/data/transforms/notification_worker.py
-@author Swarbhanu Chatterjee
-@brief NotificationWorker Class. An instance of this class acts as an notification worker.
+@author Brian McKenna <bmckenna@asascience.com>
+@brief NotificationWorker class processes real-time notifications
 '''
 
+from pyon.event.event import EventPublisher, EventSubscriber
 from pyon.public import log, RT, OT, PRED
-from pyon.util.async import spawn
-from pyon.core.exception import BadRequest, NotFound
 from ion.core.process.transform import TransformEventListener
-from pyon.event.event import EventSubscriber
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-import gevent, time
-from gevent import queue
+from jinja2 import Environment, FileSystemLoader
 
 class NotificationWorker(TransformEventListener):
     """
@@ -23,15 +19,17 @@ class NotificationWorker(TransformEventListener):
     """
     def on_init(self):
 
-        # clients needed
-        self.resource_registry = ResourceRegistryServiceClient() # TODO proper way to do this now?
+        # clients
+        self.resource_registry = self.container.resource_registry
+        self.event_publisher = EventPublisher(OT.NotificationSentEvent)
 
         # SMTP client configurations
         self.smtp_from = CFG.get_safe('server.smtp.from', 'data_alerts@oceanobservatories.org')
         self.smtp_host = CFG.get_safe('server.smtp.host')
         self.smtp_port = CFG.get_safe('server.smtp.port', 25)
 
-        self.jinja_env = jinja2.Environment(loader=FileSystemLoader('res/templates'), trim_blocks=True, lstrip_blocks=True)
+        # Jinja2 template environment
+        self.jinja_env = Environment(loader=FileSystemLoader('res/templates'), trim_blocks=True, lstrip_blocks=True)
 
         super(NotificationWorker, self).on_init()
 
@@ -41,8 +39,7 @@ class NotificationWorker(TransformEventListener):
 
         _load_notifications()
 
-        # reload notifications (new subscriber, subscription deleted, notifications changed, etc)
-        # the subscriber for the ReloadUserInfoEvent
+        # the subscriber for the ReloadUserInfoEvent (new subscriber, subscription deleted, notifications changed, etc)
         self.reload_user_info_subscriber = EventSubscriber(
             event_type=OT.ReloadUserInfoEvent,
             origin='UserNotificationService',
@@ -64,28 +61,30 @@ class NotificationWorker(TransformEventListener):
         callback for the subscriber listening for all events
         """
 
-        # create tuple key (origin,origin_type,event_type,event_subtype) to match against known notifications, keyed by same tuple
-        # TODO: make sure these are None if not present? or are blank strings?
+        # create tuple key (origin,origin_type,event_type,event_subtype) for incoming event
+        # use key to match against known notifications, keyed by same tuple (or combination of this tuple)
+        # TODO: make sure these are None if not present? or are they blank strings?
         origin = event.origin
         origin_type = event.origin_type
         event_type = event.type_
         event_subtype = event.sub_type
         key = (origin,origin_type,event_type,event_subtype)
 
-        # users to notify with the notifications that have triggered the notification
+        # users to notify with a list of the notifications that have been triggered by this Event
         users = {} # users to be notified
-        # loop the combinations of keys
+        # loop the combinations of keys (see _key_combinations below for explanation)
         for k in _key_combinations(key):
             for (notification, user) in self.notifications.get(k, []):
+                # notification has been triggered
                 if user not in users:
                     users[user] = []
                 users[user].append(notification)
-        # we now have a dict, keyed by users that will be notified, each has a list of notifications that match this event        
+        # we now have a dict, keyed by users that will be notified, each user has a list of notifications triggered by this event
         
         # send email
         if users:
 
-            # message content for Jinja2 template (these fields are based on Event and same for all users/notifications)
+            # message content for Jinja2 template (these fields are based on Event and thus are the same for all users/notifications)
             context = {}
             context['event_label'] = event_type_to_label.get(event.type_, event.type_) # convert to UX label if known
             context['origin_type'] = event.origin_type
@@ -93,47 +92,51 @@ class NotificationWorker(TransformEventListener):
             context['url'] = None # TODO get the current endpoint to ooinet?
             context['timestamp'] = event.ts_created # TODO format to ISO?
 
+            # use one SMTP connection for all emails
             try:
 
-                # use one SMTP connection for all emails
-                smtp = _initialize_smtp() #TODO outside loop?
+                smtp = _initialize_smtp() #TODO move outside loop?
 
-                # list of users getting notified of this Event
+                # loop through list of users getting notified of this Event
                 for user in users:
 
                     # list of NotificationRequests for this user triggered by this event
                     for notification in users[user]:
 
-                        # name of NotificationRequest, defaults to...NotificationRequest? I don't think name gets set anywhere? TODO
+                        # name of NotificationRequest, defaults to...NotificationRequest? I don't think name gets set anywhere? TODO, what's default?
                         context['notification_name'] = notification.get('name', notification.type_)
 
-                        # send message for each DeliveryConfiguration
-                        for delivery_configuration in n.delivery_configurations:
+                        # send message for each DeliveryConfiguration (this has mode and frequency to determine realtime, email or SMS)
+                        for delivery_configuration in notification.delivery_configurations:
+
+                            # default to UserInfo.contact.email if no email specified in DeliveryConfiguration
+                            smtp_to = delivery_configuration.email if delivery_configuration.email else user.contact.email
+                            context['smtp_to'] = smtp_to
 
                             # message from Jinja2 template (email or SMS)
-                            smtp_msg = _to_mimetext(delivery_configuration, context)
-
-                            # default to UserInfo.contact.email if no email specified in DeliveryConfiguration (not in _to_mimetext since may need user)
-                            smtp_msg['To'] = delivery_configuration.email if delivery_configuration.email else user.contact.email
+                            smtp_msg = _mimetext(delivery_configuration, context)
 
                             # TODO: use NOOP to check connection first?
-                            smtp.sendmail(self.smtp_from, smtp_msg['To'], smtp_msg.as_string())
+                            # TODO: determine if sendmail was successful?
+                            smtp.sendmail(self.smtp_from, smtp_to, smtp_msg.as_string())
 
-                        # TODO publish NotificationSentEvent (if successful?) - one per NotificationRequest
+                        # publish NotificationSentEvent - one per NotificationRequest
+                        self.event_publisher.publish_event(user_id = user._id, notification_id = notification._id, notification_max = notification.max) #TODO add max
 
             finally:
 
-                smtp.quit() # TODO what happens if we _initialize again, is there a dangling SMTP object? Should this be self.smtp and force quit on _initialize()?
+                smtp.quit() # TODO what happens if we _initialize_smtp() again, is there a dangling SMTP object? Should this be self.smtp and force quit on first line of _initialize_smtp()?
 
-    def _to_mimetext(delivery_configuration, context):
+    def _mimetext(delivery_configuration, context):
         if 1:# TODO template depends on NotificationRequest.delivery_configurations.mode (need branch for email and SMS)
             body = self.jinja_env.get_template('notification_realtime_email.txt').render(context)
         else:
             body = self.jinja_env.get_template('notification_realtime_sms.txt').render(context)
         # create MIMEText message
         smtp_msg = MIMEText(body)
-        smtp_msg['Subject'] = 'OOINET ION Event Notification - %s' % context['event_label']
+        smtp_msg['Subject'] = 'OOINet ION Event Notification - %s' % context['event_label']
         smtp_msg['From'] = self.smtp_from
+        smtp_msg['To'] = context['smtp_to']
         return smtp_msg
 
     def _load_notifications(self):
