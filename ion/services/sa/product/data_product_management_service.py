@@ -19,8 +19,8 @@ from ion.util.time_utils import TimeUtils
 from ion.util.geo_utils import GeoUtils
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess, DataProcessTypeEnum, Device
 from interface.objects import ComputedValueAvailability, DataProductTypeEnum, Dataset, CoverageTypeEnum
+from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess, DataProcessTypeEnum, Device
 
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
