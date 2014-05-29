@@ -545,30 +545,32 @@ def load_notifications(rr, notifications = None):
     # object: NotificationRequest
     # association.p: hasNotification
     # association.s: UserInfo
-    for object,association in zip(objects, associations):
+    for notification, association in zip(objects, associations):
 
         if association.p == PRED.hasNotification:
 
+            user = association.s
+
             # NotificationRequest disabled?
-            for delivery_configuration in object.delivery_configurations:
+            for delivery_configuration in notification.delivery_configurations:
                 if delivery_configuration.frequency == OT.NotificationFrequencyEnum.DISABLED:
                     continue
 
             # NotificationRequest expired? (note this is relative to current time)
-            if int(object.temporal_bounds.end_datetime) < current_datetime:
+            if int(notification.temporal_bounds.end_datetime) < current_datetime:
                 continue
 
             # create tuple key (origin,origin_type,event_type,event_subtype)
-            origin = object.origin
-            origin_type = object.origin_type
-            event_type = object.event_type
-            event_subtype = object.event_subtype
+            origin = notification.origin
+            origin_type = notification.origin_type
+            event_type = notification.event_type
+            event_subtype = notification.event_subtype
             key = (origin,origin_type,event_type,event_subtype)
 
             # store tuple by key containing set of (notification,user_info)
             if key not in notifications:
                 notifications[key] = set()
-            value = (object,association.s) # TODO can this be full UserInfo object or just id? (same TODO above)
+            value = (notification, user) # TODO can this be full UserInfo object or just id? (same TODO above)
             notifications[key].add(value)
 
     return notifications
