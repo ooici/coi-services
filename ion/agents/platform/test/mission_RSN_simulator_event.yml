@@ -57,11 +57,8 @@ mission:
         parentID: SBE37_SIM_02
         eventID: STOP_AUTOSAMPLE
     preMissionSequence:
-      - command: SBE37_SIM_02, set_resource(INTERVAL{1})
+      - command: SBE37_SIM_03, set_resource(INTERVAL{1})
         onError: retry
     missionSequence:
-      - command: SBE37_SIM_02, execute_resource(ACQUIRE_SAMPLE)
-        onError: retry
-    postMissionSequence:
-      - command: SBE37_SIM_02, execute_agent(RESET)
+      - command: SBE37_SIM_03, execute_resource(ACQUIRE_SAMPLE)
         onError: retry

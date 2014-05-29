@@ -18,8 +18,8 @@ from pyon.agent.common import BaseEnum
 from pyon.event.event import EventSubscriber
 from pyon.public import log
 from pyon.util.config import Config
-from pyon.util.breakpoint import breakpoint
 
+from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 from ion.core.includes.mi import DriverEvent
 
@@ -63,12 +63,14 @@ class MissionThreadStatus(BaseEnum):
             starting = mission thread is starting
             running = mission sequence is executing
             stopped = mission sequence is waiting for next sequence
-            done = mission sequence has been terminated (successfully or aborted)
+            done = mission sequence has been terminated normally
+            aborted = mission sequence was aborted
     """
     STARTING = 'starting'
     RUNNING = 'running'
     STOPPED = 'stopped'
     DONE = 'done'
+    ABORTED = 'aborted'
 
 
 class MissionLoader(object):
@@ -359,9 +361,17 @@ class MissionLoader(object):
             if type(instrument_id) == str:
                 instrument_id = [instrument_id]
 
-            premission_sequence  = current_mission['preMissionSequence']
-            mission_sequence     = current_mission['missionSequence']
-            postmission_sequence = current_mission['postMissionSequence']
+            if 'preMissionSequence' in current_mission:
+                premission_sequence  = current_mission['preMissionSequence']
+            else:
+                premission_sequence = None
+
+            mission_sequence = current_mission['missionSequence']
+
+            if 'postMissionSequence' in current_mission:
+                postmission_sequence = current_mission['postMissionSequence']
+            else:
+                postmission_sequence = None
 
             error_parameters = current_mission['errorHandling']
 
@@ -488,6 +498,9 @@ class MissionScheduler(object):
         # Boolean to hold global mission abort status
         self.mission_aborted = False
 
+        # Boolean to hold global mission running status
+        self.mission_running = True
+
         # Should match the resource id in test_mission_executive.py
         self.profiler_resource_id = 'FakeID'
 
@@ -520,6 +533,7 @@ class MissionScheduler(object):
             # Setting this global to true will tell all running mission threads
             # to stop ASAP
             self.mission_aborted = True
+            self.mission_running = False
 
             # Wait for all threads to finish current command...
             for thread in self.mission_threads:
@@ -532,9 +546,7 @@ class MissionScheduler(object):
                         status = self.mission_threads[thread_id]['status']
 
             # For event driven missions, stop event subscribers
-            for subscriber in self.mission_event_subscribers:
-                subscriber.stop()
-            self.mission_event_subscribers = []
+            self._stop_mission_event_subscribers()
 
             # Start abort sequence
             for instrument, client in self.instruments.iteritems():
@@ -558,12 +570,10 @@ class MissionScheduler(object):
         """
 
         log.debug('[mm] _abort_mission_thread called...')
-        log.error('[mm] Event driven mission thread aborted')
         # Start abort sequence
         for instrument_id in instruments:
             if instrument_id not in self.instruments:
                 continue
-            # breakpoint(locals(), globals())
             ia_client = self.instruments[instrument_id]
             self._instrument_abort_sequence(ia_client)
 
@@ -574,19 +584,23 @@ class MissionScheduler(object):
         This method checks all mission threads and if complete, stop any event subscribers
         and publish event
         """
-
+        mission_complete = [MissionThreadStatus.ABORTED, MissionThreadStatus.DONE]
         for thread in self.mission_threads:
-            if thread['status'] != MissionThreadStatus.DONE:
+            if thread['status'] not in mission_complete:
+                log.debug('[mm] _check_mission_running - Mission threads are still running')
                 return True
 
+        self.mission_running = False
+        return False
+
+    def _stop_mission_event_subscribers(self):
+        """
+        This method will stop all mission event subscribers when a mission has terminated
+        """
         # For event driven missions, stop event subscribers
         for subscriber in self.mission_event_subscribers:
             subscriber.stop()
         self.mission_event_subscribers = []
-
-        log.debug('[mm] Mission completed!')
-
-        return False
 
     def _schedule(self, missions):
         """
@@ -748,7 +762,7 @@ class MissionScheduler(object):
                 else:
                     break
 
-        return dict(code=MissionErrorCode.NO_ERROR, message=error_string)
+        return dict(code=MissionErrorCode.NO_ERROR, message='')
 
     def _run_timed_mission(self, mission):
         """
@@ -774,11 +788,6 @@ class MissionScheduler(object):
         self.default_error = mission['error_handling']['default']
 
         instrument_ids = mission['instrument_id']
-        for instrument_id in instrument_ids:
-            if instrument_id not in self.instruments:
-                continue
-            ia_client = self.instruments[instrument_id]
-            # self._check_preconditions(ia_client)
 
         # First execute premission if necessary
         if mission['premission_cmds']:
@@ -814,22 +823,24 @@ class MissionScheduler(object):
             # Commands have been executed - increment loop count
             loop_count += 1
 
-            # Calculate next start time
             if error_code or (loop_count >= num_loops and num_loops != -1):
                 # Mission was completed successfully or aborted
                 break
 
+            # Calculate next start time
             start_time += mission['loop']['loop_duration']
             log.debug("[mm] Next Sequence starts at " + time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time)))
+            #self._publish_mission_sequence_complete_event
 
         if error_code:
-            self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.DONE
+            self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.ABORTED
             self._publish_mission_thread_failed_event(str(current_mission_thread), error['message'])
 
             if error_code == MissionErrorCode.ABORT_MISSION_THREAD:
                 self._abort_mission_thread(instrument_ids)
                 if not self._check_mission_running():
-                    self._publish_mission_aborted_event(self.mission_id)
+                    self._stop_mission_event_subscribers()
+                    self._publish_mission_complete_event(self.mission_id)
 
             elif error_code == MissionErrorCode.ABORT_MISSION:
                 self.abort_mission()
@@ -841,31 +852,32 @@ class MissionScheduler(object):
                 # Execute commands
                 error = self._execute_mission_commands(mission['postmission_cmds'])
                 error_code = error['code']
-                # Update internal mission status
-                self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.DONE
 
                 if error_code == MissionErrorCode.ABORT_MISSION_THREAD:
+                    self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.ABORTED
                     self._publish_mission_thread_failed_event(str(current_mission_thread), error['message'])
                     self._abort_mission_thread(instrument_ids)
                     if not self._check_mission_running():
-                        self._publish_mission_aborted_event(self.mission_id)
+                        self._stop_mission_event_subscribers()
+                        self._publish_mission_complete_event(self.mission_id)
 
                 elif error_code == MissionErrorCode.ABORT_MISSION:
+                    self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.ABORTED
                     self._publish_mission_thread_failed_event(str(current_mission_thread), error['message'])
                     self.abort_mission()
 
                 else:
+                    self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.DONE
                     self._publish_mission_thread_complete_event(str(current_mission_thread))
                     if not self._check_mission_running():
+                        self._stop_mission_event_subscribers()
                         self._publish_mission_complete_event(self.mission_id)
             else:
+                self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.DONE
                 self._publish_mission_thread_complete_event(str(current_mission_thread))
                 if not self._check_mission_running():
+                    self._stop_mission_event_subscribers()
                     self._publish_mission_complete_event(self.mission_id)
-
-    def event_received(self, evt):
-        pass
-        # breakpoint(locals(), globals())
 
     def _run_event_driven_mission(self, mission):
         """
@@ -889,11 +901,6 @@ class MissionScheduler(object):
         error_code = MissionErrorCode.NO_ERROR
 
         instrument_ids = mission['instrument_id']
-        for instrument_id in instrument_ids:
-            if instrument_id not in self.instruments:
-                continue
-            ia_client = self.instruments[instrument_id]
-            # self._check_preconditions(ia_client)
 
         # Execute premission
         if mission['premission_cmds']:
@@ -903,7 +910,7 @@ class MissionScheduler(object):
             error = self._execute_mission_commands(mission['premission_cmds'])
             error_code = error['code']
             # Update internal mission status
-            self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.STOPPED
+            self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.DONE
 
         # Get the agent client for the device whos event needs monitoring
         parent_id = mission['event']['parentID']
@@ -918,37 +925,33 @@ class MissionScheduler(object):
             self._publish_mission_thread_failed_event(str(current_mission_thread), 'Parent ID unavailable')
             raise Exception('Parent ID unavailable')
 
-        # Check that the command is legitimate
+        # Check that the event id is legitimate
         if event_id in DriverEvent.__dict__.keys():
             event_type = 'ResourceAgentCommandEvent'
-            event_type = 'ResourceAgentResourceStateEvent'
             event_id = getattr(DriverEvent, event_id)
         elif event_id in MissionEvents.__dict__.keys():
             event_type = 'ResourceAgentResourceStateEvent'
             event_id = getattr(MissionEvents, event_id)
             origin = self.profiler_resource_id
-        elif event_id in MissionEvents.__dict__.keys():
+        elif event_id in RSNPlatformDriverEvent.__dict__.keys():
             event_type = 'OMSDeviceStatusEvent'
-            event_id = getattr(DriverEvent, event_id)
+            event_id = getattr(ExternalEventDriverEvent, event_id)
+        else:
+            self._publish_mission_thread_failed_event(str(current_mission_thread), 'Event ID unavailable')
+            raise Exception('Event ID unavailable')
 
         #-------------------------------------------------------------------------------------
         # Set up the subscriber to catch the mission event
         #-------------------------------------------------------------------------------------
-        def callback_for_mission_events(self, event, *args, **kwargs):
-            breakpoint(locals(), globals())
-            print event
-
+        def callback_for_mission_events(event, *args, **kwargs):
             #Check which type of event is being monitored
             for attr in dir(event):
-                print attr
                 # An event was captured. Check that it is the correct event
                 try:
                     event_attr = event[attr]
                 except KeyError:
-                    print 'Key Error'
                     continue
                 else:
-                    print event_attr
                     if event_id == event_attr:
                         # Execute the mission
                         log.debug('[mm] Mission Event %s received!', event_id)
@@ -963,26 +966,32 @@ class MissionScheduler(object):
                         self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.DONE
 
                         if error_code == MissionErrorCode.ABORT_MISSION_THREAD:
+                            self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.ABORTED
                             self._publish_mission_thread_failed_event(str(current_mission_thread), error['message'])
                             self.mission_event_subscribers[mission_event_id].stop()
                             self._abort_mission_thread(instrument_ids)
                             if not self._check_mission_running():
-                                self._publish_mission_aborted_event(self.mission_id)
+                                self._publish_mission_complete_event(self.mission_id)
+                                self._stop_mission_event_subscribers()
 
                         elif error_code == MissionErrorCode.ABORT_MISSION:
+                            self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.ABORTED
                             self._publish_mission_thread_failed_event(str(current_mission_thread), error['message'])
                             self.abort_mission()
 
                         elif not self._check_mission_running():
-                                self._publish_mission_thread_complete_event(str(current_mission_thread))
-                                self._publish_mission_complete_event(self.mission_id)
+                            self._publish_mission_thread_complete_event(str(current_mission_thread))
+                            self._publish_mission_complete_event(self.mission_id)
+                            self._stop_mission_event_subscribers()
 
         if error_code:
+            self.mission_threads[current_mission_thread]['status'] = MissionThreadStatus.ABORTED
             if error_code == MissionErrorCode.ABORT_MISSION_THREAD:
                 self._publish_mission_thread_failed_event(str(current_mission_thread), error['message'])
                 self._abort_mission_thread(instrument_ids)
                 if not self._check_mission_running():
-                    self._publish_mission_aborted_event(self.mission_id)
+                    self._stop_mission_event_subscribers()
+                    self._publish_mission_complete_event(self.mission_id)
 
             elif error_code == MissionErrorCode.ABORT_MISSION:
                 self._publish_mission_thread_failed_event(str(current_mission_thread), error['message'])
@@ -998,20 +1007,8 @@ class MissionScheduler(object):
 
             log.debug('[mm] Event driven mission started. Waiting for %s', event_id)
 
-    def _check_preconditions(self, ia_client):
-        """
-        Mission precondition checks
-        """
-        pass
-        # self.start_error_event_subscriber(ia_client)
-        # self._connect_instrument(ia_client)
-
-    def _check_postconditions(self, ia_client):
-        """
-        Mission postcondition checks
-        """
-        pass
-        # self.stop_error_event_subscriber(ia_client)
+            while self.mission_running:
+                gevent.sleep(1)
 
     #-------------------------------------------------------------------------------------
     # Instrument state commands
@@ -1142,7 +1139,8 @@ class MissionScheduler(object):
                    sub_type="STARTING",
                    origin_type=self.platform_agent.ORIGIN_TYPE,
                    origin=self.platform_agent.resource_id,
-                   execution_status=MissionExecutionStatus.OK)
+                   execution_status=MissionExecutionStatus.OK,
+                   description='Mission {0} is about to start execution'.format(mission_id))
         self.platform_agent._event_publisher.publish_event(**evt)
         log.debug('[mm] event published: %s', evt)
 
@@ -1153,7 +1151,8 @@ class MissionScheduler(object):
                    sub_type="STARTED",
                    origin_type=self.platform_agent.ORIGIN_TYPE,
                    origin=self.platform_agent.resource_id,
-                   execution_status=MissionExecutionStatus.OK)
+                   execution_status=MissionExecutionStatus.OK,
+                   description='Mission {0} has started'.format(mission_id))
         self.platform_agent._event_publisher.publish_event(**evt)
         log.debug('[mm] event published: %s', evt)
 
@@ -1164,7 +1163,8 @@ class MissionScheduler(object):
                    sub_type="STOPPING",
                    origin_type=self.platform_agent.ORIGIN_TYPE,
                    origin=self.platform_agent.resource_id,
-                   execution_status=MissionExecutionStatus.ABORTED)
+                   execution_status=MissionExecutionStatus.ABORTED,
+                   description='Mission {0} abort sequence has started'.format(mission_id))
         self.platform_agent._event_publisher.publish_event(**evt)
         log.debug('[mm] event published: %s', evt)
 
@@ -1179,47 +1179,39 @@ class MissionScheduler(object):
         self.platform_agent._event_publisher.publish_event(**evt)
         log.debug('[mm] event published: %s', evt)
 
-    # Mission has been requested to be killed
-    def _publish_mission_kill_event(self, mission_id):
-        evt = dict(event_type='MissionLifecycleEvent',
-                   mission_id=mission_id,
-                   sub_type="STOPPING",
-                   origin_type=self.platform_agent.ORIGIN_TYPE,
-                   origin=self.platform_agent.resource_id,
-                   execution_status=MissionExecutionStatus.KILLED)
-        self.platform_agent._event_publisher.publish_event(**evt)
-        log.debug('[mm] event published: %s', evt)
-
-    # Mission has been killed
-    def _publish_mission_killed_event(self, mission_id):
-        evt = dict(event_type='MissionLifecycleEvent',
-                   mission_id=mission_id,
-                   sub_type="STOPPED",
-                   origin_type=self.platform_agent.ORIGIN_TYPE,
-                   origin=self.platform_agent.resource_id,
-                   execution_status=MissionExecutionStatus.KILLED)
-        self.platform_agent._event_publisher.publish_event(**evt)
-        log.debug('[mm] event published: %s', evt)
-
-    # Mission has exited normally
+    # Mission has completed, determine if it exited normally or due to exception
     def _publish_mission_complete_event(self, mission_id):
-        evt = dict(event_type='MissionLifecycleEvent',
-                   mission_id=mission_id,
-                   sub_type="STOPPED",
-                   origin_type=self.platform_agent.ORIGIN_TYPE,
-                   origin=self.platform_agent.resource_id,
-                   execution_status=MissionExecutionStatus.OK)
-        self.platform_agent._event_publisher.publish_event(**evt)
-        log.debug('[mm] event published: %s', evt)
+        """
+        This method can be called by a mission thread with no knowledge of
+        the status of other threads. So a check must be made to see if any
+        threads failed during mission execution!
+        """
+        mission_threads_aborted = 0
+        mission_threads_successful = 0
 
-    # Mission has exited due to some exception
-    def _publish_mission_failed_event(self, mission_id):
+        for thread in self.mission_threads:
+            if thread['status'] == MissionThreadStatus.ABORTED:
+                mission_threads_aborted += 1
+            else:
+                mission_threads_successful += 1
+
+        if mission_threads_aborted > 0:
+            execution_status = MissionExecutionStatus.FAILED
+            description = ('Mission {0} has failed.'
+                           ' {1} mission threads completed successfully,'
+                           ' {2} mission threads aborted'
+                           .format(mission_id, mission_threads_successful, mission_threads_aborted))
+        else:
+            execution_status = MissionExecutionStatus.OK
+            description = 'Mission {0} has exited normally'.format(mission_id)
+
         evt = dict(event_type='MissionLifecycleEvent',
                    mission_id=mission_id,
                    sub_type="STOPPED",
                    origin_type=self.platform_agent.ORIGIN_TYPE,
                    origin=self.platform_agent.resource_id,
-                   execution_status=MissionExecutionStatus.FAILED)
+                   execution_status=execution_status,
+                   description=description)
         self.platform_agent._event_publisher.publish_event(**evt)
         log.debug('[mm] event published: %s', evt)
 
@@ -1231,7 +1223,8 @@ class MissionScheduler(object):
                    sub_type="STARTED",
                    origin_type=self.platform_agent.ORIGIN_TYPE,
                    origin=self.platform_agent.resource_id,
-                   execution_status=MissionExecutionStatus.OK)
+                   execution_status=MissionExecutionStatus.OK,
+                   description='Mission thread {0} has started'.format(mission_thread_id))
         self.platform_agent._event_publisher.publish_event(**evt)
         log.debug('[mm] event published: %s', evt)
 
@@ -1243,7 +1236,8 @@ class MissionScheduler(object):
                    sub_type="STOPPED",
                    origin_type=self.platform_agent.ORIGIN_TYPE,
                    origin=self.platform_agent.resource_id,
-                   execution_status=MissionExecutionStatus.OK)
+                   execution_status=MissionExecutionStatus.OK,
+                   description='Mission thread {0} has exited normally'.format(mission_thread_id))
         self.platform_agent._event_publisher.publish_event(**evt)
         log.debug('[mm] event published: %s', evt)
 
