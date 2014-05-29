@@ -22,6 +22,7 @@ DEBUG = False
 REAL = "real"
 INT = "int"
 TIMEDATE = "timestamp"
+REQUIRED_PARAMS = ["lat","lon"]
 
 
 class ResourceParser(object):
@@ -171,8 +172,7 @@ class ResourceParser(object):
             coverage_path = self._get_coverage_path(new_resource_id)
 
             #generate table from params and id
-            [success, prim_types] = self.generate_sql_table(new_resource_id, param_dict, relevant, coverage_path)
-
+            [success, prim_types] = self.generate_sql_table(new_resource_id, param_dict, relevant, coverage_path)            
             if success:
                 #generate geoserver layer
                 self.send_geonode_request(self.addlayer, new_resource_id, prim_types)
@@ -214,6 +214,16 @@ class ResourceParser(object):
 
         return encoding_string, prim_type
 
+    '''
+    verifies that the required params are in the resources
+    '''
+    def required_fields_satisfied(self,param_list): 
+        #should always contain atleast 3 params
+        if (len(param_list)>3): 
+            return set(REQUIRED_PARAMS).issubset(set(param_list))        
+        else:
+            return False    
+
     def generate_sql_table(self, dataset_id, params, relevant, coverage_path):
         """
         Generates Foreign data table for used with postgres
@@ -221,73 +231,80 @@ class ResourceParser(object):
         #check table exists
         if not self.does_table_exist(dataset_id):
             valid_types = {}
-            create_table_string = 'create foreign table "%s" (' % dataset_id
+            create_table_string = 'create foreign table "%s" (' % dataset_id            
+            log.debug("relevant:"+relevant+" valid?:"+self.required_fields_satisfied(relevant))                      
+            if self.required_fields_satisfied(relevant):       
+                #loop through the params
+                encodings = []     
 
-            #loop through the params
-            encodings = []
-            for param in relevant:
-                #get the information
-                data_item = params[param]
-                desc = data_item[1]['description']
-                ooi_short_name = data_item[1]['ooi_short_name']
-                name = data_item[1]['name']
-                disp_name = data_item[1]['display_name']
-                internal_name = data_item[1]['internal_name']
-                cm_type = data_item[1]['param_type']['cm_type']
-                units = ""
-                try:
-                    units = data_item[1]['uom']
-                except Exception as e:
-                    if DEBUG:
-                        log.debug("no units available...%s", e.message)
+                for param in relevant:
+                    #get the information
+                    data_item = params[param]
+                    desc = data_item[1]['description']
+                    ooi_short_name = data_item[1]['ooi_short_name']
+                    name = data_item[1]['name']
+                    disp_name = data_item[1]['display_name']
+                    internal_name = data_item[1]['internal_name']
+                    cm_type = data_item[1]['param_type']['cm_type']
+                    units = ""
+                    try:
+                        units = data_item[1]['uom']
+                    except Exception as e:
+                        if DEBUG:
+                            log.debug("no units available...%s", e.message)
+                    
+                    value_encoding = data_item[1]['param_type']['_value_encoding']
+                    fill_value = data_item[1]['param_type']['_fill_value']
+                    std_name = data_item[1]['standard_name']
+                    
+                    #only use things that have valid value
+                    if len(name) > 0: #and (len(desc)>0) and (len(units)>0) and (value_encoding is not None)):
+                        if DEBUG:
+                            log.debug("-------processed-------")
+                            log.debug(str(ooi_short_name))
+                            log.debug(str(desc))
+                            log.debug(str(name))
+                            log.debug(str(disp_name))
+                            log.debug(str(units))
+                            log.debug(str(internal_name))
+                            log.debug(str(value_encoding))
+                            log.debug(str(cm_type[1]))
+
+                        if cm_type[1] == "ArrayType":
+                            #ignore array types
+                            pass
+                        else:
+                            [encoding, prim_type] = self.get_value_encoding(name, value_encoding)
+                            if encoding is not None:
+                                encodings.append(encoding)
+                                valid_types[name] = prim_type
+
+                    pass
+
+                create_table_string += ','.join(encodings)
+                log.debug("coverage path:"+coverage_path)
+                create_table_string = self.add_server_info(create_table_string, coverage_path, dataset_id)
                 
-                value_encoding = data_item[1]['param_type']['_value_encoding']
-                fill_value = data_item[1]['param_type']['_fill_value']
-                std_name = data_item[1]['standard_name']
+                if DEBUG:
+                    log.debug('\n%s', create_table_string)
 
-                #only use things that have valid value
-                if len(name) > 0: #and (len(desc)>0) and (len(units)>0) and (value_encoding is not None)):
-                    if DEBUG:
-                        log.debug("-------processed-------")
-                        log.debug(str(ooi_short_name))
-                        log.debug(str(desc))
-                        log.debug(str(name))
-                        log.debug(str(disp_name))
-                        log.debug(str(units))
-                        log.debug(str(internal_name))
-                        log.debug(str(value_encoding))
-                        log.debug(str(cm_type[1]))
+                #check that the dataproduct has all the required fields
+                
+                try:                                       
+                    self.cur.execute(create_table_string)
+                    self.con.commit()
+                    #should always be lat and lon
+                    self.cur.execute(self.generate_table_view(dataset_id, self.latitude, self.longitude))
+                    self.con.commit()
+                    return self.does_table_exist(dataset_id), valid_types
 
-                    if cm_type[1] == "ArrayType":
-                        #ignore array types
-                        pass
-                    else:
-                        [encoding, prim_type] = self.get_value_encoding(name, value_encoding)
-                        if encoding is not None:
-                            encodings.append(encoding)
-                            valid_types[name] = prim_type
-
-                pass
-
-            create_table_string += ','.join(encodings)
-            log.debug("coverage path:"+coverage_path)
-            create_table_string = self.add_server_info(create_table_string, coverage_path, dataset_id)
-            
-            if DEBUG:
-                log.debug('\n%s', create_table_string)
-
-            try:
-                self.cur.execute(create_table_string)
-                self.con.commit()
-                #should always be lat and lon
-                self.cur.execute(self.generate_table_view(dataset_id, self.latitude, self.longitude))
-                self.con.commit()
-                return self.does_table_exist(dataset_id), valid_types
-
-            except Exception as e:
-                #error setting up connection
-                log.debug('Error %s', e)
-                raise
+                except Exception as e:
+                    #error setting up connection
+                    log.debug('Error %s', e)
+                    raise
+            else: 
+                log.warn('resource skipped, it does not contain all of the required params:')  
+                return False              
 
         else:
             if DEBUG:

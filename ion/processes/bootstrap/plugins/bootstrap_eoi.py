@@ -18,6 +18,7 @@ class BootstrapEOI(BootstrapPlugin):
         EOI BootstrapPlugin
 
         Resets the geoserver datastore... 
+        Performs inital parsing of the eoi datasources
         """
         using_eoi_services = config.get_safe('eoi.meta.use_eoi_services', False)
         if using_eoi_services:
