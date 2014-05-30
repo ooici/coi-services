@@ -325,7 +325,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # Mission plan to be started in COMMAND state.
         #
         self._test_simple_mission(
-            ['SBE37_SIM_02'],
+            ['SBE37_SIM_02', 'SBE37_SIM_03'],
             "ion/agents/platform/test/mission_RSN_simulator_event.yml",
             in_command_state=True,
             max_wait=200 + 300)
