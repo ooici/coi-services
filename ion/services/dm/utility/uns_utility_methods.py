@@ -3,6 +3,7 @@
 @file ion/services/dm/utility/uns_utility_methods.py
 @description A module containing common utility methods used by UNS and the notification workers.
 """
+from pyon.core import bootstrap
 from pyon.public import get_sys_name, OT, IonObject, CFG
 from pyon.util.ion_time import IonTime
 from pyon.util.log import log
@@ -521,27 +522,27 @@ def get_event_summary(event):
     return summary
 
 
-# TODO: get_notifications method for any or all users? have this "load" call grab all?
-# TODO: can we use resource_registry from util or must be passed in?
-def load_notifications(rr, notifications = None):
+def load_notifications(container=None):
     """
     result is dict:
         key: tuple(origin,origin_type,event_type,event_subtype), matches Event to NotificationRequest
         value: set() containing tuple(notification,user_info)
     """
 
+    container = container or bootstrap.container_instance
+
     current_datetime = get_ion_ts() # time when we're loading, used for expired notifications
 
-    if notifications is None:
-        notifications = {}
+    # return dict, keyed by (origin,origin_type,event_type,event_subtype) tuple, contains list of (notification, user) values
+    notifications = {}
 
-    # all users
-    users, _ = rr.find_resources(restype=RT.UserInfo)
+    # all users (full objects)
+    users, _ = container.resource_registry.find_resources(restype=RT.UserInfo)
 
     # subject: UserInfo
-    subjects = [u._id for u in users] # TODO can this be full user objects so association.s below is object?
-    # hasNotification associations only way to NotificationRequests, load all associations
-    objects, associations = rr.find_objects_mult(subjects=subjects, id_only=False)
+    subjects = [u._id for u in users]
+    # hasNotification associations is only way to NotificationRequests, load all associations
+    objects, associations = container.resource_registry.find_objects_mult(subjects=subjects, id_only=False)
     # object: NotificationRequest
     # association.p: hasNotification
     # association.s: UserInfo
@@ -549,7 +550,7 @@ def load_notifications(rr, notifications = None):
 
         if association.p == PRED.hasNotification:
 
-            user = association.s
+            user = [v for k,v in users.items() if v._id == association.p][0]
 
             # NotificationRequest disabled?
             for delivery_configuration in notification.delivery_configurations:
@@ -567,10 +568,10 @@ def load_notifications(rr, notifications = None):
             event_subtype = notification.event_subtype
             key = (origin,origin_type,event_type,event_subtype)
 
-            # store tuple by key containing set of (notification,user_info)
+            # store tuple by key containing set of (NotificationRequest,UserInfo)
             if key not in notifications:
                 notifications[key] = set()
-            value = (notification, user) # TODO can this be full UserInfo object or just id? (same TODO above)
+            value = (notification, user)
             notifications[key].add(value)
 
     return notifications
