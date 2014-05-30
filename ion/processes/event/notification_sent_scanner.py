@@ -18,6 +18,7 @@ class NotificationSentScanner(object):
     def __init__(self, container=None):
         self.container = container or bootstrap.container_instance
         self.store = self.container.object_store
+
         # initalize volatile counts (memory only, should be routinely persisted)
         self._initialize_counts()
 
@@ -31,7 +32,7 @@ class NotificationSentScanner(object):
             notification_max = e.notification_max
             # initialize user_id if necessary
             if user_id not in self.counts:
-                self.counts[user_id] = Counter() # TODO:will Counter persist in ObjectStore?
+                self.counts[user_id] = Counter()
             # increment counts
             self.counts[user_id]['all'] += 1 # tracks total notifications by user
             self.counts[user_id][notification_id] += 1
@@ -40,9 +41,11 @@ class NotificationSentScanner(object):
                 _disable_notification(notification_id) #TODO implement _disable
 
     def _initalize_counts(self):
-        """ initialize the volatile (memory only) counts """
+        """ initialize the volatile (memory only) counts from ObjectStore if available """
         try:
             self.counts = self.store.read('notification_counts')
+            # persisted as standard dicts, convert to Counter objects
+            self.counts = {k:Counter(v) for k,v in self.counts.items()}
         except NotFound:
             self.counts = {}
 
@@ -53,7 +56,8 @@ class NotificationSentScanner(object):
         except NotFound:
             persisted_counts = {}
             self.store.create('notification_counts',persisted_counts)
-        persisted_counts.update(self.counts)
+        # Counter objects cannot be persisted, convert to standard dicts
+        persisted_counts.update({k:dict(v) for k,v in self.counts.items()})
         self.store.update(persisted_counts)
 
     def _reset_counts(self):
