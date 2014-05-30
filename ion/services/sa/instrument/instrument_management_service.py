@@ -998,6 +998,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         configuration_builder = PlatformAgentConfigurationBuilder(self.clients)
         launcher = AgentLauncher(self.clients.process_dispatcher)
 
+        # set actor_id in configuration:
+        ctx = self.get_context()
+        actor_id = ctx.get('ion-actor-id', None) if ctx else None
+        log.debug('[xa] actor_id=%r', actor_id)
+        configuration_builder.set_actor_id(actor_id)
+        # TODO also do similar setting in start_instrument_agent_instance
 
         configuration_builder.set_agent_instance_object(platform_agent_instance_obj)
         config = configuration_builder.prepare()
