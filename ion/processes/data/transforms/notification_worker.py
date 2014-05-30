@@ -7,6 +7,8 @@
 @brief NotificationWorker class processes real-time notifications
 '''
 
+from datetime import datetime
+
 from pyon.event.event import EventPublisher, EventSubscriber
 from pyon.public import log, RT, OT, PRED
 from ion.core.process.transform import TransformEventListener
@@ -89,13 +91,13 @@ class NotificationWorker(TransformEventListener):
             context['event_label'] = event_type_to_label.get(event.type_, event.type_) # convert to UX label if known
             context['origin_type'] = event.origin_type
             context['origin'] = event.origin
-            context['url'] = None # TODO get the current endpoint to ooinet?
-            context['timestamp'] = event.ts_created # TODO format to ISO?
+            context['url'] = 'http://ooinet.oceanobservatories.org' # TODO get from CFG
+            context['timestamp'] = datetime.utcfromtimestamp(float(event.ts_created)/1000.0).strftime('%Y-%m-%d %H:%M:%S (UTC)')
 
             # use one SMTP connection for all emails
             try:
 
-                smtp = _initialize_smtp() #TODO move outside loop?
+                smtp = _initialize_smtp()
 
                 # loop through list of users getting notified of this Event
                 for user in users:
