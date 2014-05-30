@@ -51,6 +51,7 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
+from pyon.core.governance import get_system_actor_header
 
 from pyon.ion.stream import StandaloneStreamSubscriber
 
@@ -270,6 +271,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         self.org_id = self.RR2.create(any_old(RT.Org))
         log.debug("Org created: %s", self.org_id)
+
+        self._actor_header = get_system_actor_header()
 
         # Create InstrumentModel
         # TODO create multiple models as needed; for the moment assuming all
@@ -1392,7 +1395,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         # now start the platform:
         agent_instance_id = p_obj.platform_agent_instance_id
         log.debug("about to call start_platform_agent_instance with id=%s", agent_instance_id)
-        p_obj.pid = self.IMS.start_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
+        p_obj.pid = self.IMS.start_platform_agent_instance(platform_agent_instance_id=agent_instance_id,
+                                                           headers=self._actor_header)
         log.debug("start_platform_agent_instance returned pid=%s", p_obj.pid)
 
         #wait for start
@@ -1507,7 +1511,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         agent_instance_id = i_obj.instrument_agent_instance_id
         if use_ims:
             log.debug("calling IMS.start_instrument_agent_instance with id=%s", agent_instance_id)
-            i_obj.pid = self.IMS.start_instrument_agent_instance(instrument_agent_instance_id=agent_instance_id)
+            i_obj.pid = self.IMS.start_instrument_agent_instance(instrument_agent_instance_id=agent_instance_id,
+                                                                 headers=self._actor_header)
 
         else:
             log.debug("calling IMS_start_instrument_agent_instance with id=%s", agent_instance_id)
