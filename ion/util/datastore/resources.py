@@ -69,6 +69,7 @@ class ResourceRegistryHelper(object):
         self._assoc_by_sub = {}
         self._directory = {}
         self._res_by_type = {}
+        self._resobj_by_type = {}
         self._attr_by_type = {}
 
     def dump_resources_as_xlsx(self, filename=None):
@@ -105,13 +106,9 @@ class ResourceRegistryHelper(object):
                 if not isinstance(obj, dict):
                     raise Inconsistent("Object of bad type found: %s" % type(obj))
                 self._resources[obj_id] = obj
-                if cat_name not in self._res_by_type:
-                    self._res_by_type[cat_name] = []
-                self._res_by_type[cat_name].append(obj_id)
-                for attr, value in obj.iteritems():
-                    if cat_name not in self._attr_by_type:
-                        self._attr_by_type[cat_name] = set()
-                    self._attr_by_type[cat_name].add(attr)
+                self._res_by_type.setdefault(cat_name, []).append(obj_id)
+                self._resobj_by_type.setdefault(cat_name, {})[obj_id] = obj
+                self._attr_by_type.setdefault(cat_name, set()).update(obj.keys())
 
         for restype in sorted(self._res_by_type.keys()):
             self._dump_resource_type(restype)
@@ -150,12 +147,13 @@ class ResourceRegistryHelper(object):
             self._assoc_by_sub[key].append(assoc['o'])
 
     def _dump_resource_type(self, restype):
+        """Dumpe one spreadsheet tab"""
         ws = self._wb.add_sheet(restype)
         self._worksheets[restype] = ws
-        for j, attr in enumerate(sorted(list(self._attr_by_type[restype]))):
+        for j, attr in enumerate(sorted(self._attr_by_type[restype])):
             ws.write(0, j, attr)
 
-        res_objs = [self._resources[res_id] for res_id in self._res_by_type[restype]]
+        res_objs = [self._resobj_by_type.get(restype, {}).get(res_id, None) or self._resources[res_id] for res_id in self._res_by_type[restype]]
         res_objs.sort(key=lambda doc: doc.get('name', ""))
         for i, res_obj in enumerate(res_objs):
             for j, attr in enumerate(sorted(list(self._attr_by_type[restype]))):
