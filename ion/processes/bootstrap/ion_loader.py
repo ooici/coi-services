@@ -330,6 +330,9 @@ class IONLoader(ImmediateProcess):
             self.parseooi = config.get("parseooi", False)
             self.ooiupdate = config.get("ooiupdate", False)      # Support update to existing OOI generated resources
             self.ooirename = config.get("ooirename", True)       # Support update of names for existing OOI resources
+            self.ooifilter = config.get("ooifilter", None)       # Comma separated list of RD prefixes
+            if self.ooifilter:
+                self.ooifilter = self.ooifilter.split(",")
             if self.clearcols:
                 self.clearcols = self.clearcols.split(",")
 
@@ -840,6 +843,14 @@ class IONLoader(ImmediateProcess):
             return False
         else:
             return True
+
+    def _in_filter(self, rdstr):
+        if not self.ooifilter:
+            return True
+        for fi in self.ooifilter:
+            if rdstr.startswith(fi):
+                return True
+        return False
 
     def _is_deployed(self, ooi_obj):
         deploy_date = ooi_obj.get("deploy_date", None)
@@ -2467,6 +2478,8 @@ Reason: %s
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         node_objs = self.ooi_loader.get_type_assets("node")
         class_objs = self.ooi_loader.get_type_assets("class")
+        series_objs = self.ooi_loader.get_type_assets("series")
+        makemodel_objs = self.ooi_loader.get_type_assets("makemodel")
 
         for ooi_id, inst_obj in inst_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(ooi_id)
@@ -2486,7 +2499,15 @@ Reason: %s
             else:
                 serial = "changeme_%s.001" % (ooi_id)
                 serial = serial.lower()
-            newrow['id/name'] = "%s serial# %s" % (class_objs[ooi_rd.inst_class]['alt_name'], serial)
+
+            series_obj = series_objs[ooi_rd.series_rd]
+            makemodel_obj = makemodel_objs[series_obj['makemodel']] if series_obj.get('makemodel', None) else None
+            if makemodel_obj:
+                instname = "%s %s" % (makemodel_obj['Manufacturer'], makemodel_obj['name'])
+            else:
+                instname = class_objs[ooi_rd.inst_class]['alt_name']
+            newrow['id/name'] = "%s (%s-%s) serial# %s" % (instname,
+                                                           ooi_rd.inst_class, ooi_rd.inst_series, serial)
             newrow['id/description'] = "Instrument device first deployed to %s" % ooi_id
             newrow['id/serial_number'] = serial
             newrow['id/reference_urls'] = ''
@@ -3390,6 +3411,7 @@ Reason: %s
         instagent_objs = self.ooi_loader.get_type_assets("instagent")
         series_objs = self.ooi_loader.get_type_assets("series")
         data_products = self.ooi_loader.get_type_assets("data_product")
+        datalink_objs = self.ooi_loader.get_type_assets("datalink")
 
         def create_dp_link(dp_id, source_id="", res_type="", do_bulk=self.bulk):
             newrow = {}
@@ -3408,6 +3430,9 @@ Reason: %s
                 needupdate = True
             if res_obj.description != newrow['dp/description']:
                 res_obj.description = newrow['dp/description']
+                needupdate = True
+            if "dp/reference_urls" in newrow and newrow['dp/reference_urls'] and len(res_obj.reference_urls) != newrow['dp/reference_urls'].split(","):
+                res_obj.reference_urls = newrow['dp/reference_urls'].split(",")
                 needupdate = True
             # Update geospatial bounds if not yet set
             if const_id1 and (not res_obj.geospatial_bounds or not res_obj.geospatial_bounds.geospatial_latitude_limit_north):
@@ -3441,6 +3466,8 @@ Reason: %s
             num_dp_generated = 0
 
             if not self._before_cutoff(node_obj):
+                continue
+            if not self._in_filter(node_id):
                 continue
 
             const_id1, const_id2 = '', ''
@@ -3517,6 +3544,8 @@ Reason: %s
 
             if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
                 continue
+            if not self._in_filter(inst_id):
+                continue
 
             const_id1, const_id2 = '', ''
             if inst_id + "_const1" in self.constraint_defs:
@@ -3560,6 +3589,13 @@ Reason: %s
                         newrow['dp/ooi_product_name'] = ""
                         newrow['dp/processing_level_code'] = "Parsed"
                         newrow['dp/quality_control_level'] = "a"
+
+                        flow_data = [v for k, v in datalink_objs.iteritems() if ooi_rd.series_rd.startswith(k)]
+                        if flow_data:
+                            flow_urls = []
+                            [flow_urls.extend(fd.get("Flow", [])) for fd in flow_data]
+                            newrow['dp/reference_urls'] = repr(flow_urls)
+
                         parsed_pdict_id = pdict_by_name[scfg.parameter_dictionary_name]
                         parsed_id = dp_id
                     else:
@@ -3666,6 +3702,8 @@ Reason: %s
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['parent'] = parsed_id
                 newrow['persist_data'] = 'False'
+                if dp_obj['code'] in datalink_objs:
+                    newrow['dp/reference_urls'] = repr(datalink_objs[dp_obj['code']].get("DPS", []))
 
                 if instres_obj and instres_obj.serial_number and not "changeme" in instres_obj.serial_number \
                         and not "serial#" in newrow['dp/name']:
