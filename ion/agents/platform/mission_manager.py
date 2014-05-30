@@ -42,7 +42,7 @@ class MissionManager(object):
 
         self._provider_id = self._agent._provider_id
         self._actor_id = self._agent._actor_id
-        log.debug('[xa] provider_id=%r  agent_id=%r', self._provider_id, self._actor_id)
+        log.debug('[xa] provider_id=%r  actor_id=%r', self._provider_id, self._actor_id)
 
         # ctx = self._agent.get_context()
         # self._actor_id = ctx.get('ion-actor-id', None) if ctx else None
