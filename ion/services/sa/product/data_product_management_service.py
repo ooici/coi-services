@@ -671,13 +671,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         else:
             log.warning('Data product is not currently persisted, no action taken: %s', data_product_id)
 
-    def add_parameter_to_data_product(self, parameter_context_id='', data_product_id=''):
 
+    def add_parameter_to_data_product(self, parameter_context_id='', data_product_id=''):
         data_product = self.read_data_product(data_product_id)
         if data_product.category != DataProductTypeEnum.DEVICE:
             raise BadRequest("Can only add parameters to device data products")
 
-
+        data_product = self.read_data_product(data_product_id)
         pc = self.clients.dataset_management.read_parameter_context(parameter_context_id)
 
         stream_def_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
@@ -691,13 +691,15 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         datasets, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
         if not datasets:
-            raise BadRequest("No associated dataset, please ensure that this data product is activated")
-        
-        dataset_id = datasets[0]
+            if data_product.category != DataProductTypeEnum.EXTERNAL:
+                raise BadRequest("No associated dataset, please ensure that this data product is activated")
+            else:
+                return # We're done, and yeah
+        else:
+            dataset_id = datasets[0]
+            self.clients.dataset_management.add_parameter_to_dataset(parameter_context_id, dataset_id)
 
-        self.clients.dataset_management.add_parameter_to_dataset(parameter_context_id, dataset_id)
-
-        self.update_catalog_entry(data_product_id) 
+            self.update_catalog_entry(data_product_id) 
         #--------------------------------------------------------------------------------
         # detach the dataset from this data product
         #--------------------------------------------------------------------------------
