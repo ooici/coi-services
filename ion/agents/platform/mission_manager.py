@@ -51,11 +51,15 @@ class MissionManager(object):
 
         if mission_id in self._running_missions:
             raise BadRequest('run_mission: mission_id=%r is already running', mission_id)
-
-        mission_scheduler = self._create_mission_scheduler(mission_id, mission_yml)
-        self._running_missions[mission_id] = mission_scheduler
-        log.debug('[mm] starting mission_id=%r (#running missions=%s)',
-                  mission_id, len(self._running_missions))
+        try:
+            mission_scheduler = self._create_mission_scheduler(mission_id, mission_yml)
+        except Exception as ex:
+            log.exception('[mm] run_mission: mission_id=%r _create_mission_scheduler exception', mission_id)
+            return ex
+        else:
+            self._running_missions[mission_id] = mission_scheduler
+            log.debug('[mm] starting mission_id=%r (#running missions=%s)',
+                      mission_id, len(self._running_missions))
         try:
             mission_scheduler.run_mission()
         except Exception as ex:
