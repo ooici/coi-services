@@ -696,17 +696,17 @@ class AgentControl(ImmediateProcess):
                     log.warn("Attribute %s incompatible type: %s, expected %s", attr_name, type(attr_cfg), type(getattr(res_obj, attr_name)))
                     continue
 
-                if isinstance(attr_cfg, dict) and isinstance(res_obj, IonObjectBase):
+                attr_val = getattr(res_obj, attr_name)
+                if isinstance(attr_cfg, dict) and isinstance(attr_val, IonObjectBase):
                     # TODO: Nested objects
                     for an, av in attr_cfg.iteritems():
-                        setattr(res_obj, an, av)
+                        setattr(attr_val, an, av)
                 elif isinstance(attr_cfg, dict) and "_replace" in attr_cfg:
                     attr_cfg.pop("_replace")
                     if self.verbose:
                         log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", resource_id, attr_name, getattr(res_obj, attr_name), attr_cfg)
                     setattr(res_obj, attr_name, attr_cfg)
                 elif isinstance(attr_cfg, dict):
-                    attr_val = getattr(res_obj, attr_name)
                     if self.verbose:
                         log.debug("Change resource %s attribute %s: OLD=%s NEW=%s", resource_id, attr_name, getattr(res_obj, attr_name), dict_merge(attr_val, attr_cfg))
                     dict_merge(attr_val, attr_cfg, inplace=True)
