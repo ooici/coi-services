@@ -25,8 +25,10 @@ from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType,
 from coverage_model.parameter_functions import ParameterFunctionException
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
 from coverage_model.parameter_types import ParameterFunctionType
+from coverage_model import PythonFunction, NumexprFunction
 
 import numpy as np
+import numexpr as ne
 from copy import copy
 import msgpack
 import time
@@ -341,18 +343,67 @@ class RecordDictionaryTool(object):
         if self._available_fields and name not in self._available_fields:
             raise KeyError(name)
         ptype = self._pdict.get_context(name).param_type
+
         if isinstance(ptype, ParameterFunctionType):
-            if self._rd[name] is not None and getattr(self._rd[name],'memoized_values',None) is not None:
-                return self._rd[name].memoized_values[:]
+            if self._rd[name] is not None:
+                return np.atleast_1d(self._rd[name]) # It was already set
+            
             try:
-                pfv = get_value_class(ptype, self.domain)
-                pfv._pval_callback = self._pval_callback
-                return pfv[:]
+                return self._get_param_func(name)
             except ParameterFunctionException:
                 log.debug('failed to get parameter function field: %s (%s)', name, self._pdict.keys(), exc_info=True)
+
         if self._rd[name] is not None:
             return np.atleast_1d(self._rd[name])
         return None
+
+    def _get_param_func(self, name):
+        ptype = self._pdict.get_context(name).param_type
+        if isinstance(ptype.function, PythonFunction):
+
+            args = self._build_arg_map(name, ptype)
+
+            # For missing parameter inputs, return None
+            if args is None:
+                return None
+
+            if not hasattr(ptype.function,'_callable'):
+                ptype.function._import_func()
+
+            retval = ptype.function._callable(*args)
+            return retval
+
+        elif isinstance(ptype.function, NumexprFunction):
+            args = self._build_arg_map(name, ptype, return_dict=True)
+
+            # For missing parameter inputs, return None
+            if args is None:
+                return None
+            retval = ne.evaluate(ptype.function.expression, local_dict=args)
+            return retval
+
+        else:
+            raise BadRequest("%s not supported parameter function type" % type(ptype.function))
+
+    def _build_arg_map(self, name, ptype, return_dict=False):
+        # get the arg list
+        arg_list = ptype.function.arg_list
+        # the map
+        arg_map = ptype.function.param_map
+        # get the arrays for each
+        array_map = {}
+        for k,v in arg_map.iteritems():
+
+            array_value = self[v]
+            if array_value is None:
+                log.warning("Missing inputs for parameter function %s", name)
+                return None
+            array_map[k] = array_value
+
+        if return_dict:
+            return array_map
+
+        return [array_map[i] for i in arg_list]
 
     def iteritems(self):
         """ D.iteritems() -> an iterator over the (key, value) items of D """

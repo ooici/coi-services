@@ -1554,9 +1554,27 @@ def rotate_v(u,v,theta):
 
         parameter_functions = DotDict({
             'identity' : {
-                'function_type' : PFT.NUMEXPR,
-                'function' : 'x',
+                'function_type' : PFT.PYTHON,
+                'owner' : 'ion_functions.data.interpolation',
+                'function' : 'identity',
                 'args':['x']
+            },
+            'interpolate' : {
+                'function_type' : PFT.PYTHON,
+                'owner' : 'ion_functions.data.interpolation',
+                'function' : 'secondary_interpolation',
+                'args':['x', 'range0', 'range1', 'starts', 'ends']
+            },
+            'ne_offset' : {
+                'function_type' : PFT.NUMEXPR,
+                'function' : 'x + 2',
+                'args' : ['x']
+            },
+            'polyval_calibration' : {
+                'function_type' : PFT.PYTHON,
+                'owner' : 'ion_functions.data.interpolation',
+                'function' : 'polyval_calibration',
+                'args':['coefficients', 'x']
             }
         })
 
@@ -1568,70 +1586,17 @@ def rotate_v(u,v,theta):
 
 
         parameters = DotDict({
-            'tempwat_pd_cal' : {
-                'parameter_type':'sparse',
-                'value_encoding' : 'float32',
-                'display_name' : 'Temperature Calibration',
-                'description' : 'Post-Deployment Calibration',
-                'fill_value' : 'nan',
-                'units' : '1'
-            },
-            'tempwat_pr_cal' : {
-                'parameter_type' : 'sparse',
-                'value_encoding' : 'float32',
-                'display_name' : 'Temperature Calibration',
-                'description' : 'Post-Recovery Calibration',
-                'fill_value' : 'nan',
-                'units' : '1'
-            },
-            'tempwat_pd_start' : {
-                'parameter_type' : 'sparse',
-                'value_encoding' : 'float64',
-                'display_name' : 'Post-Deployment Start Date',
-                'description' : 'Start Date for the Post-Deployment Calibrations',
-                'units' : 'seconds since 1900-01-01'
-            },
-            'tempwat_pd_end' : { 
-                'parameter_type' : 'sparse',
-                'value_encoding' : 'float64',
-                'display_name' : 'Post-Deployment End Date',
-                'description' : 'End Date for the Post-Deployment Calibrations',
-                'units' : 'seconds since 1900-01-01',
-            },
-            'tempat_l1b_pd' : {
-                'display_name':'TEMPWAT L1b PD',
-                'description' : 'TEMPWAT L1b Post-Deployment (Calibrated)',
+            'tempwat_sum' : {
+                'display_name' : 'Fake Data',
+                'description' : 'Not a real parameter',
                 'parameter_type' : 'function',
-                'parameter_function_id' : parameter_functions.identity._id,
+                'parameter_function_id' : parameter_functions.ne_offset._id,
                 'units':'1',
                 'value_encoding':'float32',
-                'parameter_function_map':{
-                    'x' : 'temp'
-                }
-            },
-            'tempwat_l1b_pr' : {
-                'display_name' : 'TEMPWAT L1b PR',
-                'description' : 'TEMPWAT L1b Post-Recovery (Calibrated)',
-                'parameter_type':'function',
-                'parameter_function_id' : parameter_functions.identity._id,
-                'units':'1',
-                'value_encoding':'float32',
-                'parameter_function_map':{
-                    'x' : 'temp'
-                }
-            },
-            'tempwat_l1b_interp' : {
-                'display_name' : 'TEMPWAT L1b Interpolated',
-                'description' : 'TEMPWAT L1b Interpolated',
-                'parameter_type' : 'function',
-                'parameter_function_id' : parameter_functions.identity._id,
-                'units' : '1',
-                'value_encoding' : 'float32',
                 'parameter_function_map' : {
                     'x' : 'temp'
                 }
             }
-
         })
 
         for param_name, param_def in parameters.iteritems():
@@ -1643,22 +1608,35 @@ def rotate_v(u,v,theta):
     def test_secondary_cals(self):
         data_product_id = self.make_instrument_data_product()
         self.make_calibration_params(data_product_id)
-
-        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
-        rdt = self.ph.rdt_for_data_product(data_product_id)
-        ntp_now = time.time() + 2208988800
-        rdt['time'] = np.arange(ntp_now, ntp_now+20)
-        rdt['temp'] = np.arange(20)
-        self.ph.publish_rdt_to_data_product(data_product_id,rdt)
-        self.assertTrue(dataset_monitor.wait())
-
         from ion.services.dm.utility.secondary_calibrations import SecondaryCalibrations
         sc = SecondaryCalibrations(self.data_product_management, self.dataset_management)
         sc.add_post_deployment(data_product_id, 'conductivity')
         sc.add_post_recovery(data_product_id, 'conductivity')
         sc.add_post_interpolated(data_product_id, 'conductivity')
 
-        self.preload_ui()
-        self.launch_ui_facepage(data_product_id)
-        breakpoint(locals(), globals())
-        
+        dataset_monitor = DatasetMonitor(data_product_id=data_product_id)
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        ntp_now = time.time() + 2208988800
+        rdt['time'] = np.arange(ntp_now, ntp_now+20)
+        rdt['temp'] = np.arange(20)
+        rdt['conductivity'] = np.arange(20)
+
+        self.ph.publish_rdt_to_data_product(data_product_id,rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+
+        from coverage_model import ConstantOverTime
+
+
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
+        cov = DatasetManagementService._get_coverage(dataset_id, mode='r+')
+        np_dict = {
+            'condwat_l1b_pd_cals' : ConstantOverTime('condwat_l1b_pd_cals', (0.0, 0.0, 0.0, 1.2, 1.0)),
+            'condwat_l1b_pr_cals' : ConstantOverTime('condwat_l1b_pd_cals', (0.0, 0.0, 0.0, 1.2, 2.0)),
+            'condwat_l1b_start' : ConstantOverTime('condwat_l1b_start', ntp_now),
+            'condwat_l1b_end' : ConstantOverTime('condwat_l1b_end', ntp_now+10),
+        }
+        cov.set_parameter_values(np_dict)
+
+
+        breakpoint(locals(), globals()) 
