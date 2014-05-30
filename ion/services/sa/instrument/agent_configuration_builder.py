@@ -66,6 +66,7 @@ class AgentConfigurationBuilder(object):
         self.last_id            = None
         self.will_launch        = False
         self.generated_config   = False
+        self.actor_id           = ''
 
     def _predicates_to_cache(self):
         return [PRED.hasOutputProduct,
@@ -210,17 +211,23 @@ class AgentConfigurationBuilder(object):
         config = self.generate_config()
         return config
 
-
-    def _generate_org_governance_name(self):
-        log.debug("_generate_org_governance_name for %s", self.agent_instance_obj.name)
+    def _generate_org(self):
+        """
+        @return Org object to which this agent instance belongs
+        """
+        log.debug("_generate_org for %s", self.agent_instance_obj.name)
         log.debug("retrieve the Org governance name to which this agent instance belongs")
         try:
             org_obj = self.RR2.find_subject(RT.Org, PRED.hasResource, self.agent_instance_obj._id, id_only=False)
-            return org_obj.org_governance_name
+            log.debug("[xa] org_obj=%s", org_obj)
+            return org_obj
         except NotFound:
-            return ''
+            return None
         except:
             raise
+
+    def set_actor_id(self, actor_id):
+        self.actor_id = actor_id or ''
 
     def _generate_device_type(self):
         log.debug("_generate_device_type for %s", self.agent_instance_obj.name)
@@ -365,10 +372,14 @@ class AgentConfigurationBuilder(object):
         # merge the agent config into the default config
         agent_config = dict_merge(self._get_agent().agent_default_config, self.agent_instance_obj.agent_config, True)
 
+        org_obj = self._generate_org()
+
         # Create agent_config.
         agent_config['instance_id']        = self.agent_instance_obj._id
         agent_config['instance_name']        = self.agent_instance_obj.name
-        agent_config['org_governance_name']  = self._generate_org_governance_name()
+        agent_config['org_governance_name']  = org_obj.org_governance_name if org_obj else ''
+        agent_config['provider_id']          = org_obj._id if org_obj else ''
+        agent_config['actor_id']             = self.actor_id
         agent_config['device_type']          = self._generate_device_type()
         agent_config['driver_config']        = self._generate_driver_config()
         agent_config['stream_config']        = self._generate_stream_config()
