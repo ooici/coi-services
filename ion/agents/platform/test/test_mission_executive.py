@@ -297,7 +297,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         """
         Test the Shallow Water Profiler mission
         """
-        filename = 'ion/agents/platform/test/mission_ShallowProfiler.yml'
+        filename = 'ion/agents/platform/test/mission_ShallowProfiler_simulated.yml'
         self.load_mission(yaml_filename=filename)
 
         # Setup the platform and instruments

@@ -1,0 +1,85 @@
+name: Shallow Profiler
+version: 0.4
+description: Shallow Profiler Mission
+
+platform:
+  platformID: SHALLOW_PROFILER
+mission:
+  - missionThread:
+    instrumentID: [SBE37_SIM_02]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:
+      startTime: 03/27/2014 00:00:00
+      loop:
+        quantity: -1   # No. of loops (-1 for infinite)
+        value: 5      # Repeat missionParams every 'xx' 'units'
+        units: mins    # mins, hrs, days
+      event:
+        parentID:
+        eventID:
+    preMissionSequence:
+      - command: set_resource(INTERVAL{1})
+        onError: retry
+    missionSequence:
+      - command: execute_resource(START_AUTOSAMPLE)
+        onError: retry
+      - command: wait(1)
+        onError:
+      - command: execute_resource(STOP_AUTOSAMPLE)
+        onError: retry
+    postMissionSequence:
+
+
+  - missionThread:
+    instrumentID: [SBE37_SIM_03]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:
+      startTime:
+      loop:
+        quantity:
+        value:
+        units:
+      event:
+        parentID: SBE37_SIM_02
+        eventID: PROFILER_AT_STEP
+    preMissionSequence:
+      - command: set_resource(INTERVAL{1})
+        onError: retry
+    missionSequence:
+      - command: execute_resource(START_AUTOSAMPLE)
+        onError: retry
+      - command: wait(1)
+        onError:
+      - command: execute_resource(STOP_AUTOSAMPLE)
+        onError: retry
+    postMissionSequence:
+
+  - missionThread:
+    instrumentID: [SBE37_SIM_04]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:
+      startTime:
+      loop:
+        quantity:
+        value:
+        units:
+      event:
+        parentID: SBE37_SIM_02
+        eventID: PROFILER_AT_CEILING
+    preMissionSequence:
+      - command: set_resource(INTERVAL{5})
+        onError: retry
+    missionSequence:
+      - command: execute_resource(START_AUTOSAMPLE)
+        onError: retry
+      - command: wait(1)
+        onError:
+      - command: execute_resource(STOP_AUTOSAMPLE)
+        onError: retry
+    postMissionSequence:
