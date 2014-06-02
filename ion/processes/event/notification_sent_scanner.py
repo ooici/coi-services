@@ -7,6 +7,7 @@
 @brief NotificationSentScanner plugin. An EventPersister plugin scanning for, and keeping state(count) of, NotificationEvent's
 """
 
+import time
 from collections import Counter
 from pyon.core import bootstrap
 from pyon.public import log, OT
@@ -20,7 +21,7 @@ class NotificationSentScanner(object):
         self.store = self.container.object_store
 
         self.persist_interval = 300 # interval in seconds to persist/reload counts TODO CFG
-        self.time_last_persist # time of last persist
+        self.time_last_persist = 0
 
         # initalize volatile counts (memory only, should be routinely persisted)
         self._initialize_counts()
