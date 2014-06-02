@@ -5,81 +5,105 @@ description: Sample HDCamera Mission
 platform:
   platformID: HDCamera03A
 
-mission:
-    - instrument: 
-      instrumentID: HDCamera
-      schedule:
-        startTime: 02/01/2014 00:00:00
-        loop:
-          quantity: -1
-          value: 24
-          units: hrs
-        event:
-          parentID:
-          eventID: 
-      missionParams:
-        # - command: Connect
-        #   params: {}
-        - command: Pan
-          params: {'angle': 0, 'rate': 10}
-        - command: Tilt
-          params: {'angle': 0, 'rate': 10}
-        - command: Zoom
-          params: {'level': 200}
-        - command: Lights
-          params: {'power': 0.5}
-        - command: Lasers
-          params: {'power': 1}
-        - command: Wait
-          params: {'duration': 5, 'units': 'mins'}
-        - command: Zoom
-          params: {'level': 100}
-        - command: Wait
-          params: {'duration': 5, 'units': 'mins'}
-        - command: Pan
-          params: {'angle': -90, 'rate': 1}
-        - command: Pan
-          params: {'angle': 90, 'rate': 1}
-        - command: Pan
-          params: {'angle': 0, 'rate': 10}
-        - command: Tilt
-          params: {'angle': 0, 'rate': 10}
-        - command: Zoom
-          params: {'level': 100}
-        - command: Lights
-          params: {'power': 0}
-        # - command: Disconnect
-        #   params: {}
+# Based on the HD Camera interface found here:
+# http://wavelet.apl.uw.edu/projects/rsn_hdcam/wiki/NetworkApi
+#
+# It's assumed the commands are blocking calls, meaning the agents won't return
+# until the instrument has compelted the desired actions.
+#
+# Otherwise, for pan/tilt commands, the mission executive needs to subscribe to the PUB socket 
+# and wait for the STOPPED message
 
-    - instrument: 
-      instrumentID: HDCamera
-      schedule:
-        startTime: 02/01/2014 02:00:00
-        loop:
-          quantity: -1
-          value: 4
-          units: hrs
-        event:
-          parentID:
-          eventID: 
-      missionParams:
-        # - command: Connect
-        #   params: {}
-        - command: Pan
-          params: {'angle': 0, 'rate': 10}
-        - command: Tilt
-          params: {'angle': 0, 'rate': 10}
-        - command: Zoom
-          params: {'level': 50}
-        - command: Lights
-          params: {'power': 0.30}
-        - command: Lasers
-          params: {'power': 1}
-        - command: Wait
-          params: {'duration': 10, 'units': 'mins'}
-        - command: Lights
-          params: {'power': 0}
-        - command: Lasers
-          params: {'power': 0}
-        # - command: Disconnect
-        #   params: {}
+mission:
+  - missionThread: 
+    instrumentID: [HDCAM]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:  # Run missionThread every 24 hours starting at 00:00
+      startTime: 06/01/2014 00:00:00
+      loop:
+        quantity: -1
+        value: 24
+        units: hrs
+      event:
+        parentID:
+        eventID: 
+    preMissionSequence:
+    missionSequence:
+    # The client sends this message to power-on the video camera and start the video streaming process. 
+    # The endpoint parameter is required and specifies the IP address of the system running the UltraGrid receiver process
+      - command: HDCAM, execute_resource(START{hdproc-local}) # Start data stream at specified IP
+        onError: retry
+    # The camera orientation is adjusted using relative pan and tilt values. 
+    # A positive tilt value tilts the camera up and a positive pan value pans the camera to the right. 
+    # The values returned from the server are absolute, heading is in degrees Magnetic with North at 0 
+    # and pitch is in degrees from the horizontal plane with negative values for tilt-up and positive values for tilt down.
+    # Command format: LOOK_AT{pan <deg>, tilt <deg>, speed <deg/s>}
+      - command: HDCAM, execute_resource(LOOK_AT{0,0,10}) # Go to 0 deg pan, 0 deg tilt at 10 deg/s
+        onError: retry
+    # The client sends this message to adjust various camera settings. 
+    # The zoom setting is in steps relative to the current setting, a positive value zooms in and a negative value zooms out. 
+    # A message with an empty parameter frame can be used to query the current settings.
+    # Command format: CAMERA{zoom <percent>, lasers <on/off>}
+      - command: HDCAM, execute_resource(CAMERA{200,on}) # Zoom to 200%, lasers on
+        onError: retry
+    # The client sends this message to adjust the relative light intensity from 0 to 100 (percent). 
+    # There are two lights which can be controlled independently. Setting the intensity to 0 powers the lights off.
+      - command: HDCAM, execute_resource(LIGHTS{50,50}) # turn on lights @ 50%
+        onError: retry
+      - command: HDCAM, execute_resource(CAMERA{0,off}) # turn off lasers
+        onError: retry
+      - command: wait(5) # wait 5 mins
+        onError:
+      - command: HDCAM, execute_resource(CAMERA{100,off}) # zoom to 100%
+        onError: retry
+      - command: wait(5) # wait 5 mins
+        onError:
+      - command: HDCAM, execute_resource(LOOK_AT{-90,0,1}) # pan to -90 deg at 1 deg/s
+        onError: retry
+      - command: HDCAM, execute_resource(LOOK_AT{90,0,1}) # pan to 90 deg at 1 deg/s
+        onError: retry
+      - command: HDCAM, execute_resource(LOOK_AT{0,0,10}) # Go to 0 deg pan, 0 deg tilt at 10 deg/s
+        onError: retry
+      - command: HDCAM, execute_resource(LIGHTS{0,0}) # turn off lights
+        onError: retry
+      - command: HDCAM, execute_resource(STOP) # stop data stream
+        onError: retry
+    postMissionSequence:
+
+  - missionThread: 
+    instrumentID: [HDCAM]
+    errorHandling:
+      default: retry
+      maxRetries: 3
+    schedule:  # Run missionThread every 4 hours starting at 02:00
+      startTime: 06/01/2014 02:00:00
+      loop:
+        quantity: -1
+        value: 4
+        units: hrs
+      event:
+        parentID:
+        eventID: 
+    preMissionSequence:
+    missionSequence:
+      - command: HDCAM, execute_resource(START{hdproc-local})
+        onError: retry
+      - command: HDCAM, execute_resource(LOOK_AT{0,0,10}) # Go to 0 deg pan, 0 deg tilt at 10 deg/s
+        onError: retry
+      - command: HDCAM, execute_resource(CAMERA{50,on}) # Go to zoom 50%
+        onError: retry
+      - command: HDCAM, execute_resource(LIGHTS{30,30}) # turn on lights @ 30%
+        onError: retry
+      - command: HDCAM, execute_resource(CAMERA{0,on}) # turn on lasers
+        onError: retry
+      - command: wait(10) # wait 10 mins
+        onError:
+      - command: HDCAM, execute_resource(LIGHTS{0,0}) # turn off lights
+        onError: retry
+      - command: HDCAM, execute_resource(CAMERA{0,off}) # turn off lasers
+        onError: retry
+      - command: HDCAM, execute_resource(STOP) # stop data stream
+        onError: retry
+    postMissionSequence:
