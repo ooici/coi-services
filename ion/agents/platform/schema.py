@@ -190,13 +190,6 @@ AGENT_SCHEMA_V1 = {
                 "args" : [],
                 "kwargs" : {}
             },
-        PlatformAgentCapability.KILL_MISSION :
-            {
-                "display_name" : "Kill Mission",
-                "description" : "Immediately halt mission execution.",
-                "args" : [],
-                "kwargs" : {}
-            },
         },
     "parameters" : {
         "streams" :

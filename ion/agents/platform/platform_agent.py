@@ -3648,30 +3648,6 @@ class PlatformAgent(ResourceAgent):
 
         return next_state, result
 
-    def _handler_mission_kill(self, *args, **kwargs):
-        """
-        Kills the execution of the mission indicated with the kwarg 'mission_id'.
-        Transitions to saved state if no remaining missions are left running.
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        mission_id = kwargs.get('mission_id', None)
-        if mission_id is None:
-            raise FSMError('mission_run: missing mission_id argument')
-
-        result = self._mission_manager.kill_mission(mission_id)
-
-        remaining = self._mission_manager.get_number_of_running_missions()
-        if remaining == 0:
-            next_state = self._pre_mission_state
-            self._pre_mission_state = None
-        else:
-            next_state = None
-
-        return next_state, result
-
     ##############################################################
     # Agent parameter functions.
     ##############################################################
@@ -3817,12 +3793,10 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.RUN_MISSION, self._handler_mission_run)
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.EXIT_MISSION, self._handler_mission_exit)
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.ABORT_MISSION, self._handler_mission_abort)
-        self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.KILL_MISSION, self._handler_mission_kill)
         self._fsm.add_handler(PlatformAgentState.MISSION_COMMAND, PlatformAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
 
         # MISSION_STREAMING state event handlers.
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.RUN_MISSION, self._handler_mission_run)
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.EXIT_MISSION, self._handler_mission_exit)
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.ABORT_MISSION, self._handler_mission_abort)
-        self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.KILL_MISSION, self._handler_mission_kill)
         self._fsm.add_handler(PlatformAgentState.MISSION_STREAMING, PlatformAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)

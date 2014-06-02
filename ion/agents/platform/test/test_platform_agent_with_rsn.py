@@ -285,7 +285,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
             PlatformAgentEvent.RUN_MISSION,
             PlatformAgentEvent.ABORT_MISSION,
-            PlatformAgentEvent.KILL_MISSION,
         ]
 
         def sort_caps(caps_list):

@@ -65,7 +65,6 @@ class PlatformAgentEvent(BaseEnum):
     RUN_MISSION               = 'PLATFORM_AGENT_RUN_MISSION'
     EXIT_MISSION              = 'PLATFORM_AGENT_EXIT_MISSION'
     ABORT_MISSION             = 'PLATFORM_AGENT_ABORT_MISSION'
-    KILL_MISSION              = 'PLATFORM_AGENT_KILL_MISSION'
 
 
 class PlatformAgentCapability(BaseEnum):
@@ -93,7 +92,6 @@ class PlatformAgentCapability(BaseEnum):
 
     RUN_MISSION               = PlatformAgentEvent.RUN_MISSION
     ABORT_MISSION             = PlatformAgentEvent.ABORT_MISSION
-    KILL_MISSION              = PlatformAgentEvent.KILL_MISSION
 
 
 class ResourceInterfaceCapability(BaseEnum):

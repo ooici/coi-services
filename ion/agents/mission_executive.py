@@ -556,14 +556,6 @@ class MissionScheduler(object):
 
             self._publish_mission_aborted_event(self.mission_id)
 
-    def kill_mission(self):
-        """
-        Terminates the ongoing mission execution in a more abrupt fashion;
-        it stops all mission threads as soon as possible.
-        """
-        # Not implemented
-        pass
-
     def _abort_mission_thread(self, instruments):
         """
         Terminates the missionThread execution and puts instruments in INACTIVE State
