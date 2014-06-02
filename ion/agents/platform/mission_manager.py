@@ -93,20 +93,6 @@ class MissionManager(object):
         finally:
             del self._running_missions[mission_id]
 
-    def kill_mission(self, mission_id):
-        if mission_id not in self._running_missions:
-            raise BadRequest('kill_mission: invalid mission_id=%r', mission_id)
-
-        mission_scheduler = self._running_missions[mission_id]
-        try:
-            mission_scheduler.kill_mission()
-            return None
-        except Exception as ex:
-            log.exception('[mm] kill_mission')
-            return ex
-        finally:
-            del self._running_missions[mission_id]
-
     ############
     # private
     ############
