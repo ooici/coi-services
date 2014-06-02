@@ -50,9 +50,9 @@ class MissionManager(object):
         if self._actor_id is None:
             log.warn('[xa] actor_id is None')
 
-        # _exaccess: resource_id -> [mission_id, ...]: agents we have acquired
-        # exclusive access to. We remove the actual exclusive access when
-        # there are no more associated mission_id's for a given resource_id.
+        # _exaccess: resource_id -> {'commitment_id': id, 'mission_ids': [mission_id, ...]}:
+        # the agents we have acquired exclusive access to. We remove the actual exclusive
+        # access when there are no more associated mission_id's for a given resource_id.
         self._exaccess = {}
 
         self.ORG = OrgManagementServiceProcessClient(process=self._agent)
@@ -204,7 +204,7 @@ class MissionManager(object):
 
         # check if we already have exclusive access to resource_id:
         if resource_id in self._exaccess:
-            mission_ids = self._exaccess[resource_id]
+            mission_ids = self._exaccess[resource_id]['mission_ids']
             if mission_id in mission_ids:
                 log.debug('[xa] resource_id=%r already with exclusive access, '
                           'mission_id=%r', resource_id, mission_id)
@@ -220,17 +220,18 @@ class MissionManager(object):
         # TODO proper handling of BadRequest exception upon failure to obtain
         # exclusive access. For now, just logging ghe exception.
         try:
-            self._do_get_exclusive_access(resource_id)
-            self._exaccess[resource_id] = [mission_id]
+            commitment_id = self._do_get_exclusive_access(resource_id)
+            self._exaccess[resource_id] = dict(commitment_id=commitment_id,
+                                               mission_ids=[mission_id])
         except BadRequest:
             log.exception('[xa] _get_exclusive_access: resource_id=%r, mission_id=%r',
                           resource_id, mission_id)
 
     def _do_get_exclusive_access(self, resource_id):
         """
-        preliminary.  Partly based on test_governance.py, experimentation and
-        some ad hoc mechanism to generate a negotiation_id given that we are
-        not using the "ORG.negotiation" call but "ORG.acquire_resource" directly.
+        Gets exclusive access to a given resource.
+
+        @return  commitment_id
         """
         # TODO Needs review
 
@@ -253,9 +254,10 @@ class MissionManager(object):
                          negotiation_id=negotiation_id)
 
         # we are initially opting for only "phase 2" -- just acquire_resource:
-        arxp_response = self.ORG.acquire_resource(arxp, headers=self._actor_header)
+        commitment_id = self.ORG.acquire_resource(arxp, headers=self._actor_header)
         log.debug('[xa] AcquireResourceExclusiveProposal: '
-                  'resource_id=%s -> arxp_response=%s', resource_id, arxp_response)
+                  'resource_id=%s -> commitment_id=%s', resource_id, commitment_id)
+        return commitment_id
 
         # #####################################################################
         # # with "negotiation" it seems it would involve something like the
@@ -288,7 +290,7 @@ class MissionManager(object):
             log.warn('[xa] not associated with exclusive access resource_id=%r', resource_id)
             return
 
-        mission_ids = self._exaccess[resource_id]
+        mission_ids = self._exaccess[resource_id]['mission_ids']
         if not mission_id in mission_ids:
             log.warn('[xa] not associated with exclusive access resource_id=%r', resource_id)
             return
@@ -300,10 +302,25 @@ class MissionManager(object):
                       resource_id, mission_id)
             return
 
+        # no more mission_ids associated, so release the exclusive access:
+        commitment_id = self._exaccess[resource_id]['commitment_id']
         del self._exaccess[resource_id]
-        self._do_remove_exclusive_access(resource_id)
-        log.debug('[xa] exclusive access removed: resource_id=%r', resource_id)
+        self._do_remove_exclusive_access(commitment_id, resource_id)
 
-    def _do_remove_exclusive_access(self, resource_id):
-        # TODO how to remove the AcquireResourceExclusiveProposal?
-        pass
+    def _do_remove_exclusive_access(self, commitment_id, resource_id):
+        """
+        Does the actual release of the exclusive access.
+
+        @param commitment_id   commitment to the released
+        @param resource_id     associated resource ID for logging purposes
+        """
+        # TODO: any exception below is just logged out; need different handling?
+        try:
+            ret = self.ORG.release_commitment(commitment_id)
+            log.debug('[xa] exclusive access removed: resource_id=%r: '
+                      'ORG.release_commitment(commitment_id=%r) returned=%r',
+                      resource_id, commitment_id, ret)
+
+        except Exception as ex:
+            log.exception('[xa] resource_id=%r: ORG.release_commitment(commitment_id=%r)',
+                          resource_id, commitment_id)
