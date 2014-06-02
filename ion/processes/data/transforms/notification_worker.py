@@ -116,7 +116,11 @@ class NotificationWorker(TransformEventListener):
                             context['smtp_to'] = smtp_to
 
                             # message from Jinja2 template (email or SMS)
-                            smtp_msg = _mimetext(delivery_configuration, context)
+                            try:
+                                smtp_msg = _mimetext(delivery_configuration, context)
+                            except Exception:
+                                log.error('Failed to create message for notification %s', notification._id)
+                                continue # skips this notification
 
                             # TODO: use NOOP to check connection first?
                             # TODO: determine if sendmail was successful?
@@ -130,10 +134,12 @@ class NotificationWorker(TransformEventListener):
                 smtp.quit() # TODO what happens if we _initialize_smtp() again, is there a dangling SMTP object? Should this be self.smtp and force quit on first line of _initialize_smtp()?
 
     def _mimetext(delivery_configuration, context):
-        if 1:# TODO template depends on NotificationRequest.delivery_configurations.mode (need branch for email and SMS)
+        if delivery_configuration.mode == OT.DeliveryModeEnum.EMAIL:
             body = self.jinja_env.get_template('notification_realtime_email.txt').render(context)
-        else:
+        elif delivery_configuration.mode == OT.DeliveryModeEnum.SMS:
             body = self.jinja_env.get_template('notification_realtime_sms.txt').render(context)
+        else:
+            raise Exception
         # create MIMEText message
         smtp_msg = MIMEText(body)
         smtp_msg['Subject'] = 'OOINet ION Event Notification - %s' % context['event_label']
