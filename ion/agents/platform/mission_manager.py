@@ -155,6 +155,9 @@ class MissionManager(object):
         @param mission_yml
 
         @return (mission_loader, mission_scheduler)
+        @raise  Exception the first exception while requesting exclusive
+                access to a child instrument. All other successful
+                such requests, if any, are reverted.
         """
         log.debug('[mm] _create_mission_scheduler: mission_id=%r', mission_id)
 
@@ -176,13 +179,42 @@ class MissionManager(object):
 
                 instruments[obj.resource_id] = obj.ia_client
 
-        # get exclusive access to the valid instruments referenced in the mission:
         mission_entries = mission_loader.mission_entries
+
+        # get all involved instruments referenced in the mission:
+        instrument_ids = set()
         for mission_entry in mission_entries:
-            instrument_ids = mission_entry.get('instrument_id', [])
-            for instrument_id in instrument_ids:
+            for instrument_id in mission_entry.get('instrument_id', []):
                 if instrument_id in instruments:
-                    self._get_exclusive_access(instrument_id, mission_id)
+                    instrument_ids.add(instrument_id)
+
+        # get exclusive access to those instruments. If any one fails,
+        # rollback and raise that first exception:
+        instrument_ids_ok = set()
+        exception = None
+        for instrument_id in instrument_ids:
+            try:
+                self._get_exclusive_access(instrument_id, mission_id)
+                instrument_ids_ok.add(instrument_id)
+            except Exception as ex:
+                exception = ex
+                log.warn('[xa] _create_mission_scheduler: exclusive access request to'
+                         ' resource_id=%r failed: %s', instrument_id, exception)
+                break
+
+        if exception:
+            if len(instrument_ids_ok):
+                log.warn('[xa] _create_mission_scheduler: reverting exclusive access '
+                         'to the resources: %s', instrument_ids_ok)
+                for instrument_id in instrument_ids_ok:
+                    try:
+                        self._remove_exclusive_access(instrument_id, mission_id)
+                    except Exception as ex:
+                        # just log warning an continue
+                        log.warn('[xa] exception while reverting exclusive access to '
+                                 'resource_id=%r: %s', instrument_id, ex)
+
+            raise exception
 
         mission_scheduler = MissionScheduler(self._agent,
                                              instruments,
