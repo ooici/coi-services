@@ -78,6 +78,7 @@ ARG_HELP = {
     "facility":     "a facility (Org) identified by governance name, preload id, name or uuid",
     "role":         "a user role identified by governance name, preload id, name or uuid within the facility (Org)",
     "user":         "a user or actor identified by name, preload ir or uuid",
+    "agent":        "comma separate list of preload ids of agent definitions",
 }
 
 RES_ARG_LIST = ["resource_id", "preload_id"]
@@ -166,6 +167,9 @@ OP_HELP = [
     ("set_owner", dict(
         opmsg="Set the owner user/actor for given resource, replacing current owner if existing",
         args=RES_ARG_LIST + ["user"] + COMMON_ARG_LIST)),
+    ("set_agentdef", dict(
+        opmsg="Reassigns the agent definition",
+        args=RES_ARG_LIST + ["agent"] + COMMON_ARG_LIST)),
     ("create_dataset", dict(
         opmsg="Create Dataset resource and coverage for a device, but don't activate ingestion worker",
         args=DEV_ARG_LIST + COMMON_ARG_LIST)),
@@ -1286,6 +1290,46 @@ class AgentControl(ImmediateProcess):
                 assoc = self.rr.get_association(resource_id, PRED.hasOwner, owner._id)
                 self.rr.delete_association(assoc)
             self.rr.create_association(resource_id, PRED.hasOwner, actor_id)
+
+    def set_agentdef(self, agent_instance_id, resource_id):
+        if not agent_instance_id:
+            return
+        res_obj = self.rr.read(resource_id)
+        ai_obj = self.rr.read(agent_instance_id)
+        agents = self.CFG.get("agent", None)
+        if not agents:
+            raise BadRequest("Must provide agent argument")
+        cur_adef_obj = self.rr.read_object(agent_instance_id, PRED.hasAgentDefinition, id_only=False)
+        cur_adef_model_obj = self.rr.read_object(cur_adef_obj._id, PRED.hasModel, id_only=False)
+
+        # Iterate through the list of agents and see if one matches by model
+        for agent in agents.split(","):
+            adefs, _ = self.rr.find_resources_ext(alt_id_ns="PRE", alt_id=agent, id_only=False)
+            if not adefs:
+                continue
+            adef_obj = adefs[0]
+            if not isinstance(adef_obj, AgentDefinition):
+                raise BadRequest("Provide agent ID %s is not an AgentDefinition" % agent)
+            if cur_adef_obj._id == adef_obj._id:
+                if self.verbose:
+                    log.debug("Current Device %s '%s' (AI %s) AgentDefinition already assigned: %s '%s'", resource_id, res_obj.name,
+                              agent_instance_id, cur_adef_obj._id, cur_adef_obj.name)
+                    return
+
+            adef_model_obj = self.rr.read_object(cur_adef_obj._id, PRED.hasModel, id_only=False)
+            if cur_adef_model_obj._id == adef_model_obj._id:
+                if self.verbose:
+                    log.debug("Current Device %s '%s' (AI %s) AgentDefinition: %s '%s'", resource_id, res_obj.name,
+                              agent_instance_id, cur_adef_obj._id, cur_adef_obj.name)
+                cur_assoc = self.rr.get_association(agent_instance_id, PRED.hasAgentDefinition, cur_adef_obj._id, id_only=True)
+                if not self.dryrun:
+                    self.rr.delete_association(cur_assoc)
+
+                log.info("Reassign Device %s '%s' (AI %s) to AgentDefinition: %s '%s' (matching model '%s')", resource_id, res_obj.name,
+                          agent_instance_id, adef_obj._id, adef_obj.name, cur_adef_model_obj.name)
+                if not self.dryrun:
+                    self.rr.create_association(agent_instance_id, PRED.hasAgentDefinition, adef_obj._id)
+                break
 
     def create_dataset(self, agent_instance_id, resource_id):
         # Find hasOutputProduct DataProducts
