@@ -428,7 +428,7 @@ def get_governance_info_from_request(request_type='', json_params=None):
         if 'expiry' in json_params[request_type]:
             expiry = json_params[request_type]['expiry']
         if 'authtoken' in json_params[request_type]:
-            expiry = json_params[request_type]['authtoken']
+            authtoken = json_params[request_type]['authtoken']
 
     # R2 M185 - Enable temporary authentication tokens to resolve to actor ids
     if authtoken:
@@ -439,6 +439,7 @@ def get_governance_info_from_request(request_type='', json_params=None):
                                                                         'expiry': DEFAULT_EXPIRY})
             actor_id = token_info.get("actor_id", actor_id)
             expiry = token_info.get("expiry", expiry)
+            log.info("Resolved token %s into actor id=%s expiry=%s", authtoken, actor_id, expiry)
         except NotFound:
             log.info("Provided authentication token not found: %s", authtoken)
         except Unauthorized:
