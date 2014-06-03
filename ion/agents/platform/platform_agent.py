@@ -191,7 +191,8 @@ class PlatformAgent(ResourceAgent):
         #####################################
         # mission execution handling:
 
-        # MissionManager created on_start:
+        # MissionManager created in _initialize_this_platform and destroyed in
+        # _reset_this_platform
         self._mission_manager = None
 
         # state to return to after mission termination
@@ -293,8 +294,6 @@ class PlatformAgent(ResourceAgent):
 
         # create StatusManager now that we have all needed elements:
         self._status_manager = StatusManager(self)
-
-        self._mission_manager = MissionManager(self)
 
         if self._configure_aparams_arg:
             # see explanation in _configure_aparams
@@ -565,19 +564,21 @@ class PlatformAgent(ResourceAgent):
                   self._platform_id, attempts, curr_state)
 
     ##############################################################
-    # Operations on "this platform," that is, operations that act on the
-    # platform itself (and that are called by operations that also dispatch
+    # *_this_platform operations are operations that act on the
+    # platform itself (these are called by operations that also dispatch
     # the associated command on the children)
     ##############################################################
 
     def _initialize_this_platform(self):
         """
         Does the main initialize sequence for this platform: creation of
-        publishers and creation/configuration of the driver.
+        publishers, creation/configuration of the driver, creation of mission
+        manager.
         """
         self._asp = PlatformAgentStreamPublisher(self)
         self._create_driver()
         self._configure_driver()
+        self._mission_manager = MissionManager(self)
         log.debug("%r: _initialize_this_platform completed.", self._platform_id)
 
     def _go_active_this_platform(self, recursion=None):
@@ -610,7 +611,8 @@ class PlatformAgent(ResourceAgent):
 
     def _reset_this_platform(self):
         """
-        Resets this platform agent (stops resource monitoring, destroys driver).
+        Resets this platform agent: stops resource monitoring,
+        destroys driver, resets publishers, destroys mission manager.
 
         The "platform_config" configuration object provided via self.CFG
         (see on_init) is kept. This allows to issue the INITIALIZE command
@@ -634,6 +636,10 @@ class PlatformAgent(ResourceAgent):
 
         if self._asp:
             self._asp.reset()
+
+        if self._mission_manager:
+            self._mission_manager.destroy()
+            self._mission_manager = None
 
     def _shutdown_this_platform(self):
         """
@@ -874,7 +880,6 @@ class PlatformAgent(ResourceAgent):
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: driver configured." % self._platform_id)
-
 
     def _get_attribute_values(self, attrs):
         """
