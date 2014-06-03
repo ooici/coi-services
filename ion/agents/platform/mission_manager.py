@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
-
+import logging
 from ion.agents.mission_executive import MissionLoader
 from ion.agents.mission_executive import MissionScheduler
 from pyon.core.exception import BadRequest
@@ -26,6 +26,9 @@ class MissionManager(object):
 
     def __init__(self, pa):
         """
+        Called by platform agent upon its initialization so there is a driver
+        already created and configured.
+
         @param pa   The associated platform agent object to access the
                     elements handled by this helper.
         """
@@ -34,6 +37,7 @@ class MissionManager(object):
 
         # mission_id -> MissionScheduler mapping:
         self._running_missions = {}
+        log.debug('%r: [mm] MissionManager created', self._platform_id)
 
     def get_number_of_running_missions(self):
         return len(self._running_missions)
@@ -70,12 +74,15 @@ class MissionManager(object):
                       mission_id, len(self._running_missions))
 
     def external_event_received(self, evt):
+        # TODO remove this method -- it was decided unneeded: any object
+        # interested in reacting to events just subscribe to those directly,
+        # as opposed to try to duplicate its dispatching as this method
+        # would be trying to do.
         """
         Notifies all running missions about the received event.
         """
         log.debug('[mm] Notifying %s missions about external_event_received: %s. ',
                   len(self._running_missions), evt)
-        # TODO enable when implemented on scheduler:
         # for scheduler in self._running_missions.itervalues():
         #     scheduler.event_received(evt)
 
@@ -93,6 +100,26 @@ class MissionManager(object):
         finally:
             del self._running_missions[mission_id]
 
+    def destroy(self):
+        """
+        Called by platform agent when it is reset.
+        Aborts all ongoing missions if any. Any errors are logged out.
+        """
+        mission_ids = self._running_missions.keys()
+        nn = len(mission_ids)
+        if nn:
+            log.debug('%r: [mm] MissionManager.destroy called. Aborting %n ongoing missions...',
+                      self._platform_id, nn)
+            for mission_id in mission_ids:
+                try:
+                    self.abort_mission(mission_id)
+                except Exception as ignored:
+                    pass
+            self._running_missions = {}
+        else:
+            log.debug('%r: [mm] MissionManager.destroy called. No ongoing missions executing.',
+                      self._platform_id)
+
     ############
     # private
     ############
@@ -108,8 +135,9 @@ class MissionManager(object):
         mission_loader.load_mission(mission_id, mission_yml)
         self._mission_entries = mission_loader.mission_entries
 
-        log.debug('[mm] _create_mission_scheduler: _ia_clients=\n%s',
-                  self._agent._pp.pformat(self._agent._ia_clients))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug('[mm] _create_mission_scheduler: _ia_clients=\n%s',
+                      self._agent._pp.pformat(self._agent._ia_clients))
 
         # get instrument IDs and clients for the valid running instruments:
         instruments = {}
