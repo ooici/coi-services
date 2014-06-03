@@ -124,21 +124,53 @@ class PlatformDriver(object):
         self._construct_fsm()
         self._fsm.start(PlatformDriverState.UNCONFIGURED)
 
-    def get_resource_capabilities(self, current_state=True):
+    def get_resource_capabilities(self, current_state=True, cmd_attrs=False):
         """
+        @param current_state
+        @param cmd_attrs   If true, the returned commands will be the actual
+                           attributes of the associated capability class (or
+                           subclass) instead of the associated values.
         """
         res_cmds = self._fsm.get_events(current_state)
-        res_cmds = self._filter_capabilities(res_cmds)
+        res_cmds = self._filter_capabilities(res_cmds, cmd_attrs=cmd_attrs)
         res_params = self._param_dict.keys()
 
         return [res_cmds, res_params]
 
-    def _filter_capabilities(self, events):
+    def _filter_capabilities(self, events, cmd_attrs=False):
         """
-        Typically overwritten in subclass.
+        @param events      the events to filter
+        @param cmd_attrs   If true, then the actual attributes of the
+                           PlatformDriverCapability class (or subclass) are
+                           returned instead of the associated values.
         """
-        events_out = [x for x in events if PlatformDriverCapability.has(x)]
-        return events_out
+        capability_enum_class = self._get_capability_enum_class()
+        event_values = [x for x in events if capability_enum_class.has(x)]
+
+        if not cmd_attrs:
+            return event_values
+
+        # map event_values to the actual enum attributes:
+        event_attrs = []
+        for attr in dir(capability_enum_class):
+            # first two checks below similar to BaseEnum.list()
+            if attr.startswith('__'):
+                continue
+            val = getattr(capability_enum_class, attr)
+            if callable(val):
+                continue
+
+            if val in event_values:
+                event_attrs.append(attr)
+
+        return event_attrs
+
+    def _get_capability_enum_class(self):
+        """
+        Returns PlatformDriverCapability in this base class, but this is typically
+        overwritten to return the actual corresponding capability enum class.
+        """
+        return PlatformDriverCapability
 
     def get_resource_state(self, *args, **kwargs):
         """
