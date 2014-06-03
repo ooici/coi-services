@@ -16,7 +16,6 @@ import logging
 
 from copy import deepcopy
 
-from ion.agents.platform.platform_driver_event import DriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import PlatformDriverException
@@ -124,6 +123,20 @@ class PlatformDriver(object):
         self._construct_fsm()
         self._fsm.start(PlatformDriverState.UNCONFIGURED)
 
+    def get_platform_driver_event_class(self):
+        """
+        Returns PlatformDriverEvent in this base class, but this is typically
+        overwritten.
+        """
+        return PlatformDriverEvent
+
+    def get_platform_driver_capability_class(self):
+        """
+        Returns PlatformDriverCapability in this base class, but this is typically
+        overwritten.
+        """
+        return PlatformDriverCapability
+
     def get_resource_capabilities(self, current_state=True, cmd_attrs=False):
         """
         @param current_state
@@ -144,19 +157,19 @@ class PlatformDriver(object):
                            PlatformDriverCapability class (or subclass) are
                            returned instead of the associated values.
         """
-        capability_enum_class = self._get_capability_enum_class()
-        event_values = [x for x in events if capability_enum_class.has(x)]
+        capability_class = self.get_platform_driver_capability_class()
+        event_values = [x for x in events if capability_class.has(x)]
 
         if not cmd_attrs:
             return event_values
 
         # map event_values to the actual enum attributes:
         event_attrs = []
-        for attr in dir(capability_enum_class):
+        for attr in dir(capability_class):
             # first two checks below similar to BaseEnum.list()
             if attr.startswith('__'):
                 continue
-            val = getattr(capability_enum_class, attr)
+            val = getattr(capability_class, attr)
             if callable(val):
                 continue
 
@@ -164,13 +177,6 @@ class PlatformDriver(object):
                 event_attrs.append(attr)
 
         return event_attrs
-
-    def _get_capability_enum_class(self):
-        """
-        Returns PlatformDriverCapability in this base class, but this is typically
-        overwritten to return the actual corresponding capability enum class.
-        """
-        return PlatformDriverCapability
 
     def get_resource_state(self, *args, **kwargs):
         """
