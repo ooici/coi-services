@@ -90,8 +90,7 @@ class EventPersister(StandaloneProcess):
         self._refresh_greenlet.join(timeout=5)
 
     def _on_event(self, event, *args, **kwargs):
-        if not self._in_blacklist(event):
-            self.event_queue.put(event)
+        self.event_queue.put(event)
 
     def _in_blacklist(self, event):
         if event.type_ in self._event_type_blacklist:
@@ -109,6 +108,7 @@ class EventPersister(StandaloneProcess):
         # Event.wait returns False on timeout (and True when set in on_quit), so we use this to both exit cleanly and do our timeout in a loop
         while not self._terminate_persist.wait(timeout=persist_interval):
             try:
+                # leftover events_to_persist indicate previous attempt did not succeed
                 if self.events_to_persist and self.failure_count > 2:
                     bad_events = []
                     log.warn("Attempting to persist %s events individually" % (len(self.events_to_persist)))
@@ -134,12 +134,15 @@ class EventPersister(StandaloneProcess):
                     self._persist_events(self.events_to_persist)
                     self.events_to_persist = None
 
-                self.events_to_persist = [self.event_queue.get() for x in xrange(self.event_queue.qsize())]
+                # process ALL events (not retried on fail like peristing is)
+                events_to_process = [self.event_queue.get() for x in xrange(self.event_queue.qsize())]
+                # only persist events not in blacklist
+                self.events_to_persist = [x for x in events_to_process if not self._in_blacklist(x)]
 
                 try:
                     self._persist_events(self.events_to_persist)
                 finally:
-                    self._process_events(self.events_to_persist)
+                    self._process_events(events_to_process)
                 self.events_to_persist = None
                 self.failure_count = 0
             except Exception as ex:
