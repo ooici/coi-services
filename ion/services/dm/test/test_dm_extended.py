@@ -1387,8 +1387,9 @@ def rotate_v(u,v,theta):
         data_product_id = self.make_ctd_data_product()
 
         data_product = self.resource_registry.read(data_product_id)
-        data_product.qc_glblrng = 'applicable'
-        self.resource_registry.update(data_product)
+        data_product.qc_applications['TEMPWAT'] = ['qc_glblrng', 'qc_trndtst', 'qc_spketst', 'qc_gradtst', 'qc_loclrng', 'qc_stuckvl']
+        data_product.qc_applications['PRESWAT'] = ['qc_stuckvl']
+        self.data_product_management.update_data_product(data_product)
         site = InstrumentSite(name='example site', reference_designator='CP01CNSM-MFD37-03-CTDBPD000')
         site_id, _ = self.resource_registry.create(site)
         device = InstrumentDevice(name='a deployable device')
@@ -1417,8 +1418,7 @@ def rotate_v(u,v,theta):
     def test_qc_stuff(self):
         testapp = TestApp(service_gateway_app)
         data_product_id = self.make_instrument_data_product()
-        self.add_tempwat_qc(data_product_id)
-        tempwat_id = self.make_tempwat(data_product_id)
+
 
         # Post the lookup tables
         self.local_range_upload()
