@@ -29,21 +29,6 @@ from interface.objects import CapabilityType
 from interface.objects import MissionExecutionStatus
 
 
-class MissionEvents(BaseEnum):
-    """
-    Acceptable fake mission events.
-    """
-    #Shallow Profiler Events
-    PROFILER_AT_CEILING = 'atCeiling'
-    PROFILER_AT_FLOOR = 'atFloor'
-    PROFILER_AT_STEP = 'atStep'
-    PROFILER_AT_DEPTH = 'atDepth'
-    PROFILER_GO_TO_COMPLETE = 'gotocomplete'
-    PROFILER_IDLE_TIMEOUT = 'idletimeout'
-    PROFILER_SYSTEM_ERROR = 'systemerror'
-    PROFILER_MISSION_COMPLETE = 'missioncomplete'
-
-
 class MissionErrorCode(BaseEnum):
     """
     Mission executive error code
@@ -930,11 +915,6 @@ class MissionScheduler(object):
         elif event_id in RSNPlatformDriverEvent.__dict__.keys():
             event_type = ''
             event_id = getattr(RSNPlatformDriverEvent, event_id)
-        elif event_id in MissionEvents.__dict__.keys():
-            # MissionEvents are fake SW Profiler events for testing purposes
-            event_type = 'ResourceAgentResourceStateEvent'
-            event_id = getattr(MissionEvents, event_id)
-            origin = self.profiler_resource_id
         else:
             # EXTERNAL event - check OMSDeviceStatusEvent
             event_type = 'OMSDeviceStatusEvent'

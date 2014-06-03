@@ -68,6 +68,21 @@ class FakeAgent(object):
         return "FAKE"
 
 
+class MissionEvents(BaseEnum):
+    """
+    Acceptable fake mission events.
+    """
+    #Shallow Profiler Events
+    PROFILER_AT_CEILING = 'atCeiling'
+    PROFILER_AT_FLOOR = 'atFloor'
+    PROFILER_AT_STEP = 'atStep'
+    PROFILER_AT_DEPTH = 'atDepth'
+    PROFILER_GO_TO_COMPLETE = 'gotocomplete'
+    PROFILER_IDLE_TIMEOUT = 'idletimeout'
+    PROFILER_SYSTEM_ERROR = 'systemerror'
+    PROFILER_MISSION_COMPLETE = 'missioncomplete'
+
+
 @attr('UNIT')
 class TestParseMission(PyonTestCase):
     """
