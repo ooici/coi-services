@@ -486,9 +486,6 @@ class MissionScheduler(object):
         # Boolean to hold global mission running status
         self.mission_running = True
 
-        # Should match the resource id in test_mission_executive.py
-        self.profiler_resource_id = 'FakeID'
-
         # Keep track of all running mission threads
         self.mission_threads = []
 
