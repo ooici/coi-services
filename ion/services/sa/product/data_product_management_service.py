@@ -1168,8 +1168,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         try:
             data_product = self.container.resource_registry.read(data_product_id)
 
-            if data_product.category == DataProductTypeEnum.EXTERNAL:
-                data_product = cc.resource_registry.read(dp_id)
+            if data_product.category == DataProductTypeEnum.EXTERNAL:                
                 if len(data_product.reference_urls) == 1:
                     ret.value = data_product.reference_urls[0]
                     ret.status = ComputedValueAvailability.PROVIDED

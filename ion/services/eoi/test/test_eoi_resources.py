@@ -48,9 +48,7 @@ from gevent.event import Event
 import calendar
 from interface.objects import DataSource, ExternalDataProvider,DataProduct
 
-
 MOCK_HARVESTER_NAME = "test_harvester"
-
 
 @attr('INT', group='eoi')
 class TestEOIExternalResources(DMTestCase):
@@ -70,7 +68,9 @@ class TestEOIExternalResources(DMTestCase):
                          category=3,
                          ooi_product_name = 'Type Field',
                          quality_control_level='Not Applicable, or something like that.',
-                         processing_level_code='External L0')
+                         processing_level_code='External L0',
+                         reference_urls=["www.google.com"]
+                         )
 
         # Find the time parameter
         time_params, _ = self.resource_registry.find_resources_ext(alt_id="PD7", alt_id_ns='PRE', id_only=True)
