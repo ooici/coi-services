@@ -486,6 +486,9 @@ class UserNotificationService(BaseUserNotificationService):
 
             for notification in self.user_id_to_nr_map[user._id]:
 
+                # reset the disabled_by_system flag if necessary
+                self._reset_disabled_by_system(notification)
+
                 #check that this NotificationRequest is active and also has at least one delivery_configuration that is batch delivery
                 #todo are there still notification diasable switch at the UserInfo level?
                 batch_mode = False
@@ -534,6 +537,13 @@ class UserNotificationService(BaseUserNotificationService):
             self._format_and_send_email(user_info=user, smtp_client=self.smtp_client)
 
         self.smtp_client.quit()
+
+    def _reset_disabled_by_system(self, notification=None):
+        if notification and notification.disabled_by_system is True:
+            notification.disabled_by_system = False
+            self.clients.resource_registry.update(notification)
+
+
 
     def _build_reference_maps(self, origin_id = '', notification=None):
 
@@ -743,7 +753,7 @@ class UserNotificationService(BaseUserNotificationService):
 
             email = user_email if user_email != 'default' else user_info.contact.email
             msg = {}
-            if batch_type == DeliveryModeEnum.UNFILTERED:
+            if batch_type == DeliveryModeEnum.EMAIL:
                 message = str(events)
                 log.debug("The user, %s, will get the following events in his batch notification email: %s", user_info.name, message)
 

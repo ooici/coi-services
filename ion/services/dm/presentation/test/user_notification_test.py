@@ -904,33 +904,37 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
 
-        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_1@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
-        delivery_config1b = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_1@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config1b = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_1 = NotificationRequest(   name = "notification_1",
             origin="instrument_1",
             origin_type="type_1",
             event_type=OT.ResourceLifecycleEvent,
+            disabled_by_system = True,
             delivery_configurations=[delivery_config1a, delivery_config1b])
 
-        delivery_config2a = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
-        delivery_config2b = IonObject(OT.DeliveryConfiguration, email='user_2@yahoo.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config2a = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config2b = IonObject(OT.DeliveryConfiguration, email='user_2@yahoo.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_2 = NotificationRequest(   name = "notification_2",
             origin="instrument_2",
             origin_type="type_2",
+            disabled_by_system = False,
             event_type=OT.DetectionEvent,
             delivery_configurations=[delivery_config2a, delivery_config2b])
 
-        delivery_config3 = IonObject(OT.DeliveryConfiguration, email='user_3@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config3 = IonObject(OT.DeliveryConfiguration, email='user_3@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_3 = NotificationRequest(   name = "notification_3",
             origin="*",
             event_type=OT.DetectionEvent,
+            disabled_by_system = True,
             delivery_configurations=[delivery_config3])
 
-        delivery_config4 = IonObject(OT.DeliveryConfiguration, email='user_4@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config4 = IonObject(OT.DeliveryConfiguration, email='user_4@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_4 = NotificationRequest(   name = "notification_4",
             origin="*",
             origin_type="type_2",
             event_type='',
+            disabled_by_system = False,
             delivery_configurations=[delivery_config4])
         deliver_emails = ['user_1@gmail.com', 'user_1@yahoo.com', 'user_2@gmail.com', 'user_2@yahoo.com', 'user_3@gmail.com', 'user_4@gmail.com']
 
@@ -939,19 +943,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create a notification using UNS. This should cause the user_info to be updated
         #--------------------------------------------------------------------------------------
 
-        self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
-        self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+        notification_request_1_id = self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
 
-        #self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
-        #
-        #self.unsc.create_notification(notification=notification_request_2, user_id=user_id_3)
-        self.unsc.create_notification(notification=notification_request_3, user_id=user_id_3)
-        #
-        #self.unsc.create_notification(notification=notification_request_correct, user_id=user_id_4)
-        self.unsc.create_notification(notification=notification_request_4, user_id=user_id_4)
-        #
-        #self.unsc.create_notification(notification=notification_request_correct, user_id=user_id_5)
-        #self.unsc.create_notification(notification=notification_request_3, user_id=user_id_5)
+        notification_request_2_id = self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+
+        notification_request_3_id = self.unsc.create_notification(notification=notification_request_3, user_id=user_id_3)
+
+        notification_request_4_id = self.unsc.create_notification(notification=notification_request_4, user_id=user_id_4)
+
 
         #--------------------------------------------------------------------------------------
         # Do a process_batch() in order to start the batch notifications machinery
@@ -1009,7 +1008,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertIsNotNone(notification_request_name)
             self.assertIsNotNone(event_type)
 
-
+            # validate that the disabled_by_system flag is false for all notifications after batch processing
+            notification_obj = self.unsc.read_notification(notification_request_1_id)
+            self.assertFalse(notification_obj.disabled_by_system)
+            notification_obj = self.unsc.read_notification(notification_request_2_id)
+            self.assertFalse(notification_obj.disabled_by_system)
+            notification_obj = self.unsc.read_notification(notification_request_3_id)
+            self.assertFalse(notification_obj.disabled_by_system)
+            notification_obj = self.unsc.read_notification(notification_request_4_id)
+            self.assertFalse(notification_obj.disabled_by_system)
 
     def test_aggregate_notifications_batch(self):
         # Test that the process_batch() method works
@@ -1107,7 +1114,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
 
-        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_1 = NotificationRequest(   name = "device_notification",
             type=NotificationTypeEnum.PLATFORM,
             origin=platform_device_id,
@@ -1116,7 +1123,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             delivery_configurations=[delivery_config1a])
 
 
-        delivery_config1b = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config1b = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_2 = NotificationRequest(   name = "site_notification",
             type=NotificationTypeEnum.SITE,
             origin=platform_site_id,
@@ -1125,7 +1132,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             delivery_configurations=[delivery_config1b])
 
 
-        delivery_config1c = IonObject(OT.DeliveryConfiguration, email='', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config1c = IonObject(OT.DeliveryConfiguration, email='', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_3 = NotificationRequest(   name = "facility_notification",
             type=NotificationTypeEnum.FACILITY,
             origin=org_id,
@@ -1245,28 +1252,28 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
 
-        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.REAL_TIME)
+        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.REAL_TIME)
         notification_request_1a = NotificationRequest(   name = "notification_1",
             origin="instrument_1",
             event_type=OT.ResourceLifecycleEvent,
             delivery_configurations=[delivery_config1a]
         )
 
-        delivery_config2a = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.REAL_TIME)
+        delivery_config2a = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.REAL_TIME)
         notification_request_2a = NotificationRequest(   name = "notification_2a",
             origin="instrument_2",
             event_type=OT.DeviceStatusEvent,
             delivery_configurations=[delivery_config2a]
         )
 
-        delivery_config2b = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.REAL_TIME)
+        delivery_config2b = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.REAL_TIME)
         notification_request_2b = NotificationRequest(   name = "notification_2b",
             origin="instrument_2",
             event_type=OT.DeviceStatusEvent,
             delivery_configurations=[delivery_config2b]
         )
 
-        delivery_config3a = IonObject(OT.DeliveryConfiguration, email='user_3@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.DISABLED)
+        delivery_config3a = IonObject(OT.DeliveryConfiguration, email='user_3@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.DISABLED)
         notification_request_3a = NotificationRequest(   name = "notification_3a",
             origin="instrument_2",
             event_type=OT.DeviceStatusEvent,
@@ -1274,7 +1281,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         )
 
 
-        delivery_config4a = IonObject(OT.DeliveryConfiguration, email='user_4@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config4a = IonObject(OT.DeliveryConfiguration, email='user_4@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_4a = NotificationRequest(   name = "notification_4a",
             origin="instrument_2",
             event_type=OT.DeviceStatusEvent,
@@ -1882,7 +1889,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
-        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_1@gmail.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_1@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_correct = NotificationRequest(   name = "notification_1",
             type=NotificationTypeEnum.SIMPLE,
             origin="instrument_1",
@@ -1890,7 +1897,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_type=OT.ResourceLifecycleEvent,
             delivery_configurations=[delivery_config1a])
 
-        delivery_config1b = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.UNFILTERED, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config1b = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
         notification_request_2 = NotificationRequest(   name = "notification_2",
             type=NotificationTypeEnum.SIMPLE,
             origin="instrument_2",
