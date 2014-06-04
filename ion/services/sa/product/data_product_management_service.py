@@ -1172,10 +1172,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                 if len(data_product.reference_urls) == 1:
                     ret.value = data_product.reference_urls[0]
                     ret.status = ComputedValueAvailability.PROVIDED
-                    log.debug("get_data_url: data_url: %s", ret.value)
-                else:
-                    ret.value = "didntwork"
-                    ret.status = ComputedValueAvailability.PROVIDED                                    
+                    log.debug("get_data_url: data_url: %s", ret.value)                                  
 
             else:                
                 ret.value  = string.join( ["http://", erddap_host, ":", str(errdap_port),"/erddap/tabledap/", "data", str(data_product_id), ".html"],'')
