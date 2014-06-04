@@ -4,6 +4,7 @@
 
 import string
 import time
+import logging
 from collections import defaultdict
 from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
 
@@ -24,7 +25,7 @@ from ion.util.related_resources_crawler import RelatedResourcesCrawler
 from ion.util.datastore.resources import ResourceRegistryUtil
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
-from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue, AggregateStatusType, DeviceStatusType
+from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue, AggregateStatusType, DeviceStatusType, TemporalBounds, DatasetWindow
 from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum, GeospatialBounds
 
 
@@ -46,10 +47,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                 RT.Subsite: 1,
                                 RT.Observatory: 0,
                                 }
-        
-        self.HIERARCHY_LOOKUP = [RT.Observatory, 
-                                 RT.Subsite, 
-                                 RT.PlatformSite, 
+
+        self.HIERARCHY_LOOKUP = [RT.Observatory,
+                                 RT.Subsite,
+                                 RT.PlatformSite,
                                  RT.InstrumentSite]
 
         #todo: add lcs methods for these??
@@ -75,7 +76,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #shortcut names for the import sub-services
         if hasattr(new_clients, "resource_registry"):
             self.RR = new_clients.resource_registry
-            
+
         if hasattr(new_clients, "instrument_management"):
             self.IMS = new_clients.instrument_management
 
@@ -110,7 +111,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         log.debug("ObservatoryManagementService.create_marine_facility(): %s", org)
-        
+
         # create the org
         org.org_type = OrgTypeEnum.MARINE_FACILITY
         org_id = self.clients.org_management.create_org(org)
@@ -131,7 +132,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                        name='Facility Data Operator',  # previously Data Operator
                                        description='Manipulate and post events related to Facility Data products')
         self.clients.org_management.add_user_role(org_id, data_operator_role)
-        
+
         return org_id
 
     def create_virtual_observatory(self, org=None):
@@ -499,6 +500,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 [device_obj.temporal_bounds, temporal_constraint])
         self.RR.update(device_obj)
 
+    def _get_bounds_from_object(self, obj=''):
+        temporal   = None
+        geographic = None
+        for constraint in obj.constraint_list:
+            if constraint.type_ == OT.TemporalBounds:
+                temporal = constraint
+            if constraint.type_ == OT.GeospatialBounds:
+                geographic = constraint
+        return temporal, geographic
+
     def assign_device_to_network_parent(self, child_device_id='', parent_device_id=''):
         """Connects a device (any type) to parent in the RSN network
 
@@ -662,12 +673,65 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             log.info("Removing geo and updating temporal attrs for device '%s'", device_id)
             self._update_device_remove_geo_update_temporal(device_id, temp_constraint)
 
+            primary_d = self.RR.get_association(subject=device_id,  predicate=PRED.hasPrimaryDeployment, object=deployment_id)
+            if primary_d:
+                self.RR.delete_association(primary_d)
+            primary_s = self.RR.get_association(subject=site_id,    predicate=PRED.hasPrimaryDeployment, object=deployment_id)
+            if primary_s:
+                self.RR.delete_association(primary_s)
+
         # process the additions
         for site_id, device_id in pairs_to_add:
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
             log.info("Adding geo and updating temporal attrs for device '%s'", device_id)
             self._update_device_add_geo_add_temporal(device_id, site_id, deployment_obj)
+
+            # Make this deployment Primary for every device and site
+            self.RR.create_association(subject=device_id, predicate=PRED.hasPrimaryDeployment, object=deployment_id, assoc_type=RT.Deployment)
+            self.RR.create_association(subject=site_id,   predicate=PRED.hasPrimaryDeployment, object=deployment_id, assoc_type=RT.Deployment)
+
+            # Add a withinDeployment association from Device to Deployment
+            # so the entire history of a Device can be found.
+            self.RR.create_association(subject=device_id, predicate=PRED.withinDeployment, object=deployment_id, assoc_type=RT.Deployment)
+
+            sdps_ids, _  = self.RR.find_objects(subject=site_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
+            sdps_streams, _ = self.RR.find_objects_mult(subjects=sdps_ids, predicate=PRED.hasStream, id_only=False)
+
+            dps_ids, _ = self.RR.find_objects(subject=device_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
+            dps_streams, _ = self.RR.find_objects_mult(subjects=dps_ids, predicate=PRED.hasStream, id_only=False)
+
+            # Match SDPs to DDPs to get dataset_id and update the dataset_windows.
+            if not sdps_ids and log.isEnabledFor(logging.DEBUG):
+                log.debug("Not updating data_windows on Site '%s'... no SiteDataProducts were found." % site_id)
+
+            for i, sstream in enumerate(sdps_streams):
+                # Find matching DeviceDataProduct (ddp), based on the assumption
+                # that they have matching stream_names.
+                matched_ddp_id = None
+                for i, dstream in enumerate(dps_streams):
+                    if sstream.stream_name == dstream.stream_name:
+                        matched_ddp_id = self.RR2.find_subject(predicate=PRED.hasStream, object=dstream._id, subject_type=RT.DataProduct, id_only=True)
+
+                if not matched_ddp_id:
+                    # No matching ddp found.  Not a problem, as this device
+                    # could not measure all quantities that the Site has/can
+                    if log.isEnabledFor(logging.DEBUG):
+                        log.debug("Could not match the SDP to a DDP using the stream_name.  Can not set dataset_window without a dataset_id!")
+                        log.debug("SDP stream_name: %s" % sstream.stream_name)
+                        log.debug("DDP stream_names to match against: %s" % map(lambda x: x.stream_name, dps_streams))
+                    continue
+                else:
+                    if log.isEnabledFor(logging.DEBUG):
+                        log.debug("Matched SDP to a DDP using the stream_name '%s'" % sstream.stream_name)
+                        log.debug("Updating data_windows on Site '%s'..." % site_id)
+                    dataset_id = self.RR2.find_object(subject=matched_ddp_id, predicate=PRED.hasDataset, id_only=True)
+                    # Add the new window
+                    bounds = TemporalBounds(start_datetime=temp_constraint.start_datetime, end_datetime='')
+                    window = DatasetWindow(dataset_id=dataset_id, bounds=bounds)
+                    sdp = self.RR2.find_subject(predicate=PRED.hasStream, object=sstream._id, subject_type=RT.DataProduct, id_only=False)
+                    sdp.dataset_windows.append(window)
+                    self.RR2.update(sdp)
 
         if deployment_obj.lcstate != LCS.DEPLOYED:
             self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
@@ -717,6 +781,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         # delete only associations where both site and device have passed the filter
         for s in site_ids:
+            dataset_ids = []
             ds, _ = self.RR.find_objects(s, PRED.hasDevice, id_only=True)
             for d in ds:
                 if d in device_ids:
@@ -728,6 +793,37 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                         self.RR.execute_lifecycle_transition(d, LCE.INTEGRATE)
                     except BadRequest:
                         log.warn("Could not set device %s lcstate to INTEGRATED", d)
+
+                    primary_d = self.RR.find_associations(subject=d,  predicate=PRED.hasPrimaryDeployment, object=deployment_id)
+                    if primary_d:
+                        self.RR.delete_association(primary_d[0])
+                    primary_s = self.RR.find_associations(subject=s,  predicate=PRED.hasPrimaryDeployment, object=deployment_id)
+                    if primary_s:
+                        self.RR.delete_association(primary_s[0])
+
+                    # Get Dataset IDs for a Device
+                    dps, _         = self.RR.find_objects(subject=d, predicate=PRED.hasOutputProduct, id_only=True)
+                    dataset_ids, _ = self.RR.find_objects_mult(subjects=dps, predicate=PRED.hasDataset, id_only=True)
+
+            dataset_ids = list(set(dataset_ids))
+
+            # Get the Deployment time bounds as datetime objects
+            temporal, geographc = self._get_bounds_from_object(obj=deployment_obj)
+
+            # Set the ending of the appropriate dataset_windows.  Have to search by dataset_id because we are
+            # not creating any new resources for the dataset_window logic!
+            site_dps, _ = self.RR.find_objects(s, PRED.hasOutputProduct, id_only=True)
+            for dp in site_dps:
+                site_data_product = self.RR.read(dp)
+                # This is assuming that data_windows is ALWAYS kept IN ORDER (Ascending).
+                # There should NEVER be a situation where there are two dataset_window
+                # attribute missing an 'ending' value.  If there is, it wasn't deactivated
+                # properly.
+                for window in site_data_product.dataset_windows:
+                    if window.dataset_id in dataset_ids:
+                        window.bounds.end_datetime = temporal.end_datetime
+                        break
+                self.RR.update(object=site_data_product)
 
         # This should set the deployment resource to retired.
         # Michael needs to fix the RR retire logic so it does not

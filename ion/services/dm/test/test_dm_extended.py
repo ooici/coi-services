@@ -119,7 +119,6 @@ class TestDMExtended(DMTestCase):
         config.path = 'master'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
-    
     def preload_tmpsf(self):
         config = DotDict()
         config.op = 'load'
