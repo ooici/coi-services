@@ -229,6 +229,9 @@ class PlatformAgent(ResourceAgent):
 
         self._agent_schema = get_schema()
 
+        self._provider_id = None
+        self._actor_id = None
+
         #####################################
         log.info("PlatformAgent constructor complete.")
 
@@ -417,6 +420,13 @@ class PlatformAgent(ResourceAgent):
         if ppid:
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
+
+        self._provider_id = self.CFG.get('provider_id', None)
+        if self._provider_id is None:
+            log.warn("%r: [xa] 'provider_id' key not in configuration", self._platform_id)
+        self._actor_id = self.CFG.get('actor_id', None)
+        if self._actor_id is None:
+            log.warn("%r: [xa] 'actor_id' key not in configuration", self._platform_id)
 
         self._plat_config_processed = True
 
