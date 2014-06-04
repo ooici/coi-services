@@ -19,6 +19,7 @@ import gevent
 
 # Pyon imports.
 from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.common import BaseEnum
 from pyon.event.event import EventPublisher
 from pyon.public import log
 from pyon.public import IonObject
