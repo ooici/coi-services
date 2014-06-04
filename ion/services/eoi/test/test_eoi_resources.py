@@ -64,12 +64,16 @@ class TestEOIExternalResources(DMTestCase):
 
     
     def test_generation_of_dp_load_ui(self):
+        url = "http://r3-pg-test02.oceanobservatories.org:8080/geonetwork/srv/eng/main.home?uuid={9C0EC29F-7A36-45AD-9EAB-99D82AB80F6D}"
+        url = url.replace("{","%7B")
+        url = url.replace("}","%7D")
+
         dp = DataProduct(name="Example external data product", 
                          category=3,
                          ooi_product_name = 'Type Field',
                          quality_control_level='Not Applicable, or something like that.',
                          processing_level_code='External L0',
-                         reference_urls=["www.google.com"]
+                         reference_urls=[url]
                          )
 
         # Find the time parameter
