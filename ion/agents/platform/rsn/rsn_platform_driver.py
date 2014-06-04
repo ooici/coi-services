@@ -110,11 +110,11 @@ class RSNPlatformDriver(PlatformDriver):
         # external event listener: created in _start_event_dispatch
         self._event_listener = None
 
-    def _filter_capabilities(self, events):
-        """
-        """
-        events_out = [x for x in events if RSNPlatformDriverCapability.has(x)]
-        return events_out
+    def get_platform_driver_event_class(self):
+        return RSNPlatformDriverEvent
+
+    def get_platform_driver_capability_class(self):
+        return RSNPlatformDriverCapability
 
     def validate_driver_configuration(self, driver_config):
         """
