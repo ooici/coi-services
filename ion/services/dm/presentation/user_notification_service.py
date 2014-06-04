@@ -451,6 +451,9 @@ class UserNotificationService(BaseUserNotificationService):
         if end_time <= start_time:
             return
 
+        # flag to denote if the disabled_by_system flag was reset on any notification
+        disabled_by_system_reset = False
+
         # retrieve all users in the system
         users, _ = self.clients.resource_registry.find_resources(restype=RT.UserInfo)
         #retrieve all the active notifications assoc to every user
@@ -487,7 +490,8 @@ class UserNotificationService(BaseUserNotificationService):
             for notification in self.user_id_to_nr_map[user._id]:
 
                 # reset the disabled_by_system flag if necessary
-                self._reset_disabled_by_system(notification)
+                if self._reset_disabled_by_system(notification):
+                    disabled_by_system_reset = True
 
                 #check that this NotificationRequest is active and also has at least one delivery_configuration that is batch delivery
                 #todo are there still notification diasable switch at the UserInfo level?
@@ -512,6 +516,12 @@ class UserNotificationService(BaseUserNotificationService):
                     for children_id in children_ids:
                         #augment the  set of maps and lists with the included child origins
                         self._build_reference_maps(children_id, notification)
+
+            # if any up the notification resources have been updated then notify the workers to reload their cache
+            if disabled_by_system_reset:
+                self.event_publisher.publish_event( event_type= OT.ReloadUserInfoEvent,
+                    origin="UserNotificationService",
+                    description= "disabled_by_system reset in one or more notifications.")
 
 
             #log.debug('notification processing origin_event_type_map:   %s', self.origin_event_type_map)
@@ -538,10 +548,14 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.smtp_client.quit()
 
+
     def _reset_disabled_by_system(self, notification=None):
         if notification and notification.disabled_by_system is True:
             notification.disabled_by_system = False
             self.clients.resource_registry.update(notification)
+            return True
+        else:
+            return False
 
 
 
