@@ -111,6 +111,10 @@ class NotificationWorker(TransformEventListener):
                         # send message for each DeliveryConfiguration (this has mode and frequency to determine realtime, email or SMS)
                         for delivery_configuration in notification.delivery_configurations:
 
+                            # skip if DeliveryConfiguration.frequency is DISABLED
+                            if delivery_configuration.frequency == OT.NotificationFrequencyEnum.DISABLED:
+                                continue
+
                             # default to UserInfo.contact.email if no email specified in DeliveryConfiguration
                             smtp_to = delivery_configuration.email if delivery_configuration.email else user.contact.email
                             context['smtp_to'] = smtp_to
@@ -123,15 +127,14 @@ class NotificationWorker(TransformEventListener):
                                 continue # skips this notification
 
                             # TODO: use NOOP to check connection first?
-                            # TODO: determine if sendmail was successful?
                             smtp.sendmail(self.smtp_from, smtp_to, smtp_msg.as_string())
 
-                        # publish NotificationSentEvent - one per NotificationRequest
-                        self.event_publisher.publish_event(user_id = user._id, notification_id = notification._id, notification_max = notification.max) #TODO add max
+                        # publish NotificationSentEvent - one per NotificationRequest (EventListener plugin NotificationSentScanner listens)
+                        self.event_publisher.publish_event(user_id = user._id, notification_id = notification._id, notification_max = notification.max)
 
             finally:
 
-                smtp.quit() # TODO what happens if we _initialize_smtp() again, is there a dangling SMTP object? Should this be self.smtp and force quit on first line of _initialize_smtp()?
+                smtp.quit()
 
     def _mimetext(delivery_configuration, context):
         if delivery_configuration.mode == OT.DeliveryModeEnum.EMAIL:
