@@ -230,9 +230,20 @@ class QCProcessor(SimpleProcess):
         rd = site.reference_designator
         return rd
 
+    def calibrated_candidates(self, input_name):
+        '''
+        Returns a list of potential candidate parameter names to use as the input parameter
+        '''
+        print input_name
+
     def run_qc(self, data_product, reference_designator, parameter, qc_mapping):
         '''
         Determines which algorithm the parameter should run, then evaluates the QC
+
+        data_product         - Data Product Resource
+        reference_designator - reference designator string
+        parameter            - parameter context resource
+        qc_mapping           - a dictionary of { data_product_name : parameter_name }
         '''
 
         # We key off of the OOI Short Name
@@ -241,6 +252,7 @@ class QCProcessor(SimpleProcess):
         if dp_ident not in qc_mapping:
             return # No input!
         input_name = qc_mapping[dp_ident]
+        self.calibrated_candidates(input_name)
 
         try:
             doc = self.container.object_store.read_doc(reference_designator)
