@@ -21,11 +21,8 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring_recent
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_external_event_dispatch
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_connect_disconnect_instrument
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_turn_on_and_off_port
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_turn_on_and_off_port_given_instrument
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_check_sync
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_execute_resource
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_states
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_lost_connection_and_reconnect
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_alerts
@@ -124,47 +121,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
                     self._stop_platform(self.p_root)
                     self.p_root = None
         self.addCleanup(done)
-
-    def _connect_instrument(self):
-        #
-        # TODO more realistic settings for the connection
-        #
-        port_id = self.PORT_ID
-        instrument_id = self.INSTRUMENT_ID
-        instrument_attributes = self.INSTRUMENT_ATTRIBUTES_AND_VALUES
-
-        kwargs = dict(
-            port_id = port_id,
-            instrument_id = instrument_id,
-            attributes = instrument_attributes
-        )
-        result = self._execute_resource(RSNPlatformDriverEvent.CONNECT_INSTRUMENT, **kwargs)
-        log.info("CONNECT_INSTRUMENT = %s", result)
-        self.assertIsInstance(result, dict)
-        self.assertIn(port_id, result)
-        self.assertIsInstance(result[port_id], dict)
-        returned_attrs = self._verify_valid_instrument_id(instrument_id, result[port_id])
-        if isinstance(returned_attrs, dict):
-            for attrName in instrument_attributes:
-                self.assertIn(attrName, returned_attrs)
-
-    def _disconnect_instrument(self):
-        # TODO real settings and corresp verification
-
-        port_id = self.PORT_ID
-        instrument_id = self.INSTRUMENT_ID
-
-        kwargs = dict(
-            port_id = port_id,
-            instrument_id = instrument_id
-        )
-        result = self._execute_resource(RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT, **kwargs)
-        log.info("DISCONNECT_INSTRUMENT = %s", result)
-        self.assertIsInstance(result, dict)
-        self.assertIn(port_id, result)
-        self.assertIsInstance(result[port_id], dict)
-        self.assertIn(instrument_id, result[port_id])
-        self._verify_instrument_disconnected(instrument_id, result[port_id][instrument_id])
 
     def _turn_on_port(self, port_id=None, instrument_id=None):
         # TODO real settings and corresp verification
@@ -404,11 +360,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
         ]
         res_pars_all = []
         res_cmds_all = [
-            RSNPlatformDriverEvent.CONNECT_INSTRUMENT,
-            RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT,
             RSNPlatformDriverEvent.TURN_ON_PORT,
             RSNPlatformDriverEvent.TURN_OFF_PORT,
-#            RSNPlatformDriverEvent.CHECK_SYNC           #OOIION-1623 Remove until Check Sync requirements fully defined
         ]
 
         ##################################################################
@@ -700,9 +653,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._get_metadata()
         self._get_subplatform_ids()
 
-        ports = self._get_ports()
-        for port_id in ports:
-            self._get_connected_instruments(port_id)
+        self._get_ports()
 
     def test_resource_monitoring(self):
         #
@@ -849,22 +800,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self.assertIn('event_id', event_received.status_details)
         self.assertIn('platform_id', event_received.status_details)
 
-    def test_connect_disconnect_instrument(self):
-        self._create_network_and_start_root_platform()
-
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
-        self._ping_agent()
-
-        self._initialize()
-        self._go_active()
-        self._run()
-
-        self._connect_instrument()
-        self._turn_on_port()
-
-        self._turn_off_port()
-        self._disconnect_instrument()
-
     def test_turn_on_and_off_port(self):
         self._create_network_and_start_root_platform()
 
@@ -891,35 +826,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         instrument_id = "SBE37_SIM_02"
         self._turn_on_port(instrument_id=instrument_id)
         self._turn_off_port(instrument_id=instrument_id)
-
-    def test_check_sync(self):
-        self._create_network_and_start_root_platform()
-
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
-        self._ping_agent()
-
-        self._initialize()
-        self._go_active()
-        self._run()
-
-        self._check_sync()
-
-        self._connect_instrument()
-        self._check_sync()
-
-        self._disconnect_instrument()
-        self._check_sync()
-
-    def test_execute_resource(self):
-        self._create_network_and_start_root_platform()
-
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
-
-        self._initialize()
-        self._go_active()
-        self._run()
-
-        self._execute_resource(RSNPlatformDriverEvent.CHECK_SYNC)
 
     def test_resource_states(self):
         self._create_network_and_start_root_platform(self._shutdown)
