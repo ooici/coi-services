@@ -1656,17 +1656,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             self.assertIn('state', info)
         return ports
 
-    def _get_connected_instruments(self, port_id):
-        kwargs = dict(connected_instruments=port_id)
-        cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        connected_instruments = retval.result
-        log.info("_get_connected_instruments = %s", connected_instruments)
-        self.assertIsInstance(connected_instruments, dict)
-        self.assertIn(port_id, connected_instruments)
-        self.assertIsInstance(connected_instruments[port_id], dict)
-        return connected_instruments
-
     def _initialize(self, recursion=True):
         kwargs = dict(recursion=recursion)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
@@ -1747,28 +1736,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
-
-    def _check_sync(self):
-        result = self._execute_resource(RSNPlatformDriverEvent.CHECK_SYNC)
-        log.info("CHECK_SYNC result: %s", result)
-        self.assertIsInstance(result, dict)
-        self.assertIn('external_checksum', result)
-        self.assertIn('local_checksum', result)
-        external_checksum = result['external_checksum']
-        local_checksum = result['local_checksum']
-
-        # TODO(OOIION-1495) re-enable the following key assertion once we
-        # clarify what exactly got broken upon some recent changes in the code:
-        #self.assertEquals(external_checksum, local_checksum)
-
-        # ... for the moment, just logging a warning if checksums are diff:
-        if external_checksum != local_checksum:
-            log.warn("_check_sync: checksums are different:\n"
-                     "external_checksum=%s\n"
-                     "   local_checksum=%s\n"
-                     " Assertion pending while associated work is completed.",
-                     external_checksum, local_checksum)
-        return result
 
     def _stream_instruments(self):
         from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent

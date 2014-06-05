@@ -48,20 +48,13 @@ class RSNPlatformDriverEvent(PlatformDriverEvent):
     """
     The ones for superclass plus a few others for the CONNECTED state.
     """
-    CONNECT_INSTRUMENT        = 'RSN_PLATFORM_DRIVER_CONNECT_INSTRUMENT'
-    DISCONNECT_INSTRUMENT     = 'RSN_PLATFORM_DRIVER_DISCONNECT_INSTRUMENT'
     TURN_ON_PORT              = 'RSN_PLATFORM_DRIVER_TURN_ON_PORT'
     TURN_OFF_PORT             = 'RSN_PLATFORM_DRIVER_TURN_OFF_PORT'
-    CHECK_SYNC                = 'RSN_PLATFORM_DRIVER_CHECK_SYNC'
 
 
 class RSNPlatformDriverCapability(BaseEnum):
-    CONNECT_INSTRUMENT        = RSNPlatformDriverEvent.CONNECT_INSTRUMENT
-    DISCONNECT_INSTRUMENT     = RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT
     TURN_ON_PORT              = RSNPlatformDriverEvent.TURN_ON_PORT
     TURN_OFF_PORT             = RSNPlatformDriverEvent.TURN_OFF_PORT
-#    OOIION-1623 Remove until Check Sync requirements fully defined
-#    CHECK_SYNC                = RSNPlatformDriverEvent.CHECK_SYNC
 
 
 class RSNPlatformDriver(PlatformDriver):
@@ -203,44 +196,6 @@ class RSNPlatformDriver(PlatformDriver):
                 v['visibility'] = 'READ_ONLY'
 
         commands = {}
-        commands[RSNPlatformDriverEvent.CONNECT_INSTRUMENT] = \
-            {
-                "display_name" : "Connect Instrument",
-                "description" : "Connect an instrument to the platform.",
-                "args" : [],
-                "kwargs" : {
-                    'port_id' : {
-                        "required" : True,
-                        "type" : "int",
-                        "valid_values" : ports
-                        },
-                    'instrument_id' : {
-                        "required" : True,
-                        "type" : "str"
-                        },
-                    'attributes' : {
-                        "required" : True,
-                        "type" : "dict"
-                        }
-                }
-            }
-        commands[RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT] = \
-            {
-                "display_name" : "Disconnect Instrument",
-                "description" : "Disconnect an instrument from the platform.",
-                "args" : [],
-                "kwargs" : {
-                    'port_id' : {
-                        "required" : True,
-                        "type" : "int",
-                        "valid_values" : ports
-                        },
-                    'instrument_id' : {
-                        "required" : True,
-                        "type" : "str"
-                        }
-                }
-            }
         commands[RSNPlatformDriverEvent.TURN_ON_PORT] = \
             {
                 "display_name" : "Port Power On",
@@ -268,14 +223,6 @@ class RSNPlatformDriver(PlatformDriver):
                         }
                 }
             }
-        # OOIION-1623 Remove until Check Sync requirements fully defined
-        #commands[RSNPlatformDriverEvent.CHECK_SYNC] = \
-        #    {
-        #        "display_name" : "Check Platform Hierarchy",
-        #        "description" : "Verify the platform hierarchy is consistent with OMS.",
-        #        "args" : [],
-        #        "kwargs" : {}
-        #    }
         self._resource_schema['parameters'] = parameters
         self._resource_schema['commands'] = commands
 
@@ -321,6 +268,10 @@ class RSNPlatformDriver(PlatformDriver):
         self._start_event_dispatch()
 
         # TODO(OOIION-1495) review the following. Commented out for the moment.
+        # 2014-06-05: The pending review in terms of ports is still relevant in
+        # what follows from the original comment here, but note that the
+        # connect_instrument and disconnect_instrument operations have been
+        # removed from the CI-OMS interface.
         # Note, per the CI-OMS spec ports need to be turned OFF to then proceed
         # with connecting instruments. So we need to determine whether we
         # want to turn all ports ON in this "connect driver" operation,
@@ -595,85 +546,6 @@ class RSNPlatformDriver(PlatformDriver):
 
         return dic[instrument_id]
 
-    def connect_instrument(self, port_id, instrument_id, attributes):
-        log.debug("%r: connect_instrument: port_id=%r instrument_id=%r attributes=%s",
-                  self._platform_id, port_id, instrument_id, attributes)
-
-        try:
-            response = self._rsn_oms.instr.connect_instrument(self._platform_id,
-                                                              port_id,
-                                                              instrument_id,
-                                                              attributes)
-        except Exception as e:
-            raise PlatformConnectionException(msg="Cannot connect_instrument: %s" % str(e))
-
-        log.debug("%r: connect_instrument response: %s",
-                  self._platform_id, response)
-
-        dic_plat = self._verify_platform_id_in_response(response)
-        port_dic = self._verify_port_id_in_response(port_id, dic_plat)
-        instr_res = self._verify_instrument_id_in_response(port_id, instrument_id, port_dic)
-
-        # update local image if instrument was actually connected in this call:
-        if isinstance(instr_res, dict):
-            attrs = instr_res
-            instrumentNode = InstrumentNode(instrument_id, attrs)
-            # TODO(OOIION-1495) review. This line was commented out, but the
-            # PortNode.add_instrument/remove_instrument functionality is
-            # being used to keep track of the connected instruments in a port.
-            self._pnode.ports[port_id].add_instrument(instrumentNode)
-            log.debug("%r: port_id=%s connect_instrument: local image updated: %s",
-                      self._platform_id, port_id, instrument_id)
-
-        return dic_plat  # note: return the dic for the platform
-
-    def disconnect_instrument(self, port_id, instrument_id):
-        log.debug("%r: disconnect_instrument: port_id=%r instrument_id=%r",
-                  self._platform_id, port_id, instrument_id)
-
-        try:
-            response = self._rsn_oms.instr.disconnect_instrument(self._platform_id,
-                                                                 port_id,
-                                                                 instrument_id)
-        except Exception as e:
-            raise PlatformConnectionException(msg="Cannot disconnect_instrument: %s" % str(e))
-
-        log.debug("%r: disconnect_instrument response: %s",
-                  self._platform_id, response)
-
-        dic_plat = self._verify_platform_id_in_response(response)
-        port_dic = self._verify_port_id_in_response(port_id, dic_plat)
-        instr_res = self._verify_instrument_id_in_response(port_id, instrument_id, port_dic)
-
-        # update local image if instrument was actually disconnected in this call:
-        if instr_res == NormalResponse.INSTRUMENT_DISCONNECTED:
-            # TODO(OOIION-1495) review. This line was commented out, but the
-            # PortNode.add_instrument/remove_instrument functionality is
-            # being used to keep track of the connected instruments in a port.
-            self._pnode.ports[port_id].remove_instrument(instrument_id)
-            log.debug("%r: port_id=%s disconnect_instrument: local image updated: %s",
-                      self._platform_id, port_id, instrument_id)
-
-        return dic_plat  # note: return the dic for the platform
-
-    def get_connected_instruments(self, port_id):
-        log.debug("%r: get_connected_instruments: port_id=%s",
-                  self._platform_id, port_id)
-
-        try:
-            response = self._rsn_oms.instr.get_connected_instruments(self._platform_id,
-                                                                     port_id)
-        except Exception as e:
-            raise PlatformConnectionException(msg="Cannot get_connected_instruments: %s" % str(e))
-
-        log.debug("%r: port_id=%r: get_connected_instruments response: %s",
-                  self._platform_id, port_id, response)
-
-        dic_plat = self._verify_platform_id_in_response(response)
-        port_dic = self._verify_port_id_in_response(port_id, dic_plat)
-
-        return dic_plat  # note: return the dic for the platform
-
     def _resolve_port_id(self, port_id=None, instrument_id=None):
         if port_id is not None:
             return port_id
@@ -842,65 +714,6 @@ class RSNPlatformDriver(PlatformDriver):
         return "OK"
 
     ##############################################################
-    # sync/checksum
-    ##############################################################
-
-    def get_external_checksum(self):
-        """
-        Returns the checksum of the external platform associated with this
-        driver.
-
-        @return SHA1 hash value as string of hexadecimal digits.
-        """
-        log.debug("%r: get_checksum...", self._platform_id)
-        try:
-            response = self._rsn_oms.config.get_checksum(self._platform_id)
-        except Exception as e:
-            raise PlatformConnectionException(msg="Cannot get_checksum: %s" % str(e))
-
-        checksum = self._verify_platform_id_in_response(response)
-        log.debug("%r: get_checksum... checksum=%s" % (self._platform_id, checksum))
-        return checksum
-
-    def _check_sync(self):
-        """
-        This will be the main operation related with checking that the
-        information on this platform agent (and sub-platforms) is consistent
-        with the information in the external network rooted at the
-        corresponding platform, then publishing relevant notification events.
-
-        For the moment, it only reports the value of the external checksum
-        and the value of the local checksum.
-
-        @todo complete implementation
-
-        @return {'external_checksum': string, 'local_checksum': string}
-        """
-
-        log.debug("%r: _check_sync: getting external checksum...", self._platform_id)
-
-        external_checksum = self.get_external_checksum()
-        local_checksum = self._pnode.compute_checksum()
-
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            filename = "logs/checksum_check_from_driver.yml"
-            try:
-                from ion.agents.platform.util.network_util import NetworkUtil
-                open(filename, "w").write(NetworkUtil.serialize_pnode(self._pnode))
-            except Exception as e:
-                log.debug("%r: cannot write %s: %s", self._platform_id, filename, e)
-
-        result = {'external_checksum': external_checksum,
-                  'local_checksum': local_checksum}
-
-        log.debug("%r: _check_sync: result: %s", self._platform_id, result)
-
-        # TODO - if checksums are different, determine what sub-components are
-        # in disagreement; publish relevant event(s), etc.
-
-        return result
-
-    ##############################################################
     # GET
     ##############################################################
 
@@ -917,11 +730,6 @@ class RSNPlatformDriver(PlatformDriver):
 
         if 'ports' in kwargs:
             result = self._get_ports()
-            return result
-
-        if 'connected_instruments' in kwargs:
-            port_id = kwargs['connected_instruments']
-            result = self.get_connected_instruments(port_id)
             return result
 
         if 'metadata' in kwargs:
@@ -943,20 +751,11 @@ class RSNPlatformDriver(PlatformDriver):
         @return  result of the execution
         """
 
-        if cmd == RSNPlatformDriverEvent.CHECK_SYNC:
-            result = self._check_sync()
-
-        elif cmd == RSNPlatformDriverEvent.TURN_ON_PORT:
+        if cmd == RSNPlatformDriverEvent.TURN_ON_PORT:
             result = self.turn_on_port(*args, **kwargs)
 
         elif cmd == RSNPlatformDriverEvent.TURN_OFF_PORT:
             result = self.turn_off_port(*args, **kwargs)
-
-        elif cmd == RSNPlatformDriverEvent.CONNECT_INSTRUMENT:
-            result = self.connect_instrument(*args, **kwargs)
-
-        elif cmd == RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT:
-            result = self.disconnect_instrument(*args, **kwargs)
 
         else:
             result = super(RSNPlatformDriver, self).execute(cmd, args, kwargs)
@@ -996,60 +795,6 @@ class RSNPlatformDriver(PlatformDriver):
     ##############################################################
     # CONNECTED event handlers we add in this subclass
     ##############################################################
-
-    def _handler_connected_connect_instrument(self, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s" % (
-                      self._platform_id, self.get_driver_state(),
-                      str(args), str(kwargs)))
-
-        port_id = kwargs.get('port_id', None)
-        if port_id is None:
-            raise FSMError('connect_instrument: missing port_id argument')
-
-        instrument_id = kwargs.get('instrument_id', None)
-        if instrument_id is None:
-            raise FSMError('connect_instrument: missing instrument_id argument')
-
-        attributes = kwargs.get('attributes', None)
-        if attributes is None:
-            raise FSMError('connect_instrument: missing attributes argument')
-
-        try:
-            result = self.connect_instrument(port_id, instrument_id, attributes)
-            return None, result
-
-        except PlatformConnectionException as e:
-            return self._connection_lost(RSNPlatformDriverEvent.CONNECT_INSTRUMENT,
-                                         args, kwargs, e)
-
-    def _handler_connected_disconnect_instrument(self, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s" % (
-                      self._platform_id, self.get_driver_state(),
-                      str(args), str(kwargs)))
-
-        port_id = kwargs.get('port_id', None)
-        if port_id is None:
-            raise FSMError('disconnect_instrument: missing port_id argument')
-
-        instrument_id = kwargs.get('instrument_id', None)
-        if instrument_id is None:
-            raise FSMError('disconnect_instrument: missing instrument_id argument')
-
-        try:
-            result = self.disconnect_instrument(port_id, instrument_id)
-            next_state = None
-
-        except PlatformConnectionException as e:
-            return self._connection_lost(RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT,
-                                         args, kwargs, e)
-
-        return next_state, result
 
     def _handler_connected_turn_on_port(self, *args, **kwargs):
         """
@@ -1099,22 +844,6 @@ class RSNPlatformDriver(PlatformDriver):
             return self._connection_lost(RSNPlatformDriverEvent.TURN_OFF_PORT,
                                          args, kwargs, e)
 
-    def _handler_connected_check_sync(self, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s" % (
-                      self._platform_id, self.get_driver_state(),
-                      str(args), str(kwargs)))
-
-        try:
-            result = self._check_sync()
-            return None, result
-
-        except PlatformConnectionException as e:
-            return self._connection_lost(RSNPlatformDriverEvent.CHECK_SYNC,
-                                         args, kwargs, e)
-
     ##############################################################
     # RSN Platform driver FSM setup
     ##############################################################
@@ -1132,8 +861,5 @@ class RSNPlatformDriver(PlatformDriver):
                                                       enter_event, exit_event)
 
         # CONNECTED state event handlers we add in this class:
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.CONNECT_INSTRUMENT, self._handler_connected_connect_instrument)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT, self._handler_connected_disconnect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.TURN_ON_PORT, self._handler_connected_turn_on_port)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.TURN_OFF_PORT, self._handler_connected_turn_off_port)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.CHECK_SYNC, self._handler_connected_check_sync)

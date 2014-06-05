@@ -359,19 +359,6 @@ class PlatformDriver(object):
         """
         pass
 
-    def get_external_checksum(self):
-        """
-        To be implemented by subclass.
-        Returns the checksum of the external platform associated with this
-        driver.
-
-        @return SHA1 hash value as string of hexadecimal digits.
-
-        @raise PlatformConnectionException  If the connection to the external
-               platform is lost.
-        """
-        raise NotImplementedError()  #pragma: no cover
-
     def get_driver_state(self):
         """
         Returns the current FSM state.

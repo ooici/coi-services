@@ -42,11 +42,6 @@ class RsnOmsUtil(object):
             log.debug("build_network_definition. rsn_oms class: %s",
                       rsn_oms.__class__.__name__)
 
-        # platform types:
-        platform_types = rsn_oms.config.get_platform_types()
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("got platform_types %s", str(platform_types))
-
         # platform map:
         map = rsn_oms.config.get_platform_map()
         if log.isEnabledFor(logging.DEBUG):
@@ -121,33 +116,6 @@ class RsnOmsUtil(object):
                 port.set_state(dic['state'])
                 pnode.add_port(port)
 
-                # add connected instruments:
-                instrs_res = rsn_oms.instr.get_connected_instruments(platform_id, port_id)
-                if not isinstance(instrs_res, dict):
-                    log.warn("%r: port_id=%r: get_connected_instruments "
-                             "response is not a dict: %s" % (platform_id, port_id, instrs_res))
-                    continue
-
-                if log.isEnabledFor(logging.TRACE):
-                    log.trace("%r: port_id=%r: get_connected_instruments "
-                              "returned: %s" % (platform_id, port_id, instrs_res))
-
-                if not platform_id in instrs_res:
-                    raise PlatformDriverException(
-                        "%r: port_id=%r: get_connected_instruments response"
-                        "does not have entry for platform_id: %s" % (
-                        platform_id, ports))
-
-                if not port_id in instrs_res[platform_id]:
-                    raise PlatformDriverException(
-                        "%r: port_id=%r: get_connected_instruments response "
-                        "for platform_id does not have entry for port_id: %s" % (
-                        platform_id, port_id, instrs_res[platform_id]))
-
-                instr = instrs_res[platform_id][port_id]
-                for instrument_id, attrs in instr.iteritems():
-                    port.add_instrument(InstrumentNode(instrument_id, attrs))
-
         # call the recursive routine
         build_attributes_and_ports(root_pnode)
 
@@ -155,7 +123,6 @@ class RsnOmsUtil(object):
 
         # and finally create and return NetworkDefinition:
         ndef = NetworkDefinition()
-        ndef._platform_types = platform_types
         ndef._pnodes = pnodes
         ndef._dummy_root = dummy_root
         return ndef

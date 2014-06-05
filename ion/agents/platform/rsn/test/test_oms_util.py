@@ -60,8 +60,6 @@ class Test(IonIntegrationTestCase, HelperTestMixin):
         # Else: do some verifications against network.yml (the spec used by
         # the simulator):
 
-        self.assertTrue("UPS" in ndef.platform_types)
-
         pnode = ndef.root
 
         self.assertEqual(pnode.platform_id, "ShoreStation")
@@ -73,42 +71,3 @@ class Test(IonIntegrationTestCase, HelperTestMixin):
         self.assertIn("Node1A",        sub_pnodes)
         self.assertIn("input_voltage|0", sub_pnodes["Node1A"].attrs)
         self.assertIn("Node1A_port_1", sub_pnodes["Node1A"].ports)
-
-    def _get_checksum(self, platform_id):
-        # get checksum from RSN OMS:
-        res = self._rsn_oms.config.get_checksum(platform_id)
-        checksum = res[platform_id]
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("_rsn_oms: checksum: %s", checksum)
-        return checksum
-
-    def _connect_instrument(self):
-        platform_id = self.PLATFORM_ID
-        port_id = self.PORT_ID
-        instrument_id = self.INSTRUMENT_ID
-        attributes = {'maxCurrentDraw': 1, 'initCurrent': 2,
-                      'dataThroughput': 3, 'instrumentType': 'FOO'}
-        retval = self._rsn_oms.instr.connect_instrument(platform_id, port_id,
-                                                        instrument_id, attributes)
-        log.info("connect_instrument = %s" % retval)
-        ports = self._verify_valid_platform_id(platform_id, retval)
-        self._verify_valid_port_id(port_id, ports)
-
-    def test_checksum(self):
-        platform_id = self.PLATFORM_ID
-
-        checksum = self._get_checksum(platform_id)
-
-        # build network definition using RSN OMS and get checksum for the
-        # corresponding PlatformNode, and verify that the checksums match:
-        ndef = RsnOmsUtil.build_network_definition(self._rsn_oms)
-        pnode = ndef.pnodes[platform_id]
-        self.assertEquals(pnode.compute_checksum(), checksum)
-
-        # ok; now connect an instrument and verify the new checksums again:
-        self._connect_instrument()
-
-        checksum = self._get_checksum(platform_id)
-        ndef = RsnOmsUtil.build_network_definition(self._rsn_oms)
-        pnode = ndef.pnodes[platform_id]
-        self.assertEquals(pnode.compute_checksum(), checksum)
