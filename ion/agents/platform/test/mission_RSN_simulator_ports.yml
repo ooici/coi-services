@@ -28,7 +28,7 @@ mission:
         parentID: 
         eventID: 
     preMissionSequence:
-      - command: LJ01D, execute_resource(TURN_ON_PORT{SBE37_SIM_02})
+      - command: LJ01D, execute_resource(TURN_ON_PORT{1})
         onError: abort
       - command: SBE37_SIM_02, set_resource(INTERVAL{3})
         onError: retry
@@ -42,5 +42,5 @@ mission:
     postMissionSequence:
       - command: SBE37_SIM_02, execute_agent(RESET)
         onError: retry
-      - command: LJ01D, execute_resource(TURN_OFF_PORT{SBE37_SIM_02})
+      - command: LJ01D, execute_resource(TURN_OFF_PORT{1})
         onError: retry

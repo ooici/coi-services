@@ -622,16 +622,16 @@ class MissionScheduler(object):
 
         elif agent_client is None:
             # This indicates platform agent command
-            if command in RSNPlatformDriverEvent.__dict__.keys():
-                if parameters in self.instruments:
-                    # Parameter must be the instrument id of the port to toggle
-                    parameters = 'SBE37_SIM_02'
-                    kwargs = dict(instrument_id=parameters)
-                    cmd = AgentCommand(command=getattr(RSNPlatformDriverEvent, command), kwargs=kwargs)
-                    reply = getattr(self.platform_agent, method)(command=cmd)
-                else:
-                    log.error('[mm] Mission Error: Instrument %s not recognized', parameters)
-                    raise Exception('Mission Error: Instrument %s not recognized', parameters)
+            driver_event_class = self.platform_agent._plat_driver.get_platform_driver_event_class()
+            if command in driver_event_class.__dict__.keys():
+                kwargs = {}
+                if parameters:
+                    # This must be a TURN_ON_PORT or TURN_OFF_PORT command
+                    kwargs = dict(port_id=parameters)
+
+                cmd = AgentCommand(command=getattr(driver_event_class, command), kwargs=kwargs)
+                reply = getattr(self.platform_agent, method)(command=cmd)
+
             else:
                 log.error('[mm] Mission Error: Command %s not recognized', command)
                 raise Exception('Mission Error: Command %s not recognized', command)
