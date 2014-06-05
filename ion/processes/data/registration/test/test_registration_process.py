@@ -12,7 +12,7 @@ from coverage_model import SimplexCoverage, QuantityType, ArrayType, ConstantTyp
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
-from interface.objects import DataProduct
+from interface.objects import DataProduct, Dataset
 from pydap.client import open_url
 import unittest
 import os
@@ -36,7 +36,8 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
         parameter_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dictionary_id=parameter_dict_id)
+        dataset = Dataset(name='test_dataset')
+        dataset_id = self.dataset_management.create_dataset(dataset, parameter_dictionary_id=parameter_dict_id)
         return dataset_id
 
     def test_pydap(self):

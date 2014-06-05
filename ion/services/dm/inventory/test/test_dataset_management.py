@@ -11,7 +11,7 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import ParameterFunction, ParameterContext, ParameterFunctionType as PFT
+from interface.objects import ParameterFunction, ParameterContext, ParameterFunctionType as PFT, Dataset
 from coverage_model import NumexprFunction, ParameterDictionary, ParameterContext as CoverageParameterContext
 
 from nose.plugins.attrib import attr
@@ -29,8 +29,8 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
 
     def test_dataset_crud(self):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        tdom, sdom = time_series_domain()
-        dataset_id = self.dataset_management.create_dataset(name='ctd_dataset', parameter_dictionary_id=pdict_id)
+        dataset = Dataset(name='ctd_dataset')
+        dataset_id = self.dataset_management.create_dataset(dataset, parameter_dictionary_id=pdict_id)
 
         ds_obj = self.dataset_management.read_dataset(dataset_id)
         self.assertEquals(ds_obj.name, 'ctd_dataset')

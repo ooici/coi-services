@@ -85,34 +85,11 @@ class DataProductManagementService(BaseDataProductManagementService):
         else:
             raise BadRequest("Unrecognized Data Product Type")
 
-        data_product_id = self.create_data_product_(data_product)
-
-        # WARNING: This creates a Stream as a side effect!!
-        self.assign_stream_definition_to_data_product(data_product_id=data_product_id,
-                                                      stream_definition_id=stream_definition_id,
-                                                      exchange_point=exchange_point,
-                                                      stream_configuration=default_stream_configuration)
-
-        # 
-        if dataset_id and parent_data_product_id:
-            raise BadRequest('A parent dataset or parent data product can be specified, not both.')
-
-        # 
-        if dataset_id:
-            self.assign_dataset_to_data_product(data_product_id=data_product_id, dataset_id=dataset_id)
-
-        if parent_data_product_id and not dataset_id:
-            self.assign_data_product_to_data_product(data_product_id=data_product_id, parent_data_product_id=parent_data_product_id)
-            dataset_ids, _ = self.clients.resource_registry.find_objects(parent_data_product_id, predicate=PRED.hasDataset, id_only=True)
-            for dataset_id in dataset_ids:
-                self.assign_dataset_to_data_product(data_product_id, dataset_id)
-            if dataset_ids:
-                self.create_catalog_entry(data_product_id)
-
-      # Return the id of the new data product
-        return data_product_id
 
     def create_device_data_product(self, data_product, stream_definition_id, stream_configuration):
+        '''
+        Creates a data product resource and a stream for the data product.
+        '''
 
         if not data_product.category == DataProductTypeEnum.DEVICE:
             raise BadRequest("Attempted to create a Device Data Product without the proper type category")
@@ -128,6 +105,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
     def create_derived_data_product(self, data_product, parent_data_product_id, stream_definition_id):
+        '''
+        Creates a derived data product
+        '''
         if not data_product.category == DataProductTypeEnum.DERIVED:
             raise BadRequest("Attempted to create a Device Data Product without the proper type category")
 
@@ -154,6 +134,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         return data_product_id
 
     def create_site_data_product(self, data_product, stream_definition_id):
+        '''
+        Creates a site data product
+        '''
         if not data_product.category == DataProductTypeEnum.DERIVED:
             raise BadRequest("Attempted to create a Device Data Product without the proper type category")
 
@@ -167,6 +150,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         return data_product_id
 
     def create_external_data_product(self, data_product, stream_definition_id):
+        '''
+        Creates an external data product
+        '''
         if not data_product.category == DataProductTypeEnum.DERIVED:
             raise BadRequest("Attempted to create a Device Data Product without the proper type category")
 

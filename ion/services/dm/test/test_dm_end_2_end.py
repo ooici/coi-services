@@ -33,7 +33,7 @@ from interface.services.dm.idata_retriever_service import DataRetrieverServiceCl
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.objects import Granule
+from interface.objects import Granule, Dataset
 
 from gevent.event import Event
 from nose.plugins.attrib import attr
@@ -76,7 +76,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         if not parameter_dict_id:
             parameter_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-        dataset_id = self.dataset_management.create_dataset('test_dataset_%i'%self.i, parameter_dictionary_id=parameter_dict_id)
+        dataset = Dataset('test_dataset_%i'%self.i)
+        dataset_id = self.dataset_management.create_dataset(dataset, parameter_dictionary_id=parameter_dict_id)
         self.addCleanup(self.dataset_management.delete_dataset, dataset_id)
         return dataset_id
     
