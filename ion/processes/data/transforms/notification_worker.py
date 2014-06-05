@@ -121,6 +121,10 @@ class NotificationWorker(TransformEventListener):
                             if delivery_configuration.frequency == OT.NotificationFrequencyEnum.DISABLED:
                                 continue
 
+                            # only process REAL_TIME
+                            if delivery_configuration.frequency != OT.NotificationFrequencyEnum.REAL_TIME:
+                                continue
+
                             # default to UserInfo.contact.email if no email specified in DeliveryConfiguration
                             smtp_to = delivery_configuration.email if delivery_configuration.email else user.contact.email
                             context['smtp_to'] = smtp_to
@@ -136,7 +140,7 @@ class NotificationWorker(TransformEventListener):
                             smtp.sendmail(self.smtp_from, smtp_to, smtp_msg.as_string())
 
                         # publish NotificationSentEvent - one per NotificationRequest (EventListener plugin NotificationSentScanner listens)
-                        self.event_publisher.publish_event(user_id = user._id, notification_id = notification._id, notification_max = notification.max)
+                        self.event_publisher.publish_event(user_id = user._id, notification_id = notification._id, notification_max = notification.max_daily)
 
             finally:
                 smtp.quit()

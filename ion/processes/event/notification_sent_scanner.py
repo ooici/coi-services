@@ -10,7 +10,6 @@
 import time
 from datetime import date, datetime, timedelta
 from collections import Counter
-from pyon.container.cc import Container
 from pyon.core import bootstrap
 from pyon.core.exception import NotFound
 from pyon.event.event import EventPublisher
@@ -22,8 +21,7 @@ class NotificationSentScanner(object):
 
     def __init__(self, container=None):
 
-        #self.container = container or bootstrap.container_instance
-        self.container = container or Container.instance
+        self.container = container or bootstrap.container_instance
         self.object_store = self.container.object_store
         self.resource_registry = self.container.resource_registry
         self.event_publisher = EventPublisher()
@@ -46,17 +44,18 @@ class NotificationSentScanner(object):
                 continue
             user_id = e.user_id
             notification_id = e.notification_id
-            notification_max = e.notification_max
+            notification_max = e.notification_max # default value is zero indicating no max
             # initialize user_id if necessary
             if user_id not in self.counts:
                 self.counts[user_id] = Counter()
-            # increment counts
+            # increment counts (user_id key to allow ALL to be counted)
             self.counts[user_id]['all'] += 1 # tracks total notifications by user
             self.counts[user_id][notification_id] += 1
             counts_updated = True
             # disable notification if notification_max reached
-            if self.counts[user_id][notification_id] >= notification_max:
-                notifications.append(_disable_notification(notification_id))
+            if notification_max:
+                if self.counts[user_id][notification_id] >= notification_max:
+                    notifications.append(_disable_notification(notification_id))
         # update notifications that have been disabled
         if notifications:
             self._update_notification(notifications)
@@ -81,29 +80,29 @@ class NotificationSentScanner(object):
     def _persist_counts(self):
         """ persist the counts to ObjectStore """
         try:
-            persisted_counts = self.object_store.read('notification_counts')
+            persisted_counts = self.object_store.read_doc('notification_counts')
         except NotFound:
             persisted_counts = {}
-            self.object_store.create('notification_counts', persisted_counts)
+            self.object_store.create_doc(persisted_counts, 'notification_counts')
         # Counter objects cannot be persisted, convert to standard dicts
         persisted_counts.update({k:dict(v) for k,v in self.counts.items()})
-        self.object_store.update(persisted_counts)
+        self.object_store.update_doc(persisted_counts)
         self.time_last_persist = time.time()
 
     def _reset_counts(self):
         """ clears the persisted counts """
-        self.object_store.delete('notification_counts')
-        self.object_store.create('notification_counts',{})
+        self.object_store.delete_doc('notification_counts')
+        self.object_store.create_doc({}, 'notification_counts')
         self._initialize_counts() # NOTE: NotificationRequest boolean disabled_by_system reset by UNS
         self.next_midnight = self._midnight(days=1)
 
-    def _disable_notification(notification_id):
+    def _disable_notification(self, notification_id):
         """ set the disabled_by_system boolean to True """
-        notification = self.object_store.read(notification_id)
+        notification = self.object_store.read_doc(notification_id)
         notification.disabled_by_system = True
         return notification
 
-    def _update_notifications(notifications):
+    def _update_notifications(self, notifications):
         """ updates notifications and publishes ReloadUserInfoEvent """
         self.resource_registry.update_mult(notifications)
         self.event_publisher.publish_event(event_type=OT.ReloadUserInfoEvent)
