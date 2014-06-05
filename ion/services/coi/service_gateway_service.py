@@ -341,42 +341,47 @@ def process_gateway_agent_request(resource_id, operation):
 #This service method is used to provide the RSN OMS with a means of sending events to the CI system using HTTP requests.
 
 #test this method with curl:
-# curl -H "Content-type: application/json" --data "{\"summary\": \"fake event triggered from CI using OMS generate_test_event\",
+# curl -H "Content-type: application/json" --data "[{\"summary\": \"fake event triggered from CI using OMS generate_test_event\",
 #     \"severity\": 3, \"class\": \"/Test\", \"platform_id\":\"test_platform_123\" , \"timestamp\":\"timestamp\" , \"message\":
-#     \"fake event triggered from CI using OMS generate_test_event\", \"test_event\": True}" http://localhost:5000/ion-service/oms_event
+#     \"fake event triggered from CI using OMS generate_test_event\", \"test_event\": True}]" http://localhost:5000/ion-service/oms_event
 
 @service_gateway_app.route('/ion-service/oms_event', methods=['GET','POST'])
 def process_oms_event():
+    if not request.data:
+        log.warning('process_oms_event: invalid OMS event payload: %r', request.data)
+        return gateway_json_response(OMS_BAD_REQUEST_RESPONSE)
 
-    json_params = {}
+    payload = json_loads(str(request.data))
+    if not isinstance(payload, list):
+        log.warning('process_oms_event: invalid OMS event payload: '
+                    'expecting array but got: %r', payload)
+        return gateway_json_response(OMS_BAD_REQUEST_RESPONSE)
 
-    # oms direct request
-    if request.data:
-        json_params  = json_loads(str(request.data))
-        log.debug('ServiceGatewayService:process_oms_event request.data:  %s', json_params)
+    log.debug('process_oms_event: payload=%s', payload)
 
-    #validate payload
-    for k in ['event_id', 'platform_id', 'message']:
-        if k not in json_params:
-            log.warning('process_oms_event: invalid OMS event payload: %r missing. '
-                        'Received payload: %s', k, json_params)
-        #return gateway_json_response(OMS_BAD_REQUEST_RESPONSE)
+    event_publisher = EventPublisher()
 
-    # relay OMS event into the system as DeviceEvent
-    evt = dict(
-        event_type     = 'OMSDeviceStatusEvent',
-        origin_type    = 'OMS Platform',
-        origin         = json_params.get('platform_id', 'platform_id NOT PROVIDED'),
-        sub_type       = json_params.get('event_id', 'event_id NOT PROVIDED'),
-        description    = json_params.get('message', ''),
-        status_details = json_params)
-    try:
-        event_publisher = EventPublisher()
-        event_publisher.publish_event(**evt)
-        log.debug('process_oms_event: published: %s', evt)
+    for obj in payload:
+        for k in ['event_id', 'platform_id', 'message']:
+            if k not in obj:
+                log.warning('process_oms_event: invalid OMS event: %r missing. '
+                            'Received object: %s', k, obj)
+                #return gateway_json_response(OMS_BAD_REQUEST_RESPONSE)
 
-    except Exception as e:
-        log.exception('process_oms_event: could not publish OMS event: %s', evt)
+        # note the the external event_id is captured in the sub_type field:
+        evt = dict(
+            event_type     = 'OMSDeviceStatusEvent',
+            origin_type    = 'OMS Platform',
+            origin         = obj.get('platform_id', 'platform_id NOT PROVIDED'),
+            sub_type       = obj.get('event_id', 'event_id NOT PROVIDED'),
+            description    = obj.get('message', ''),
+            status_details = obj)
+        try:
+            event_publisher.publish_event(**evt)
+            log.debug('process_oms_event: published: %s', evt)
+
+        except Exception as e:
+            log.exception('process_oms_event: could not publish OMS event: %s', evt)
 
     return gateway_json_response(OMS_ACCEPTED_RESPONSE)
 

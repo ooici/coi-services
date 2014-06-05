@@ -242,10 +242,10 @@ class OmsTestMixin(HelperTestMixin):
         def application(environ, start_response):
             input = environ['wsgi.input']
             body = "\n".join(input.readlines())
-            event_instance = yaml.load(body)
-            log.debug('http server received event_instance=%s' % str(event_instance))
+            event_instances = yaml.load(body)
+            log.debug('http server received event_instances=%s' % str(event_instances))
 
-            cls._notifications.append(event_instance)
+            cls._notifications.extend(event_instances)
 
             status = '200 OK'
             headers = [('Content-Type', 'text/plain')]

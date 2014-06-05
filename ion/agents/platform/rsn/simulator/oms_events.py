@@ -107,8 +107,8 @@ class EventNotifier(object):
         # include url in event instance for diagnostic/debugging purposes:
         event_instance['listener_url'] = url
 
-        # prepare payload (JSON format):
-        payload = json.dumps(event_instance, indent=2)
+        # prepare payload (array of event instances in JSON format):
+        payload = json.dumps([event_instance], indent=2)
         log.trace("payload=\n%s", payload)
         headers = {
             "Content-type": "application/json",
