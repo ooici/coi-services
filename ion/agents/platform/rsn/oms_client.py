@@ -14,12 +14,6 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-# required attributes for instrument connection:
-REQUIRED_INSTRUMENT_ATTRIBUTES = [
-    'maxCurrentDraw', 'initCurrent', 'dataThroughput', 'instrumentType'
-]
-
-
 class CIOMSClient(object):
     """
     This class captures the interface with OMS mainly for purposes of serving
@@ -51,10 +45,6 @@ class CIOMSClient(object):
 
     @property
     def port(self):
-        return self
-
-    @property
-    def instr(self):
         return self
 
     def ping(self):
