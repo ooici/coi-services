@@ -21,12 +21,11 @@ from ion.agents.platform.platform_driver import PlatformDriver
 from ion.agents.platform.platform_driver import PlatformDriverState
 from ion.agents.platform.platform_driver import PlatformDriverEvent
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
-from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
-from ion.agents.platform.responses import NormalResponse, InvalidResponse
+from ion.agents.platform.responses import InvalidResponse
 
 from ion.agents.platform.util import ion_ts_2_ntp
 
@@ -528,23 +527,6 @@ class RSNPlatformDriver(PlatformDriver):
             #raise PlatformException(msg=msg)
         else:
             return dic[port_id]
-
-    def _verify_instrument_id_in_response(self, port_id, instrument_id, dic):
-        """
-        Verifies the presence of instrument_id in the dic.
-
-        @param port_id        Used for error reporting
-        @param instrument_id  The ID to verify
-        @param dic            Dictionary returned by _rsn_oms
-
-        @return dic[instrument_id]
-        """
-        if not instrument_id in dic:
-            msg = "unexpected: dic does not contain entry for %r" % instrument_id
-            log.error(msg)
-            #raise PlatformException(msg=msg)
-
-        return dic[instrument_id]
 
     def _resolve_port_id(self, port_id=None, instrument_id=None):
         if port_id is not None:
