@@ -20,7 +20,7 @@ from ion.util.geo_utils import GeoUtils
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess, DataProcessTypeEnum, Device
-from interface.objects import ComputedValueAvailability, DataProductTypeEnum
+from interface.objects import ComputedValueAvailability, DataProductTypeEnum, Dataset, CoverageTypeEnum
 
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
@@ -78,6 +78,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         elif data_product.category == DataProductTypeEnum.DERIVED:
             return self.create_site_data_product(self, data_product, stream_definition_id, parent_data_product_id)
+
         elif data_product.category == DataProductTypeEnum.EXTERNAL:
             return self.create_external_data_product(self, data_product, stream_definition_id)
 
@@ -480,7 +481,10 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest("Data Product stream is without a stream definition")
         stream_def_id = stream_defs[0]
 
-        stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id)  # additional read necessary to fill in the pdict
+        parameter_dictionary_ids, _ = self.clients.resource_registry.find_objects(stream_def_id, PRED.hasParameterDictionary, id_only=True)
+        if not parameter_dictionary_ids:
+            raise BadRequest("Data Product stream is without a parameter dictionary")
+        parameter_dictionary_id = parameter_dictionary_ids[0]
 
         parent_data_product_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
         if len(parent_data_product_ids) == 1:  # This is a child data product
@@ -495,27 +499,33 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Step 2: Create and associate Dataset (coverage)
 
 
-        if not dataset_ids:
-            # No datasets are currently linked which means we need to create a new one
-            dataset_id = self.clients.dataset_management.create_dataset(name= 'dataset_%s' % stream_id,
-                                                                        stream_id=stream_id,
-                                                                        parameter_dict=stream_def.parameter_dictionary)
+        if dataset_ids:
+            return dataset_ids[0]
 
-            # link dataset with data product. This creates the association in the resource registry
-            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
 
-            # Late binding of dataset with existing child data products
-            for child_dp_id in child_data_product_ids:
-                self.assign_dataset_to_data_product(child_dp_id, dataset_id)
-            
-            # register the dataset for externalization
+        dataset = Dataset(name='dataset_%s' % stream_id,
+                          description='Dataset for Data Product %s' % data_product_id,
+                          coverage_type=CoverageTypeEnum.SIMPLEX)
 
+        # No datasets are currently linked which means we need to create a new one
+        dataset_id = self.clients.dataset_management.create_dataset(dataset,
+                                                                    parameter_dictionary_id=parameter_dictionary_id)
+
+        self.RR2.assign_stream_to_dataset_with_has_stream(stream_id, dataset_id)
+
+        # link dataset with data product. This creates the association in the resource registry
+        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+
+        # Link this dataset with the child data products AND
+        # create catalog entries for the child data products
+        for child_dp_id in child_data_product_ids:
+            self.assign_dataset_to_data_product(child_dp_id, dataset_id)
             self.create_catalog_entry(data_product_id=data_product_id)
-            child_products, _ = self.clients.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
-            for child_product in child_products:
-                self.create_catalog_entry(data_product_id=data_product_id)
-        else:
-            dataset_id = dataset_ids[0]
+        
+        # register the dataset for externalization
+
+        self.create_catalog_entry(data_product_id=data_product_id)
+
         return dataset_id
 
 
