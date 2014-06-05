@@ -125,11 +125,12 @@ class TestPlatformAgent(BaseIntTestPlatform):
     def _turn_on_port(self, port_id=None, instrument_id=None):
         # TODO real settings and corresp verification
 
+        src = self.__class__.__name__
         if instrument_id is None:
             port_id = port_id or self.PORT_ID
-            kwargs = dict(port_id=port_id)
+            kwargs = dict(port_id=port_id, src=src)
         else:
-            kwargs = dict(instrument_id=instrument_id)
+            kwargs = dict(instrument_id=instrument_id, src=src)
 
         result = self._execute_resource(RSNPlatformDriverEvent.TURN_ON_PORT, **kwargs)
         log.info("TURN_ON_PORT = %s", result)
@@ -141,11 +142,12 @@ class TestPlatformAgent(BaseIntTestPlatform):
     def _turn_off_port(self, port_id=None, instrument_id=None):
         # TODO real settings and corresp verification
 
+        src = self.__class__.__name__
         if instrument_id is None:
             port_id = port_id or self.PORT_ID
-            kwargs = dict(port_id=port_id)
+            kwargs = dict(port_id=port_id, src=src)
         else:
-            kwargs = dict(instrument_id=instrument_id)
+            kwargs = dict(instrument_id=instrument_id, src=src)
 
         result = self._execute_resource(RSNPlatformDriverEvent.TURN_OFF_PORT, **kwargs)
         log.info("TURN_OFF_PORT = %s", result)
@@ -153,6 +155,16 @@ class TestPlatformAgent(BaseIntTestPlatform):
         if instrument_id is None:
             self.assertTrue(port_id in result)
             self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_OFF)
+
+    def _set_over_current(self, port_id=None, ma=0, us=0):
+        # TODO real settings and corresp verification
+
+        port_id = port_id or self.PORT_ID
+        src = self.__class__.__name__
+        kwargs = dict(port_id=port_id, ma=ma, us=us, src=src)
+        result = self._execute_resource(RSNPlatformDriverEvent.SET_OVER_CURRENT, **kwargs)
+        log.info("SET_OVER_CURRENT = %s", result)
+        self.assertIsInstance(result, dict)
 
     def _get_resource(self):
         """
@@ -812,6 +824,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._turn_on_port()
         self._turn_off_port()
+        self._set_over_current()
 
     def test_turn_on_and_off_port_given_instrument(self):
         self._create_network_and_start_root_platform()

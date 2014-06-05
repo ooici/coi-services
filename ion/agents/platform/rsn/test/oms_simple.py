@@ -466,13 +466,20 @@ def main(uri):  # pragma: no cover
 
     instrument_id = "dummy_instrument_id"
 
+    src = "oms_simple"
+
     #----------------------------------------------------------------------
     full_method_name = "port.turn_on_platform_port"
-    retval, reterr = run(full_method_name, platform_id, port_id)
+    retval, reterr = run(full_method_name, platform_id, port_id, src)
 
     #----------------------------------------------------------------------
     full_method_name = "port.turn_off_platform_port"
-    retval, reterr = run(full_method_name, platform_id, port_id)
+    retval, reterr = run(full_method_name, platform_id, port_id, src)
+
+    #----------------------------------------------------------------------
+    full_method_name = "port.set_over_current"
+    ma, us = 0, 0
+    retval, reterr = run(full_method_name, platform_id, port_id, ma, us, src)
 
     #----------------------------------------------------------------------
     url = EVENT_LISTENER_URL

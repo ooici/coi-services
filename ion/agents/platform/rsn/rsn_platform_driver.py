@@ -49,11 +49,13 @@ class RSNPlatformDriverEvent(PlatformDriverEvent):
     """
     TURN_ON_PORT              = 'RSN_PLATFORM_DRIVER_TURN_ON_PORT'
     TURN_OFF_PORT             = 'RSN_PLATFORM_DRIVER_TURN_OFF_PORT'
+    SET_OVER_CURRENT          = 'RSN_PLATFORM_DRIVER_SET_OVER_CURRENT'
 
 
 class RSNPlatformDriverCapability(BaseEnum):
     TURN_ON_PORT              = RSNPlatformDriverEvent.TURN_ON_PORT
     TURN_OFF_PORT             = RSNPlatformDriverEvent.TURN_OFF_PORT
+    SET_OVER_CURRENT          = RSNPlatformDriverEvent.SET_OVER_CURRENT
 
 
 class RSNPlatformDriver(PlatformDriver):
@@ -219,6 +221,27 @@ class RSNPlatformDriver(PlatformDriver):
                             "required" : True,
                             "type" : "int",
                             "valid_values" : ports
+                        }
+                }
+            }
+        commands[RSNPlatformDriverEvent.SET_OVER_CURRENT] = \
+            {
+                "display_name" : "Set over current",
+                "description" : "Set over current params to platform port.",
+                "args" : [],
+                "kwargs" : {
+                       'port_id' : {
+                            "required" : True,
+                            "type" : "int",
+                            "valid_values" : ports
+                        },
+                       'ma' : {
+                            "required" : True,
+                            "type" : "int"
+                        },
+                       'us' : {
+                            "required" : True,
+                            "type" : "int"
                         }
                 }
             }
@@ -539,22 +562,24 @@ class RSNPlatformDriver(PlatformDriver):
         log.error(msg)
         raise BadRequest(msg=msg)
 
-    def turn_on_port(self, port_id=None, instrument_id=None):
+    def turn_on_port(self, port_id=None, instrument_id=None, src=None):
         """
         Turns on a port.
         @param port_id
                     Port ID; if None, then specify instrument_id
         @param instrument_id
                     Instrument ID, which must be given if port_id is None.
+        @param src
+                    Some provenance information: actor, mission, etc.
         """
-        log.debug("%r: turning on port: port_id=%s instrument_id=%s",
-                  self._platform_id, port_id, instrument_id)
+        log.debug("%r: turning on port: port_id=%s instrument_id=%s src=%s",
+                  self._platform_id, port_id, instrument_id, src)
 
         port_id = self._resolve_port_id(port_id, instrument_id)
 
         try:
             response = self._rsn_oms.port.turn_on_platform_port(self._platform_id,
-                                                                port_id)
+                                                                port_id, src)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot turn_on_platform_port: %s" % str(e))
 
@@ -566,26 +591,53 @@ class RSNPlatformDriver(PlatformDriver):
 
         return dic_plat  # note: return the dic for the platform
 
-    def turn_off_port(self, port_id=None, instrument_id=None):
+    def turn_off_port(self, port_id=None, instrument_id=None, src=None):
         """
         Turns off a port.
         @param port_id
                     Port ID; if None, then specify instrument_id
         @param instrument_id
                     Instrument ID, which must be given if port_id is None.
+        @param src
+                    Some provenance information: actor, mission, etc.
         """
-        log.debug("%r: turning off port: port_id=%s instrument_id=%s",
-                  self._platform_id, port_id, instrument_id)
+        log.debug("%r: turning off port: port_id=%s instrument_id=%s src=%s",
+                  self._platform_id, port_id, instrument_id, src)
 
         port_id = self._resolve_port_id(port_id, instrument_id)
 
         try:
             response = self._rsn_oms.port.turn_off_platform_port(self._platform_id,
-                                                                 port_id)
+                                                                 port_id, src)
         except Exception as e:
             raise PlatformConnectionException(msg="Cannot turn_off_platform_port: %s" % str(e))
 
         log.debug("%r: turn_off_platform_port response: %s",
+                  self._platform_id, response)
+
+        dic_plat = self._verify_platform_id_in_response(response)
+        self._verify_port_id_in_response(port_id, dic_plat)
+
+        return dic_plat  # note: return the dic for the platform
+
+    def set_over_current(self, port_id, ma, us, src=None):
+        """
+        @param port_id
+        @param ma
+        @param us
+        @param src
+                    Some provenance information: actor, mission, etc.
+        """
+        log.debug("%r: set_over_current: port_id=%s ma=%s us=%s src=%s",
+                  self._platform_id, port_id, ma, us, src)
+
+        try:
+            response = self._rsn_oms.port.set_over_current(self._platform_id,
+                                                           port_id, ma, us, src)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot set_over_current: %s" % str(e))
+
+        log.debug("%r: set_over_current response: %s",
                   self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
@@ -739,6 +791,9 @@ class RSNPlatformDriver(PlatformDriver):
         elif cmd == RSNPlatformDriverEvent.TURN_OFF_PORT:
             result = self.turn_off_port(*args, **kwargs)
 
+        elif cmd == RSNPlatformDriverEvent.SET_OVER_CURRENT:
+            result = self.set_over_current(*args, **kwargs)
+
         else:
             result = super(RSNPlatformDriver, self).execute(cmd, args, kwargs)
 
@@ -792,8 +847,12 @@ class RSNPlatformDriver(PlatformDriver):
             raise FSMError('turn_on_port: at least one of port_id and '
                            'instrument_id argument must be given')
 
+        # TODO: provide source info if not explicitly given:
+        src = kwargs.get('src', 'source TBD')
+
         try:
-            result = self.turn_on_port(port_id=port_id, instrument_id=instrument_id)
+            result = self.turn_on_port(port_id=port_id, instrument_id=instrument_id,
+                                       src=src)
             return None, result
 
         except PlatformConnectionException as e:
@@ -809,17 +868,46 @@ class RSNPlatformDriver(PlatformDriver):
                       str(args), str(kwargs)))
 
         port_id = kwargs.get('port_id', None)
-        if port_id is None:
-            raise FSMError('turn_off_port: missing port_id argument')
-
-        port_id = kwargs.get('port_id', None)
         instrument_id = kwargs.get('instrument_id', None)
         if port_id is None and instrument_id is None:
             raise FSMError('turn_off_port: at least one of port_id and '
                            'instrument_id argument must be given')
 
+        # TODO: provide source info if not explicitly given:
+        src = kwargs.get('src', 'source TBD')
+
         try:
-            result = self.turn_off_port(port_id=port_id, instrument_id=instrument_id)
+            result = self.turn_off_port(port_id=port_id, instrument_id=instrument_id,
+                                        src=src)
+            return None, result
+
+        except PlatformConnectionException as e:
+            return self._connection_lost(RSNPlatformDriverEvent.TURN_OFF_PORT,
+                                         args, kwargs, e)
+
+    def _handler_connected_set_over_current(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('set_over_current: missing port_id argument')
+        ma = kwargs.get('ma', None)
+        if ma is None:
+            raise FSMError('set_over_current: missing ma argument')
+        us = kwargs.get('us', None)
+        if us is None:
+            raise FSMError('set_over_current: missing us argument')
+
+        # TODO: provide source info if not explicitly given:
+        src = kwargs.get('src', 'source TBD')
+
+        try:
+            result = self.set_over_current(port_id, ma, us, src)
             return None, result
 
         except PlatformConnectionException as e:
@@ -845,3 +933,4 @@ class RSNPlatformDriver(PlatformDriver):
         # CONNECTED state event handlers we add in this class:
         self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.TURN_ON_PORT, self._handler_connected_turn_on_port)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.TURN_OFF_PORT, self._handler_connected_turn_off_port)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.SET_OVER_CURRENT, self._handler_connected_set_over_current)
