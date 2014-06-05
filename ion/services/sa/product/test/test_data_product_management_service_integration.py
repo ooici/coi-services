@@ -38,8 +38,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
-from interface.objects import LastUpdate, ComputedValueAvailability, Granule, DataProduct
-from interface.objects import ProcessDefinition, DataProducer, DataProcessProducerContext
+from interface.objects import LastUpdate, ComputedValueAvailability, Granule, DataProduct, DataProductTypeEnum
+from interface.objects import ProcessDefinition, DataProducer, DataProcessProducerContext 
 
 
 class FakeProcess(LocalContextMixin):
@@ -340,7 +340,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         
         # Make the derived data product
         simple_stream_def_id = self.pubsubcli.create_stream_definition(name='TEMPWAT stream def', parameter_dictionary_id=pdict_id, available_fields=['time','temp'])
-        tempwat_dp = DataProduct(name='TEMPWAT')
+        tempwat_dp = DataProduct(name='TEMPWAT', category=DataProductTypeEnum.DERIVED)
         tempwat_dp_id = self.dpsc_cli.create_data_product(tempwat_dp, stream_definition_id=simple_stream_def_id, parent_data_product_id=dp_id)
         self.addCleanup(self.dpsc_cli.delete_data_product, tempwat_dp_id)
         # Check that the streams associated with the data product are persisted with

@@ -43,8 +43,8 @@ from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.util.parse_utils import parse_dict, get_typed_value
 from ion.util.datastore.resuse import ResourceUseInfo
 
-from interface.objects import AgentCommand, Site, TemporalBounds, AgentInstance, AgentDefinition, Device, DeviceModel, \
-    ProcessStateEnum
+from interface.objects import AgentCommand, Site, TemporalBounds, AgentInstance, AgentDefinition, Device 
+from interface.objects import DeviceModel, ProcessStateEnum, DataProductTypeEnum
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceProcessClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
@@ -1713,6 +1713,7 @@ class AgentControl(ImmediateProcess):
         log.debug("Cloned StreamDefinition %s %s as: %s %s '%s'", sdef_obj._id,
                   res_pre_id, newsdef_id, resnew_pre_id, newsdef_obj.name)
 
+        newdp_obj.category = DataProductTypeEnum.DERIVED
         # Create agent instance, association to agent definition and to device
         newdp_id = dpms.create_data_product(newdp_obj,
                                             stream_definition_id=newsdef_id,

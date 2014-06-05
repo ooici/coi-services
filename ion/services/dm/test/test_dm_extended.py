@@ -20,7 +20,6 @@ from ion.services.dm.utility.provenance import graph
 from ion.processes.data.registration.registration_process import RegistrationProcess
 from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext as CovParameterContext
 from ion.processes.data.transforms.transform_worker import TransformWorker
-from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT, ParameterContext
 from nose.plugins.attrib import attr
 from pyon.util.breakpoint import breakpoint
 from pyon.core.exception import NotFound
@@ -34,7 +33,8 @@ from datetime import datetime, timedelta
 from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 from pyon.ion.event import EventPublisher
-from interface.objects import InstrumentSite, InstrumentModel, PortTypeEnum, Deployment, CabledInstrumentDeploymentContext
+from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT, ParameterContext
+from interface.objects import InstrumentSite, InstrumentModel, PortTypeEnum, Deployment, CabledInstrumentDeploymentContext, DataProductTypeEnum
 import lxml.etree as etree
 import simplejson as json
 import pkg_resources
@@ -1514,7 +1514,7 @@ def rotate_v(u,v,theta):
         stream_def_id = self.resource_registry.find_objects(data_product_id,PRED.hasStreamDefinition,id_only=True)[0][0]
         pdict_id = self.resource_registry.find_objects(stream_def_id,PRED.hasParameterDictionary,id_only=True)[0][0]
         stream_def_id = self.pubsub_management.create_stream_definition(name='tempwat l0', parameter_dictionary_id=pdict_id, available_fields=['temp','time'])
-        dp = DataProduct(name='TEMPWAT L0', qc_trndtst='applicable')
+        dp = DataProduct(name='TEMPWAT L0', qc_trndtst='applicable', category=DataProductTypeEnum.DERIVED)
         data_product_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, parent_data_product_id=data_product_id)
         return data_product_id
 

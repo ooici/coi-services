@@ -39,8 +39,6 @@ import re
 import ast
 
 class DatasetManagementService(BaseDatasetManagementService):
-    DEFAULT_DATASTORE = 'datasets'
-    DEFAULT_VIEW      = 'manifest/by_dataset'
     
     def __init__(self, *args, **kwargs):
         super(DatasetManagementService, self).__init__(*args,**kwargs)
@@ -60,7 +58,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, parameter_dictionary_id='', description='', parent_dataset_id=''):
+    def create_dataset(self, name='', stream_id='', parameter_dict=None, parameter_dictionary_id='', description=''):
         
         validate_true(parameter_dict or parameter_dictionary_id, 'A parameter dictionary must be supplied to register a new dataset.')
         
@@ -75,11 +73,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset                      = Dataset()
         dataset.description          = description
         dataset.name                 = name
-        dataset.primary_view_key     = stream_id or None
-        dataset.datastore_name       = datastore_name or self.DEFAULT_DATASTORE
-        dataset.view_name            = view_name or self.DEFAULT_VIEW
         dataset.parameter_dictionary = parameter_dict
-        dataset.registered           = False
 
         
 
@@ -88,10 +82,6 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.add_stream(dataset_id, stream_id)
 
         log.debug('creating dataset: %s', dataset_id)
-        if parent_dataset_id:
-            vcov = self._create_view_coverage(dataset_id, description or dataset_id, parent_dataset_id)
-            vcov.close()
-            return dataset_id
 
         cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict)
         self._save_coverage(cov)
