@@ -42,11 +42,6 @@ class RsnOmsUtil(object):
             log.debug("build_network_definition. rsn_oms class: %s",
                       rsn_oms.__class__.__name__)
 
-        # platform types:
-        platform_types = rsn_oms.config.get_platform_types()
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("got platform_types %s", str(platform_types))
-
         # platform map:
         map = rsn_oms.config.get_platform_map()
         if log.isEnabledFor(logging.DEBUG):
@@ -155,7 +150,6 @@ class RsnOmsUtil(object):
 
         # and finally create and return NetworkDefinition:
         ndef = NetworkDefinition()
-        ndef._platform_types = platform_types
         ndef._pnodes = pnodes
         ndef._dummy_root = dummy_root
         return ndef

@@ -96,28 +96,15 @@ class NetworkUtil(object):
 
         ndef = NetworkDefinition()
 
-        def _get_platform_types(pyobj):
-            """
-            Constructs:
-              - ndef._platform_types, {platform_type : description} dict
-            """
-            ndef._platform_types = {}
-            if 'platform_types' in pyobj:
-                for ptypeObj in pyobj["platform_types"]:
-                    if 'platform_type' in ptypeObj:
-                        platform_type = ptypeObj['platform_type']
-                        description = ptypeObj.get('description', '')
-                        ndef._platform_types[platform_type] = description
-
         def _build_network(pyobj):
             """
             Constructs:
               - ndef._pnodes: {platform_id : PlatformNode} dict
             """
 
-            def create_node(platform_id, platform_types=None):
+            def create_node(platform_id):
                 _require(not platform_id in ndef.pnodes)
-                pn = PlatformNode(platform_id, platform_types)
+                pn = PlatformNode(platform_id)
                 ndef.pnodes[platform_id] = pn
                 return pn
 
@@ -147,14 +134,10 @@ class NetworkUtil(object):
 
             def build_node(platObj, parent_node):
                 _require('platform_id' in platObj)
-                _require('platform_types' in platObj)
                 platform_id = platObj['platform_id']
-                platform_types = platObj['platform_types']
-                for platform_type in platform_types:
-                    _require(platform_type in ndef._platform_types)
                 ports = platObj['ports'] if 'ports' in platObj else []
                 attrs = platObj['attrs'] if 'attrs' in platObj else []
-                pn = create_node(platform_id, platform_types)
+                pn = create_node(platform_id)
                 parent_node.add_subplatform(pn)
                 build_and_add_ports_to_node(ports, pn)
                 build_and_add_attrs_to_node(attrs, pn)
@@ -176,7 +159,6 @@ class NetworkUtil(object):
                 build_node(platObj, ndef._dummy_root)
 
         pyobj = yaml.load(ser)
-        _get_platform_types(pyobj)
         _build_network(pyobj)
 
         return ndef
@@ -189,11 +171,7 @@ class NetworkUtil(object):
         @param ndef NetworkDefinition object
         @return string with the serialization
         """
-        ser = "\nplatform_types:\n"
-        for platform_type, description in ndef.platform_types.iteritems():
-            ser += "  - platform_type: %s\n" % platform_type
-            ser += "    description: %s\n" % description
-        ser += "\n%s" % NetworkUtil.serialize_pnode(ndef.root)
+        ser = "\n%s" % NetworkUtil.serialize_pnode(ndef.root)
 
         return ser
 
@@ -216,7 +194,6 @@ class NetworkUtil(object):
                 lines.append('network:')
 
             lines.append('- platform_id: %s' % pid)
-            lines.append('  platform_types: %s' % pnode.platform_types)
 
             # attributes:
             if len(pnode.attrs):
@@ -376,7 +353,6 @@ class NetworkUtil(object):
                 lines.append('network:')
 
             lines.append('- platform_id: %s' % pid)
-            lines.append('  platform_types: []')
 
             lines.append('  attrs:')
             write_attr = False
@@ -435,16 +411,14 @@ class NetworkUtil(object):
         ndef = NetworkDefinition()
         ndef._pnodes = {}
 
-        def create_platform_node(platform_id, platform_types=None, CFG=None):
+        def create_platform_node(platform_id, CFG=None):
             _require(not platform_id in ndef.pnodes,
                      "create_platform_node(): platform_id %r not in ndef.pnodes" % platform_id)
-            pn = PlatformNode(platform_id, platform_types, CFG)
+            pn = PlatformNode(platform_id, CFG)
             ndef.pnodes[platform_id] = pn
             return pn
 
         ndef._dummy_root = create_platform_node(platform_id='')
-
-        ndef._platform_types = {}   # TODO platform types to be removed
 
         def _add_attrs_to_platform_node(attrs, pn):
             for attr_defn in attrs:
@@ -466,7 +440,6 @@ class NetworkUtil(object):
         def build_platform_node(CFG, parent_node):
             platform_config = CFG.get('platform_config', {})
             platform_id     = platform_config.get('platform_id', None)
-            platform_types  = platform_config.get('platform_types', [])
 
             driver_config  = CFG.get('driver_config', {})
             attributes     = driver_config.get('attributes', {})
@@ -476,12 +449,7 @@ class NetworkUtil(object):
 
             _require(driver_config, "missing CFG.driver_config")
 
-            for platform_type in platform_types:
-                _require(platform_type in ndef._platform_types,
-                         "%r not in defined platform types: %s" %(
-                         platform_type, ndef._platform_types))
-
-            pn = create_platform_node(platform_id, platform_types, CFG)
+            pn = create_platform_node(platform_id, CFG)
             parent_node.add_subplatform(pn)
 
             # attributes:

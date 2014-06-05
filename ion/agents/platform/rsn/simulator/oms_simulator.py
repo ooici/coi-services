@@ -62,7 +62,6 @@ class CIOMSSimulator(CIOMSClient):
     def __init__(self, yaml_filename='ion/agents/platform/rsn/simulator/network.yml',
                  events_filename='ion/agents/platform/rsn/simulator/events.yml'):
         self._ndef = NetworkUtil.deserialize_network_definition(file(yaml_filename))
-        self._platform_types = self._ndef.platform_types
         self._pnodes = self._ndef.pnodes
 
         # registered event listeners: {url: reg_time, ...},
@@ -125,11 +124,6 @@ class CIOMSSimulator(CIOMSClient):
 
         return self._ndef.get_map()
 
-    def get_platform_types(self):
-        self._enter()
-
-        return self._platform_types
-
     def get_platform_metadata(self, platform_id):
         self._enter()
 
@@ -144,7 +138,6 @@ class CIOMSSimulator(CIOMSClient):
             md['name'] = pnode.name
         if pnode.parent:
             md['parent_platform_id'] = pnode.parent.platform_id
-        md['platform_types'] = pnode.platform_types
 
         return {platform_id: md}
 

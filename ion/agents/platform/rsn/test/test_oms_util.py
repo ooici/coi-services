@@ -60,8 +60,6 @@ class Test(IonIntegrationTestCase, HelperTestMixin):
         # Else: do some verifications against network.yml (the spec used by
         # the simulator):
 
-        self.assertTrue("UPS" in ndef.platform_types)
-
         pnode = ndef.root
 
         self.assertEqual(pnode.platform_id, "ShoreStation")

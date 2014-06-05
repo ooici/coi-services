@@ -393,14 +393,6 @@ def main(uri):  # pragma: no cover
         tried[full_method_name] = error
         format_err(error)
 
-    #----------------------------------------------------------------------
-    full_method_name = "config.get_platform_types"
-    retval, reterr = run(full_method_name)
-    if retval and not isinstance(retval, dict):
-        error = "expecting a dict"
-        tried[full_method_name] = error
-        format_err(error)
-
     platform_id = "dummy_platform_id"
 
     #----------------------------------------------------------------------

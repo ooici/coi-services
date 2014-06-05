@@ -60,14 +60,6 @@ class OmsTestMixin(HelperTestMixin):
         self.assertEquals(len(roots), 1)
         self.assertEquals("ShoreStation", roots[0])
 
-    def test_ac_get_platform_types(self):
-        retval = self.oms.config.get_platform_types()
-        log.info("config.get_platform_types() => %s" % retval)
-        self.assertIsInstance(retval, dict)
-        for k, v in retval.iteritems():
-            self.assertIsInstance(k, str)
-            self.assertIsInstance(v, str)
-
     def test_ad_get_platform_metadata(self):
         platform_id = self.PLATFORM_ID
         retval = self.oms.config.get_platform_metadata(platform_id)
@@ -75,8 +67,6 @@ class OmsTestMixin(HelperTestMixin):
         md = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(md, dict)
         # TODO: decide on the actual expected metadata.
-        # if not 'platform_types' in md:
-        #     log.warn("RSN OMS spec: platform_types not included in metadata: %s", md)
 
     def test_ad_get_platform_metadata_invalid(self):
         platform_id = BOGUS_PLATFORM_ID

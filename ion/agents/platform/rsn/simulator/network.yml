@@ -14,14 +14,6 @@
 # IOC demo.
 #
 
-platform_types:
-  - platform_type: UPS
-    description: description of platform type UPS
-  - platform_type: ptype2
-    description: description of platform type ptype2
-  - platform_type: ptype3
-    description: description of platform type ptype3
-
 network:
 - platform_id: ShoreStation
   platform_types: []

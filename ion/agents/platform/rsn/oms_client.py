@@ -69,12 +69,6 @@ class CIOMSClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def get_platform_types(self):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
-        raise NotImplementedError()  #pragma: no cover
-
     def get_platform_metadata(self, platform_id):
         """
         See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface

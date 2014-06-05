@@ -313,7 +313,6 @@ class PlatformNode(BaseNode):
     Platform node for purposes of representing the network.
 
     self._platform_id
-    self._platform_types = [type, ...]
     self._attrs = { attr_id: AttrNode, ... }
     self._ports = { port_id: PortNode, ... }
     self._subplatforms = { platform_id: PlatformNode, ...}
@@ -334,10 +333,9 @@ class PlatformNode(BaseNode):
     """
     #TODO: some separation of configuration vs. state would be convenient.
 
-    def __init__(self, platform_id, platform_types=None, CFG=None):
+    def __init__(self, platform_id, CFG=None):
         BaseNode.__init__(self)
         self._platform_id = platform_id
-        self._platform_types = platform_types or []
         self._name = None
         self._ports = {}
         self._attrs = {}
@@ -362,10 +360,6 @@ class PlatformNode(BaseNode):
     @property
     def platform_id(self):
         return self._platform_id
-
-    @property
-    def platform_types(self):
-        return self._platform_types
 
     @property
     def name(self):
@@ -416,7 +410,6 @@ class PlatformNode(BaseNode):
         s = "<%s" % self.platform_id
         if self.name:
             s += "/name=%s" % self.name
-        s += "/types=%s" % self.platform_types
         s += ">\n"
         s += "ports=%s\n"         % list(self.ports.itervalues())
         s += "attrs=%s\n"         % list(self.attrs.itervalues())
@@ -447,10 +440,6 @@ class PlatformNode(BaseNode):
         if self.name != other.name:
             return "platform names are different: %r != %r" % (
                 self.name, other.name)
-
-        if self.platform_types != other.platform_types:
-            return "platform types are different: %r != %r" % (
-                self.platform_types, other.platform_types)
 
         # compare parents:
         if (self.parent is None) != (other.parent is None):
@@ -514,11 +503,6 @@ class PlatformNode(BaseNode):
         # id:
         hash_obj.update("platform_id=%s;" % self.platform_id)
 
-        # platform_types:
-        hash_obj.update("platform_types:")
-        for platform_type in sorted(self.platform_types):
-            hash_obj.update("%s;" % platform_type)
-
         # attributes:
         hash_obj.update("platform_attributes:")
         for key in sorted(self.attrs.keys()):
@@ -545,21 +529,11 @@ class NetworkDefinition(BaseNode):
 
     def __init__(self):
         BaseNode.__init__(self)
-        self._platform_types = {}
         self._pnodes = {}
 
         # _dummy_root is a dummy PlatformNode having as children the actual roots in
         # the network.
         self._dummy_root = None
-
-    @property
-    def platform_types(self):
-        """
-        Returns the platform types in the network.
-
-        @return {platform_type : description} dict
-        """
-        return self._platform_types
 
     @property
     def pnodes(self):
@@ -596,11 +570,6 @@ class NetworkDefinition(BaseNode):
         Otherwise, returns a message describing the first difference.
         """
 
-        # compare platform_type definitions:
-        if set(self.platform_types.items()) != set(other.platform_types.items()):
-            return "platform types are different: %r != %r" % (
-                self.platform_types, other.platform_types)
-
         # compare topology
         if (self.root is None) != (other.root is None):
             return "roots are different: %r != %r" % (
@@ -612,12 +581,6 @@ class NetworkDefinition(BaseNode):
 
     def _compute_checksum(self):
         hash_obj = hashlib.sha1()
-
-        # platform_types:
-        hash_obj.update("platform_types:")
-        for key in sorted(self.platform_types.keys()):
-            platform_type = self.platform_types[key]
-            hash_obj.update("%s=%s;" % (key, platform_type))
 
         # root PlatformNode:
         hash_obj.update("root_platform=%s;" % self.root.compute_checksum())
