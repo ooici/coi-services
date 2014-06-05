@@ -19,6 +19,7 @@ import gevent
 
 # Pyon imports.
 from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.common import BaseEnum
 from pyon.event.event import EventPublisher
 from pyon.public import log
 from pyon.public import IonObject
@@ -66,6 +67,21 @@ class FakeAgent(object):
 
     def get_agent_state(self):
         return "FAKE"
+
+
+class MissionEvents(BaseEnum):
+    """
+    Acceptable fake mission events.
+    """
+    #Shallow Profiler Events
+    PROFILER_AT_CEILING = 'atCeiling'
+    PROFILER_AT_FLOOR = 'atFloor'
+    PROFILER_AT_STEP = 'atStep'
+    PROFILER_AT_DEPTH = 'atDepth'
+    PROFILER_GO_TO_COMPLETE = 'gotocomplete'
+    PROFILER_IDLE_TIMEOUT = 'idletimeout'
+    PROFILER_SYSTEM_ERROR = 'systemerror'
+    PROFILER_MISSION_COMPLETE = 'missioncomplete'
 
 
 @attr('UNIT')
@@ -182,9 +198,8 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         """
         Simulate the Shallow Water profiler stair step mission
         """
-        event_publisher = EventPublisher(event_type="ResourceAgentResourceStateEvent")
+        event_publisher = EventPublisher(event_type="OMSDeviceStatusEvent")
 
-        profiler_resource_id = 'FakeID'
         num_profiles = 2
 
         def profiler_event_state_change(state, sleep_duration):
@@ -195,9 +210,9 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
             @param sleep_duration   seconds to sleep for after event
             """
             # Create event publisher.
-            event_data = {'state': state}
-            event_publisher.publish_event(event_type='ResourceAgentResourceStateEvent',
-                                          origin=profiler_resource_id,
+            event_data = {'sub_type': state}
+            event_publisher.publish_event(event_type='OMSDeviceStatusEvent',
+                                          origin='LJ01D',
                                           **event_data)
             gevent.sleep(sleep_duration)
 
@@ -273,7 +288,7 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         """
         Load and parse the mission file
         """
-        self.mission = MissionLoader(self._pa_client)
+        self.mission = MissionLoader('')
         self.mission.load_mission_file(yaml_filename)
 
     @skip("Deprecated... Use test_mission_manager instead")
@@ -303,10 +318,12 @@ class TestSimpleMission(BaseIntTestPlatform, PyonTestCase):
         # Setup the platform and instruments
         self.setup_platform_simulator_and_instruments()
 
+        # Start Mission Scheduer
+        self.missionSchedule = MissionScheduler(self._pa_client, self._instruments, self.mission.mission_entries)
+
         # Start profiler event simulator and mission scheduler
         self.threads = []
-        self.threads.append(gevent.spawn(
-            MissionScheduler, self._pa_client, self._instruments, self.mission.mission_entries))
+        self.threads.append(gevent.spawn(self.missionSchedule.run_mission))
         # self.threads.append(gevent.spawn_later(30, SimulateShallowWaterProfilerEvents()))
         self.threads.append(gevent.spawn_later(120, self.simulate_profiler_events, 'stair_step'))
 

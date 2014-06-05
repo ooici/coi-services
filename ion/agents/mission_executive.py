@@ -17,9 +17,9 @@ from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.common import BaseEnum
 from pyon.event.event import EventSubscriber
 from pyon.public import log
+from pyon.util.breakpoint import breakpoint
 from pyon.util.config import Config
 
-from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 from ion.core.includes.mi import DriverEvent
 
@@ -27,21 +27,6 @@ from interface.objects import AgentCommand
 from interface.objects import AgentCapability
 from interface.objects import CapabilityType
 from interface.objects import MissionExecutionStatus
-
-
-class MissionEvents(BaseEnum):
-    """
-    Acceptable fake mission events.
-    """
-    #Shallow Profiler Events
-    PROFILER_AT_CEILING = 'atCeiling'
-    PROFILER_AT_FLOOR = 'atFloor'
-    PROFILER_AT_STEP = 'atStep'
-    PROFILER_AT_DEPTH = 'atDepth'
-    PROFILER_GO_TO_COMPLETE = 'gotocomplete'
-    PROFILER_IDLE_TIMEOUT = 'idletimeout'
-    PROFILER_SYSTEM_ERROR = 'systemerror'
-    PROFILER_MISSION_COMPLETE = 'missioncomplete'
 
 
 class MissionErrorCode(BaseEnum):
@@ -501,9 +486,6 @@ class MissionScheduler(object):
         # Boolean to hold global mission running status
         self.mission_running = True
 
-        # Should match the resource id in test_mission_executive.py
-        self.profiler_resource_id = 'FakeID'
-
         # Keep track of all running mission threads
         self.mission_threads = []
 
@@ -918,25 +900,23 @@ class MissionScheduler(object):
             ia_event_client = self.instruments[parent_id]
             origin = ia_event_client.resource_id
         elif parent_id == self.platform_agent._platform_id:
-            origin = self.resource_id
+            origin = self.platform_agent._platform_id
         else:
-            self._publish_mission_thread_failed_event(current_mission_thread, 'Parent ID unavailable')
-            raise Exception('Parent ID unavailable')
+            self._publish_mission_thread_failed_event(current_mission_thread, 'Parent ID unrecognized - {0}'.format(parent_id))
+            raise Exception('Parent ID unrecognized - {0}'.format(parent_id))
 
         # Check that the event id is legitimate
         if event_id in DriverEvent.__dict__.keys():
             event_type = 'ResourceAgentCommandEvent'
             event_id = getattr(DriverEvent, event_id)
-        elif event_id in MissionEvents.__dict__.keys():
-            event_type = 'ResourceAgentResourceStateEvent'
-            event_id = getattr(MissionEvents, event_id)
-            origin = self.profiler_resource_id
         elif event_id in RSNPlatformDriverEvent.__dict__.keys():
-            event_type = 'OMSDeviceStatusEvent'
-            event_id = getattr(ExternalEventDriverEvent, event_id)
+            event_type = ''
+            event_id = getattr(RSNPlatformDriverEvent, event_id)
         else:
-            self._publish_mission_thread_failed_event(current_mission_thread, 'Event ID unavailable')
-            raise Exception('Event ID unavailable')
+            # EXTERNAL event - check OMSDeviceStatusEvent
+            event_type = 'OMSDeviceStatusEvent'
+            #self._publish_mission_thread_failed_event(current_mission_thread, 'Event ID unrecognized - {0}'.format(event_id))
+            #raise Exception('Event ID unrecognized - %s', event_id)
 
         #-------------------------------------------------------------------------------------
         # Set up the subscriber to catch the mission event
