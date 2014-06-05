@@ -365,8 +365,3 @@ class OmsTestMixin(HelperTestMixin):
                              "secs. (Got %d event notifications.)" % (
                              max_wait, len(self._notifications)))
         log.info("got test event: %s" % got_it)
-
-    def test_get_checksum(self):
-        platform_id = self.PLATFORM_ID
-        retval = self.oms.config.get_checksum(platform_id)
-        log.info("config.get_checksum(%r) => %s" % (platform_id, retval))

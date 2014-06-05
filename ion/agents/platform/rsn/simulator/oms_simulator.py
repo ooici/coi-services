@@ -11,12 +11,9 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from ion.agents.platform.rsn.oms_client import CIOMSClient
-from ion.agents.platform.rsn.oms_client import REQUIRED_INSTRUMENT_ATTRIBUTES
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
-from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.util.network_util import NetworkUtil
 
-from ion.agents.platform.rsn.simulator.oms_events import EventInfo
 from ion.agents.platform.rsn.simulator.oms_events import EventNotifier
 from ion.agents.platform.rsn.simulator.oms_events import EventGenerator
 from ion.agents.platform.rsn.simulator.oms_values import generate_values
@@ -26,11 +23,6 @@ import ntplib
 
 from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
-
-###########################################################################
-# NOTE: several operations related with "event types" were removed/adjusted
-# from the CI-OMS interface per April/2013 telecons.
-###########################################################################
 
 
 class CIOMSSimulator(CIOMSClient):
@@ -216,91 +208,6 @@ class CIOMSSimulator(CIOMSClient):
 
         return {platform_id: ports}
 
-    def connect_instrument(self, platform_id, port_id, instrument_id, attributes):
-        self._enter()
-
-        if platform_id not in self._pnodes:
-            return {platform_id: InvalidResponse.PLATFORM_ID}
-
-        if port_id not in self._pnodes[platform_id].ports :
-            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
-
-        port = self._pnodes[platform_id].get_port(port_id)
-
-        result = None
-        if instrument_id in port.instruments:
-            result = InvalidResponse.INSTRUMENT_ALREADY_CONNECTED
-        elif port.state == "ON":
-            # TODO: confirm that port must be OFF so instrument can be connected
-            result = InvalidResponse.PORT_IS_ON
-
-        if result is None:
-            # verify required attributes are provided:
-            for key in REQUIRED_INSTRUMENT_ATTRIBUTES:
-                if not key in attributes:
-                    result = InvalidResponse.MISSING_INSTRUMENT_ATTRIBUTE
-                    log.warn("connect_instrument called with missing attribute: %s"% key)
-                    break
-
-        if result is None:
-            # verify given attributes are recognized:
-            for key in attributes.iterkeys():
-                if not key in REQUIRED_INSTRUMENT_ATTRIBUTES:
-                    result = InvalidResponse.INVALID_INSTRUMENT_ATTRIBUTE
-                    log.warn("connect_instrument called with invalid attribute: %s"% key)
-                    break
-
-        if result is None:
-            # NOTE: values simply accepted without any validation
-            connected_instrument = InstrumentNode(instrument_id)
-            port.add_instrument(connected_instrument)
-            attrs = connected_instrument.attrs
-            result = {}
-            for key, val in attributes.iteritems():
-                attrs[key] = val  # set the value of the attribute:
-                result[key] = val # in the result, indicate that the value was set
-
-        return {platform_id: {port_id: {instrument_id: result}}}
-
-    def disconnect_instrument(self, platform_id, port_id, instrument_id):
-        self._enter()
-
-        if platform_id not in self._pnodes:
-            return {platform_id: InvalidResponse.PLATFORM_ID}
-
-        if port_id not in self._pnodes[platform_id].ports :
-            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
-
-        port = self._pnodes[platform_id].get_port(port_id)
-
-        if instrument_id not in port.instruments:
-            result = InvalidResponse.INSTRUMENT_NOT_CONNECTED
-        elif port.state == "ON":
-            # TODO: confirm that port must be OFF so instrument can be disconnected
-            result = InvalidResponse.PORT_IS_ON
-        else:
-            port.remove_instrument(instrument_id)
-            result = NormalResponse.INSTRUMENT_DISCONNECTED
-
-        return {platform_id: {port_id: {instrument_id: result}}}
-
-    def get_connected_instruments(self, platform_id, port_id):
-        self._enter()
-
-        if platform_id not in self._pnodes:
-            return {platform_id: InvalidResponse.PLATFORM_ID}
-
-        if port_id not in self._pnodes[platform_id].ports :
-            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
-
-        port = self._pnodes[platform_id].get_port(port_id)
-
-        result = {}
-        for instrument_id in port.instruments:
-            result[instrument_id] = port.instruments[instrument_id].attrs
-
-        return {platform_id: {port_id: result}}
-
     def turn_on_platform_port(self, platform_id, port_id):
         self._enter()
 
@@ -422,20 +329,3 @@ class CIOMSSimulator(CIOMSClient):
 
         else:  # there are *no* listeners registered.
             return False
-
-    def get_checksum(self, platform_id):
-        """
-        @note the checksum is always computed, which is fine for the simulator.
-        A more realistic and presumably more efficient implementation would
-        exploit some caching mechanism along with appropriate invalidation
-        upon modifications to the platform information.
-        """
-        self._enter()
-
-        if platform_id not in self._pnodes:
-            return {platform_id: InvalidResponse.PLATFORM_ID}
-
-        pnode = self._pnodes[platform_id]
-        checksum = pnode.compute_checksum()
-
-        return {platform_id: checksum}

@@ -467,32 +467,6 @@ def main(uri):  # pragma: no cover
     instrument_id = "dummy_instrument_id"
 
     #----------------------------------------------------------------------
-    full_method_name = "instr.connect_instrument"
-    retval, reterr = run(full_method_name, platform_id, port_id, instrument_id, {})
-    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, port_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, instrument_id)
-
-    connect_instrument_error = reterr
-
-    #----------------------------------------------------------------------
-    full_method_name = "instr.get_connected_instruments"
-    retval, reterr = run(full_method_name, platform_id, port_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, port_id)
-    # note, in case of error in instr.connect_instrument, don't expect the
-    # instrument_id to be reported:
-    if connect_instrument_error is None:
-        retval, reterr = verify_entry_in_dict(retval, reterr, instrument_id)
-
-    #----------------------------------------------------------------------
-    full_method_name = "instr.disconnect_instrument"
-    retval, reterr = run(full_method_name, platform_id, port_id, instrument_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, port_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, instrument_id)
-
-    #----------------------------------------------------------------------
     full_method_name = "port.turn_on_platform_port"
     retval, reterr = run(full_method_name, platform_id, port_id)
 
@@ -529,10 +503,6 @@ def main(uri):  # pragma: no cover
     if reterr is None:
         retval, reterr = run(full_method_name, url)
         retval, reterr = verify_entry_in_dict(retval, reterr, url)
-
-    #----------------------------------------------------------------------
-    full_method_name = "config.get_checksum"
-    retval, reterr = run(full_method_name, platform_id)
 
     # the following to specifically verify reception of test event
     if max_wait:

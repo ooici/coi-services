@@ -99,24 +99,6 @@ class CIOMSClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def connect_instrument(self, platform_id, port_id, instrument_id, attributes):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def disconnect_instrument(self, platform_id, port_id, instrument_id):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def get_connected_instruments(self, platform_id, port_id):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
-        raise NotImplementedError()  #pragma: no cover
-
     def turn_on_platform_port(self, platform_id, port_id):
         """
         See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
@@ -148,12 +130,6 @@ class CIOMSClient(object):
         raise NotImplementedError()  #pragma: no cover
 
     def generate_test_event(self, event):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def get_checksum(self, platform_id):
         """
         See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
         """
