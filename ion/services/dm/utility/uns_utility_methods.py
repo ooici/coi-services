@@ -4,11 +4,11 @@
 @description A module containing common utility methods used by UNS and the notification workers.
 """
 from pyon.core import bootstrap
-from pyon.public import get_sys_name, OT, IonObject, CFG
+from pyon.public import get_sys_name, OT, RT, PRED, IonObject, CFG
 from pyon.util.ion_time import IonTime
 from pyon.util.log import log
 from pyon.core.exception import BadRequest, NotFound
-from interface.objects import NotificationRequest, Event, DeviceStatusType, AggregateStatusType, InformationStatus
+from interface.objects import NotificationRequest, Event, DeviceStatusType, AggregateStatusType, InformationStatus, NotificationTypeEnum
 from pyon.util.containers import get_ion_ts
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 import smtplib
@@ -539,19 +539,19 @@ def load_notifications(container=None):
         if observatory_util is None:
              observatory_util = ObservatoryUtil()
         children = []
-        if notificatioN_type == OT.NotificationTypeEnum.PLATFORM:
+        if notification_type == NotificationTypeEnum.PLATFORM:
             device_relations = observatory_util.get_child_devices(notification_origin)
             children = [did for pt,did,dt in device_relations[notification_origin]]
-        elif type == OT.NotificationTypeEnum.SITE:
+        elif type == NotificationTypeEnum.SITE:
             child_site_dict, ancestors = observatory_util.get_child_sites(notification_origin)
             children = child_site_dict.keys()
-        elif type == OT.NotificationTypeEnum.FACILITY:
+        elif type == NotificationTypeEnum.FACILITY:
             objects, _ = resource_registry.find_objects(subject=notification_origin, predicate=PRED.hasResource, id_only=False)
             for o in objects:
-                if o.type_ == RT.DataProduct
-                or o.type_ == RT.InstrumentSite
-                or o.type_ == RT.InstrumentDevice
-                or o.type_ == RT.PlatformSite
+                if o.type_ == RT.DataProduct \
+                or o.type_ == RT.InstrumentSite \
+                or o.type_ == RT.InstrumentDevice \
+                or o.type_ == RT.PlatformSite \
                 or o.type_ == RT.PlatformDevice:
                     children.append(o._id)
         if notification_origin in children:
@@ -578,15 +578,16 @@ def load_notifications(container=None):
 
         if association.p == PRED.hasNotification:
 
-            user = [v for k,v in users.items() if v._id == association.p][0]
+            user = [u for u in users if u._id == association.s][0]
 
             # NotificationRequest disabled by system process?
             if notification.disabled_by_system:
                 continue
 
             # NotificationRequest expired? (note this is relative to current time)
-            if int(notification.temporal_bounds.end_datetime) < current_datetime:
-                continue
+            if notification.temporal_bounds.end_datetime:
+                if int(notification.temporal_bounds.end_datetime) < current_datetime:
+                    continue
 
             # create tuple key (origin,origin_type,event_type,event_subtype)
             origin = notification.origin
@@ -601,11 +602,13 @@ def load_notifications(container=None):
             value = (notification, user)
             notifications[key].add(value)
 
-            # add children if applicable - children have same (notification, user) value
-            if notification.type != OT.NotificationTypeEnum.SIMPLE and notification.origin:
+            # add children if applicable - children have same (event, event_subtype) in key and same (notification, user) for value
+            if notification.type != NotificationTypeEnum.SIMPLE and notification.origin:
                 children = _notification_children(notification_origin=notification.origin, notification_type=notification.type)
                 for child in children: # child is _id
-                    key = (child, None, event_type, event_subtype) # TODO None hardcoded here because children can not specify type
+                    key = (child, '', event_type, event_subtype) # all children match by origin (_id)
+                    if key not in notifications:
+                        notifications[key] = set()
                     notifications[key].add(value)
 
     return notifications
