@@ -12,7 +12,8 @@ from pyon.util.async import spawn
 from pyon.util.containers import named_any
 from pyon.public import log
 
-PROCESS_PLUGINS = [("DeviceStateManager", "ion.processes.event.device_state.DeviceStateManager", {})]
+PROCESS_PLUGINS = [("DeviceStateManager", "ion.processes.event.device_state.DeviceStateManager", {}),
+                   ("NotificationSentScanner","ion.processes.event.notification_sent_scanner.NotificationSentScanner", {})]
 
 
 class EventPersister(StandaloneProcess):

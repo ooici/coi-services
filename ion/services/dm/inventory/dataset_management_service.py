@@ -39,7 +39,6 @@ import numpy as np
 import re
 import ast
 
-from pyon.util.breakpoint import debug_wrapper 
 
 class DatasetManagementService(BaseDatasetManagementService):
     

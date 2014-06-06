@@ -19,7 +19,6 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceProcessClient
-from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceProcessClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
 from interface.services.ans.ivisualization_service import VisualizationServiceProcessClient
 from ion.services.ans.visualization_service import USER_VISUALIZATION_QUEUE
@@ -68,7 +67,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self.dataproductclient = DataProductManagementServiceProcessClient(node=self.container.node, process=process)
         self.dataprocessclient = DataProcessManagementServiceProcessClient(node=self.container.node, process=process)
         self.datasetclient =  DatasetManagementServiceProcessClient(node=self.container.node, process=process)
-        self.workflowclient = WorkflowManagementServiceProcessClient(node=self.container.node, process=process)
         self.process_dispatcher = ProcessDispatcherServiceProcessClient(node=self.container.node, process=process)
         self.data_retriever = DataRetrieverServiceProcessClient(node=self.container.node, process=process)
         self.vis_client = VisualizationServiceProcessClient(node=self.container.node, process=process)

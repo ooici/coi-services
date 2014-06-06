@@ -43,7 +43,6 @@ from pyon.util.containers import DotDict
 
 
 # Google viz library for google charts
-#import ion.services.ans.gviz_api as gviz_api
 
 USER_VISUALIZATION_QUEUE = 'viz-out'
 PERSIST_REALTIME_DATA_PRODUCTS = False
