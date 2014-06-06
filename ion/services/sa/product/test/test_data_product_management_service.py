@@ -20,11 +20,6 @@ from nose.plugins.attrib import attr
 import unittest
 import time
 
-from coverage_model.parameter import ParameterDictionary, ParameterContext
-from coverage_model.parameter_types import QuantityType
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
-from ion.util.parameter_yaml_IO import get_param_dict
 
 
 class FakeProcess(LocalContextMixin):
