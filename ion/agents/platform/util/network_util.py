@@ -301,11 +301,10 @@ class NetworkUtil(object):
         return result
 
     @staticmethod
-    def _gen_open_diagram(pnode):  # pragma: no cover
+    def _gen_and_open_diagram(pnode):  # pragma: no cover
         """
         **Developer routine**
         Convenience method for testing/debugging.
-        Does nothing if the environment variable GEN_DIAG is not defined.
         Generates a yaml, a dot diagram and corresponding PNG using 'dot' and
         also opens the PNG using 'open' OS commands. All errors are simply ignored.
         """
@@ -331,65 +330,6 @@ class NetworkUtil(object):
             subprocess.call(open_cmd.split())
         except Exception, e:
             print "error generating or opening diagram: %s" % str(e)
-
-    @staticmethod
-    def _gen_yaml(pnode, level=0):  # pragma: no cover
-        """
-        **Developer routine**
-        This is old - can be deleted.
-        Partial string representation of the given PlatformNode in yaml.
-        *NOTE*: Very ad hoc, just to help capture some of the real info from
-        the RSN OMS interface into network.yml (the file used by the simulator)
-        along with values for testing purposes.
-        """
-        # TODO delete this method
-
-        result = ""
-        next_level = level
-        if pnode.platform_id:
-            pid = pnode.platform_id
-            lines = []
-            if level == 0:
-                lines.append('network:')
-
-            lines.append('- platform_id: %s' % pid)
-
-            lines.append('  attrs:')
-            write_attr = False
-            for i in range(2):
-                read_write = "write" if write_attr else "read"
-                write_attr = not write_attr
-
-                # attr_id here is the "ref_id" in the CI-OMS interface spec
-                attr_id = '%s_attr_%d' % (pid, i + 1)
-
-                lines.append('  - attr_id: %s' % attr_id)
-                lines.append('    type: int')
-                lines.append('    units: xyz')
-                lines.append('    min_val: -2')
-                lines.append('    max_val: 10')
-                lines.append('    read_write: %s' % read_write)
-                lines.append('    group: power')
-                lines.append('    monitor_cycle_seconds: 5')
-
-            lines.append('  ports:')
-            for i in range(2):
-                port_id = '%s_port_%d' % (pid, i + 1)
-                lines.append('  - port_id: %s' % port_id)
-                lines.append('    ip: %s_IP' % port_id)
-
-            if pnode.subplatforms:
-                lines.append('  subplatforms:')
-
-            nl = "\n" + ("  " * level)
-            result += nl + nl.join(lines)
-            next_level = level + 1
-
-        if pnode.subplatforms:
-            for sub_platform in pnode.subplatforms.itervalues():
-                result += NetworkUtil._gen_yaml(sub_platform, next_level)
-
-        return result
 
     @staticmethod
     def create_network_definition_from_ci_config(CFG):

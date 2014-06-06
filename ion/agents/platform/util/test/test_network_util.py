@@ -13,7 +13,6 @@ __license__ = 'Apache 2.0'
 #
 # bin/nosetests -sv ion.agents.platform.util.test.test_network_util:Test.test_create_node_network
 # bin/nosetests -sv ion.agents.platform.util.test.test_network_util:Test.test_serialization_deserialization
-# bin/nosetests -sv ion.agents.platform.util.test.test_network_util:Test.test_compute_checksum
 # bin/nosetests -sv ion.agents.platform.util.test.test_network_util:Test.test_create_network_definition_from_ci_config_bad
 # bin/nosetests -sv ion.agents.platform.util.test.test_network_util:Test.test_create_network_definition_from_ci_config
 #
@@ -82,15 +81,6 @@ class Test(IonUnitTestCase):
         diff = ndef.diff(ndef2)
         self.assertIsNone(diff, "deserialized version must be equal to original."
                                 " DIFF=\n%s" % diff)
-
-    def test_compute_checksum(self):
-        # create NetworkDefinition object by de-serializing the simulated network:
-        ndef = NetworkUtil.deserialize_network_definition(
-                file('ion/agents/platform/rsn/simulator/network.yml'))
-
-        checksum = ndef.compute_checksum()
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("NetworkDefinition checksum = %s", checksum)
 
     #
     # Basic tests regarding conversion from CI agent configuration to a
