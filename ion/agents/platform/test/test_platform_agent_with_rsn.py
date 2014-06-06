@@ -22,7 +22,6 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring_recent
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_external_event_dispatch
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_turn_on_and_off_port
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_turn_on_and_off_port_given_instrument
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_states
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_lost_connection_and_reconnect
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_alerts
@@ -122,39 +121,31 @@ class TestPlatformAgent(BaseIntTestPlatform):
                     self.p_root = None
         self.addCleanup(done)
 
-    def _turn_on_port(self, port_id=None, instrument_id=None):
+    def _turn_on_port(self, port_id=None):
         # TODO real settings and corresp verification
 
         src = self.__class__.__name__
-        if instrument_id is None:
-            port_id = port_id or self.PORT_ID
-            kwargs = dict(port_id=port_id, src=src)
-        else:
-            kwargs = dict(instrument_id=instrument_id, src=src)
+        port_id = port_id or self.PORT_ID
+        kwargs = dict(port_id=port_id, src=src)
 
         result = self._execute_resource(RSNPlatformDriverEvent.TURN_ON_PORT, **kwargs)
         log.info("TURN_ON_PORT = %s", result)
         self.assertIsInstance(result, dict)
-        if instrument_id is None:
-            self.assertTrue(port_id in result)
-            self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_ON)
+        self.assertTrue(port_id in result)
+        self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_ON)
 
-    def _turn_off_port(self, port_id=None, instrument_id=None):
+    def _turn_off_port(self, port_id=None):
         # TODO real settings and corresp verification
 
         src = self.__class__.__name__
-        if instrument_id is None:
-            port_id = port_id or self.PORT_ID
-            kwargs = dict(port_id=port_id, src=src)
-        else:
-            kwargs = dict(instrument_id=instrument_id, src=src)
+        port_id = port_id or self.PORT_ID
+        kwargs = dict(port_id=port_id, src=src)
 
         result = self._execute_resource(RSNPlatformDriverEvent.TURN_OFF_PORT, **kwargs)
         log.info("TURN_OFF_PORT = %s", result)
         self.assertIsInstance(result, dict)
-        if instrument_id is None:
-            self.assertTrue(port_id in result)
-            self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_OFF)
+        self.assertTrue(port_id in result)
+        self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_OFF)
 
     def _set_over_current(self, port_id=None, ma=0, us=0):
         # TODO real settings and corresp verification
@@ -826,20 +817,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._turn_on_port()
         self._turn_off_port()
         self._set_over_current()
-
-    def test_turn_on_and_off_port_given_instrument(self):
-        self._create_network_and_start_root_platform()
-
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
-        self._ping_agent()
-
-        self._initialize()
-        self._go_active()
-        self._run()
-
-        instrument_id = "SBE37_SIM_02"
-        self._turn_on_port(instrument_id=instrument_id)
-        self._turn_off_port(instrument_id=instrument_id)
 
     def test_resource_states(self):
         self._create_network_and_start_root_platform(self._shutdown)

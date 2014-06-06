@@ -551,31 +551,16 @@ class RSNPlatformDriver(PlatformDriver):
         else:
             return dic[port_id]
 
-    def _resolve_port_id(self, port_id=None, instrument_id=None):
-        if port_id is not None:
-            return port_id
-
-        if instrument_id in self._instr_port_map:
-            return self._instr_port_map[instrument_id]
-
-        msg = "%r: unknown port associated with instrument=%r" % (self._platform_id, instrument_id)
-        log.error(msg)
-        raise BadRequest(msg=msg)
-
-    def turn_on_port(self, port_id=None, instrument_id=None, src=None):
+    def turn_on_port(self, port_id, src=None):
         """
         Turns on a port.
         @param port_id
-                    Port ID; if None, then specify instrument_id
-        @param instrument_id
-                    Instrument ID, which must be given if port_id is None.
+                    Port ID
         @param src
                     Some provenance information: actor, mission, etc.
         """
-        log.debug("%r: turning on port: port_id=%s instrument_id=%s src=%s",
-                  self._platform_id, port_id, instrument_id, src)
-
-        port_id = self._resolve_port_id(port_id, instrument_id)
+        log.debug("%r: turning on port: port_id=%s src=%s",
+                  self._platform_id, port_id, src)
 
         try:
             response = self._rsn_oms.port.turn_on_platform_port(self._platform_id,
@@ -591,20 +576,16 @@ class RSNPlatformDriver(PlatformDriver):
 
         return dic_plat  # note: return the dic for the platform
 
-    def turn_off_port(self, port_id=None, instrument_id=None, src=None):
+    def turn_off_port(self, port_id, src=None):
         """
         Turns off a port.
         @param port_id
-                    Port ID; if None, then specify instrument_id
-        @param instrument_id
-                    Instrument ID, which must be given if port_id is None.
+                    Port ID
         @param src
                     Some provenance information: actor, mission, etc.
         """
-        log.debug("%r: turning off port: port_id=%s instrument_id=%s src=%s",
-                  self._platform_id, port_id, instrument_id, src)
-
-        port_id = self._resolve_port_id(port_id, instrument_id)
+        log.debug("%r: turning off port: port_id=%s src=%s",
+                  self._platform_id, port_id, src)
 
         try:
             response = self._rsn_oms.port.turn_off_platform_port(self._platform_id,
@@ -842,17 +823,14 @@ class RSNPlatformDriver(PlatformDriver):
                       str(args), str(kwargs)))
 
         port_id = kwargs.get('port_id', None)
-        instrument_id = kwargs.get('instrument_id', None)
-        if port_id is None and instrument_id is None:
-            raise FSMError('turn_on_port: at least one of port_id and '
-                           'instrument_id argument must be given')
+        if port_id is None:
+            raise FSMError('turn_on_port: missing port_id argument')
 
         # TODO: provide source info if not explicitly given:
         src = kwargs.get('src', 'source TBD')
 
         try:
-            result = self.turn_on_port(port_id=port_id, instrument_id=instrument_id,
-                                       src=src)
+            result = self.turn_on_port(port_id=port_id, src=src)
             return None, result
 
         except PlatformConnectionException as e:
@@ -868,17 +846,14 @@ class RSNPlatformDriver(PlatformDriver):
                       str(args), str(kwargs)))
 
         port_id = kwargs.get('port_id', None)
-        instrument_id = kwargs.get('instrument_id', None)
-        if port_id is None and instrument_id is None:
-            raise FSMError('turn_off_port: at least one of port_id and '
-                           'instrument_id argument must be given')
+        if port_id is None:
+            raise FSMError('turn_off_port: missing port_id argument')
 
         # TODO: provide source info if not explicitly given:
         src = kwargs.get('src', 'source TBD')
 
         try:
-            result = self.turn_off_port(port_id=port_id, instrument_id=instrument_id,
-                                        src=src)
+            result = self.turn_off_port(port_id=port_id, src=src)
             return None, result
 
         except PlatformConnectionException as e:
