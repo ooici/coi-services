@@ -36,8 +36,7 @@ class NotificationSentScanner(object):
         self._initialize_counts()
 
     def process_events(self, event_list):
-        counts_updated = False # boolean to check if counts may be persisted
-        notifications = [] # list of notifications to disable
+        notifications = set() # set() of notifications to disable, _disable_notifications can happen >1 depending on len(event_list)
         for e in event_list:
             # skip if not a NotificationEvent
             if e.type_ not in NOTIFICATION_EVENTS:
@@ -51,28 +50,30 @@ class NotificationSentScanner(object):
             # increment counts (user_id key to allow ALL to be counted)
             self.counts[user_id]['all'] += 1 # tracks total notifications by user
             self.counts[user_id][notification_id] += 1
-            counts_updated = True
+            self.counts_updated_since_persist = True
             # disable notification if notification_max reached
             if notification_max:
                 if self.counts[user_id][notification_id] >= notification_max:
-                    notifications.append(_disable_notification(notification_id))
+                    # TODO this could be dict so key could be checked for insertion
+                    notifications.add(self._disable_notification(notification_id))
         # update notifications that have been disabled
         if notifications:
-            self._update_notification(notifications)
-        # only attempt to persist counts if updated
-        if counts_updated:
+            self._update_notifications(notifications)
+        # only attempt to persist counts if there was an update
+        if self.counts_updated_since_persist:
             if time.time() > (self.time_last_persist + self.persist_interval):
                 self._persist_counts()
         # reset counts if reset_interval has elapsed
         if time.time() > self.next_midnight:
             self._reset_counts()
 
+    # NOTE: ObjectStore 'objects' contain '_id' and '_rev'
     def _initialize_counts(self):
         """ initialize the volatile (memory only) counts from ObjectStore if available """
         try:
-            self.counts = self.object_store.read('notification_counts')
-            # persisted as standard dicts, convert to Counter objects
-            self.counts = {k:Counter(v) for k,v in self.counts.items()}
+            self.counts_obj = self.object_store.read_doc('notification_counts')
+            # persisted as standard dicts, convert to Counter objects ignoring the ObjectStore '_id' and '_rev'
+            self.counts = {k:Counter(v) for k,v in self.counts_obj.items() if not (k == '_id' or k == '_rev') }
         except NotFound:
             self.counts = {}
         self._persist_counts()
@@ -80,31 +81,32 @@ class NotificationSentScanner(object):
     def _persist_counts(self):
         """ persist the counts to ObjectStore """
         try:
-            persisted_counts = self.object_store.read_doc('notification_counts')
+            self.counts_obj = self.object_store.read_doc('notification_counts')
         except NotFound:
-            persisted_counts = {}
-            self.object_store.create_doc(persisted_counts, 'notification_counts')
-        # Counter objects cannot be persisted, convert to standard dicts
-        persisted_counts.update({k:dict(v) for k,v in self.counts.items()})
-        self.object_store.update_doc(persisted_counts)
+            self.object_store.create_doc({}, 'notification_counts')
+            self.counts_obj = self.object_store.read_doc('notification_counts')
+        # Counter objects cannot be persisted, convert to standard dicts (leaves '_id', '_rev' untouched)
+        self.counts_obj.update({k:dict(v) for k,v in self.counts.items()})
+        self.object_store.update_doc(self.counts_obj)
         self.time_last_persist = time.time()
+        self.counts_updated_since_persist = False # boolean to check if counts should be persisted
 
     def _reset_counts(self):
         """ clears the persisted counts """
         self.object_store.delete_doc('notification_counts')
-        self.object_store.create_doc({}, 'notification_counts')
         self._initialize_counts() # NOTE: NotificationRequest boolean disabled_by_system reset by UNS
         self.next_midnight = self._midnight(days=1)
 
     def _disable_notification(self, notification_id):
         """ set the disabled_by_system boolean to True """
-        notification = self.object_store.read_doc(notification_id)
+        notification = self.resource_registry.read(notification_id)
         notification.disabled_by_system = True
         return notification
 
     def _update_notifications(self, notifications):
-        """ updates notifications and publishes ReloadUserInfoEvent """
-        self.resource_registry.update_mult(notifications)
+        """ updates notifications then publishes ReloadUserInfoEvent """
+        for n in notifications:
+            self.resource_registry.update(n)
         self.event_publisher.publish_event(event_type=OT.ReloadUserInfoEvent)
 
     def _midnight(self, days=0):

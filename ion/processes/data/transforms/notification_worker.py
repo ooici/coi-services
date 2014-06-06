@@ -8,9 +8,14 @@
 '''
 
 from datetime import datetime
+from email.mime.text import MIMEText
+import smtplib
 
 from pyon.event.event import EventPublisher, EventSubscriber
 from pyon.public import log, RT, OT, PRED, CFG
+
+from interface.objects import DeliveryModeEnum, NotificationFrequencyEnum
+
 from ion.core.process.transform import TransformEventListener
 from ion.services.dm.utility.uns_utility_methods import load_notifications
 
@@ -82,12 +87,14 @@ class NotificationWorker(TransformEventListener):
         # users to notify with a list of the notifications that have been triggered by this Event
         users = {} # users to be notified
         # loop the combinations of keys (see _key_combinations below for explanation)
-        for k in self._key_combinations(key):
-            for (notification, user) in self.notifications.get(k, []):
-                # notification has been triggered
-                if user not in users:
-                    users[user] = []
-                users[user].append(notification)
+        # set() to eliminate duplicates when '' values exist in tuple
+        for k in set(self._key_combinations(key)):
+            if k in self.notifications:
+                for (notification, user) in self.notifications.get(k, []):
+                    # notification has been triggered
+                    if user not in users:
+                        users[user] = []
+                    users[user].append(notification)
         # we now have a dict, keyed by users that will be notified, each user has a list of notifications triggered by this event
         
         # send email
@@ -112,17 +119,17 @@ class NotificationWorker(TransformEventListener):
                     for notification in users[user]:
 
                         # name of NotificationRequest, defaults to...NotificationRequest? I don't think name gets set anywhere? TODO, what's default?
-                        context['notification_name'] = notification.get('name', notification.type_)
+                        context['notification_name'] = notification.name or notification.type_
 
                         # send message for each DeliveryConfiguration (this has mode and frequency to determine realtime, email or SMS)
                         for delivery_configuration in notification.delivery_configurations:
 
                             # skip if DeliveryConfiguration.frequency is DISABLED
-                            if delivery_configuration.frequency == OT.NotificationFrequencyEnum.DISABLED:
+                            if delivery_configuration.frequency == NotificationFrequencyEnum.DISABLED:
                                 continue
 
                             # only process REAL_TIME
-                            if delivery_configuration.frequency != OT.NotificationFrequencyEnum.REAL_TIME:
+                            if delivery_configuration.frequency != NotificationFrequencyEnum.REAL_TIME:
                                 continue
 
                             # default to UserInfo.contact.email if no email specified in DeliveryConfiguration
@@ -131,33 +138,37 @@ class NotificationWorker(TransformEventListener):
 
                             # message from Jinja2 template (email or SMS)
                             try:
-                                smtp_msg = self._mimetext(delivery_configuration, context)
+
+                                # email - MIMEText
+                                if delivery_configuration.mode == DeliveryModeEnum.EMAIL:
+                                    body = self.jinja_env.get_template('notification_realtime_email.txt').render(context)
+                                    mime_text = MIMEText(body)
+                                    mime_text['Subject'] = 'OOINet ION Event Notification - %s' % context['event_label']
+                                    mime_text['From'] = self.smtp_from
+                                    mime_text['To'] = context['smtp_to']
+                                    smtp_msg = mime_text.as_string()
+
+                                # SMS - just the template string
+                                elif delivery_configuration.mode == DeliveryModeEnum.SMS:
+                                    body = self.jinja_env.get_template('notification_realtime_sms.txt').render(context)
+                                    smtp_msg = body
+
+                                # unknown DeliveryMode
+                                else:
+                                    raise Exception #TODO specify unknown DeliveryModeEnum
+
+                                smtp.sendmail(self.smtp_from, smtp_to, smtp_msg)
+
                             except Exception:
                                 log.error('Failed to create message for notification %s', notification._id)
                                 continue # skips this notification
 
-                            # TODO: use NOOP to check connection first?
-                            smtp.sendmail(self.smtp_from, smtp_to, smtp_msg.as_string())
-
-                        # publish NotificationSentEvent - one per NotificationRequest (EventListener plugin NotificationSentScanner listens)
-                        self.event_publisher.publish_event(user_id = user._id, notification_id = notification._id, notification_max = notification.max_daily)
+                            # publish NotificationSentEvent - one per NotificationRequest (EventListener plugin NotificationSentScanner listens)
+                            notification_max = int(CFG.get_safe("service.user_notification.max_daily_notifications", 1000))
+                            self.event_publisher.publish_event(user_id=user._id, notification_id=notification._id, notification_max=notification_max)
 
             finally:
                 smtp.quit()
-
-    def _mimetext(self, delivery_configuration, context):
-        if delivery_configuration.mode == OT.DeliveryModeEnum.EMAIL:
-            body = self.jinja_env.get_template('notification_realtime_email.txt').render(context)
-        elif delivery_configuration.mode == OT.DeliveryModeEnum.SMS:
-            body = self.jinja_env.get_template('notification_realtime_sms.txt').render(context)
-        else:
-            raise Exception
-        # create MIMEText message
-        smtp_msg = MIMEText(body)
-        smtp_msg['Subject'] = 'OOINet ION Event Notification - %s' % context['event_label']
-        smtp_msg['From'] = self.smtp_from
-        smtp_msg['To'] = context['smtp_to']
-        return smtp_msg
 
     def _initialize_smtp(self):
         """ class method so user/pass/etc can be added """
