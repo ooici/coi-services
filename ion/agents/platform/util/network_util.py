@@ -28,64 +28,6 @@ class NetworkUtil(object):
     """
 
     @staticmethod
-    def create_node_network(network_map):
-        """
-        Creates a node network according to the given map (this map is
-        the format used by the CI-OMS interface to represent the topology).
-        Various verifications are performed here resulting in an exception
-        being thrown if the definition is invalid:
-         - no duplicate platform_id
-         - dummy root (with id '') is present
-         - only one regular root node.
-
-        @param network_map [(platform_id, parent_platform_id), ...]
-
-        @return { platform_id: PlatformNode }
-
-        @raise PlatformDefinitionException
-        """
-        pnodes = {}
-        for platform_id, parent_platform_id in network_map:
-            if not platform_id:
-                raise PlatformDefinitionException(
-                    "platform_id in tuple can not be %r" % platform_id)
-
-            if parent_platform_id is None:
-                parent_platform_id = ''
-
-            if parent_platform_id in pnodes:
-                parent = pnodes[parent_platform_id]
-            else:
-                parent = pnodes[parent_platform_id] = PlatformNode(parent_platform_id)
-
-            if platform_id in pnodes:
-                platform = pnodes[platform_id]
-                previous_parent = platform.parent
-            else:
-                platform = pnodes[platform_id] = PlatformNode(platform_id)
-                previous_parent = None
-
-            if previous_parent is not None and previous_parent.platform_id != parent_platform_id:
-                raise PlatformDefinitionException(
-                    "Duplicate tuple for platform_id=%r but different "
-                    "parent_platform_ids: %r and %r" % (
-                        platform_id,
-                        platform.parent.platform_id, parent_platform_id))
-
-            if platform_id not in parent._subplatforms:
-                parent.add_subplatform(platform)
-
-        if not '' in pnodes:
-            raise PlatformDefinitionException("Expecting dummy root in node network dict")
-        dummy_root = pnodes['']
-        if len(dummy_root.subplatforms) != 1:
-            raise PlatformDefinitionException(
-                "Expecting a single root in node network dict, but got %s" % (
-                dummy_root.subplatforms))
-
-        return pnodes
-
-    @staticmethod
     def deserialize_network_definition(ser):
         """
         Creates a NetworkDefinition object by deserializing the given argument.
