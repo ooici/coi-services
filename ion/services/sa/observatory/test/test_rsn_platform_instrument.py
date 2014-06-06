@@ -114,6 +114,7 @@ if not egg in sys.path:
     sys.path.insert(0, egg)
 
 
+@unittest.skip('becoming obsolete')
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 300}}})
 class TestPlatformInstrument(BaseIntTestPlatform):
 
