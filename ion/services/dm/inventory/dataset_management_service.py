@@ -140,6 +140,14 @@ class DatasetManagementService(BaseDatasetManagementService):
     def register_dataset(self, data_product_id=''):
         raise BadRequest("register_dataset is no longer supported, please use create_catalog_entry in data product management")
 
+    def add_dataset_window_to_complex(self, dataset_id, target_dataset_id, window):
+        '''
+        Adds target dataset to the complex coverage for the window specified
+        '''
+        doc = self.object_store.read_doc('cov_' + dataset_id)
+        doc['references'].append( (window, target_dataset_id) )
+
+
 #--------
 
     def add_parameter_to_dataset(self, parameter_context_id='', dataset_id=''):
@@ -582,8 +590,8 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def get_parameter_dictionary(cls, parameter_dictionary_id=''):
         """
-        Preferred client-side class method for constructing a parameter dictionary
-        from a service call.
+        Class method to return a CoverageModel ParameterDictionary object from the
+        ION Resources. The object is built from the associated parameter contexts.
         """
         dms_cli = DatasetManagementServiceClient()
         pd  = dms_cli.read_parameter_dictionary(parameter_dictionary_id)
@@ -652,6 +660,14 @@ class DatasetManagementService(BaseDatasetManagementService):
         pscov.close()
         vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov_location)
         return vcov
+
+    def _create_complex_coverage(self, dataset_id, description, parameter_dict):
+        object_store_blank = {
+            'dataset_id' : dataset_id,
+            'parameter_dictionary' : parameter_dict,
+            'references': []
+        }
+        self.object_store.create_doc(object_store_blank, 'cov_' + dataset_id)
 
 
     @classmethod

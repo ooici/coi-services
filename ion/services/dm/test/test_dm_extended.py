@@ -235,110 +235,13 @@ class TestDMExtended(DMTestCase):
 
 
 
-    def preload_indexes(self):
-        pass
-
-
     def launch_device_facepage(self, instrument_device_id):
         '''
         Opens the UI face page on localhost for a particular instrument device
         '''
         from subprocess import call
         call(['open', 'http://localhost:3000/InstrumentDevice/face/%s/' % instrument_device_id])
-
-
-    def create_google_dt_workflow_def(self):
-        # Check to see if the workflow defnition already exist
-        workflow_def_ids,_ = self.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
-
-        if len(workflow_def_ids) > 0:
-            workflow_def_id = workflow_def_ids[0]
-        else:
-            # Build the workflow definition
-            workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_Google_DT',description='Convert stream data to Google Datatable')
-
-            #Add a transformation process definition
-            google_dt_procdef_id = self.create_google_dt_data_process_definition()
-            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id)
-            workflow_def_obj.workflow_steps.append(workflow_step_obj)
-
-            #Create it in the resource registry
-            workflow_def_id = self.workflow_management.create_workflow_definition(workflow_def_obj)
-
-        return workflow_def_id
-   
-    def create_google_dt_data_process_definition(self):
-
-        #First look to see if it exists and if not, then create it
-        dpd,_ = self.resource_registry.find_resources(restype=RT.DataProcessDefinition, name='google_dt_transform')
-        if len(dpd) > 0:
-            return dpd[0]
-
-        # Data Process Definition
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-            name='google_dt_transform',
-            description='Convert data streams to Google DataTables',
-            module='ion.processes.data.transforms.viz.google_dt',
-            class_name='VizTransformGoogleDT')
-        try:
-            procdef_id = self.data_process_management.create_data_process_definition(dpd_obj)
-        except Exception as ex:
-            self.fail("failed to create new VizTransformGoogleDT data process definition: %s" %ex)
-
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('google_dt', id_only=True)
-
-        # create a stream definition for the data from the
-        stream_def_id = self.pubsub_management.create_stream_definition(name='VizTransformGoogleDT', parameter_dictionary_id=pdict_id)
-        self.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='google_dt' )
-
-        return procdef_id
     
-    def create_highcharts_workflow_def(self):
-        # Check to see if the workflow defnition already exist
-        workflow_def_ids,_ = self.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_HighCharts', id_only=True)
-
-        if len(workflow_def_ids) > 0:
-            workflow_def_id = workflow_def_ids[0]
-        else:
-            # Build the workflow definition
-            workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_HighCharts',description='Convert stream data to highcharts Datatable')
-
-            #Add a transformation process definition
-            highcharts_dt_procdef_id = self.create_highcharts_data_process_definition()
-            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=highcharts_dt_procdef_id)
-            workflow_def_obj.workflow_steps.append(workflow_step_obj)
-
-            #Create it in the resource registry
-            workflow_def_id = self.workflow_management.create_workflow_definition(workflow_def_obj)
-
-        return workflow_def_id
-   
-    def create_highcharts_data_process_definition(self):
-
-        #First look to see if it exists and if not, then create it
-        dpd,_ = self.resource_registry.find_resources(restype=RT.DataProcessDefinition, name='HIGHCHARTS')
-        if len(dpd) > 0:
-            return dpd[0]
-
-        # Data Process Definition
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-            name='HIGHCHARTS',
-            description='HighCharts charts',
-            module='ion.processes.data.transforms.viz.highcharts',
-            class_name='VizTransformHighCharts')
-        try:
-            procdef_id = self.data_process_management.create_data_process_definition(dpd_obj)
-        except Exception as ex:
-            self.fail("failed to create new VizTransformhighchartsDT data process definition: %s" %ex)
-
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('highcharts', id_only=True)
-
-        # create a stream definition for the data from the
-        stream_def_id = self.pubsub_management.create_stream_definition(name='VizTransformhighchartsDT', parameter_dictionary_id=pdict_id)
-        self.data_process_management.assign_stream_definition_to_data_process_definition(stream_def_id, procdef_id, binding='highcharts' )
-
-        return procdef_id
-
     @attr('UTIL')
     def test_tmpsf_arrays(self):
         self.preload_tmpsf()
@@ -838,69 +741,6 @@ class TestDMExtended(DMTestCase):
         extent = self.dataset_management.dataset_extents_by_axis(dataset_id, 'time')
         self.assertEquals(extent, 34)
 
-    @unittest.skip("Complex Coverages aren't used for the time being")
-    @attr('INT')
-    def test_ccov_domain_slicing(self):
-        '''
-        Verifies that the complex coverage can handle slicing across the domain instead of the range
-        '''
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
-        stream_def_id = self.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
-        data_product_id = self.create_data_product('ctd', stream_def_id=stream_def_id)
-        self.activate_data_product(data_product_id)
-        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
-        dataset_monitor = DatasetMonitor(dataset_id)
-        self.addCleanup(dataset_monitor.stop)
-
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = np.arange(20,40)
-        rdt['temp'] = np.arange(20)
-        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='1', connection_index='1')
-        self.assertTrue(dataset_monitor.wait())
-        dataset_monitor.event.clear()
-        
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = np.arange(60,80)
-        rdt['temp'] = np.arange(20)
-        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='2', connection_index='1')
-        self.assertTrue(dataset_monitor.wait())
-        dataset_monitor.event.clear()
-        
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = np.arange(100,120)
-        rdt['temp'] = np.arange(20)
-        self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='3', connection_index='1')
-        self.assertTrue(dataset_monitor.wait())
-        dataset_monitor.event.clear()
-
-        cov = DatasetManagementService._get_coverage(dataset_id)
-        ccov = cov.reference_coverage
-        #self.assertEquals(len(ccov._reference_covs), 3)
-
-        # Completely within the first coverage
-        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(0,5))
-        np.testing.assert_array_equal(testval['time'], np.arange(20,25))
-
-        # Completely within a different coverage
-        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(20,25))
-        np.testing.assert_array_equal(testval['time'], np.arange(60,65))
-
-        # Intersecting two coverages
-        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(15,25))
-        np.testing.assert_array_equal(testval['time'], np.array([35, 36, 37, 38, 39, 60, 61, 62, 63, 64]))
-
-        # Union of entire domain
-        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(0,60))
-        np.testing.assert_array_equal(testval['time'], np.concatenate([np.arange(20,40), np.arange(60,80), np.arange(100,120)]))
-
-        # Exceeding domain
-        testval = ccov.get_value_dictionary(param_list=['time', 'temp'], domain_slice=(0,120))
-        np.testing.assert_array_equal(testval['time'], np.concatenate([np.arange(20,40), np.arange(60,80), np.arange(100,120)]))
-        
-    @attr("UTIL")
-    def test_locking_contention(self):
-        pass
-
     @attr("UTIL")
     def test_large_perf(self):
         self.preload_ui()
@@ -1288,9 +1128,8 @@ def rotate_v(u,v,theta):
 
         # Get the parameter dictionary for this data product
         dataset_id = self.dataset_of_data_product(data_product_id)
-        dataset = self.dataset_management.read_dataset(dataset_id)
-        param_dict_dump = dataset.parameter_dictionary
-        pdict = ParameterDictionary.load(param_dict_dump)
+        param_dict_id = self.resource_registry.find_objects(dataset_id, PRED.hasParameterDictionary, id_only=True)[0][0]
+        pdict = DatasetManagementService.get_parameter_dictionary(param_dict_id)
 
         density_dependencies = graph(pdict, 'seawater_density')
         what_it_should_be = {'cc_lat': {},

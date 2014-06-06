@@ -74,19 +74,19 @@ class DataProductManagementService(BaseDataProductManagementService):
             return self.create_device_data_product(data_product, stream_definition_id, default_stream_configuration)
 
         elif data_product.category == DataProductTypeEnum.SITE:
-            return self.create_site_data_product(self, data_product, stream_definition_id)
+            return self.create_site_data_product(data_product, stream_definition_id)
 
         elif data_product.category == DataProductTypeEnum.DERIVED:
-            return self.create_site_data_product(self, data_product, stream_definition_id, parent_data_product_id)
+            return self.create_derived_data_product(data_product, parent_data_product_id, stream_definition_id)
 
         elif data_product.category == DataProductTypeEnum.EXTERNAL:
-            return self.create_external_data_product(self, data_product, stream_definition_id)
+            return self.create_external_data_product(data_product, stream_definition_id)
 
         else:
             raise BadRequest("Unrecognized Data Product Type")
 
 
-    def create_device_data_product(self, data_product, stream_definition_id, stream_configuration):
+    def create_device_data_product(self, data_product=None, stream_definition_id='', stream_configuration=None):
         '''
         Creates a data product resource and a stream for the data product.
         '''
@@ -104,7 +104,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         return data_product_id
 
 
-    def create_derived_data_product(self, data_product, parent_data_product_id, stream_definition_id):
+    def create_derived_data_product(self, data_product=None, parent_data_product_id='', stream_definition_id=''):
         '''
         Creates a derived data product
         '''
@@ -133,7 +133,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return data_product_id
 
-    def create_site_data_product(self, data_product, stream_definition_id):
+    def create_site_data_product(self, data_product=None, stream_definition_id=''):
         '''
         Creates a site data product
         '''
@@ -149,7 +149,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return data_product_id
 
-    def create_external_data_product(self, data_product, stream_definition_id):
+    def create_external_data_product(self, data_product=None, stream_definition_id=''):
         '''
         Creates an external data product
         '''
