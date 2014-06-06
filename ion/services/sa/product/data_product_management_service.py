@@ -20,7 +20,7 @@ from ion.util.geo_utils import GeoUtils
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess, DataProcessTypeEnum, Device
-from interface.objects import ComputedValueAvailability
+from interface.objects import ComputedValueAvailability, DataProductTypeEnum, Dataset, CoverageTypeEnum
 
 from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
@@ -57,33 +57,114 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def create_data_product(self, data_product=None, stream_definition_id='', exchange_point='', dataset_id='', parent_data_product_id='', default_stream_configuration=None):
         """
-        @param      data_product IonObject which defines the general data product resource
-        @param      source_resource_id IonObject id which defines the source for the data
-        @retval     data_product_id
+        Creates a data product Resource.
+
+        @param data_product                 - The data product resource
+        @param stream_definition_id         - The stream definition points to the parameter dictionary and defines the 
+                                              parameters for this data product
+        @param exchange_point               - Which exchange point on the broker to use for streaming purposes
+        @param dataset_id                   - It's possible to create a data product from an already existing dataset, 
+                                              this is the dataset to use and point to
+        @param parent_data_product_id       - The id of the parent data product, this is for the case where a derived 
+                                              data product is created
+        @param default_stream_configuration - A configuration for how to name the streams coming from the agent
         """
+
+        if data_product.category == DataProductTypeEnum.DEVICE:
+            return self.create_device_data_product(data_product, stream_definition_id, default_stream_configuration)
+
+        elif data_product.category == DataProductTypeEnum.SITE:
+            return self.create_site_data_product(data_product, stream_definition_id)
+
+        elif data_product.category == DataProductTypeEnum.DERIVED:
+            return self.create_derived_data_product(data_product, parent_data_product_id, stream_definition_id)
+
+        elif data_product.category == DataProductTypeEnum.EXTERNAL:
+            return self.create_external_data_product(data_product, stream_definition_id)
+
+        else:
+            raise BadRequest("Unrecognized Data Product Type")
+
+
+    def create_device_data_product(self, data_product=None, stream_definition_id='', stream_configuration=None):
+        '''
+        Creates a data product resource and a stream for the data product.
+        '''
+
+        if not data_product.category == DataProductTypeEnum.DEVICE:
+            raise BadRequest("Attempted to create a Device Data Product without the proper type category")
+
         data_product_id = self.create_data_product_(data_product)
 
         # WARNING: This creates a Stream as a side effect!!
         self.assign_stream_definition_to_data_product(data_product_id=data_product_id,
                                                       stream_definition_id=stream_definition_id,
-                                                      exchange_point=exchange_point,
-                                                      stream_configuration=default_stream_configuration)
+                                                      stream_configuration=stream_configuration)
 
-        if dataset_id and parent_data_product_id:
-            raise BadRequest('A parent dataset or parent data product can be specified, not both.')
-        if dataset_id and not data_product_id:
-            # TODO: Q: How can this ever be true?
-            self.assign_dataset_to_data_product(data_product_id=data_product_id, dataset_id=dataset_id)
-        if parent_data_product_id and not dataset_id:
-            self.assign_data_product_to_data_product(data_product_id=data_product_id, parent_data_product_id=parent_data_product_id)
-            dataset_ids, _ = self.clients.resource_registry.find_objects(parent_data_product_id, predicate=PRED.hasDataset, id_only=True)
-            for dataset_id in dataset_ids:
-                self.assign_dataset_to_data_product(data_product_id, dataset_id)
-            if dataset_ids:
-                self.create_catalog_entry(data_product_id)
-
-      # Return the id of the new data product
         return data_product_id
+
+
+    def create_derived_data_product(self, data_product=None, parent_data_product_id='', stream_definition_id=''):
+        '''
+        Creates a derived data product
+        '''
+        if not data_product.category == DataProductTypeEnum.DERIVED:
+            raise BadRequest("Attempted to create a Derived Data Product without the proper type category")
+
+        # Store the resource
+        data_product_id = self.create_data_product_(data_product)
+
+        # Associate the stream definition with the data product, BUT DONT MAKE A STREAM
+        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id,
+                                                                                     data_product_id)
+        
+
+        # Associate the data product to its parent
+        self.assign_data_product_to_data_product(data_product_id=data_product_id, parent_data_product_id=parent_data_product_id)
+
+        # Associate the dataset of the parent with this data product
+        dataset_ids, _ = self.clients.resource_registry.find_objects(parent_data_product_id, predicate=PRED.hasDataset, id_only=True)
+        for dataset_id in dataset_ids:
+            self.assign_dataset_to_data_product(data_product_id, dataset_id)
+
+        # If there were physical datasets
+        if dataset_ids:
+            self.create_catalog_entry(data_product_id)
+
+        return data_product_id
+
+    def create_site_data_product(self, data_product=None, stream_definition_id=''):
+        '''
+        Creates a site data product
+        '''
+        if not data_product.category == DataProductTypeEnum.SITE:
+            raise BadRequest("Attempted to create a Site Data Product without the proper type category")
+
+        # Store the resource
+        data_product_id = self.create_data_product_(data_product)
+
+        # Associate the stream definition with the data product, BUT DONT MAKE A STREAM
+        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id,
+                                                                                     data_product_id)
+
+        return data_product_id
+
+    def create_external_data_product(self, data_product=None, stream_definition_id=''):
+        '''
+        Creates an external data product
+        '''
+        if not data_product.category == DataProductTypeEnum.EXTERNAL:
+            raise BadRequest("Attempted to create a External Data Product without the proper type category")
+
+        # Store the resource
+        data_product_id = self.create_data_product_(data_product)
+
+        # Associate the stream definition with the data product, BUT DONT MAKE A STREAM
+        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id,
+                                                                                     data_product_id)
+
+        return data_product_id
+
 
     def create_data_product_(self, data_product=None):
 
@@ -377,16 +458,23 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(data_product_obj, "The data product id should correspond to a valid registered data product.")
 
         stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
-        if not stream_ids:
-            raise BadRequest('Specified DataProduct has no streams associated with it')
-        stream_id = stream_ids[0]
+        if data_product_obj.category == DataProductTypeEnum.DEVICE:
+            if not stream_ids:
+                raise BadRequest('Specified DataProduct has no streams associated with it')
+            stream_id = stream_ids[0]
+        else:
+            stream_id = None
 
-        stream_defs, _ = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition,id_only=True)
+
+        stream_defs, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition,id_only=True)
         if not stream_defs:
             raise BadRequest("Data Product stream is without a stream definition")
         stream_def_id = stream_defs[0]
 
-        stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id)  # additional read necessary to fill in the pdict
+        parameter_dictionary_ids, _ = self.clients.resource_registry.find_objects(stream_def_id, PRED.hasParameterDictionary, id_only=True)
+        if not parameter_dictionary_ids:
+            raise BadRequest("Data Product stream is without a parameter dictionary")
+        parameter_dictionary_id = parameter_dictionary_ids[0]
 
         parent_data_product_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
         if len(parent_data_product_ids) == 1:  # This is a child data product
@@ -401,27 +489,47 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Step 2: Create and associate Dataset (coverage)
 
 
-        if not dataset_ids:
-            # No datasets are currently linked which means we need to create a new one
-            dataset_id = self.clients.dataset_management.create_dataset(name= 'dataset_%s' % stream_id,
-                                                                        stream_id=stream_id,
-                                                                        parameter_dict=stream_def.parameter_dictionary)
+        # If there's already a dataset, just return that
+        if dataset_ids:
+            return dataset_ids[0]
 
-            # link dataset with data product. This creates the association in the resource registry
-            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+        dataset_id = self._create_dataset(data_product_obj, parameter_dictionary_id)
 
-            # Late binding of dataset with existing child data products
-            for child_dp_id in child_data_product_ids:
-                self.assign_dataset_to_data_product(child_dp_id, dataset_id)
-            
-            # register the dataset for externalization
+        # Also assign the stream to the dataset
+        if stream_id:
+            self.RR2.assign_stream_to_dataset_with_has_stream(stream_id, dataset_id)
 
+        # link dataset with data product. This creates the association in the resource registry
+        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+
+        # Link this dataset with the child data products AND
+        # create catalog entries for the child data products
+        for child_dp_id in child_data_product_ids:
+            self.assign_dataset_to_data_product(child_dp_id, dataset_id)
             self.create_catalog_entry(data_product_id=data_product_id)
-            child_products, _ = self.clients.resource_registry.find_subjects(object=data_product_id, predicate=PRED.hasDataProductParent, id_only=True)
-            for child_product in child_products:
-                self.create_catalog_entry(data_product_id=data_product_id)
-        else:
-            dataset_id = dataset_ids[0]
+        
+        # register the dataset for externalization
+
+        self.create_catalog_entry(data_product_id=data_product_id)
+
+        return dataset_id
+
+
+    def _create_dataset(self, data_product, parameter_dictionary_id):
+        # Device -> Simplex, Site -> Complex
+        if data_product.category == DataProductTypeEnum.DEVICE:
+            dataset = Dataset(name=data_product.name,
+                              description='Dataset for Data Product %s' % data_product._id,
+                              coverage_type=CoverageTypeEnum.SIMPLEX)
+        elif data_product.category == DataProductTypeEnum.SITE:
+            dataset = Dataset(name=data_product.name,
+                              description='Dataset for Data Product %s' % data_product._id,
+                              coverage_type=CoverageTypeEnum.COMPLEX)
+
+        # No datasets are currently linked which means we need to create a new one
+        dataset_id = self.clients.dataset_management.create_dataset(dataset,
+                                                                    parameter_dictionary_id=parameter_dictionary_id)
+
         return dataset_id
 
 
@@ -836,121 +944,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def delete_catalog_entry(self, data_product_id=''):
         return self._registration_rpc('delete_entry', data_product_id)
-
-
-    ############################
-    #
-    #  Data Product Collections
-    #
-    ############################
-
-
-    def create_data_product_collection(self, data_product_id='', collection_name='', collection_description=''):
-        """Define a  set of an existing data products that represent an improvement in the quality or
-        understanding of the information.
-        """
-        validate_is_not_none(data_product_id, 'A data product identifier must be passed to create a data product version')
-
-        dpv = DataProductVersion()
-        dpv.name = 'base'
-        dpv.description = 'the base version on which subsequent versions are built'
-        dpv.data_product_id = data_product_id
-
-        dp_collection_obj = IonObject(RT.DataProductCollection, name=collection_name, description=collection_description, version_list=[dpv])
-
-        data_product_collection_id, rev = self.clients.resource_registry.create(dp_collection_obj)
-        self.clients.resource_registry.create_association( subject=data_product_collection_id, predicate=PRED.hasVersion, object=data_product_id)
-
-        return data_product_collection_id
-
-
-
-    def update_data_product_collection(self, data_product_collection=None):
-        """@todo document this interface!!!
-
-        @param data_product_collection    DataProductCollection
-        @throws NotFound    object with specified id does not exist
-        """
-
-
-        self.RR2.update(data_product_collection, RT.DataProductCollection)
-
-        #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
-
-        return
-
-    def read_data_product_collection(self, data_product_collection_id=''):
-        """Retrieve data product information
-
-        @param data_product_collection_id    str
-        @retval data_product    DataProductVersion
-        """
-        result = self.RR2.read(data_product_collection_id, RT.DataProductCollection)
-
-        return result
-
-    def delete_data_product_collection(self, data_product_collection_id=''):
-        """Remove a version of an data product.
-
-        @param data_product_collection_id    str
-        @throws BadRequest    if object does not have _id or _rev attribute
-        @throws NotFound    object with specified id does not exist
-        """
-
-        self.RR2.lcs_delete(data_product_collection_id, RT.DataProductCollection)
-
-    def force_delete_data_product_collection(self, data_product_collection_id=''):
-
-        # if not yet deleted, the first execute delete logic
-        dp_obj = self.read_data_product_collection(data_product_collection_id)
-        if dp_obj.lcstate != LCS.DELETED:
-            self.delete_data_product_collection(data_product_collection_id)
-
-        self.RR2.force_delete(data_product_collection_id, RT.DataProductCollection)
-
-    def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
-        dp_collection_obj =self.clients.resource_registry.read(data_product_collection_id)
-
-        #retrieve the stream definition for both the new data product to add to this collection and the base data product for this collection
-        new_data_product_obj = self.clients.resource_registry.read(data_product_id)
-        new_data_product_streams, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
-        validate_is_not_none(new_data_product_streams, 'The data product to add to the collection must have an associated stream')
-        new_data_product_streamdefs, _ = self.clients.resource_registry.find_objects(subject=new_data_product_streams[0], predicate=PRED.hasStreamDefinition, object_type=RT.StreamDefinition, id_only=True)
-
-        base_data_product_id = dp_collection_obj.version_list[0].data_product_id
-        base_data_product_obj = self.clients.resource_registry.read(base_data_product_id)
-        base_data_product_streams, _ = self.clients.resource_registry.find_objects(subject=base_data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
-        validate_is_not_none(base_data_product_streams, 'The base data product in the collection must have an associated stream')
-        base_data_product_streamdefs, _ = self.clients.resource_registry.find_objects(subject=base_data_product_streams[0], predicate=PRED.hasStreamDefinition, object_type=RT.StreamDefinition, id_only=True)
-        if not self.clients.pubsub_management.compare_stream_definition(stream_definition1_id=new_data_product_streamdefs[0], stream_definition2_id=base_data_product_streamdefs[0]):
-            raise BadRequest("All Data Products in a collection must have equivelent stream definitions.")
-
-        #todo: validate that the spatial/temporal domain match the base data product
-
-        dpv = DataProductVersion()
-        dpv.name = version_name
-        dpv.description = version_description
-        dpv.data_product_id = data_product_id
-
-        dp_collection_obj.version_list.append(dpv)
-        self.clients.resource_registry.update(dp_collection_obj)
-
-        self.clients.resource_registry.create_association( subject=data_product_collection_id, predicate=PRED.hasVersion, object=data_product_id)
-
-        return
-
-
-    def get_current_version(self, data_product_collection_id=''):
-        data_product_collection_obj = self.clients.resource_registry.read(data_product_collection_id)
-        count = len (data_product_collection_obj.version_list)
-        dpv_obj = data_product_collection_obj.version_list[count - 1]
-        return dpv_obj.data_product_id
-
-
-    def get_base_version(self, data_product_collection_id=''):
-        data_product_collection_obj = self.clients.resource_registry.read(data_product_collection_id)
-        dpv_obj = data_product_collection_obj.version_list[0]
-        return dpv_obj.data_product_id
 
 
     def execute_data_product_lifecycle(self, data_product_id="", lifecycle_event=""):

@@ -3281,6 +3281,7 @@ Reason: %s
         parent_id = None
         if row['parent']:
             if row['parent'] in self.resource_ids:
+                res_obj.category = DataProductTypeEnum.DERIVED
                 parent_id = self.resource_ids[row['parent']]
             else:
                 log.warn("DataProduct %s parent reference %s not found", row[COL_ID], parent_id)

@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from pyon.util.containers import DotDict
 from pyon.util.log import log
 from pyon.public import RT, PRED, IonObject
-from interface.objects import TransformFunctionType, DataProcessTypeEnum
+from interface.objects import TransformFunctionType, DataProcessTypeEnum, DataProductTypeEnum
 from interface.objects import ParameterFunction, ParameterFunctionType as PFT, ParameterContext
 from pyon.util.poller import poll_wrapper
 from pyon.public import CFG
@@ -214,7 +214,7 @@ class TestDataProcessFunctions(DMTestCase):
         stream_def_id = self.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)[0][0]
         pdict_id = self.resource_registry.find_objects(stream_def_id, PRED.hasParameterDictionary, id_only=True)[0][0]
         # Create a new data product htat represents the L1 temp from the ctd simulator
-        dp = DataProduct(name='CTD Simulator TEMPWAT L1')
+        dp = DataProduct(name='CTD Simulator TEMPWAT L1', category=DataProductTypeEnum.DERIVED)
         stream_def_id = self.pubsub_management.create_stream_definition(name='tempwat_l1', parameter_dictionary_id=pdict_id, available_fields=['time','temp'])
         dp_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id, parent_data_product_id=data_product_id)
 

@@ -26,6 +26,7 @@ from coverage_model.parameter_functions import AbstractFunction
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceProcessClient
 from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
 from interface.objects import DataProcessDefinition, DataProcessTypeEnum, ParameterFunctionType as PFT
+from interface.objects import CoverageTypeEnum
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.services.eoi.table_loader import ResourceParser
@@ -38,9 +39,9 @@ import numpy as np
 import re
 import ast
 
+from pyon.util.breakpoint import debug_wrapper 
+
 class DatasetManagementService(BaseDatasetManagementService):
-    DEFAULT_DATASTORE = 'datasets'
-    DEFAULT_VIEW      = 'manifest/by_dataset'
     
     def __init__(self, *args, **kwargs):
         super(DatasetManagementService, self).__init__(*args,**kwargs)
@@ -48,9 +49,6 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def on_start(self):
         super(DatasetManagementService,self).on_start()
-        self.datastore_name = self.CFG.get_safe('process.datastore_name', self.DEFAULT_DATASTORE)
-        self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
-        #self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
         using_eoi_services = self.CFG.get_safe('eoi.meta.use_eoi_services', False)
         if using_eoi_services:
@@ -60,48 +58,50 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, parameter_dictionary_id='', description='', parent_dataset_id=''):
+    def create_dataset(self, dataset=None, parameter_dict=None, parameter_dictionary_id=''):
         
-        validate_true(parameter_dict or parameter_dictionary_id, 'A parameter dictionary must be supplied to register a new dataset.')
+        if parameter_dict is not None:
+            log.warning("Creating a parameter dictionary raw with coverage objects will soon be deprecated")
         
         if parameter_dictionary_id:
-            pd = self.read_parameter_dictionary(parameter_dictionary_id)
-            pcs = self.read_parameter_contexts(parameter_dictionary_id, id_only=False)
-            parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
-            parameter_dict = parameter_dict.dump()
+            parameter_dict = self._coverage_parameter_dictionary(parameter_dictionary_id)
+            parameter_dict = parameter_dict.dump() # Serialize it
 
+        # Strip away NaNs and numpy types
         parameter_dict = self.numpy_walk(parameter_dict)
-
-        dataset                      = Dataset()
-        dataset.description          = description
-        dataset.name                 = name
-        dataset.primary_view_key     = stream_id or None
-        dataset.datastore_name       = datastore_name or self.DEFAULT_DATASTORE
-        dataset.view_name            = view_name or self.DEFAULT_VIEW
-        dataset.parameter_dictionary = parameter_dict
-        dataset.registered           = False
-
         
+        dataset.coverage_version = 'UNSET'
+        dataset_id, rev = self.clients.resource_registry.create(dataset)
+        try:
 
-        dataset_id, _ = self.clients.resource_registry.create(dataset)
-        if stream_id:
-            self.add_stream(dataset_id, stream_id)
+            if dataset.coverage_type == CoverageTypeEnum.SIMPLEX:
+                cov = self._create_coverage(dataset_id, dataset.description or dataset_id, parameter_dict)
+                self._save_coverage(cov)
+                cov.close()
+            elif dataset.coverage_type == CoverageTypeEnum.COMPLEX:
+                cov = self._create_complex_coverage(dataset_id, dataset.description or dataset_id, parameter_dict)
+            else:
+                raise BadRequest("Unknown Coverage Type")
+
+        except Exception:
+            # Clean up dangling resource if there's no coverage
+            self.delete_dataset(dataset_id)
+            raise
+
+        dataset.coverage_version = "TODO"
+        dataset._id = dataset_id
+        dataset._rev = rev
+        self.update_dataset(dataset)
 
         log.debug('creating dataset: %s', dataset_id)
-        if parent_dataset_id:
-            vcov = self._create_view_coverage(dataset_id, description or dataset_id, parent_dataset_id)
-            vcov.close()
-            return dataset_id
 
-        cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict)
-        self._save_coverage(cov)
-        cov.close()
 
         #table loader create resource
         if self._get_eoi_service_available():
-            log.debug('DM:create dataset: %s -- dataset_id: %s', name, dataset_id)
+            log.debug('DM:create dataset: %s -- dataset_id: %s', dataset.name, dataset_id)
             self._create_single_resource(dataset_id, parameter_dict)
 
+        self.clients.resource_registry.create_association(dataset_id, PRED.hasParameterDictionary, parameter_dictionary_id)
 
         return dataset_id
 
@@ -119,7 +119,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         log.debug('DM:update dataset: dataset_id: %s', dataset._id)
         if self._get_eoi_service_available():
             self._remove_single_resource(dataset._id)
-            self._create_single_resource(dataset._id, dataset.parameter_dictionary)
+
+            parameter_dictionary_id = self.clients.resource_registry.find_objects(dataset._id, PRED.hasParameterDictionary, id_only=True)[0][0]
+            pdict = self._coverage_parameter_dictionary(parameter_dictionary_id)
+            pdict = pdict.dump() # Serialize
+            pdict = self.numpy_walk(pdict)
+
+            self._create_single_resource(dataset._id, pdict)
 
         return True
 
@@ -136,6 +142,14 @@ class DatasetManagementService(BaseDatasetManagementService):
     def register_dataset(self, data_product_id=''):
         raise BadRequest("register_dataset is no longer supported, please use create_catalog_entry in data product management")
 
+    def add_dataset_window_to_complex(self, dataset_id, target_dataset_id, window):
+        '''
+        Adds target dataset to the complex coverage for the window specified
+        '''
+        doc = self.container.object_store.read_doc('cov_' + dataset_id)
+        doc['references'].append( (window, target_dataset_id) )
+
+
 #--------
 
     def add_parameter_to_dataset(self, parameter_context_id='', dataset_id=''):
@@ -144,10 +158,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         pc = ParameterContext.load(parameter_ctx_res.parameter_context)
         cov.append_parameter(pc)
         cov.close()
-        dataset = self.read_dataset(dataset_id)
-        pdict = cov.parameter_dictionary
-        dataset.parameter_dictionary = pdict.dump()
-        self.update_dataset(dataset)
         return True
 
 #--------
@@ -486,9 +496,13 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def dataset_temporal_bounds(self, dataset_id):
         dataset = self.read_dataset(dataset_id)
+
+        parameter_dictionary_id = self.clients.resource_registry.find_objects(dataset_id, PRED.hasParameterDictionary, id_only=True)[0][0]
+        pdict = self._coverage_parameter_dictionary(parameter_dictionary_id)
+
         if not dataset:
             return {}
-        pdict = ParameterDictionary.load(dataset.parameter_dictionary)
+
         temporal_parameter = pdict.temporal_parameter_name
         units = pdict.get_temporal_context().uom
         bounds = self.dataset_bounds(dataset_id)
@@ -578,8 +592,8 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def get_parameter_dictionary(cls, parameter_dictionary_id=''):
         """
-        Preferred client-side class method for constructing a parameter dictionary
-        from a service call.
+        Class method to return a CoverageModel ParameterDictionary object from the
+        ION Resources. The object is built from the associated parameter contexts.
         """
         dms_cli = DatasetManagementServiceClient()
         pd  = dms_cli.read_parameter_dictionary(parameter_dictionary_id)
@@ -594,6 +608,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         pdict._identifier = parameter_dictionary_obj._id
 
         return pdict
+
+    def _coverage_parameter_dictionary(self, parameter_dictionary_id):
+        pd = self.read_parameter_dictionary(parameter_dictionary_id)
+        pcs = self.read_parameter_contexts(parameter_dictionary_id, id_only=False)
+        parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
+        return parameter_dict
+
 
     @classmethod
     def get_parameter_dictionary_by_name(cls, name=''):
@@ -627,7 +648,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         #file_root = FileSystem.get_url(FS.CACHE,'datasets')
         temporal_domain, spatial_domain = time_series_domain()
         pdict = ParameterDictionary.load(parameter_dict)
-        scov = self._create_simplex_coverage(dataset_id, pdict, spatial_domain, temporal_domain, self.inline_data_writes)
+        scov = self._create_simplex_coverage(dataset_id, pdict, spatial_domain, temporal_domain)
         #vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
         scov.close()
         return scov
@@ -642,12 +663,19 @@ class DatasetManagementService(BaseDatasetManagementService):
         vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov_location)
         return vcov
 
+    def _create_complex_coverage(self, dataset_id, description, parameter_dict):
+        object_store_blank = {
+            'dataset_id' : dataset_id,
+            'parameter_dictionary' : parameter_dict,
+            'references': []
+        }
+        self.container.object_store.create_doc(object_store_blank, 'cov_' + dataset_id)
+
 
     @classmethod
-    def _create_simplex_coverage(cls, dataset_id, parameter_dictionary, spatial_domain, temporal_domain, inline_data_writes=True):
+    def _create_simplex_coverage(cls, dataset_id, parameter_dictionary, spatial_domain, temporal_domain):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        #scov = SimplexCoverage(file_root,uuid4().hex,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
-        scov = SimplexCoverage(file_root,dataset_id,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
+        scov = SimplexCoverage(file_root,dataset_id,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain )
         return scov
 
     @classmethod

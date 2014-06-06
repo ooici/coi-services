@@ -41,7 +41,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-from interface.objects import AgentCommand
+from interface.objects import AgentCommand, Dataset
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 
@@ -253,7 +253,9 @@ class TestInstrumentAgentHighVolume(IonIntegrationTestCase, InstrumentAgentTestM
         if not parameter_dict_id:
             parameter_dict_id = dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-        dataset_id = dataset_management.create_dataset('test_dataset_', parameter_dictionary_id=parameter_dict_id)
+        dataset = Dataset(name='test_dataset_')
+
+        dataset_id = dataset_management.create_dataset(dataset, parameter_dictionary_id=parameter_dict_id)
         self.addCleanup(dataset_management.delete_dataset, dataset_id)
         return dataset_id
 

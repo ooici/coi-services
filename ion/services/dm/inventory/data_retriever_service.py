@@ -17,7 +17,7 @@ from pyon.util.containers import for_name
 from pyon.util.log import log
 from pyon.event.event import EventSubscriber
 
-from interface.objects import Replay 
+from interface.objects import Replay, CoverageTypeEnum
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 
 import collections
@@ -174,6 +174,10 @@ class DataRetrieverService(BaseDataRetrieverService):
         @param kwargs          Keyword Arguments to pass into the transform.
 
         '''
+        dataset = self.clients.dataset_management.read_dataset(dataset_id)
+        if dataset.coverage_type == CoverageTypeEnum.COMPLEX:
+            raise BadRequest("Can't retrieve from complex coverage stub")
+
         retrieve_data = self.retrieve_oob(dataset_id=dataset_id,query=query,delivery_format=delivery_format)
 
         if module and cls:
