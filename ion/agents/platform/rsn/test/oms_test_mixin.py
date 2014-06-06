@@ -46,20 +46,6 @@ class OmsTestMixin(HelperTestMixin):
         response = self.oms.hello.ping()
         self.assertEquals(response, "pong")
 
-    def test_ab_get_platform_map(self):
-        platform_map = self.oms.config.get_platform_map()
-        log.info("config.get_platform_map() => %s" % platform_map)
-        self.assertIsInstance(platform_map, list)
-        roots = []
-        for pair in platform_map:
-            self.assertIsInstance(pair, (tuple, list))
-            self.assertEquals(len(pair), 2)
-            plat, parent = pair
-            if parent == '':
-                roots.append(plat)
-        self.assertEquals(len(roots), 1)
-        self.assertEquals("ShoreStation", roots[0])
-
     def test_ad_get_platform_metadata(self):
         platform_id = self.PLATFORM_ID
         retval = self.oms.config.get_platform_metadata(platform_id)
@@ -112,29 +98,6 @@ class OmsTestMixin(HelperTestMixin):
         self.assertIsInstance(vals, dict)
         for attrName in attrNames:
             self._verify_invalid_attribute_id(attrName, vals)
-
-    def test_ah_set_platform_attribute_values(self):
-        platform_id = self.PLATFORM_ID
-        # try for all test attributes, but check below for both those writable
-        # and not writable
-        attrNames = self.ATTR_NAMES
-
-        def valueFor(attrName):
-            # simple string value, ok because there is no strict value check yet
-            # TODO more realistic value depending on attribute's type
-            return "test_value_for_%s" % attrName
-
-        attrs = [(attrName, valueFor(attrName)) for attrName in attrNames]
-        log.debug("attr.set_platform_attribute_values(%r, %r)" % (platform_id, attrs))
-        retval = self.oms.attr.set_platform_attribute_values(platform_id, attrs)
-        log.info("attr.set_platform_attribute_values(%r, %r) => %s" % (platform_id, attrs, retval))
-        vals = self._verify_valid_platform_id(platform_id, retval)
-        self.assertIsInstance(vals, dict)
-        for attrName in attrNames:
-            if attrName in self.WRITABLE_ATTR_NAMES:
-                self._verify_valid_attribute_id(attrName, vals)
-            else:
-                self._verify_not_writable_attribute_id(attrName, vals)
 
     def _get_platform_ports(self, platform_id):
         retval = self.oms.port.get_platform_ports(platform_id)

@@ -297,10 +297,16 @@ class PlatformDriver(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
+    def supports_set_operation(self):
+        """
+        @return True only if the SET operation is supported by this driver.
+        """
+        return False
+
     def set_attribute_values(self, attrs):
         """
-        To be implemented by subclass.
         Sets values for writable attributes in this platform.
+        Only called by SET handler when supports_set_operation() returns True.
 
         @param attrs 	[(attrName, attrValue), ...] 	List of attribute values
 
@@ -566,6 +572,9 @@ class PlatformDriver(object):
             log.trace("%r/%s args=%s kwargs=%s" % (
                       self._platform_id, self.get_driver_state(),
                       str(args), str(kwargs)))
+
+        if not self.supports_set_operation():
+            raise FSMError('Unsupported operation: %s' % PlatformDriverEvent.SET)
 
         attrs = kwargs.get('attrs', None)
         if attrs is None:

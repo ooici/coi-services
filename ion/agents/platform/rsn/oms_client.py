@@ -50,16 +50,10 @@ class CIOMSClient(object):
     def ping(self):
         raise NotImplementedError()  #pragma: no cover
 
-    def get_platform_map(self):
-        raise NotImplementedError()  #pragma: no cover
-
     def get_platform_metadata(self, platform_id):
         raise NotImplementedError()  #pragma: no cover
 
     def get_platform_attribute_values(self, platform_id, attrs):
-        raise NotImplementedError()  #pragma: no cover
-
-    def set_platform_attribute_values(self, platform_id, attrs):
         raise NotImplementedError()  #pragma: no cover
 
     def get_platform_ports(self, platform_id):

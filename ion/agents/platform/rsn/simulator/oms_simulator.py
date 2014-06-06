@@ -111,11 +111,6 @@ class CIOMSSimulator(CIOMSClient):
 
         return "pong"
 
-    def get_platform_map(self):
-        self._enter()
-
-        return self._ndef.get_map()
-
     def get_platform_metadata(self, platform_id):
         self._enter()
 
@@ -153,34 +148,6 @@ class CIOMSSimulator(CIOMSClient):
                 vals[attrName] = InvalidResponse.ATTRIBUTE_ID
 
         return {platform_id: vals}
-
-    def set_platform_attribute_values(self, platform_id, input_attrs):
-        self._enter()
-
-        if platform_id not in self._pnodes:
-            return {platform_id: InvalidResponse.PLATFORM_ID}
-
-        assert isinstance(input_attrs, list)
-
-        timestamp = ntplib.system_to_ntp_time(time.time())
-        attrs = self._pnodes[platform_id].attrs
-        vals = {}
-        for (attrName, attrValue) in input_attrs:
-            if attrName in attrs:
-                attr = attrs[attrName]
-                if attr.writable:
-                    #
-                    # TODO check given attrValue
-                    #
-                    vals[attrName] = (attrValue, timestamp)
-                else:
-                    vals[attrName] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
-            else:
-                vals[attrName] = InvalidResponse.ATTRIBUTE_ID
-
-        retval = {platform_id: vals}
-        log.debug("set_platform_attribute_values returning: %s", str(retval))
-        return retval
 
     def get_platform_ports(self, platform_id):
         self._enter()

@@ -396,24 +396,6 @@ def main(uri):  # pragma: no cover
     platform_id = "dummy_platform_id"
 
     #----------------------------------------------------------------------
-    full_method_name = "config.get_platform_map"
-    retval, reterr = run(full_method_name)
-    if retval is not None:
-        if isinstance(retval, list):
-            if len(retval):
-                if isinstance(retval[0], (tuple, list)):
-                    platform_id = retval[0][0]
-                else:
-                    reterr = "expecting a list of tuples or lists"
-            else:
-                reterr = "expecting a non-empty list"
-        else:
-            reterr = "expecting a list"
-        if reterr:
-            tried[full_method_name] = reterr
-            format_err(reterr)
-
-    #----------------------------------------------------------------------
     full_method_name = "config.get_platform_metadata"
     retval, reterr = run(full_method_name, platform_id)
     retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
@@ -421,11 +403,6 @@ def main(uri):  # pragma: no cover
     #----------------------------------------------------------------------
     full_method_name = "attr.get_platform_attribute_values"
     retval, reterr = run(full_method_name, platform_id, [])
-    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
-
-    #----------------------------------------------------------------------
-    full_method_name = "attr.set_platform_attribute_values"
-    retval, reterr = run(full_method_name, platform_id, {})
     retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
 
     port_id = "dummy_port_id"
