@@ -5,7 +5,6 @@
 @brief   A class for the platform mission executive
 """
 
-# import yaml
 import calendar
 import gevent
 import yaml
@@ -20,7 +19,6 @@ from pyon.public import log
 from pyon.util.breakpoint import breakpoint
 from pyon.util.config import Config
 
-from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 from ion.core.includes.mi import DriverEvent
 
 from interface.objects import AgentCommand
@@ -649,10 +647,6 @@ class MissionScheduler(object):
                 cmd = AgentCommand(command=getattr(DriverEvent, command))
                 reply = getattr(agent_client, method)(cmd)
 
-            elif command in RSNPlatformDriverEvent.__dict__.keys():
-                cmd = AgentCommand(command=getattr(RSNPlatformDriverEvent, command), kwargs=dict(port_id=parameters))
-                reply = getattr(agent_client, method)(cmd)
-
             elif command in res_pars:
                 # Set parameters - check parameter first, then set if necessary
                 reply = getattr(agent_client, 'get_resource')(command)
@@ -906,12 +900,13 @@ class MissionScheduler(object):
             raise Exception('Parent ID unrecognized - {0}'.format(parent_id))
 
         # Check that the event id is legitimate
+        driver_event_class = self.platform_agent._plat_driver.get_platform_driver_event_class()
         if event_id in DriverEvent.__dict__.keys():
             event_type = 'ResourceAgentCommandEvent'
             event_id = getattr(DriverEvent, event_id)
-        elif event_id in RSNPlatformDriverEvent.__dict__.keys():
+        elif event_id in driver_event_class.__dict__.keys():
             event_type = ''
-            event_id = getattr(RSNPlatformDriverEvent, event_id)
+            event_id = getattr(driver_event_class, event_id)
         else:
             # EXTERNAL event - check OMSDeviceStatusEvent
             event_type = 'OMSDeviceStatusEvent'
