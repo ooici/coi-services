@@ -34,7 +34,7 @@ from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
 from pyon.ion.event import EventPublisher
 from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT, ParameterContext
-from interface.objects import InstrumentSite, InstrumentModel, PortTypeEnum, Deployment, CabledInstrumentDeploymentContext, DataProductTypeEnum
+from interface.objects import InstrumentSite, InstrumentModel, PortTypeEnum, Deployment, CabledInstrumentDeploymentContext, DataProductTypeEnum, DataProduct
 import lxml.etree as etree
 import simplejson as json
 import pkg_resources
@@ -1523,5 +1523,52 @@ def rotate_v(u,v,theta):
         breakpoint(locals(), globals())
         event.set()
         g.join()
+
+    @attr("UTIL")
+    def test_complex_stubs(self):
+        params = {
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "Time",
+                "description" : "Timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "data" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Data",
+                "description" : "The Red Pill",
+                "units" : "1"
+            }
+        }
+        data_product = DataProduct('test_complex_stubs', category=DataProductTypeEnum.SITE)
+
+        data_product_id = self.data_product_from_params(data_product, params)
+        self.data_product_management.create_dataset_for_data_product(data_product_id)
+
+        self.preload_ui()
+        self.launch_ui_facepage(data_product_id)
+        breakpoint(locals(), globals())
+
+
+    def data_product_from_params(self, data_product, param_struct):
+        name = data_product.name
+
+        param_dict = {}
+        for name,param in param_struct.iteritems():
+            ctx = ParameterContext(name=name, **param)
+            p_id = self.dataset_management.create_parameter(ctx)
+            param_dict[name] = p_id
+
+        pdict_id = self.dataset_management.create_parameter_dictionary(name, param_dict.values(), 'time')
+
+        stream_def_id = self.pubsub_management.create_stream_definition(name, parameter_dictionary_id=pdict_id)
+
+        data_product_id = self.data_product_management.create_data_product(data_product, stream_definition_id=stream_def_id)
+        
+        return data_product_id
+
+
 
 

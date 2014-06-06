@@ -39,6 +39,8 @@ import numpy as np
 import re
 import ast
 
+from pyon.util.breakpoint import debug_wrapper 
+
 class DatasetManagementService(BaseDatasetManagementService):
     
     def __init__(self, *args, **kwargs):
@@ -74,13 +76,13 @@ class DatasetManagementService(BaseDatasetManagementService):
 
             if dataset.coverage_type == CoverageTypeEnum.SIMPLEX:
                 cov = self._create_coverage(dataset_id, dataset.description or dataset_id, parameter_dict)
+                self._save_coverage(cov)
+                cov.close()
             elif dataset.coverage_type == CoverageTypeEnum.COMPLEX:
                 cov = self._create_complex_coverage(dataset_id, dataset.description or dataset_id, parameter_dict)
             else:
                 raise BadRequest("Unknown Coverage Type")
 
-            self._save_coverage(cov)
-            cov.close()
         except Exception:
             # Clean up dangling resource if there's no coverage
             self.delete_dataset(dataset_id)
@@ -144,7 +146,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         '''
         Adds target dataset to the complex coverage for the window specified
         '''
-        doc = self.object_store.read_doc('cov_' + dataset_id)
+        doc = self.container.object_store.read_doc('cov_' + dataset_id)
         doc['references'].append( (window, target_dataset_id) )
 
 
@@ -667,7 +669,7 @@ class DatasetManagementService(BaseDatasetManagementService):
             'parameter_dictionary' : parameter_dict,
             'references': []
         }
-        self.object_store.create_doc(object_store_blank, 'cov_' + dataset_id)
+        self.container.object_store.create_doc(object_store_blank, 'cov_' + dataset_id)
 
 
     @classmethod

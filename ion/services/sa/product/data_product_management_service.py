@@ -109,7 +109,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         Creates a derived data product
         '''
         if not data_product.category == DataProductTypeEnum.DERIVED:
-            raise BadRequest("Attempted to create a Device Data Product without the proper type category")
+            raise BadRequest("Attempted to create a Derived Data Product without the proper type category")
 
         # Store the resource
         data_product_id = self.create_data_product_(data_product)
@@ -137,8 +137,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         '''
         Creates a site data product
         '''
-        if not data_product.category == DataProductTypeEnum.DERIVED:
-            raise BadRequest("Attempted to create a Device Data Product without the proper type category")
+        if not data_product.category == DataProductTypeEnum.SITE:
+            raise BadRequest("Attempted to create a Site Data Product without the proper type category")
 
         # Store the resource
         data_product_id = self.create_data_product_(data_product)
@@ -153,8 +153,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         '''
         Creates an external data product
         '''
-        if not data_product.category == DataProductTypeEnum.DERIVED:
-            raise BadRequest("Attempted to create a Device Data Product without the proper type category")
+        if not data_product.category == DataProductTypeEnum.EXTERNAL:
+            raise BadRequest("Attempted to create a External Data Product without the proper type category")
 
         # Store the resource
         data_product_id = self.create_data_product_(data_product)
@@ -458,11 +458,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(data_product_obj, "The data product id should correspond to a valid registered data product.")
 
         stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
-        if not stream_ids:
-            raise BadRequest('Specified DataProduct has no streams associated with it')
-        stream_id = stream_ids[0]
+        if data_product_obj.category == DataProductTypeEnum.DEVICE:
+            if not stream_ids:
+                raise BadRequest('Specified DataProduct has no streams associated with it')
+            stream_id = stream_ids[0]
+        else:
+            stream_id = None
 
-        stream_defs, _ = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition,id_only=True)
+
+        stream_defs, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition,id_only=True)
         if not stream_defs:
             raise BadRequest("Data Product stream is without a stream definition")
         stream_def_id = stream_defs[0]
@@ -485,19 +489,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Step 2: Create and associate Dataset (coverage)
 
 
+        # If there's already a dataset, just return that
         if dataset_ids:
             return dataset_ids[0]
 
+        dataset_id = self._create_dataset(data_product_obj, parameter_dictionary_id)
 
-        dataset = Dataset(name='dataset_%s' % stream_id,
-                          description='Dataset for Data Product %s' % data_product_id,
-                          coverage_type=CoverageTypeEnum.SIMPLEX)
-
-        # No datasets are currently linked which means we need to create a new one
-        dataset_id = self.clients.dataset_management.create_dataset(dataset,
-                                                                    parameter_dictionary_id=parameter_dictionary_id)
-
-        self.RR2.assign_stream_to_dataset_with_has_stream(stream_id, dataset_id)
+        # Also assign the stream to the dataset
+        if stream_id:
+            self.RR2.assign_stream_to_dataset_with_has_stream(stream_id, dataset_id)
 
         # link dataset with data product. This creates the association in the resource registry
         self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
@@ -511,6 +511,24 @@ class DataProductManagementService(BaseDataProductManagementService):
         # register the dataset for externalization
 
         self.create_catalog_entry(data_product_id=data_product_id)
+
+        return dataset_id
+
+
+    def _create_dataset(self, data_product, parameter_dictionary_id):
+        # Device -> Simplex, Site -> Complex
+        if data_product.category == DataProductTypeEnum.DEVICE:
+            dataset = Dataset(name=data_product.name,
+                              description='Dataset for Data Product %s' % data_product._id,
+                              coverage_type=CoverageTypeEnum.SIMPLEX)
+        elif data_product.category == DataProductTypeEnum.SITE:
+            dataset = Dataset(name=data_product.name,
+                              description='Dataset for Data Product %s' % data_product._id,
+                              coverage_type=CoverageTypeEnum.COMPLEX)
+
+        # No datasets are currently linked which means we need to create a new one
+        dataset_id = self.clients.dataset_management.create_dataset(dataset,
+                                                                    parameter_dictionary_id=parameter_dictionary_id)
 
         return dataset_id
 
