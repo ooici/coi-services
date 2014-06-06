@@ -374,6 +374,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         res_cmds_all = [
             RSNPlatformDriverEvent.TURN_ON_PORT,
             RSNPlatformDriverEvent.TURN_OFF_PORT,
+            RSNPlatformDriverEvent.SET_OVER_CURRENT,
         ]
 
         ##################################################################
