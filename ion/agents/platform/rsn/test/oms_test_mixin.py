@@ -17,7 +17,7 @@ log = Logger.get_logger()
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
-from ion.agents.platform.responses import NormalResponse, InvalidResponse
+from ion.agents.platform.responses import NormalResponse
 
 import time
 import ntplib
@@ -171,9 +171,10 @@ class OmsTestMixin(HelperTestMixin):
     def test_an_turn_on_platform_port(self):
         platform_id = self.PLATFORM_ID
         ports = self._get_platform_ports(platform_id)
+        src = self.__class__.__name__
         for port_id in ports.iterkeys():
-            retval = self.oms.port.turn_on_platform_port(platform_id, port_id)
-            log.info("port.turn_on_platform_port(%s,%s) => %s" % (platform_id, port_id, retval))
+            retval = self.oms.port.turn_on_platform_port(platform_id, port_id, src)
+            log.info("port.turn_on_platform_port(%r,%r,%r) => %s" % (platform_id, port_id, src, retval))
             portRes = self._verify_valid_platform_id(platform_id, retval)
             res = self._verify_valid_port_id(port_id, portRes)
             self.assertEquals(res, NormalResponse.PORT_TURNED_ON)
@@ -182,20 +183,21 @@ class OmsTestMixin(HelperTestMixin):
         # use valid id for get_platform_ports
         platform_id = self.PLATFORM_ID
         ports = self._get_platform_ports(platform_id)
-
+        src = self.__class__.__name__
         # use invalid id for turn_on_platform_port
         requested_platform_id = BOGUS_PLATFORM_ID
         for port_id in ports.iterkeys():
-            retval = self.oms.port.turn_on_platform_port(requested_platform_id, port_id)
-            log.info("port.turn_on_platform_port(%r, %r) => %s" % (requested_platform_id, port_id, retval))
+            retval = self.oms.port.turn_on_platform_port(requested_platform_id, port_id, src)
+            log.info("port.turn_on_platform_port(%r,%r,%r) => %s" % (requested_platform_id, port_id, src, retval))
             self._verify_invalid_platform_id(requested_platform_id, retval)
 
     def test_ao_turn_off_platform_port(self):
         platform_id = self.PLATFORM_ID
         ports = self._get_platform_ports(platform_id)
+        src = self.__class__.__name__
         for port_id in ports.iterkeys():
-            retval = self.oms.port.turn_off_platform_port(platform_id, port_id)
-            log.info("port.turn_off_platform_port(%r, %r) => %s" % (platform_id, port_id, retval))
+            retval = self.oms.port.turn_off_platform_port(platform_id, port_id, src)
+            log.info("port.turn_off_platform_port(%r,%r,%r) => %s" % (platform_id, port_id, src, retval))
             portRes = self._verify_valid_platform_id(platform_id, retval)
             res = self._verify_valid_port_id(port_id, portRes)
             self.assertEquals(res, NormalResponse.PORT_TURNED_OFF)
@@ -204,13 +206,25 @@ class OmsTestMixin(HelperTestMixin):
         # use valid for get_platform_ports
         platform_id = self.PLATFORM_ID
         ports = self._get_platform_ports(platform_id)
-
+        src = self.__class__.__name__
         # use invalid for turn_off_platform_port
         requested_platform_id = BOGUS_PLATFORM_ID
         for port_id in ports.iterkeys():
-            retval = self.oms.port.turn_off_platform_port(requested_platform_id, port_id)
-            log.info("port.turn_off_platform_port(%r, %r) => %s" % (requested_platform_id, port_id, retval))
+            retval = self.oms.port.turn_off_platform_port(requested_platform_id, port_id, src)
+            log.info("port.turn_off_platform_port(%r,%r,%r) => %s" % (requested_platform_id, port_id, src, retval))
             self._verify_invalid_platform_id(requested_platform_id, retval)
+
+    def test_ao_set_over_current(self):
+        platform_id = self.PLATFORM_ID
+        ports = self._get_platform_ports(platform_id)
+        ma, us = 99, 88
+        src = self.__class__.__name__
+        for port_id in ports.iterkeys():
+            retval = self.oms.port.set_over_current(platform_id, port_id, ma, us, src)
+            log.info("port.set_over_current(%r,%r,%r,%r,%r) => %s" % (platform_id, port_id, ma, us, src, retval))
+            portRes = self._verify_valid_platform_id(platform_id, retval)
+            res = self._verify_valid_port_id(port_id, portRes)
+            self.assertEquals(res, NormalResponse.PORT_SET_OVER_CURRENT)
 
     ###################################################################
     # EVENTS

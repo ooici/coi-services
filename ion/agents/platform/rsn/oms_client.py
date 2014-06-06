@@ -48,79 +48,43 @@ class CIOMSClient(object):
         return self
 
     def ping(self):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
     def get_platform_map(self):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
     def get_platform_metadata(self, platform_id):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
     def get_platform_attributes(self, platform_id):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
     def get_platform_attribute_values(self, platform_id, attrs):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
     def set_platform_attribute_values(self, platform_id, attrs):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
     def get_platform_ports(self, platform_id):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
-    def turn_on_platform_port(self, platform_id, port_id):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
+    def turn_on_platform_port(self, platform_id, port_id, src):
         raise NotImplementedError()  #pragma: no cover
 
-    def turn_off_platform_port(self, platform_id, port_id):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
+    def turn_off_platform_port(self, platform_id, port_id, src):
+        raise NotImplementedError()  #pragma: no cover
+
+    def set_over_current(self, platform_id, port_id, ma, us, src):
         raise NotImplementedError()  #pragma: no cover
 
     def register_event_listener(self, url):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
     def unregister_event_listener(self, url):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
     def get_registered_event_listeners(self):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover
 
     def generate_test_event(self, event):
-        """
-        See https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
-        """
         raise NotImplementedError()  #pragma: no cover

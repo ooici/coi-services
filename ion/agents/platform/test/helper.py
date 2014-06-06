@@ -225,38 +225,6 @@ class HelperTestMixin:
         val = dic[port_id]
         self.assertEquals(InvalidResponse.PORT_ID, val)
 
-    def _verify_valid_instrument_id(self, instrument_id, dic):
-        """
-        verifies the instrument_id is an entry in the dict with a valid value,
-        either a dict or InvalidResponse.INSTRUMENT_ALREADY_CONNECTED.
-        Returns dic[instrument_id].
-        """
-        self.assertIn(instrument_id, dic)
-        val = dic[instrument_id]
-        self.assertTrue(
-            isinstance(val, dict) or
-            val == InvalidResponse.INSTRUMENT_ALREADY_CONNECTED,
-            "%r: val should be a dict but is: %s" % (
-                instrument_id, str(val)))
-        return val
-
-    def _verify_invalid_instrument_id(self, instrument_id, dic):
-        """
-        verifies the instrument_id is an entry in the dict with a
-        value that is not a dict.
-        """
-        self.assertIn(instrument_id, dic)
-        val = dic[instrument_id]
-        self.assertEquals(val, InvalidResponse.MISSING_INSTRUMENT_ATTRIBUTE)
-
-    def _verify_instrument_disconnected(self, instrument_id, result):
-        """
-        verifies the result is equal to NormalResponse.INSTRUMENT_DISCONNECTED.
-        """
-        expected = NormalResponse.INSTRUMENT_DISCONNECTED
-        self.assertEquals(expected, result, "instrument_id=%r: expecting %r but "
-                    "got result=%r" % (instrument_id, expected, result))
-
     def _dispatch_simulator(self, oms_uri, inactivity_period=180):
         """
         Method to be called in setUp. If oms_uri == "launchsimulator", it

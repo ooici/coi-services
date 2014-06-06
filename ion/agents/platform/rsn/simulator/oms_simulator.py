@@ -208,7 +208,7 @@ class CIOMSSimulator(CIOMSClient):
 
         return {platform_id: ports}
 
-    def turn_on_platform_port(self, platform_id, port_id):
+    def turn_on_platform_port(self, platform_id, port_id, src):
         self._enter()
 
         if platform_id not in self._pnodes:
@@ -228,7 +228,7 @@ class CIOMSSimulator(CIOMSClient):
 
         return {platform_id: {port_id: result}}
 
-    def turn_off_platform_port(self, platform_id, port_id):
+    def turn_off_platform_port(self, platform_id, port_id, src):
         self._enter()
 
         if platform_id not in self._pnodes:
@@ -245,6 +245,20 @@ class CIOMSSimulator(CIOMSClient):
             port.set_state("OFF")
             result = NormalResponse.PORT_TURNED_OFF
             log.info("port %s in platform %s turned off." % (port_id, platform_id))
+
+        return {platform_id: {port_id: result}}
+
+    def set_over_current(self, platform_id, port_id, ma, us, src):
+        self._enter()
+
+        if platform_id not in self._pnodes:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        if port_id not in self._pnodes[platform_id].ports :
+            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
+
+        # OK, but we don't do anything else here, just accept.
+        result = NormalResponse.PORT_SET_OVER_CURRENT
 
         return {platform_id: {port_id: result}}
 
