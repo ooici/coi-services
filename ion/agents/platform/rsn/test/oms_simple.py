@@ -215,6 +215,8 @@ launch_breakpoint = False
 
 tried = {}
 
+INCLUDE_WRITE_OPERS = False
+
 
 def launch_listener():  # pragma: no cover
     def notify_driver_event(evt):
@@ -440,18 +442,19 @@ def main(uri):  # pragma: no cover
 
     src = "oms_simple"
 
-    #----------------------------------------------------------------------
-    full_method_name = "port.turn_on_platform_port"
-    retval, reterr = run(full_method_name, platform_id, port_id, src)
+    if INCLUDE_WRITE_OPERS:
+        #----------------------------------------------------------------------
+        full_method_name = "port.turn_on_platform_port"
+        retval, reterr = run(full_method_name, platform_id, port_id, src)
 
-    #----------------------------------------------------------------------
-    full_method_name = "port.turn_off_platform_port"
-    retval, reterr = run(full_method_name, platform_id, port_id, src)
+        #----------------------------------------------------------------------
+        full_method_name = "port.turn_off_platform_port"
+        retval, reterr = run(full_method_name, platform_id, port_id, src)
 
-    #----------------------------------------------------------------------
-    full_method_name = "port.set_over_current"
-    ma, us = 0, 0
-    retval, reterr = run(full_method_name, platform_id, port_id, ma, us, src)
+        #----------------------------------------------------------------------
+        full_method_name = "port.set_over_current"
+        ma, us = 0, 0
+        retval, reterr = run(full_method_name, platform_id, port_id, ma, us, src)
 
     #----------------------------------------------------------------------
     url = EVENT_LISTENER_URL
@@ -513,6 +516,7 @@ def main(uri):  # pragma: no cover
 
     #######################################################################
     print("\nSummary of basic verification:")
+    print("\n(INCLUDE_WRITE_OPERS=%s)" % INCLUDE_WRITE_OPERS)
     okeys = 0
     for full_method_name, result in sorted(tried.iteritems()):
         print("%20s %-40s: %s" % ("", full_method_name, result))
