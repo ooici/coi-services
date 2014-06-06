@@ -37,19 +37,8 @@ import os
 class TestPlatformAgentMission(BaseIntTestPlatform):
     """
     """
-    def _get_network_definition(self):
-        """
-        Overriden to retrieve the network definition directly from a yaml file.
-        No functional change; direct yaml resources is intended to be the
-        general mechanism for the static definition of the platform network,
-        while the CI-OMS interface would be basically only for dynamic operations.
-        @return NetworkDefinition object
-        """
-        # yaml_filename = 'ion/agents/platform/rsn/simulator/network.yml'
-        yaml_filename = "ion/agents/platform/test/platform-network-1.yml"
-        log.debug("retrieving network definition from %s", yaml_filename)
-        network_definition = NetworkUtil.deserialize_network_definition(file(yaml_filename))
-        return network_definition
+    def _get_network_definition_filename(self):
+        return 'ion/agents/platform/test/platform-network-1.yml'
 
     def _run_startup_commands(self, recursion=True):
         self._ping_agent()

@@ -71,15 +71,12 @@ from interface.objects import PortTypeEnum
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
 from ion.agents.platform.platform_agent import PlatformAgentEvent
-from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
 
 from gevent.event import AsyncResult
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
-from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
-from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
 
 from ion.agents.platform.platform_agent import PlatformAgentState
@@ -283,35 +280,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.instModel_id = self.IMS.create_instrument_model(instModel_obj)
         log.debug('new InstrumentModel id = %s ', self.instModel_id)
 
-        self._network_definition = self._get_network_definition()
-
-        if log.isEnabledFor(logging.TRACE):
-            # show serialized version for the network definition:
-            network_definition_ser = NetworkUtil.serialize_network_definition(self._network_definition)
-            log.trace("NetworkDefinition serialization:\n%s", network_definition_ser)
-
-        # set attributes for the platforms:
-        self._platform_attributes = {}
-        for platform_id in self._network_definition.pnodes:
-            pnode = self._network_definition.pnodes[platform_id]
-            dic = dict((attr.attr_id, attr.defn) for attr in pnode.attrs.itervalues())
-            self._platform_attributes[platform_id] = dic
-        log.trace("_platform_attributes: %s", self._platform_attributes)
-
-        # set ports for the platforms:
-        self._platform_ports = {}
-        for platform_id in self._network_definition.pnodes:
-            pnode = self._network_definition.pnodes[platform_id]
-            dic = {}
-            for port_id, port in pnode.ports.iteritems():
-                instr_dict = {}
-                for i in port.instruments.itervalues():
-                    attrs = i.attrs.copy()
-                    attrs['instrument_id'] = i.instrument_id
-                    instr_dict[i.instrument_id] = attrs
-                dic[port_id] = dict(port_id=port_id, instruments=instr_dict)
-            self._platform_ports[platform_id] = dic
-        log.trace("_platform_ports: %s", self._pp.pformat(self._platform_ports))
+        self._get_network_definition()
 
         self._async_data_result = AsyncResult()
         self._data_subscribers = []
@@ -335,16 +304,37 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_network_definition(self):
         """
-        Called by setUp to get the network definition to be used.
-        In this base class, this is retrieved from the OMS. Subclasses can
-        build the network definition from other sources a needed.
-        @return NetworkDefinition object
+        Called by setUp to get the platform network definition to be used, which
+        is loaded from the file indicated by self._get_network_definition_filename().
         """
-        log.debug("retrieving network definition from OMS")
-        rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
-        network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
-        CIOMSClientFactory.destroy_instance(rsn_oms)
-        return network_definition
+        yaml_filename = self._get_network_definition_filename()
+        log.debug("retrieving network definition from %s", yaml_filename)
+        self._network_definition = NetworkUtil.deserialize_network_definition(file(yaml_filename))
+
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("NetworkDefinition serialization:\n%s",
+                      NetworkUtil.serialize_network_definition(self._network_definition))
+
+        # set attributes for the platforms:
+        self._platform_attributes = {}
+        for platform_id in self._network_definition.pnodes:
+            pnode = self._network_definition.pnodes[platform_id]
+            dic = dict((attr.attr_id, attr.defn) for attr in pnode.attrs.itervalues())
+            self._platform_attributes[platform_id] = dic
+        log.trace("_platform_attributes: %s", self._platform_attributes)
+
+        # set ports for the platforms:
+        self._platform_ports = {}
+        for platform_id in self._network_definition.pnodes:
+            pnode = self._network_definition.pnodes[platform_id]
+            dic = {}
+            for port_id, port in pnode.ports.iteritems():
+                dic[port_id] = dict(port_id=port_id, instrument_ids=port.instrument_ids)
+            self._platform_ports[platform_id] = dic
+        log.trace("_platform_ports: %s", self._pp.pformat(self._platform_ports))
+
+    def _get_network_definition_filename(self):
+        return 'ion/agents/platform/rsn/simulator/network.yml'
 
     def _set_receive_timeout(self):
         """

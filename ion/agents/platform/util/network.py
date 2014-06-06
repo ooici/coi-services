@@ -93,18 +93,18 @@ class PortNode(BaseNode):
     Represents a platform port.
 
     self._port_id
-    self._instruments = { instrument_id: InstrumentNode, ... }
+    self._instrument_ids = [ instrument_id, ... ]
 
     """
     def __init__(self, port_id):
         BaseNode.__init__(self)
         self._port_id = str(port_id)
-        self._instruments = {}
+        self._instrument_ids = []
         self._state = None
 
     def __repr__(self):
-        return "PortNode{id=%s}" % (
-            self._port_id)
+        return "PortNode{port_id=%r, instrument_ids=%r}" % (
+            self.port_id, self.instrument_ids)
 
     @property
     def port_id(self):
@@ -118,21 +118,23 @@ class PortNode(BaseNode):
         self._state = state
 
     @property
-    def instruments(self):
+    def instrument_ids(self):
         """
-        Instruments of this port.
+        IDs of instruments associated to this port.
         """
-        return self._instruments
+        return self._instrument_ids
 
-    def add_instrument(self, instrument):
-        if instrument.instrument_id in self._instruments:
-            raise Exception('%s: duplicate instrument ID' % instrument.instrument_id)
-        self._instruments[instrument.instrument_id] = instrument
+    def add_instrument_id(self, instrument_id):
+        if instrument_id in self._instrument_ids:
+            raise Exception('duplicate instrument_id=%r for port_id=%r' % (
+                            instrument_id, self.port_id))
+        self._instrument_ids.append(instrument_id)
 
-    def remove_instrument(self, instrument_id):
-        if instrument_id not in self._instruments:
-            raise Exception('%s: Not such instrument ID' % instrument_id)
-        del self._instruments[instrument_id]
+    def remove_instrument_id(self, instrument_id):
+        if instrument_id not in self._instrument_ids:
+            raise Exception('no such instrument_id=%r in port_id=%r' % (
+                            instrument_id, self.port_id))
+        self._instrument_ids.remove(instrument_id)
 
     def diff(self, other):
         """
@@ -148,24 +150,18 @@ class PortNode(BaseNode):
                 self.state, other.state)
 
         # compare instruments:
-        instrument_ids = set(self.instruments.iterkeys())
-        other_instrument_ids = set(other.instruments.iterkeys())
+        instrument_ids = set(self.instrument_ids)
+        other_instrument_ids = set(other.instrument_ids)
         if instrument_ids != other_instrument_ids:
-            return "port_id=%r: instrument IDs are different: %r != %r" % (
+            return "port_id=%r: instrument_ids are different: %r != %r" % (
                 self.port_id, instrument_ids, other_instrument_ids)
-        for instrument_id, instrument in self.instruments.iteritems():
-            other_instrument = other.instruments[instrument_id]
-            diff = instrument.diff(other_instrument)
-            if diff:
-                return diff
 
         return None
 
 
 class InstrumentNode(BaseNode):
     """
-    Represents an instrument in a port.
-    Note, also used directly in PlatformNode to capture the configuration for
+    Represents an instrument in a PlatformNode to capture the configuration for
     instruments.
 
     self._instrument_id
