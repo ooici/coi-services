@@ -3,12 +3,14 @@
 @file ion/services/dm/utility/uns_utility_methods.py
 @description A module containing common utility methods used by UNS and the notification workers.
 """
-from pyon.public import get_sys_name, OT, IonObject, CFG
+from pyon.core import bootstrap
+from pyon.public import get_sys_name, OT, RT, PRED, IonObject, CFG
 from pyon.util.ion_time import IonTime
 from pyon.util.log import log
 from pyon.core.exception import BadRequest, NotFound
-from interface.objects import NotificationRequest, Event, DeviceStatusType, AggregateStatusType, InformationStatus
+from interface.objects import NotificationRequest, Event, DeviceStatusType, AggregateStatusType, InformationStatus, NotificationTypeEnum
 from pyon.util.containers import get_ion_ts
+from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 import smtplib
 import gevent
 import pprint
@@ -519,3 +521,95 @@ def get_event_summary(event):
     #        elif event.description:
     #            summary = event.description
     return summary
+
+
+def load_notifications(container=None):
+    """
+    result is dict:
+        key: tuple(origin,origin_type,event_type,event_subtype), matches Event to NotificationRequest
+        value: set() containing tuple(notification,user_info)
+    """
+
+    # clients
+    container = container or bootstrap.container_instance
+    resource_registry = container.resource_registry
+
+    # uses ObservatoryUtil or ResourceRegistry to find children (id) associated with a NotificationRequest
+    def _notification_children(notification_origin, notification_type, observatory_util=None):
+        if observatory_util is None:
+             observatory_util = ObservatoryUtil()
+        children = []
+        if notification_type == NotificationTypeEnum.PLATFORM:
+            device_relations = observatory_util.get_child_devices(notification_origin)
+            children = [did for pt,did,dt in device_relations[notification_origin]]
+        elif type == NotificationTypeEnum.SITE:
+            child_site_dict, ancestors = observatory_util.get_child_sites(notification_origin)
+            children = child_site_dict.keys()
+        elif type == NotificationTypeEnum.FACILITY:
+            objects, _ = resource_registry.find_objects(subject=notification_origin, predicate=PRED.hasResource, id_only=False)
+            for o in objects:
+                if o.type_ == RT.DataProduct \
+                or o.type_ == RT.InstrumentSite \
+                or o.type_ == RT.InstrumentDevice \
+                or o.type_ == RT.PlatformSite \
+                or o.type_ == RT.PlatformDevice:
+                    children.append(o._id)
+        if notification_origin in children:
+            children.remove(notification_origin)
+        return children
+
+    # time when we're loading, used for expired notifications
+    current_datetime = get_ion_ts()
+
+    # return dict, keyed by (origin,origin_type,event_type,event_subtype) tuple, contains list of (notification, user) values
+    notifications = {}
+
+    # all users (full objects)
+    users, _ = resource_registry.find_resources(restype=RT.UserInfo)
+
+    # subject: UserInfo
+    subjects = [u._id for u in users]
+    # hasNotification associations is only way to NotificationRequests, load all associations
+    objects, associations = resource_registry.find_objects_mult(subjects=subjects, id_only=False)
+    # object: NotificationRequest
+    # association.p: hasNotification
+    # association.s: UserInfo
+    for notification, association in zip(objects, associations):
+
+        if association.p == PRED.hasNotification:
+
+            user = [u for u in users if u._id == association.s][0]
+
+            # NotificationRequest disabled by system process?
+            if notification.disabled_by_system:
+                continue
+
+            # NotificationRequest expired? (note this is relative to current time)
+            if notification.temporal_bounds.end_datetime:
+                if int(notification.temporal_bounds.end_datetime) < current_datetime:
+                    continue
+
+            # create tuple key (origin,origin_type,event_type,event_subtype)
+            origin = notification.origin
+            origin_type = notification.origin_type
+            event_type = notification.event_type
+            event_subtype = notification.event_subtype
+            key = (origin, origin_type, event_type, event_subtype)
+
+            # store tuple by key containing set of (NotificationRequest,UserInfo)
+            if key not in notifications:
+                notifications[key] = set()
+            value = (notification, user)
+            notifications[key].add(value)
+
+            # add children if applicable - children have same (event, event_subtype) in key and same (notification, user) for value
+            if notification.type != NotificationTypeEnum.SIMPLE and notification.origin:
+                children = _notification_children(notification_origin=notification.origin, notification_type=notification.type)
+                for child in children: # child is _id
+                    key = (child, '', event_type, event_subtype) # all children match by origin (_id)
+                    if key not in notifications:
+                        notifications[key] = set()
+                    notifications[key].add(value)
+
+    return notifications
+
