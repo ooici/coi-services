@@ -56,9 +56,6 @@ class CIOMSClient(object):
     def get_platform_metadata(self, platform_id):
         raise NotImplementedError()  #pragma: no cover
 
-    def get_platform_attributes(self, platform_id):
-        raise NotImplementedError()  #pragma: no cover
-
     def get_platform_attribute_values(self, platform_id, attrs):
         raise NotImplementedError()  #pragma: no cover
 

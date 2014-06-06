@@ -74,19 +74,6 @@ class OmsTestMixin(HelperTestMixin):
         log.info("config.get_platform_metadata(%r) => %s" % (platform_id, retval))
         self._verify_invalid_platform_id(platform_id, retval)
 
-    def test_af_get_platform_attributes(self):
-        platform_id = self.PLATFORM_ID
-        retval = self.oms.attr.get_platform_attributes(platform_id)
-        log.info("attr.get_platform_attributes(%r) => %s" % (platform_id, retval))
-        infos = self._verify_valid_platform_id(platform_id, retval)
-        self.assertIsInstance(infos, dict)
-
-    def test_ag_get_platform_attributes_invalid(self):
-        platform_id = BOGUS_PLATFORM_ID
-        retval = self.oms.attr.get_platform_attributes(platform_id)
-        log.info("attr.get_platform_attributes(%r) => %s" % (platform_id, retval))
-        self._verify_invalid_platform_id(platform_id, retval)
-
     def test_ah_get_platform_attribute_values(self):
         platform_id = self.PLATFORM_ID
         attrNames = self.ATTR_NAMES

@@ -419,11 +419,6 @@ def main(uri):  # pragma: no cover
     retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
 
     #----------------------------------------------------------------------
-    full_method_name = "attr.get_platform_attributes"
-    retval, reterr = run(full_method_name, platform_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
-
-    #----------------------------------------------------------------------
     full_method_name = "attr.get_platform_attribute_values"
     retval, reterr = run(full_method_name, platform_id, [])
     retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)

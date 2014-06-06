@@ -133,20 +133,6 @@ class CIOMSSimulator(CIOMSClient):
 
         return {platform_id: md}
 
-    def get_platform_attributes(self, platform_id):
-        self._enter()
-
-        if platform_id not in self._pnodes:
-            return {platform_id: InvalidResponse.PLATFORM_ID}
-
-        attrs = self._pnodes[platform_id].attrs
-        ret_infos = {}
-        for attrName in attrs:
-            attr = attrs[attrName]
-            ret_infos[attrName] = attr.defn
-
-        return {platform_id: ret_infos}
-
     def get_platform_attribute_values(self, platform_id, req_attrs):
         self._enter()
 
