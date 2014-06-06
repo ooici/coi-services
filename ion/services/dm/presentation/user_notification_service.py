@@ -234,7 +234,9 @@ class UserNotificationService(BaseUserNotificationService):
         @throws Conflict        object not based on latest persisted object version
         """
 
-        raise NotImplementedError("This method needs to be worked out in terms of implementation")
+        self.clients.resource_registry.update(notification)
+
+#        raise NotImplementedError("This method needs to be worked out in terms of implementation")
 
 #        #-------------------------------------------------------------------------------------------------------------------
 #        # Get the old notification
@@ -272,16 +274,16 @@ class UserNotificationService(BaseUserNotificationService):
 #
 #        user = self.update_user_info_object(user_id, notification)
 #
-#        #-------------------------------------------------------------------------------------------------------------------
-#        # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
-#        #-------------------------------------------------------------------------------------------------------------------
-#        log.info("(update notification) Publishing ReloadUserInfoEvent for updated notification")
-#
-#        self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
-#            origin="UserNotificationService",
-#            description= "A notification has been updated.",
-#            notification_id = notification_id
-#        )
+        #-------------------------------------------------------------------------------------------------------------------
+        # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
+        #-------------------------------------------------------------------------------------------------------------------
+        log.info("(update notification) Publishing ReloadUserInfoEvent for updated notification")
+
+        self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
+            origin="UserNotificationService",
+            description= "A notification has been updated.",
+            notification_id = notification._id
+        )
 
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
