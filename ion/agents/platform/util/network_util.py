@@ -117,10 +117,10 @@ class NetworkUtil(object):
                     if 'instruments' in port_info:
                         for instrument in port_info['instruments']:
                             instrument_id = instrument['instrument_id']
-                            _require(not instrument_id in port.instruments,
-                                     'port_id=%r: duplicate instrument ID %r' % (
+                            _require(not instrument_id in port.instrument_ids,
+                                     'port_id=%r: duplicate instrument_id=%r' % (
                                      port_id, instrument_id))
-                            port.add_instrument(InstrumentNode(instrument_id))
+                            port.add_instrument_id(instrument_id)
                     pn.add_port(port)
 
             def build_and_add_attrs_to_node(attrs, pn):
@@ -171,7 +171,8 @@ class NetworkUtil(object):
         @param ndef NetworkDefinition object
         @return string with the serialization
         """
-        ser = "\n%s" % NetworkUtil.serialize_pnode(ndef.root)
+        ser = "\n%s\n%s" % ("# (generated from PlatformNode object)",
+                            NetworkUtil.serialize_pnode(ndef.root))
 
         return ser
 
@@ -211,9 +212,9 @@ class NetworkUtil(object):
                     lines.append('  - port_id: %s' % port_id)
 
                     # instruments
-                    if len(port.instruments):
+                    if len(port.instrument_ids):
                         lines.append('    instruments:')
-                        for instrument_id, instrument in port.instruments.iteritems():
+                        for instrument_id in port.instrument_ids:
                             lines.append('    - instrument_id: %s' % instrument_id)
 
             if pnode.subplatforms:
