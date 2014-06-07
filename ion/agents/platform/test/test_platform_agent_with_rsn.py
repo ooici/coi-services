@@ -39,7 +39,7 @@ from interface.objects import AgentCapability
 
 from interface.objects import StreamAlertType, AggregateStatusType
 
-from pyon.core.exception import Conflict
+from pyon.core.exception import Conflict, ServerError
 
 from pyon.event.event import EventSubscriber
 
@@ -176,39 +176,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self.assertIsInstance(attr_values, dict)
         for attr_name in attrNames:
             self._verify_valid_attribute_id(attr_name, attr_values)
-
-    def _set_resource(self):
-        attrNames = self.ATTR_NAMES
-        writ_attrNames = self.WRITABLE_ATTR_NAMES
-
-        # do valid settings:
-
-        # TODO more realistic value depending on attribute's type
-        attrs = [(attrName, self.VALID_ATTR_VALUE) for attrName in attrNames]
-        log.info("%r: setting attributes=%s", self.PLATFORM_ID, attrs)
-        kwargs = dict(attrs=attrs)
-        cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        attr_values = retval.result
-        self.assertIsInstance(attr_values, dict)
-        for attrName in attrNames:
-            if attrName in writ_attrNames:
-                self._verify_valid_attribute_id(attrName, attr_values)
-            else:
-                self._verify_not_writable_attribute_id(attrName, attr_values)
-
-        # try invalid settings:
-
-        # set invalid values to writable attributes:
-        attrs = [(attrName, self.INVALID_ATTR_VALUE) for attrName in writ_attrNames]
-        log.info("%r: setting attributes=%s", self.PLATFORM_ID, attrs)
-        kwargs = dict(attrs=attrs)
-        cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        attr_values = retval.result
-        self.assertIsInstance(attr_values, dict)
-        for attrName in writ_attrNames:
-            self._verify_attribute_value_out_of_range(attrName, attr_values)
 
     def _get_subplatform_ids(self):
         kwargs = dict(subplatform_ids=None)
@@ -639,7 +606,12 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._run()
 
         self._get_resource()
-        self._set_resource()
+
+        with self.assertRaises(ServerError):
+            # SET operation not supported
+            kwargs = dict(attrs=[])
+            cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
+            self._execute_agent(cmd)
 
     def test_some_commands(self):
         self._create_network_and_start_root_platform()

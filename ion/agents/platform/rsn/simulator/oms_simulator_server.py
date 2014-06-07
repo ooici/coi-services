@@ -122,7 +122,6 @@ class CIOMSSimulatorServer(object):
         if log.isEnabledFor(logging.DEBUG):
             ser = NetworkUtil.serialize_network_definition(self._sim._ndef)
             log.debug("network serialization:\n   %s" % ser.replace('\n', '\n   '))
-            log.debug("network.get_map() = %s\n" % self._sim.config.get_platform_map())
 
         self._server = SimpleXMLRPCServer((host, port), allow_none=True)
 

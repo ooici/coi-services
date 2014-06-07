@@ -145,7 +145,6 @@ def _test():  # pragma: no cover
         rsn_oms, uri = sim_process.launch()
         print("rsn_oms_simulator_uri = %s" % uri)
         print("ping -> %r" % rsn_oms.ping())
-        print("get_platform_map -> %r" % rsn_oms.get_platform_map())
         sim_process.stop()
 
 # test using nosetest:

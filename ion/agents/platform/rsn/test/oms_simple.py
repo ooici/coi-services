@@ -215,6 +215,8 @@ launch_breakpoint = False
 
 tried = {}
 
+INCLUDE_WRITE_OPERS = False
+
 
 def launch_listener():  # pragma: no cover
     def notify_driver_event(evt):
@@ -396,41 +398,13 @@ def main(uri):  # pragma: no cover
     platform_id = "dummy_platform_id"
 
     #----------------------------------------------------------------------
-    full_method_name = "config.get_platform_map"
-    retval, reterr = run(full_method_name)
-    if retval is not None:
-        if isinstance(retval, list):
-            if len(retval):
-                if isinstance(retval[0], (tuple, list)):
-                    platform_id = retval[0][0]
-                else:
-                    reterr = "expecting a list of tuples or lists"
-            else:
-                reterr = "expecting a non-empty list"
-        else:
-            reterr = "expecting a list"
-        if reterr:
-            tried[full_method_name] = reterr
-            format_err(reterr)
-
-    #----------------------------------------------------------------------
     full_method_name = "config.get_platform_metadata"
-    retval, reterr = run(full_method_name, platform_id)
-    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
-
-    #----------------------------------------------------------------------
-    full_method_name = "attr.get_platform_attributes"
     retval, reterr = run(full_method_name, platform_id)
     retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
 
     #----------------------------------------------------------------------
     full_method_name = "attr.get_platform_attribute_values"
     retval, reterr = run(full_method_name, platform_id, [])
-    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
-
-    #----------------------------------------------------------------------
-    full_method_name = "attr.set_platform_attribute_values"
-    retval, reterr = run(full_method_name, platform_id, {})
     retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
 
     port_id = "dummy_port_id"
@@ -468,18 +442,19 @@ def main(uri):  # pragma: no cover
 
     src = "oms_simple"
 
-    #----------------------------------------------------------------------
-    full_method_name = "port.turn_on_platform_port"
-    retval, reterr = run(full_method_name, platform_id, port_id, src)
+    if INCLUDE_WRITE_OPERS:
+        #----------------------------------------------------------------------
+        full_method_name = "port.turn_on_platform_port"
+        retval, reterr = run(full_method_name, platform_id, port_id, src)
 
-    #----------------------------------------------------------------------
-    full_method_name = "port.turn_off_platform_port"
-    retval, reterr = run(full_method_name, platform_id, port_id, src)
+        #----------------------------------------------------------------------
+        full_method_name = "port.turn_off_platform_port"
+        retval, reterr = run(full_method_name, platform_id, port_id, src)
 
-    #----------------------------------------------------------------------
-    full_method_name = "port.set_over_current"
-    ma, us = 0, 0
-    retval, reterr = run(full_method_name, platform_id, port_id, ma, us, src)
+        #----------------------------------------------------------------------
+        full_method_name = "port.set_over_current"
+        ma, us = 0, 0
+        retval, reterr = run(full_method_name, platform_id, port_id, ma, us, src)
 
     #----------------------------------------------------------------------
     url = EVENT_LISTENER_URL
@@ -541,6 +516,7 @@ def main(uri):  # pragma: no cover
 
     #######################################################################
     print("\nSummary of basic verification:")
+    print("\n(INCLUDE_WRITE_OPERS=%s)" % INCLUDE_WRITE_OPERS)
     okeys = 0
     for full_method_name, result in sorted(tried.iteritems()):
         print("%20s %-40s: %s" % ("", full_method_name, result))
