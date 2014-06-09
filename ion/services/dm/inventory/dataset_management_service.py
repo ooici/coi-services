@@ -141,12 +141,12 @@ class DatasetManagementService(BaseDatasetManagementService):
     def register_dataset(self, data_product_id=''):
         raise BadRequest("register_dataset is no longer supported, please use create_catalog_entry in data product management")
 
-    def add_dataset_window_to_complex(self, dataset_id, target_dataset_id, window):
+    def add_dataset_window_to_complex(self, device_dataset_id='', window=None, site_dataset_id=''):
         '''
         Adds target dataset to the complex coverage for the window specified
         '''
-        doc = self.container.object_store.read_doc('cov_' + dataset_id)
-        doc['references'].append( (window, target_dataset_id) )
+        doc = self.container.object_store.read_doc('cov_' + site_dataset_id)
+        doc['references'].append( (window, site_dataset_id) )
 
 
 #--------
@@ -425,15 +425,6 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def create_parameter_dictionary(self, name='', parameter_context_ids=None, temporal_context='', description=''):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionary, name=name, id_only=True)
-        if len(res):
-            context_ids,_ = self.clients.resource_registry.find_objects(subject=res[0], predicate=PRED.hasParameterContext, id_only=True)
-            context_ids.sort()
-            parameter_context_ids.sort()
-            if context_ids == parameter_context_ids:
-                return res[0]
-            else:
-                raise Conflict('A parameter dictionary with name %s already exists and has a different definition' % name)
         validate_true(name, 'Name field may not be empty.')
         parameter_context_ids = parameter_context_ids or []
         pd_res = ParameterDictionaryResource(name=name, temporal_context=temporal_context, description=description)
