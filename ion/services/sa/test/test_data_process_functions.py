@@ -9,7 +9,7 @@ from coverage_model import ParameterFunctionType
 from ion.processes.data.transforms.transform_worker import TransformWorker
 from interface.objects import DataProcessDefinition, DataProduct
 from nose.plugins.attrib import attr
-from pyon.util.breakpoint import breakpoint
+from pyon.core.exception import BadRequest
 from datetime import datetime, timedelta
 from pyon.util.containers import DotDict
 from pyon.util.log import log
@@ -24,6 +24,9 @@ import numpy as np
 import calendar
 import gevent
 
+from pyon.util.breakpoint import breakpoint
+
+@attr(group='sa')
 class TestDataProcessFunctions(DMTestCase):
 
     egg_url = 'http://sddevrepo.oceanobservatories.org/releases/ion_example-0.1-py2.7.egg' 
@@ -235,19 +238,25 @@ class TestDataProcessFunctions(DMTestCase):
                                      units='deg_C',
                                      display_name='Temperature Corrected')
         p_id = self.dataset_management.create_parameter(parameter)
-        self.data_product_management.add_parameter_to_data_product(p_id,dp_id)
+        # Should fail BECAUSE we can't add parameters to derived data products
+        self.assertRaises(BadRequest, self.data_product_management.add_parameter_to_data_product, p_id, dp_id)
+
+        # Add it to the parent or parsed data product
+        self.data_product_management.add_parameter_to_data_product(p_id, data_product_id)
+        
+        # Then update the child's stream definition to include it
+        stream_def = self.pubsub_management.read_stream_definition(stream_def_id)
+        stream_def.available_fields.append('temperature_corrected')
+        self.resource_registry.update(stream_def)
+        
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
-        gevent.sleep(5) # Yield to close
 
-        @poll_wrapper(30)
-        def poller():
-            granule = self.data_retriever.retrieve(dataset_id)
-            rdt = RecordDictionaryTool.load_from_granule(granule)
-            if 'temperature_corrected' in rdt:
-                return rdt
-            return None
-        rdt = poller()
+        # For some reason, it takes numerous seconds of yielding with gevent for the coverage to actually save...
+        gevent.sleep(6)
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_almost_equal(rdt['temperature_corrected'], np.arange(30,dtype=np.float32) * 1.03 + 0.25, decimal=5)
 
 

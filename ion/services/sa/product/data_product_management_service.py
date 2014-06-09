@@ -672,6 +672,12 @@ class DataProductManagementService(BaseDataProductManagementService):
             log.warning('Data product is not currently persisted, no action taken: %s', data_product_id)
 
     def add_parameter_to_data_product(self, parameter_context_id='', data_product_id=''):
+
+        data_product = self.read_data_product(data_product_id)
+        if data_product.category != DataProductTypeEnum.DEVICE:
+            raise BadRequest("Can only add parameters to device data products")
+
+
         pc = self.clients.dataset_management.read_parameter_context(parameter_context_id)
 
         stream_def_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=False)
