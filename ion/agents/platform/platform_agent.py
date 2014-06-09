@@ -375,7 +375,7 @@ class PlatformAgent(ResourceAgent):
             msg = "PlatformAgent._validate_configuration: platform ID %r not equal to ID %r of node." % (self._platform_id, self._pnode.platform_id)
             log.error(msg)
 
-        log.debug("PlatformAgent._validate_configuration: self._pnode = %s" %self._pnode)
+        log.debug("PlatformAgent._validate_configuration: _pnode = %s", self._pnode)
 
         self._children_resource_ids = self._get_children_resource_ids()
 
@@ -393,28 +393,10 @@ class PlatformAgent(ResourceAgent):
             log.warn("%r: platform attributes taken from network definition: %s",
                      self._platform_id, self._platform_attributes)
 
-        #
-        # set platform ports:
-        # TODO the ports may probably be applicable only in particular
-        # drivers (like in RSN), so move these there if that's the case.
-        #
         if 'ports' in self._driver_config:
-            ports = self._driver_config['ports']
-
             # Remove this device from the ports information, the driver does not use this
             platform_port = self._driver_config['ports'].pop(self.resource_id, None)
             log.debug('_validate_configuration removed platform port info from ports config for driver.  dev_id:  %s   platform_port: %s', self.resource_id, platform_port)
-
-            self._platform_ports = ports
-            log.debug("%r: platform ports taken from driver_config: %s",
-                      self._platform_id, self._platform_ports)
-        else:
-            self._platform_ports = {}
-            for port_id, port in self._pnode.ports.iteritems():
-                self._platform_ports[port_id] = dict(port_id=port_id,
-                                                     network=port.network)
-            log.warn("%r: platform ports taken from network definition: %s",
-                     self._platform_id, self._platform_ports)
 
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
