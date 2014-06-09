@@ -103,10 +103,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         log.debug("platform state: %s", state)
         self.assertEquals(ResourceAgentState.COMMAND, state)
 
-        ports = self._get_ports()
-        log.info("_get_ports = %s", ports)
-        for dev_id, state_dict in ports.iteritems():
-            self.assertEquals(state_dict['state'], None)
+        self._get_ports()
 
     def test_hierarchy(self):
         #
