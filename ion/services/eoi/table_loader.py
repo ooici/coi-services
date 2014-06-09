@@ -16,6 +16,7 @@ from pyon.util.log import log
 from pyon.util.breakpoint import breakpoint
 from pyon.container.cc import Container
 from pyon.public import BadRequest
+import logging
 
 DEBUG = False
 
@@ -151,7 +152,6 @@ class ResourceParser(object):
             self.drop_existing_table(resource_id, use_cascade=True) 
         else:
             log.debug("could not remove,does not exist")
-            pass
 
         # try and remove it from geoserver
         self.send_geonode_request(self.removelayer, resource_id)
@@ -159,14 +159,13 @@ class ResourceParser(object):
     def create_single_resource(self, new_resource_id, param_dict):
         """
         Creates a single resource
-        """
-        
+        """      
         #parse relevant params from the dict
         relevant = []
         for k, v in param_dict.iteritems():
             if isinstance(v, (tuple, list)) and len(v) == 2 and 'param_type' in v[1]:
                 relevant.append(k)
-
+        
         #only go forward if there are params available        
         if relevant:
             coverage_path = self._get_coverage_path(new_resource_id)
@@ -230,10 +229,11 @@ class ResourceParser(object):
         """
         #check table exists
         if not self.does_table_exist(dataset_id):
-            valid_types = {}
-            create_table_string = 'create foreign table "%s" (' % dataset_id            
-            log.debug("relevant:"+relevant+" valid?:"+self.required_fields_satisfied(relevant))                      
-            if self.required_fields_satisfied(relevant):       
+            valid_types = {}               
+            create_table_string = 'create foreign table "%s" (' % dataset_id        
+            is_relevent_satisfied = self.required_fields_satisfied(relevant)
+            log.debug("relevant:"+str(relevant)+" valid?:"+str(is_relevent_satisfied))   
+            if is_relevent_satisfied:       
                 #loop through the params
                 encodings = []     
 
@@ -255,8 +255,7 @@ class ResourceParser(object):
                     
                     value_encoding = data_item[1]['param_type']['_value_encoding']
                     fill_value = data_item[1]['param_type']['_fill_value']
-                    std_name = data_item[1]['standard_name']
-                    
+                    std_name = data_item[1]['standard_name']                   
                     #only use things that have valid value
                     if len(name) > 0: #and (len(desc)>0) and (len(units)>0) and (value_encoding is not None)):
                         if DEBUG:
