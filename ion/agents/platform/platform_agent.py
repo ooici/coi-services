@@ -371,10 +371,6 @@ class PlatformAgent(ResourceAgent):
 
         # get PlatformNode corresponding to this agent:
         self._pnode = self._network_definition.pnodes[self._platform_id]
-        if self._pnode.platform_id != self._platform_id:
-            msg = "PlatformAgent._validate_configuration: platform ID %r not equal to ID %r of node." % (self._platform_id, self._pnode.platform_id)
-            log.error(msg)
-
         log.debug("PlatformAgent._validate_configuration: _pnode = %s", self._pnode)
 
         self._children_resource_ids = self._get_children_resource_ids()
