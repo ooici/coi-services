@@ -809,17 +809,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         '''
         Verifies that the named parameter does not exist in the data product already
         '''
-        # Get the dataset for this data product
-        # DataProduct -> Dataset [ hasDataset ]
-        datasets, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=False)
-        if not datasets:
-            raise BadRequest("No associated dataset with this data product %s" % data_product_id)
-        dataset = datasets[0]
-        # Load it with the class ParameterDictionary so I can see if the name
-        # is in the parameter dictionary
-        pdict = ParameterDictionary.load(dataset.parameter_dictionary)
-        if param_name in pdict:
-            raise BadRequest("Named parameter %s already exists in this dataset: %s" % (param_name, dataset._id))
+        parameters = self.clients.data_product_management.get_data_product_parameters(data_product_id, id_only=False)
+
+        param_dict = {p.name : p for p in parameters}
+        if param_name in param_dict:
+            raise BadRequest("Named parameter %s already exists in this data product: %s" % (param_name, data_product_id))
 
     def _add_parameter_to_data_products(self, parameter_context_id, data_product_id):
         '''
