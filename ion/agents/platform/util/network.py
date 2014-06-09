@@ -100,7 +100,6 @@ class PortNode(BaseNode):
         BaseNode.__init__(self)
         self._port_id = str(port_id)
         self._instrument_ids = []
-        self._state = None
 
     def __repr__(self):
         return "PortNode{port_id=%r, instrument_ids=%r}" % (
@@ -109,13 +108,6 @@ class PortNode(BaseNode):
     @property
     def port_id(self):
         return self._port_id
-
-    @property
-    def state(self):
-        return self._state
-
-    def set_state(self, state):
-        self._state = state
 
     @property
     def instrument_ids(self):
@@ -144,10 +136,6 @@ class PortNode(BaseNode):
         if self.port_id != other.port_id:
             return "Port IDs are different: %r != %r" % (
                 self.port_id, other.port_id)
-
-        if self.state != other.state:
-            return "Port state values are different: %r != %r" % (
-                self.state, other.state)
 
         # compare instruments:
         instrument_ids = set(self.instrument_ids)

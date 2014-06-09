@@ -55,7 +55,6 @@ class NetworkUtil(object):
                     _require('port_id' in port_info)
                     port_id = port_info['port_id']
                     port = PortNode(port_id)
-                    port.set_state(port_info.get('state', None))
                     if 'instruments' in port_info:
                         for instrument in port_info['instruments']:
                             instrument_id = instrument['instrument_id']
