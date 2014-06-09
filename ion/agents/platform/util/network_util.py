@@ -317,6 +317,8 @@ class NetworkUtil(object):
                          "_add_ports_to_platform_node(): 'port_id' not in port_info")
                 port_id = port_info['port_id']
                 port = PortNode(port_id)
+                for instrument_id in port_info.get('instrument_ids', []):
+                    port.add_instrument_id(instrument_id)
                 pn.add_port(port)
 
         def build_platform_node(CFG, parent_node):
@@ -338,10 +340,6 @@ class NetworkUtil(object):
             _add_attrs_to_platform_node(attributes.itervalues(), pn)
 
             # ports:
-            # TODO(OOIION-1495) the following was commented out,
-            # but we need to capture the ports, at least under the current logic.
-            # remove until network checkpoint needs are defined.
-            # port info can be retrieve from active deployment
             _add_ports_to_platform_node(ports.itervalues(), pn)
 
             # children:
