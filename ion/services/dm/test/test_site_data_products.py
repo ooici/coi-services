@@ -1,6 +1,6 @@
 from unittest import skip
 
-from ion.services.dm.test.test_dm_extended import TestDMExtended
+from ion.services.dm.test.dm_test_case import DMTestCase
 
 from pyon.public import PRED, OT, RT
 from pyon.util.log import log
@@ -15,7 +15,8 @@ import calendar
 from datetime import datetime
 
 
-class TestSiteDataProducts(TestDMExtended):
+@attr(group='dm')
+class TestSiteDataProducts(DMTestCase):
 
     def create_device_site_deployment(self, dep_name="Deployment", starting=''):
         from interface.objects import StreamConfiguration, StreamConfigurationType, InstrumentDevice
@@ -72,7 +73,7 @@ class TestSiteDataProducts(TestDMExtended):
 
         return site_id, device_id, dataset_id, deployment_id, param_dict, data_product_id
 
-    @attr('INT')
+    @attr('PRELOAD')
     def test_preload_creation(self):
         from interface.objects import DataProductTypeEnum
 

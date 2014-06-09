@@ -29,9 +29,7 @@ from ion.agents.instrument.test.load_test_driver_egg import load_egg
 load_egg()
 
 
-from mock import patch
-@patch.dict(CFG, {'endpoint': {'receive': {'timeout': 120}}})
-@attr('INT', group='dm')
+
 class TestInstrumentIntegration(DMTestCase):
 
     def create_instrument_model(self):
@@ -127,6 +125,7 @@ class TestInstrumentIntegration(DMTestCase):
         self.assertEqual(expected_state,state)
         return retval
 
+    @attr("UTIL")
     def test_instrument_simple(self):
         instrument_model_id = self.create_instrument_model()
         instrument_agent_id = self.create_instrument_agent(instrument_model_id)
@@ -148,13 +147,13 @@ class TestInstrumentIntegration(DMTestCase):
         self.agent_state_transition(agent_client, ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(parsed_dp_id)
+        monitor = DatasetMonitor(dataset_id=dataset_id)
 
         for i in xrange(10):
-            monitor = DatasetMonitor(dataset_id=dataset_id)
             agent_client.execute_resource(AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE))
             if not monitor.wait():
                 raise AssertionError('Failed on the %ith granule' % i)
-            monitor.stop()
+            monitor.reset()
 
         rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(dataset_id))
         self.assertEquals(len(rdt), 10)
