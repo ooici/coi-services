@@ -253,7 +253,7 @@ class TestDataProcessFunctions(DMTestCase):
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
 
         # For some reason, it takes numerous seconds of yielding with gevent for the coverage to actually save...
-        gevent.sleep(6)
+        gevent.sleep(10)
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
