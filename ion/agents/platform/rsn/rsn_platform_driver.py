@@ -655,34 +655,17 @@ class RSNPlatformDriver(PlatformDriver):
         return result
 
     def _get_ports(self):
-        ports = {}
-        for port_id, port in self._pnode.ports.iteritems():
-            ports[port_id] = {'state':   port.state}
-        log.debug("%r: _get_ports: %s", self._platform_id, ports)
-        return ports
-
-        # TODO(OOIION-1495) review the following
-        """
-        ports = {}
-
-        # todo remove until NetworkDefinition is brought in alignment See OOIION-1495.
-        #for port_id, port in self._pnode.ports.iteritems():
-        #    ports[port_id] = {'network': port.network,
-        #                      'state':   port.state}
-
-        if self._rsn_oms is None:
-            raise PlatformConnectionException("Cannot turn_on_platform_port: _rsn_oms object required (created via connect() call)")
 
         try:
             response = self._rsn_oms.port.get_platform_ports(self._platform_id)
             ports = response[self._platform_id]
 
         except Exception as e:
-            raise PlatformConnectionException(msg="Cannot turn_on_platform_port: %s" % str(e))
+            msg = "Cannot get_platform_ports(platform_id=%r): %s" % (self._platform_id, e)
+            raise PlatformConnectionException(msg=msg)
 
         log.debug("%r: _get_ports: %s", self._platform_id, ports)
         return ports
-        """
 
     ##############################################################
     # CONNECTED event handlers we add in this subclass
