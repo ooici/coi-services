@@ -90,12 +90,6 @@ class TestDriverEgg(IonIntegrationTestCase):
 
 
 
-    def get_datastore(self, dataset_id):
-        dataset = self.datasetclient.read_dataset(dataset_id)
-        datastore_name = dataset.datastore_name
-        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
-        return datastore
-
     def get_streamConfigs(self):
         raw_config = StreamConfiguration(stream_name='raw',
                                          parameter_dictionary_name='ctd_raw_param_dict')
@@ -279,8 +273,6 @@ class TestDriverEgg(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
         print  'Data set for data_product_id1 = %s' % dataset_ids[0]
         self.parsed_dataset = dataset_ids[0]
-        #create the datastore at the beginning of each int test that persists data
-        self.get_datastore(self.parsed_dataset)
 
 
         dp_obj = IonObject(RT.DataProduct,
