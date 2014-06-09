@@ -146,7 +146,7 @@ class MissionManager(object):
         mission_ids = self._running_missions.keys()
         nn = len(mission_ids)
         if nn:
-            log.debug('%r: [mm] MissionManager.destroy called. Aborting %n ongoing missions...',
+            log.debug('%r: [mm] MissionManager.destroy called. Aborting %d ongoing missions...',
                       self._platform_id, nn)
             for mission_id in mission_ids:
                 try:
