@@ -1301,8 +1301,7 @@ class PlatformAgent(ResourceAgent):
             # it is actually running.
 
             # get PID:
-            # TODO is there a more public method to get the pid?
-            pid = ResourceAgentClient._get_agent_process_id(sub_resource_id)
+            pid = pa_client.get_agent_process_id()
 
             log.debug("%r: [LL] my child is already running: %r. pid=%s",
                       self._platform_id, subplatform_id, pid)
@@ -1994,8 +1993,7 @@ class PlatformAgent(ResourceAgent):
             # it is running.
 
             # get PID:
-            # TODO is there a more public method to get the pid?
-            pid = ResourceAgentClient._get_agent_process_id(i_resource_id)
+            pid = ia_client.get_agent_process_id()
 
         except NotFound:
             # not running.
