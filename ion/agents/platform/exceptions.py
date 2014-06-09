@@ -11,10 +11,10 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from ooi.exception import ApplicationException
+from pyon.core.exception import IonException
 
 
-class PlatformException(ApplicationException):
+class PlatformException(IonException):
     """
     Base class for platform related exceptions.
     """
