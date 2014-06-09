@@ -5,6 +5,8 @@
 @file    ion/agents/platform/util/network_util.py
 @author  Carlos Rueda
 @brief   Utilities related with platform network definition
+         Note that this module is also used by simulator so it does not
+         import any ION modules.
 """
 
 __author__ = 'Carlos Rueda'
@@ -16,10 +18,15 @@ from ion.agents.platform.util.network import AttrNode
 from ion.agents.platform.util.network import PortNode
 from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.util.network import NetworkDefinition
-from ion.agents.platform.exceptions import PlatformDefinitionException
 
 import yaml
 from collections import OrderedDict
+
+
+class NetworkDefinitionException(Exception):
+    def __init__(self, msg=''):
+        super(NetworkDefinitionException, self).__init__()
+        self.msg = msg
 
 
 class NetworkUtil(object):
@@ -282,7 +289,7 @@ class NetworkUtil(object):
         @param CFG CI agent configuration
         @return A NetworkDefinition object
 
-        @raise PlatformDefinitionException device_type is not 'PlatformDevice'
+        @raise NetworkDefinitionException device_type is not 'PlatformDevice'
         """
 
         # verify CFG corresponds to PlatformDevice:
@@ -375,7 +382,7 @@ def _get_attr_id(attr_defn):
     elif 'attr_name' in attr_defn and 'attr_instance' in attr_defn:
         attr_id = "%s|%s" % (attr_defn['attr_name'], attr_defn['attr_instance'])
     else:
-        raise PlatformDefinitionException(
+        raise NetworkDefinitionException(
             "Attribute definition does now include 'attr_name' nor 'attr_instance'. "
             "attr_defn = %s" % attr_defn)
 
@@ -384,4 +391,4 @@ def _get_attr_id(attr_defn):
 
 def _require(cond, msg=""):
     if not cond:
-        raise PlatformDefinitionException(msg)
+        raise NetworkDefinitionException(msg)

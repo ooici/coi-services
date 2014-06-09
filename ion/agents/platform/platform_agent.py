@@ -39,6 +39,7 @@ from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
+from ion.agents.platform.util.network_util import NetworkDefinitionException
 from ion.agents.agent_alert_manager import AgentAlertManager
 
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
@@ -240,22 +241,14 @@ class PlatformAgent(ResourceAgent):
         self._pp = pprint.PrettyPrinter()
 
     def on_init(self):
+        """
+        - Validates the given configuration and does related preparations.
+        - configures aparams if not already config'ed (see _configure_aparams)
+        """
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
 
-        self._plat_config = self.CFG.get("platform_config", None)
-        if self._plat_config is None:
-            msg = "'platform_config' entry not provided in agent configuration"
-            log.error(msg)
-            raise PlatformConfigurationException(msg=msg)
-
-        platform_id = self._plat_config.get('platform_id', None)
-        if platform_id is None:
-            msg = "'platform_id' entry not found in 'platform_config'"
-            log.error(msg)
-            raise PlatformConfigurationException(msg=msg)
-
-        self._platform_id = platform_id
+        platform_id = self._validate_configuration()
 
         #######################################################################
         # CFG.endpoint.receive.timeout: if the value is less than the one we
@@ -293,16 +286,12 @@ class PlatformAgent(ResourceAgent):
 
     def on_start(self):
         """
-        - Validates the given configuration and does related preparations.
         - creates AgentAlertManager and StatusManager
-        - configures aparams if not already config'ed (see _configure_aparams)
         - Children agents (platforms and instruments) are launched here (in a
           separate greenlet).
         """
         super(PlatformAgent, self).on_start()
         log.info('platform agent is running: on_start called.')
-
-        self._validate_configuration()
 
         # Set up alert manager.
         self._aam = PlatformAgentAlertManager(self)
@@ -334,6 +323,20 @@ class PlatformAgent(ResourceAgent):
             return
 
         log.debug("verifying/processing platform config configuration ...")
+
+        self._plat_config = self.CFG.get("platform_config", None)
+        if self._plat_config is None:
+            msg = "'platform_config' entry not provided in agent configuration"
+            log.error(msg)
+            raise PlatformConfigurationException(msg=msg)
+
+        platform_id = self._plat_config.get('platform_id', None)
+        if platform_id is None:
+            msg = "'platform_id' entry not found in 'platform_config'"
+            log.error(msg)
+            raise PlatformConfigurationException(msg=msg)
+
+        self._platform_id = platform_id
 
         stream_info = self.CFG.get('stream_config', None)
         if stream_info is None:
@@ -393,7 +396,8 @@ class PlatformAgent(ResourceAgent):
 
         self._plat_config_processed = True
 
-        log.debug("%r: _validate_configuration complete",  self._platform_id)
+        log.debug("%r: _validate_configuration complete", self._platform_id)
+        return self._platform_id
 
     def _create_network_definition_from_CFG(self):
         """
@@ -402,12 +406,12 @@ class PlatformAgent(ResourceAgent):
         try:
             self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
             log.debug("%r: created network_definition from CFG", self._platform_id)
+        except NetworkDefinitionException as ex:
+            # just re-raise as PlatformConfigurationException
+            raise PlatformConfigurationException(msg=ex.msg)
         except Exception as ex:
-            if isinstance(ex, PlatformException):
-                raise ex
-            else:
-                log.exception("expection in NetworkUtil.create_network_definition_from_ci_config")
-                raise PlatformConfigurationException(reason=ex)
+            log.exception("unexpected exception in NetworkUtil.create_network_definition_from_ci_config")
+            raise PlatformException(reason=ex)
 
     def _children_launch(self):
         """

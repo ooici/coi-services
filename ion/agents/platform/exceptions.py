@@ -41,14 +41,6 @@ class PlatformConfigurationException(PlatformException):
     pass
 
 
-class PlatformDefinitionException(PlatformException):
-    """
-    Exception related with the definition of a platform network or any
-    particular platform node or other sub-component.
-    """
-    pass
-
-
 class PlatformDriverException(PlatformException):
     """
     Exception related to basic PlatformDriver functionality or configuration.
