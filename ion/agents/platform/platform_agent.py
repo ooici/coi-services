@@ -32,6 +32,7 @@ from ion.agents.platform.platform_agent_enums import ResourceInterfaceCapability
 
 from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformException
+from ion.agents.platform.exceptions import PlatformConfigurationException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
@@ -242,7 +243,19 @@ class PlatformAgent(ResourceAgent):
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
 
-        platform_id = self.CFG.get_safe('platform_config.platform_id', '??')
+        self._plat_config = self.CFG.get("platform_config", None)
+        if self._plat_config is None:
+            msg = "'platform_config' entry not provided in agent configuration"
+            log.error(msg)
+            raise PlatformConfigurationException(msg=msg)
+
+        platform_id = self._plat_config.get('platform_id', None)
+        if platform_id is None:
+            msg = "'platform_id' entry not found in 'platform_config'"
+            log.error(msg)
+            raise PlatformConfigurationException(msg=msg)
+
+        self._platform_id = platform_id
 
         #######################################################################
         # CFG.endpoint.receive.timeout: if the value is less than the one we
@@ -265,7 +278,6 @@ class PlatformAgent(ResourceAgent):
         self._timeout = cfg_timeout
         #######################################################################
 
-        self._plat_config = self.CFG.get("platform_config", None)
         self._plat_config_processed = False
 
         self._launcher = Launcher(self._timeout)
@@ -318,56 +330,43 @@ class PlatformAgent(ResourceAgent):
         @raises PlatformException if the verification fails for some reason.
         """
 
-        if self._plat_config is None:
-            msg = "PlatformAgent._validate_configuration: 'platform_config' entry not provided in agent configuration"
-            log.error(msg)
-
         if self._plat_config_processed:
-            # nothing else to do here
             return
 
         log.debug("verifying/processing platform config configuration ...")
 
         stream_info = self.CFG.get('stream_config', None)
         if stream_info is None:
-            msg = "PlatformAgent._validate_configuration: 'stream_config' key not in configuration"
+            msg = "%r: 'stream_config' key not in configuration" % self._platform_id
             log.error(msg)
         for stream_name, stream_config in stream_info.iteritems():
             if 'stream_def_dict' not in stream_config:
-                msg = "PlatformAgent._validate_configuration: 'stream_def_dict' key not in configuration for stream %r" % stream_name
+                msg = "%r: 'stream_def_dict' key not in configuration for stream %r" % (
+                    self._platform_id, stream_name)
                 log.error(msg)
 
         self._driver_config = self.CFG.get('driver_config', None)
         if None is self._driver_config:
-            msg = "PlatformAgent._validate_configuration: 'driver_config' key not in configuration"
+            msg = "'driver_config' key not in configuration"
             log.error(msg)
+            raise PlatformConfigurationException(msg=msg)
 
         log.debug("driver_config: %s", self._driver_config)
 
-        for k in ['platform_id']:
-            if not k in self._plat_config:
-                msg = "'%s' key not given in configuration" % k
-                log.error(msg)
-
-        self._platform_id = self._plat_config['platform_id']
-
         for k in ['dvr_mod', 'dvr_cls']:
             if not k in self._driver_config:
-                msg = "PlatformAgent._validate_configuration: (%r) '%s' key not given in driver_config: %s" % (
+                msg = "%r: %r key not given in driver_config: %s" % (
                     self._platform_id, k, self._driver_config)
                 log.error(msg)
+                raise PlatformConfigurationException(msg=msg)
 
-        # Create network definition from the provided CFG:
-        try:
-            self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
-            log.debug("%r: created network_definition from CFG", self._platform_id)
-        except Exception:
-            log.exception("PlatformAgent._validate_configuration: exception raised while calling NetworkUtil.create_network_definition_from_ci_config")
+        self._create_network_definition_from_CFG()
 
         # verify the given platform_id is contained in the NetworkDefinition:
         if not self._platform_id in self._network_definition.pnodes:
-            msg = "PlatformAgent._validate_configuration: (%r) this platform_id not found in network definition." % self._platform_id
+            msg = "platform_id=%r not found in network definition." % self._platform_id
             log.error(msg)
+            raise PlatformConfigurationException(msg=msg)
 
         # get PlatformNode corresponding to this agent:
         self._pnode = self._network_definition.pnodes[self._platform_id]
@@ -395,6 +394,20 @@ class PlatformAgent(ResourceAgent):
         self._plat_config_processed = True
 
         log.debug("%r: _validate_configuration complete",  self._platform_id)
+
+    def _create_network_definition_from_CFG(self):
+        """
+        @raises PlatformException if any exception
+        """
+        try:
+            self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
+            log.debug("%r: created network_definition from CFG", self._platform_id)
+        except Exception as ex:
+            if isinstance(ex, PlatformException):
+                raise ex
+            else:
+                log.exception("expection in NetworkUtil.create_network_definition_from_ci_config")
+                raise PlatformConfigurationException(reason=ex)
 
     def _children_launch(self):
         """
@@ -1695,7 +1708,6 @@ class PlatformAgent(ResourceAgent):
 
         return children_with_errors
 
-
     def _shutdown_and_terminate_subplatform(self, subplatform_id):
         """
         Executes SHUTDOWN with recursion=True on the given sub-platform and
@@ -2313,7 +2325,6 @@ class PlatformAgent(ResourceAgent):
 
         return children_with_errors
 
-
     def _instruments_start_streaming(self):
         """
         Executes START_AUTOSAMPLE on all my instruments.
@@ -2512,10 +2523,6 @@ class PlatformAgent(ResourceAgent):
         @param recursion   True to initialize children.
 
         """
-        if self._plat_config is None:
-            msg = "PlatformAgent._initialize: 'platform_config must have been provided"
-            log.error(msg)
-            raise PlatformConfigurationException(msg)
 
         log.info("%r: _initializing with provided platform_config...",
                  self._plat_config['platform_id'])
