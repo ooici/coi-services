@@ -354,6 +354,11 @@ class RSNPlatformDriver(PlatformDriver):
         """
         return self._pnode.subplatforms.keys()
 
+    def get_attributes(self):
+        attrs = self._driver_config.get('attributes', {})
+        log.debug("%r: get_attributes=%s", self._platform_id, attrs)
+        return attrs
+
     def get_attribute_values(self, attrs):
         """
         """

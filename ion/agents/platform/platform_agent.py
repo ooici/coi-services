@@ -375,20 +375,6 @@ class PlatformAgent(ResourceAgent):
 
         self._children_resource_ids = self._get_children_resource_ids()
 
-        #
-        # set platform attributes:
-        #
-        if 'attributes' in self._driver_config:
-            attrs = self._driver_config['attributes']
-            self._platform_attributes = attrs
-            log.debug("%r: platform attributes taken from driver_config: %s",
-                      self._platform_id, self._platform_attributes)
-        else:
-            self._platform_attributes = dict((attr.attr_id, attr.defn) for attr
-                                             in self._pnode.attrs.itervalues())
-            log.warn("%r: platform attributes taken from network definition: %s",
-                     self._platform_id, self._platform_attributes)
-
         if 'ports' in self._driver_config:
             # Remove this device from the ports information, the driver does not use this
             platform_port = self._driver_config['ports'].pop(self.resource_id, None)
@@ -880,15 +866,6 @@ class PlatformAgent(ResourceAgent):
             raise PlatformDriverException(msg)
         kwargs = dict(attrs=attrs)
         result = self._plat_driver.get_resource(**kwargs)
-        return result
-
-    def _set_attribute_values(self, attrs):
-        if self._plat_driver is None:
-            msg = "PlatformAgent._set_attribute_values: _create_driver must be called first"
-            log.error(msg)
-            raise PlatformDriverException(msg)
-        kwargs = dict(attrs=attrs)
-        result = self._plat_driver.set_resource(**kwargs)
         return result
 
     ##############################################################
@@ -2923,7 +2900,6 @@ class PlatformAgent(ResourceAgent):
         self._clear_this_platform()
         return None
 
-
     def _start_resource_monitoring(self, recursion):
         """
         Starts resource monitoring.
@@ -2943,6 +2919,10 @@ class PlatformAgent(ResourceAgent):
                 the corresp children.
         """
 
+        if self._plat_driver is None:
+            msg = "%r: _start_resource_monitoring: _create_driver must be called first" % self._platform_id
+            log.error(msg)
+            raise PlatformDriverException(msg)
 
         if recursion:
             # first sub-platforms:
@@ -2959,13 +2939,9 @@ class PlatformAgent(ResourceAgent):
                           "instruments_with_errors=%s",
                           self._platform_id, subplatforms_with_errors, instruments_with_errors)
 
-        if self._plat_driver is None:
-            msg = "PlatformAgent._start_resource_monitoring: _create_driver must be called first"
-            log.error(msg)
-            raise PlatformDriverException(msg)
-
+        platform_attributes = self._plat_driver.get_attributes()
         self._platform_resource_monitor = PlatformResourceMonitor(
-            self._platform_id, self._platform_attributes,
+            self._platform_id, platform_attributes,
             self._get_attribute_values, self.evt_recv)
 
         self._platform_resource_monitor.start_resource_monitoring()
