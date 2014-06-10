@@ -21,12 +21,12 @@ __license__ = 'Apache 2.0'
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
 from ion.agents.platform.platform_agent_enums import PlatformAgentState
-from ion.agents.platform.util.network_util import NetworkUtil
 
 from interface.objects import AgentCommand
 
 from pyon.public import log, CFG
 
+import time
 from gevent import sleep
 from mock import patch
 from unittest import skipIf
@@ -105,6 +105,36 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             log.warn('[mm] _await_mission_completion: timeout, elapsed=%s, '
                      'still in state=%s', elapsed, mission_state)
 
+    def _get_processed_yml(self, instr_keys, mission_filename):
+        # TODO determine appropriate instrument identification mechanism as the
+        # instrument keys (like SBE37_SIM_02) are basically only known in
+        # the scope of the tests. In the following, we transform the mission
+        # file so the instrument keys are replaced by the corresponding
+        # instrument_device_id's:
+        with open(mission_filename) as f:
+            mission_yml = f.read()
+        for instr_key in instr_keys:
+            i_obj = self._get_instrument(instr_key)
+            resource_id = i_obj.instrument_device_id
+            log.debug('[mm] replacing %s to %s', instr_key, resource_id)
+            mission_yml = mission_yml.replace(instr_key, resource_id)
+        log.debug('[mm] mission_yml=%s', mission_yml)
+        return mission_yml
+
+    def _start_everything_up(self, instr_keys, in_command_state):
+        """
+        """
+        p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+        self._run_startup_commands()
+
+        if not in_command_state:
+            self._start_resource_monitoring()
+
+        return p_root
+
     def _test_simple_mission(self, instr_keys, mission_filename, in_command_state, max_wait=None):
         """
         Verifies mission execution, mainly as coordinated from platform agent
@@ -127,39 +157,15 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         """
         self._set_receive_timeout()
 
+        self._start_everything_up(instr_keys, in_command_state)
+        mission_yml = self._get_processed_yml(instr_keys, mission_filename)
+
         if in_command_state:
             base_state    = PlatformAgentState.COMMAND
             mission_state = PlatformAgentState.MISSION_COMMAND
         else:
             base_state    = PlatformAgentState.MONITORING
             mission_state = PlatformAgentState.MISSION_STREAMING
-
-        # start everything up to platform agent in COMMAND state.
-        p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
-        self._start_platform(p_root)
-        self.addCleanup(self._stop_platform, p_root)
-        self.addCleanup(self._run_shutdown_commands)
-        self._run_startup_commands()
-
-        if not in_command_state:
-            self._start_resource_monitoring()
-
-        # now prepare and run mission:
-
-        # TODO determine appropriate instrument identification mechanism as the
-        # instrument keys (like SBE37_SIM_02) are basically only known in
-        # the scope of the tests. In the following, we transform the mission
-        # file so the instrument keys are replaced by the corresponding
-        # instrument_device_id's:
-
-        with open(mission_filename) as f:
-            mission_yml = f.read()
-        for instr_key in instr_keys:
-            i_obj = self._get_instrument(instr_key)
-            resource_id = i_obj.instrument_device_id
-            log.debug('[mm] replacing %s to %s', instr_key, resource_id)
-            mission_yml = mission_yml.replace(instr_key, resource_id)
-        log.debug('[mm] mission_yml=%s', mission_yml)
 
         # prepare to receive expected mission events:
         async_event_result, events_received = self._start_event_subscriber2(
@@ -221,23 +227,10 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         mission_state = PlatformAgentState.MISSION_COMMAND
 
         # start everything up to platform agent in COMMAND state.
-        # Instruments launched here are the ones referenced in the mission
-        # file below.
-        p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
-        self._start_platform(p_root)
-        self.addCleanup(self._stop_platform, p_root)
-        self.addCleanup(self._run_shutdown_commands)
-        self._run_startup_commands()
+        self._start_everything_up(instr_keys, True)
 
         for mission_filename in mission_filenames:
-            with open(mission_filename) as f:
-                mission_yml = f.read()
-            for instr_key in instr_keys:
-                i_obj = self._get_instrument(instr_key)
-                resource_id = i_obj.instrument_device_id
-                log.debug('[mm] replacing %s to %s', instr_key, resource_id)
-                mission_yml = mission_yml.replace(instr_key, resource_id)
-            log.debug('[mm] mission_yml=%s', mission_yml)
+            mission_yml = self._get_processed_yml(instr_keys, mission_filename)
             self._run_mission(mission_filename, mission_yml)
 
         state = self._get_state()
@@ -262,14 +255,48 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
     def test_simple_mission_streaming_state(self):
         #
         # With mission plan to be started in MONITORING state.
+        # Should receive 6 events from mission executive. For this it waits
+        # for 3 mins for duration of mission plus some tolerance.
         #
-        events_received = self._test_simple_mission(
-            ['SBE37_SIM_02'],
-            "ion/agents/platform/test/mission_RSN_simulator0S.yml",
-            in_command_state=True,
-            max_wait=200 + 300)
-        # Should receive 6 events from mission executive if successful
+        self._set_receive_timeout()
+
+        instr_keys = ['SBE37_SIM_02']
+        mission_filename = "ion/agents/platform/test/mission_RSN_simulator0S.yml"
+        self._start_everything_up(instr_keys, False)
+        mission_yml = self._get_processed_yml(instr_keys, mission_filename)
+
+        async_event_result, events_received = self._start_event_subscriber2(
+            count=6,
+            event_type="MissionLifecycleEvent",
+            origin_type="PlatformDevice"
+        )
+        log.debug('[mm] mission event subscriber started')
+
+        self._run_mission(mission_filename, mission_yml)
+
+        log.debug('[mm] waiting for expected MissionLifecycleEvents')
+        started = time.time()
+        async_event_result.get(timeout=180 + 60)
+        log.debug('[mm] got %d events (waited for %s):\n%s',
+                  len(events_received),
+                  time.time() - started,
+                  self._pp.pformat(events_received))
         self.assertEqual(len(events_received), 6)
+
+        expected = [
+            {'sub_type': 'STARTING', 'mission_thread_id': ''},
+            {'sub_type': 'STARTED',  'mission_thread_id': ''},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0'}, # 'Mission thread 0 has started'
+            {'sub_type': 'STARTED',  'mission_thread_id': '0'}, # 'MissionSequence starting...'
+            {'sub_type': 'STOPPED',  'mission_thread_id': '0'},
+            {'sub_type': 'STOPPED',  'mission_thread_id': ''},
+        ]
+        for i, expected_event in enumerate(expected):
+            received = events_received[i]
+            received_event = {
+                'sub_type': received.sub_type,
+                'mission_thread_id': received.mission_thread_id}
+            self.assertEqual(expected_event, received_event)
 
     def test_multiple_missions(self):
         #
