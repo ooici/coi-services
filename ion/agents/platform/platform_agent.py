@@ -1874,16 +1874,6 @@ class PlatformAgent(ResourceAgent):
     def _execute_instrument_agent(self, a_client, cmd, sub_id):
         return self._execute_agent("instrument", a_client, cmd, sub_id)
 
-    def _get_instrument_ids(self):
-        """
-        Gets the IDs of my instruments as given from configuration time.
-        Note that during regular operations, child devices can come and go
-        depending of error conditions, etc.; so for the current corresponding
-        IDs (in the case of instruments), use self._ia_clients.keys(). See for
-        example _instruments_execute_agent, _instruments_shutdown_and_terminate.
-        """
-        return self._pnode.instruments.keys()
-
     def _ping_instrument(self, instrument_id):
         log.debug("%r: _ping_instrument -> %r",
                   self._platform_id, instrument_id)
@@ -1954,7 +1944,7 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_instrument_agent(self, instrument_id):
         """
-        Launches an instrument agent (f not already running).
+        Launches an instrument agent (if not already running).
         It creates corresponding ResourceAgentClient,
         and publishes device_added event.
 
@@ -2044,7 +2034,7 @@ class PlatformAgent(ResourceAgent):
         ResourceAgentClient objects in _ia_clients.
         """
         self._ia_clients.clear()
-        instrument_ids = self._get_instrument_ids()
+        instrument_ids = self._pnode.instruments.keys()
         if len(instrument_ids):
             log.debug("%r: launching instruments %s", self._platform_id, instrument_ids)
             for instrument_id in instrument_ids:
@@ -2054,13 +2044,13 @@ class PlatformAgent(ResourceAgent):
 
     def _instruments_initialize(self):
         """
-        Initializes all my configured instruments.
+        Initializes all my launched not-invalidated instruments.
 
         Note that invalidated children are ignored.
 
         @return dict with failing children. Empty if all ok.
         """
-        instrument_ids = self._get_instrument_ids()
+        instrument_ids = self._ia_clients.keys()
         children_with_errors = {}
 
         if not len(instrument_ids):
@@ -2091,6 +2081,8 @@ class PlatformAgent(ResourceAgent):
     def _instruments_execute_agent(self, command, expected_state):
         """
         Supporting routine for various commands sent to instruments.
+        Executes a command on instruments that have been launched and not
+        currently invalidated.
 
         If expected_state is not None, the command will actually NOT be issued
         against a child agent if that child is already in this state,
