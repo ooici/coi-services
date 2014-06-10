@@ -111,19 +111,6 @@ class MissionManager(object):
             log.debug('[mm] completed mission_id=%r (#running missions=%s)',
                       mission_id, len(self._running_missions))
 
-    def external_event_received(self, evt):
-        # TODO remove this method -- it was decided unneeded: any object
-        # interested in reacting to events just subscribe to those directly,
-        # as opposed to try to duplicate its dispatching as this method
-        # would be trying to do.
-        """
-        Notifies all running missions about the received event.
-        """
-        log.debug('[mm] Notifying %s missions about external_event_received: %s. ',
-                  len(self._running_missions), evt)
-        # for scheduler in self._running_missions.itervalues():
-        #     scheduler.event_received(evt)
-
     def abort_mission(self, mission_id):
         if mission_id not in self._running_missions:
             raise BadRequest('abort_mission: invalid mission_id=%r', mission_id)

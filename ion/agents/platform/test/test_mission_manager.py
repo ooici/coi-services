@@ -21,13 +21,12 @@ __license__ = 'Apache 2.0'
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
 from ion.agents.platform.platform_agent_enums import PlatformAgentState
-from ion.agents.platform.util.network_util import NetworkUtil
 
 from interface.objects import AgentCommand
 
 from pyon.public import log, CFG
 
-from gevent import sleep
+import time
 from mock import patch
 from unittest import skipIf
 import os
@@ -84,28 +83,36 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         retval = self._execute_agent(cmd)
         log.debug('[mm] _run_mission mission_id=%s: RUN_MISSION return: %s', mission_id, retval)
 
-    def _await_mission_completion(self, mission_state, max_wait=None):
-        """
-        @param mission_state  The mission that we are waiting to leave
-        @param max_wait       maximum wait; no effect if None
-        """
-        step = 5
-        elapsed = 0
-        while (max_wait is None or elapsed < max_wait) and mission_state == self._get_state():
-            sleep(step)
-            elapsed += step
-            if elapsed % 20 == 0:
-                log.debug('[mm] _await_mission_completion: waiting, elapsed=%s', elapsed)
+    def _get_processed_yml(self, instr_keys, mission_filename):
+        # TODO determine appropriate instrument identification mechanism as the
+        # instrument keys (like SBE37_SIM_02) are basically only known in
+        # the scope of the tests. In the following, we transform the mission
+        # file so the instrument keys are replaced by the corresponding
+        # instrument_device_id's:
+        with open(mission_filename) as f:
+            mission_yml = f.read()
+        for instr_key in instr_keys:
+            i_obj = self._get_instrument(instr_key)
+            resource_id = i_obj.instrument_device_id
+            log.debug('[mm] replacing %s to %s', instr_key, resource_id)
+            mission_yml = mission_yml.replace(instr_key, resource_id)
+        log.debug('[mm] mission_yml=%s', mission_yml)
+        return mission_yml
 
-        state = self._get_state()
-        if mission_state != state:
-            log.info('[mm] _await_mission_completion: completed, elapsed=%s, '
-                     'transitioned from=%s to=%s', elapsed, mission_state, state)
-        else:
-            log.warn('[mm] _await_mission_completion: timeout, elapsed=%s, '
-                     'still in state=%s', elapsed, mission_state)
+    def _start_everything_up(self, instr_keys, up_to_command_state):
+        p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self.addCleanup(self._run_shutdown_commands)
+        self._run_startup_commands()
 
-    def _test_simple_mission(self, instr_keys, mission_filename, in_command_state, max_wait=None):
+        if not up_to_command_state:
+            self._start_resource_monitoring()
+
+        return p_root
+
+    def _test_mission(self, instr_keys, mission_filename, in_command_state,
+                      expected_events, max_wait):
         """
         Verifies mission execution, mainly as coordinated from platform agent
         and with some verifications related with expected mission event
@@ -115,92 +122,80 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
                     Instruments to associate with parent platform; these
                     should be ones referenced in the mission plan.
         @param mission_filename
+                    The mission plan
         @param in_command_state
                     True to start mission execution in COMMAND state.
                     False to start mission execution in MONITORING state.
+        @param expected_events
+                    Can be a number or a list of dicts:
+                        [{'sub_type': x, 'mission_thread_id': x}, ...]
         @param max_wait
-                    maximum wait for mission completion; no effect if None.
-                    Actual argument in the tests is based on local tests plus
-                    some extra time mainly for buildbot. The extra time is rather
-                    large due to the high variability in the execution elapsed
-                    time. In any case, we want to avoid waiting forever.
+                    Max wait to receive the expected events
         """
         self._set_receive_timeout()
 
-        if in_command_state:
-            base_state    = PlatformAgentState.COMMAND
-            mission_state = PlatformAgentState.MISSION_COMMAND
-        else:
-            base_state    = PlatformAgentState.MONITORING
-            mission_state = PlatformAgentState.MISSION_STREAMING
-
-        # start everything up to platform agent in COMMAND state.
-        p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
-        self._start_platform(p_root)
-        self.addCleanup(self._stop_platform, p_root)
-        self.addCleanup(self._run_shutdown_commands)
-        self._run_startup_commands()
-
-        if not in_command_state:
-            self._start_resource_monitoring()
-
-        # now prepare and run mission:
-
-        # TODO determine appropriate instrument identification mechanism as the
-        # instrument keys (like SBE37_SIM_02) are basically only known in
-        # the scope of the tests. In the following, we transform the mission
-        # file so the instrument keys are replaced by the corresponding
-        # instrument_device_id's:
-
-        with open(mission_filename) as f:
-            mission_yml = f.read()
-        for instr_key in instr_keys:
-            i_obj = self._get_instrument(instr_key)
-            resource_id = i_obj.instrument_device_id
-            log.debug('[mm] replacing %s to %s', instr_key, resource_id)
-            mission_yml = mission_yml.replace(instr_key, resource_id)
-        log.debug('[mm] mission_yml=%s', mission_yml)
+        p_root = self._start_everything_up(instr_keys, in_command_state)
+        mission_yml = self._get_processed_yml(instr_keys, mission_filename)
 
         # prepare to receive expected mission events:
+        no_expected_events = len(expected_events) if isinstance(expected_events, list) else expected_events
         async_event_result, events_received = self._start_event_subscriber2(
-            count=1,
+            count=no_expected_events,
             event_type="MissionLifecycleEvent",
-            origin_type="PlatformDevice"
-        )
-        log.info('[mm] mission event subscriber started')
+            cb=lambda evt, *args, **kwargs: log.debug('MissionLifecycleEvent received: %s', evt),
+            origin_type="PlatformDevice",
+            origin=p_root.platform_device_id)
 
-        # now run mission:
-        mission_id = mission_filename
-        self._run_mission(mission_id, mission_yml)
+        # prepare to receive the two state transition events
+        #  - when transitioning to mission state
+        #  - when transitioning back to base state
+        origin = p_root.platform_device_id
+        trans_async_event_result, trans_events_received = self._start_event_subscriber2(
+            count=2,
+            event_type="ResourceAgentStateEvent",
+            cb=lambda evt, *args, **kwargs: log.debug('ResourceAgentStateEvent received: %s', evt),
+            origin_type="PlatformDevice",
+            origin=origin)
 
-        state = self._get_state()
-        if state == mission_state:
-            # ok, this is the general expected behaviour here as typical
-            # mission plans should at least take several seconds to complete;
-            # now wait until mission is completed:
-            self._await_mission_completion(mission_state, max_wait)
-        # else: mission completed/failed very quickly; we should be
-        # back in the base state, as verified below in general.
+        log.debug('[mm] waiting for %s expected MissionLifecycleEvents from origin=%r', no_expected_events, origin)
+        log.debug('[mm] waiting for %s expected ResourceAgentStateEvents from origin=%r', 2, origin)
 
-        # verify we are back to the base_state:
-        self._assert_state(base_state)
+        self._run_mission(mission_filename, mission_yml)
+        try:
+            started = time.time()
+            async_event_result.get(timeout=max_wait)
+            log.debug('[mm] got %d MissionLifecycleEvents (%s secs):\n%s',
+                      len(events_received),
+                      time.time() - started,
+                      self._pp.pformat(events_received))
+            self.assertEqual(len(events_received), no_expected_events)
 
-        # verify reception of event:
-        # NOTE: for initial test at the moment just expect at least one such event.
-        # TODO but there are more that should be verified (started, stopped...)
-        async_event_result.get(timeout=self._receive_timeout)
-        self.assertGreaterEqual(len(events_received), 1)
-        log.info('[mm] mission events received: (%d): %s', len(events_received), events_received)
-
-        if not in_command_state:
-            self._stop_resource_monitoring()
-
-        return events_received
+            if isinstance(expected_events, list):
+                # compare each event based on given fields:
+                for i, expected_event in enumerate(expected_events):
+                    received_event = {}
+                    for key in expected_event.keys():
+                        self.assertIn(key, events_received[i])
+                        received_event[key] = events_received[i][key]
+                    self.assertEqual(expected_event, received_event)
+        finally:
+            try:
+                trans_async_event_result.get(timeout=max_wait)
+                log.debug('[mm] got %d ResourceAgentStateEvents:\n%s',
+                          len(trans_events_received),
+                          self._pp.pformat(trans_events_received))
+                self.assertGreaterEqual(len(trans_events_received), 2)
+            finally:
+                if not in_command_state:
+                    self._stop_resource_monitoring()
 
     def _test_multiple_missions(self, instr_keys, mission_filenames, max_wait=None):
         """
         Verifies platform agent can dispatch execution of multiple missions.
-        No explicit verifications in the test, but the logs should show lines
+        Should receive 2 ResourceAgentStateEvents from the platform:
+         - when transitioning to MISSION_COMMAND (upon first mission execition started)
+         - when transitioning back to COMMAND
+        No other explicit verifications, but the logs should show lines
         like the following where the number of running missions is included:
 
         DEBUG Dummy-204 ion.agents.platform.mission_manager:58 [mm] starting mission_id='ion/agents/platform/test/multi_mission_1.yml' (#running missions=1)
@@ -217,59 +212,60 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         """
         self._set_receive_timeout()
 
-        base_state    = PlatformAgentState.COMMAND
-        mission_state = PlatformAgentState.MISSION_COMMAND
-
         # start everything up to platform agent in COMMAND state.
-        # Instruments launched here are the ones referenced in the mission
-        # file below.
-        p_root = self._set_up_single_platform_with_some_instruments(instr_keys)
-        self._start_platform(p_root)
-        self.addCleanup(self._stop_platform, p_root)
-        self.addCleanup(self._run_shutdown_commands)
-        self._run_startup_commands()
+        p_root = self._start_everything_up(instr_keys, True)
+
+        origin = p_root.platform_device_id
+        async_event_result, events_received = self._start_event_subscriber2(
+            count=2,
+            event_type="ResourceAgentStateEvent",
+            origin_type="PlatformDevice",
+            origin=origin)
 
         for mission_filename in mission_filenames:
-            with open(mission_filename) as f:
-                mission_yml = f.read()
-            for instr_key in instr_keys:
-                i_obj = self._get_instrument(instr_key)
-                resource_id = i_obj.instrument_device_id
-                log.debug('[mm] replacing %s to %s', instr_key, resource_id)
-                mission_yml = mission_yml.replace(instr_key, resource_id)
-            log.debug('[mm] mission_yml=%s', mission_yml)
+            mission_yml = self._get_processed_yml(instr_keys, mission_filename)
             self._run_mission(mission_filename, mission_yml)
 
-        state = self._get_state()
-        if state == mission_state:
-            self._await_mission_completion(mission_state, max_wait)
-
-        # verify we are back to the base_state:
-        self._assert_state(base_state)
+        log.debug('[mm] waiting for %s expected MissionLifecycleEvents from origin=%r', 2, origin)
+        started = time.time()
+        async_event_result.get(timeout=max_wait)
+        log.debug('[mm] got %d events (%s secs):\n%s',
+                  len(events_received),
+                  time.time() - started,
+                  self._pp.pformat(events_received))
+        self.assertEqual(len(events_received), 2)
 
     def test_simple_mission_command_state(self):
         #
         # With mission plan to be started in COMMAND state.
+        # Should receive 6 events from mission executive if successful
         #
-        events_received = self._test_simple_mission(
+        self._test_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator0C.yml",
             in_command_state=True,
+            expected_events=6,
             max_wait=200 + 300)
-        # Should receive 6 events from mission executive if successful
-        self.assertEqual(len(events_received), 6)
 
     def test_simple_mission_streaming_state(self):
         #
         # With mission plan to be started in MONITORING state.
+        # Should receive 6 events from mission executive. For this it waits
+        # for 3 mins for duration of mission plus some tolerance.
         #
-        events_received = self._test_simple_mission(
-            ['SBE37_SIM_02'],
-            "ion/agents/platform/test/mission_RSN_simulator0S.yml",
-            in_command_state=True,
-            max_wait=200 + 300)
-        # Should receive 6 events from mission executive if successful
-        self.assertEqual(len(events_received), 6)
+        instr_keys = ['SBE37_SIM_02']
+        mission_filename = "ion/agents/platform/test/mission_RSN_simulator0S.yml"
+
+        expected_events = [
+            {'sub_type': 'STARTING', 'mission_thread_id': ''},
+            {'sub_type': 'STARTED',  'mission_thread_id': ''},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0'},  # 'Mission thread 0 has started'
+            {'sub_type': 'STARTED',  'mission_thread_id': '0'},  # 'MissionSequence starting...'
+            {'sub_type': 'STOPPED',  'mission_thread_id': '0'},
+            {'sub_type': 'STOPPED',  'mission_thread_id': ''}]
+        max_wait = 180 + 60
+
+        self._test_mission(instr_keys, mission_filename, False, expected_events, max_wait)
 
     def test_multiple_missions(self):
         #
@@ -285,50 +281,50 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         #
         # Test TURN_ON_PORT and TURN_OFF_PORT
         # Mission plan to be started in COMMAND state.
+        # Should receive 6 events from mission executive if successful
         #
-        events_received = self._test_simple_mission(
+        self._test_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator_ports.yml",
             in_command_state=True,
+            expected_events=6,
             max_wait=200 + 300)
-        # Should receive 6 events from mission executive if successful
-        self.assertEqual(len(events_received), 6)
 
     def test_mission_abort(self):
         #
         # Intentially invalid mission file
         # Mission plan to be started in COMMAND state.
+        # Should receive 6 events from mission executive if successful
         #
-        events_received = self._test_simple_mission(
+        self._test_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator_abort.yml",
             in_command_state=True,
+            expected_events=6,
             max_wait=200 + 300)
-        # Should receive 6 events from mission executive if successful
-        self.assertEqual(len(events_received), 6)
 
     def test_mission_multiple_instruments(self):
         #
         # Multiple instruments example
         # Mission plan to be started in COMMAND state.
+        # Should receive 10 events from mission executive if successful
         #
-        events_received = self._test_simple_mission(
+        self._test_mission(
             ['SBE37_SIM_02', 'SBE37_SIM_03'],
             "ion/agents/platform/test/mission_RSN_simulator_multiple_threads.yml",
             in_command_state=True,
+            expected_events=9,
             max_wait=200 + 300)
-        # Should receive 10 events from mission executive if successful
-        self.assertEqual(len(events_received), 10)
 
     def test_simple_event_driven_mission(self):
         #
         # Event driven mission example
         # Mission plan to be started in COMMAND state.
+        # Should receive 9 events from mission executive if successful
         #
-        events_received = self._test_simple_mission(
+        self._test_mission(
             ['SBE37_SIM_02', 'SBE37_SIM_03'],
             "ion/agents/platform/test/mission_RSN_simulator_event.yml",
             in_command_state=True,
+            expected_events=9,
             max_wait=200 + 300)
-        # Should receive 9 events from mission executive if successful
-        self.assertEqual(len(events_received), 9)

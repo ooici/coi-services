@@ -949,17 +949,12 @@ class PlatformAgent(ResourceAgent):
     def _handle_external_event_driver_event(self, driver_event):
         """
         Dispatches any needed handling arising from the external the event.
-        At the moment it only notifies the mission manager for any handling
-        there.
         """
-        # TODO any additional handling
+        # TODO any needed external event dispatch handling.
 
         evt = driver_event.event_instance
 
-        log.debug("%r: handling external platform event: %s", self._platform_id, evt)
-
-        if self._mission_manager:
-            self._mission_manager.external_event_received(evt)
+        # log.debug("%r: handling external platform event: %s", self._platform_id, evt)
 
     def _async_driver_event_agent_event(self, event):
         """
@@ -3557,7 +3552,7 @@ class PlatformAgent(ResourceAgent):
             raise FSMError('mission_run: missing mission_yml argument')
 
         curr_state = self.get_agent_state()
-        if curr_state in [PlatformAgentState.COMMAND, PlatformAgentState.MISSION_STREAMING]:
+        if curr_state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
             # save state to return to when all mission executions are completed
             self._pre_mission_state = curr_state
 

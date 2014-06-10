@@ -150,7 +150,7 @@ class OmsTestMixin(HelperTestMixin):
             log.info("port.turn_off_platform_port(%r,%r,%r) => %s" % (platform_id, port_id, src, retval))
             portRes = self._verify_valid_platform_id(platform_id, retval)
             res = self._verify_valid_port_id(port_id, portRes)
-            self.assertEquals(res, NormalResponse.PORT_TURNED_OFF)
+            self.assertIn(res, [NormalResponse.PORT_ALREADY_OFF, NormalResponse.PORT_TURNED_OFF])
 
     def test_ao_turn_off_platform_port_invalid_platform_id(self):
         # use valid for get_platform_ports

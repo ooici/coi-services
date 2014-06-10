@@ -444,7 +444,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._event_subscribers.append(sub)
         sub._ready_event.wait(timeout=EVENT_TIMEOUT)
 
-    def _start_event_subscriber2(self, count, event_type, **kwargs):
+    def _start_event_subscriber2(self, count, event_type, cb=None, **kwargs):
         """
         Starts an event subscriber to expect the given number of events of the
         given event_type.
@@ -454,6 +454,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         @param count       number of event that should be received
         @param event_type  desired event type
+        @param cb          mainly for logging purposes for the caller
         @param kwargs      other arguments for EventSubscriber constructor
 
         @return (async_event_result, events_received)  Use these to wait
@@ -466,6 +467,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             # A callback for consuming events.
             if evt.type_ != event_type:
                 return
+            if cb:
+                cb(evt, args, kwargs)
             log.info('Event subscriber received evt: %s.', str(evt))
             events_received.append(evt)
             if count == 0:
