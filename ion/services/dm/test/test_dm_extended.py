@@ -1387,7 +1387,7 @@ def rotate_v(u,v,theta):
         event.set()
         g.join()
 
-    @attr("UTIL")
+    @attr("INT")
     def test_complex_stubs(self):
         params = {
             "time" : {
@@ -1405,18 +1405,24 @@ def rotate_v(u,v,theta):
                 "units" : "1"
             }
         }
-        data_product = DataProduct('test_complex_stubs', category=DataProductTypeEnum.SITE)
+        # Make the device data product
+        device_data_product = DataProduct('The Gibson') # Category defaults to device
+        device_data_product_id = self.data_product_from_params(device_data_product, params)
+        # Creates the dataset and the ingestion worker
+        self.data_product_management.activate_data_product_persistence(device_data_product_id)
+        device_dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(device_data_product_id)
 
+        # Make the site data product
+        data_product = DataProduct('Garbage File', category=DataProductTypeEnum.SITE)
         data_product_id = self.data_product_from_params(data_product, params)
         self.data_product_management.create_dataset_for_data_product(data_product_id)
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
 
-        self.preload_ui()
-        self.launch_ui_facepage(data_product_id)
-        breakpoint(locals(), globals())
+        self.dataset_management.add_dataset_window_to_complex(device_dataset_id, (20, 40), dataset_id)
+
 
 
     def data_product_from_params(self, data_product, param_struct):
-        name = data_product.name
 
         param_dict = {}
         for name,param in param_struct.iteritems():
@@ -1424,10 +1430,8 @@ def rotate_v(u,v,theta):
             p_id = self.dataset_management.create_parameter(ctx)
             param_dict[name] = p_id
 
-        pdict_id = self.dataset_management.create_parameter_dictionary(name, param_dict.values(), 'time')
-
-        stream_def_id = self.pubsub_management.create_stream_definition(name, parameter_dictionary_id=pdict_id)
-
+        pdict_id = self.dataset_management.create_parameter_dictionary(data_product.name, param_dict.values(), 'time')
+        stream_def_id = self.pubsub_management.create_stream_definition(data_product.name, parameter_dictionary_id=pdict_id)
         data_product_id = self.data_product_management.create_data_product(data_product, stream_definition_id=stream_def_id)
         
         return data_product_id
