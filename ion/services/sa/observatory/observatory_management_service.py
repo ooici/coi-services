@@ -673,12 +673,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             log.info("Removing geo and updating temporal attrs for device '%s'", device_id)
             self._update_device_remove_geo_update_temporal(device_id, temp_constraint)
 
-            primary_d = self.RR.get_association(subject=device_id,  predicate=PRED.hasPrimaryDeployment, object=deployment_id)
-            if primary_d:
-                self.RR.delete_association(primary_d)
-            primary_s = self.RR.get_association(subject=site_id,    predicate=PRED.hasPrimaryDeployment, object=deployment_id)
-            if primary_s:
-                self.RR.delete_association(primary_s)
+            # Sever the connection between dev/site and the primary deployment
+            assocs = self.clients.resource_registry.find_associations(device_id, PRED.hasPrimaryDeployment, deployment_id)
+            for assoc in assocs:
+                self.RR.delete_association(assoc)
+            assocs = self.clients.resource_registry.find_associations(site_id, PRED.hasPrimaryDeployment, deployment_id)
+            for assoc in assocs:
+                self.RR.delete_association(assoc)
 
         # process the additions
         for site_id, device_id in pairs_to_add:
