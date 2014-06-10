@@ -10,6 +10,8 @@ import gevent
 import yaml
 import time
 from time import gmtime
+import pytz
+from datetime import datetime
 
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
@@ -96,6 +98,24 @@ class MissionLoader(object):
     def delete_entry(self, id_):
         self.mission_entries.pop(id_)
 
+    def convert_to_utc_from_timezone(self, seconds_from_epoch, tz):
+        """
+        Convert user defined time zone to UTC
+        @param seconds_from_epoch   Start time in seconds from epoch in timezone
+        @param tz                   Timezone from pytz.all_timezones
+        return                      Time in UTC seconds from epoch
+        """
+        if tz in pytz.all_timezones:
+            user_timezone = pytz.timezone(tz)
+        else:
+            raise Exception('Time Zone not recognized')
+        # Get the time string into the user defined time zone
+        local_dt = user_timezone.localize(datetime.utcfromtimestamp(seconds_from_epoch))
+        # Convert to UTC datetime
+        utc_dt = local_dt.astimezone(pytz.utc)
+        # Return as seconds from the epoch
+        return calendar.timegm(utc_dt.timetuple())
+
     def calculate_next_interval(self, id_):
         current_time = time.time()
         start_time = self.mission_entries[id_]["start_time"]
@@ -118,14 +138,22 @@ class MissionLoader(object):
         Check mission start time
         """
         start_time_string = schedule['startTime']
+        tz = schedule['timeZone']
         if not start_time_string or start_time_string.lower() == 'none':
             start_time = None
         else:
             try:
-                # Get start time
                 start_time = calendar.timegm(time.strptime(start_time_string, '%m/%d/%Y %H:%M:%S'))
-                current_time = time.time()
+            except ValueError:
+                self.publish_mission_loader_error_event('MissionLoader: validate_schedule: startTime format error')
+                # log.error("MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
+                log.error("[mm] MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
+                raise Exception('MissionLoader: validate_schedule: startTime format error')
+            else:
+                if tz:
+                    start_time = self.convert_to_utc_from_timezone(start_time, tz)
 
+                current_time = time.time()
                 # Compare mission start time to current time
                 if (current_time > start_time):
                     if loop_duration > 0:
@@ -134,11 +162,6 @@ class MissionLoader(object):
                     else:
                         log.debug("[mm] MissionLoader: validate_schedule: Start time has already elapsed")
                         # raise
-
-            except ValueError:
-                self.publish_mission_loader_error_event('MissionLoader: validate_schedule: startTime format error')
-                # log.error("MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
-                log.error("[mm] MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
 
             log.debug("[mm] Current time is: %s", time.strftime("%Y-%m-%d %H:%M:%S", gmtime(current_time)))
             log.debug("[mm] Start time is: %s", time.strftime("%Y-%m-%d %H:%M:%S", gmtime(start_time)))

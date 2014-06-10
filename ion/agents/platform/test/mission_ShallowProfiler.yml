@@ -12,6 +12,7 @@ mission:
       maxRetries: 3
     schedule:
       startTime: 05/02/2014 00:00:00
+      timeZone:
       loop:
         quantity: -1   # No. of loops (-1 for infinite)
         value: 1      # Repeat missionParams every 'xx' 'units'
@@ -61,6 +62,7 @@ mission:
       maxRetries: 3
     schedule:
       startTime:
+      timeZone:
       loop:
         quantity:
         value:
@@ -83,6 +85,7 @@ mission:
       maxRetries: 3
     schedule:
       startTime:
+      timeZone:
       loop:
         quantity:
         value:
@@ -111,6 +114,7 @@ mission:
       maxRetries: 3
     schedule:
       startTime:
+      timeZone:
       loop:
         quantity:
         value:

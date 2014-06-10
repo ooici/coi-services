@@ -22,6 +22,7 @@ mission:
       maxRetries: 3
     schedule:  # Run missionThread every 24 hours starting at 00:00
       startTime: 06/01/2014 00:00:00
+      timeZone:
       loop:
         quantity: -1
         value: 24
@@ -79,6 +80,7 @@ mission:
       maxRetries: 3
     schedule:  # Run missionThread every 4 hours starting at 02:00
       startTime: 06/01/2014 02:00:00
+      timeZone:
       loop:
         quantity: -1
         value: 4
