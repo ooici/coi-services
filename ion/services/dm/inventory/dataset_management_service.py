@@ -40,6 +40,7 @@ import re
 import ast
 
 
+
 class DatasetManagementService(BaseDatasetManagementService):
     
     def __init__(self, *args, **kwargs):
@@ -95,10 +96,21 @@ class DatasetManagementService(BaseDatasetManagementService):
         log.debug('creating dataset: %s', dataset_id)
 
 
+
         #table loader create resource
-        if self._get_eoi_service_available():
-            log.debug('DM:create dataset: %s -- dataset_id: %s', dataset.name, dataset_id)
-            self._create_single_resource(dataset_id, parameter_dict)
+        if self._get_eoi_service_available() and parameter_dictionary_id:
+            params = self.read_parameter_contexts(parameter_dictionary_id)
+            param_defs = {}
+            for p in params:
+                param_defs[p.name] = {
+                    "value_encoding" : p.value_encoding,
+                    "parameter_type" : p.parameter_type,
+                    "units" : p.units,
+                    "standard_name" : p.name,
+                    "display_name" : p.display_name,
+                    "description" : p.description
+                }
+                self._create_single_resource(dataset_id, param_defs)
 
         self.clients.resource_registry.create_association(dataset_id, PRED.hasParameterDictionary, parameter_dictionary_id)
 
