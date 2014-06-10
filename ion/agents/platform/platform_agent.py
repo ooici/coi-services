@@ -949,17 +949,12 @@ class PlatformAgent(ResourceAgent):
     def _handle_external_event_driver_event(self, driver_event):
         """
         Dispatches any needed handling arising from the external the event.
-        At the moment it only notifies the mission manager for any handling
-        there.
         """
         # TODO any needed external event dispatch handling.
 
         evt = driver_event.event_instance
 
         # log.debug("%r: handling external platform event: %s", self._platform_id, evt)
-
-        if self._mission_manager:
-            self._mission_manager.external_event_received(evt)
 
     def _async_driver_event_agent_event(self, event):
         """
