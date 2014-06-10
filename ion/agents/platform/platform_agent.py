@@ -1270,9 +1270,10 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_platform_agent(self, subplatform_id):
         """
-        Launches a sub-platform agent (f not already running) and waits until
+        Launches a sub-platform agent (if not already running) and waits until
         the sub-platform transitions to UNINITIALIZED state.
         It creates corresponding ResourceAgentClient,
+        set entry self._pa_clients[subplatform_id],
         and publishes device_added event.
 
         The mechanism to detect whether the sub-platform agent is already
@@ -1444,19 +1445,13 @@ class PlatformAgent(ResourceAgent):
                                                                      err_msg)
         return err_msg
 
-    def _get_subplatform_ids(self):
-        """
-        Gets the IDs of my sub-platforms.
-        """
-        return self._pnode.subplatforms.keys()
-
     def _subplatforms_launch(self):
         """
-        Launches all my sub-platforms storing the corresponding
+        Launches all my configured sub-platforms storing the corresponding
         ResourceAgentClient objects in _pa_clients.
         """
         self._pa_clients.clear()
-        subplatform_ids = self._get_subplatform_ids()
+        subplatform_ids = self._pnode.subplatforms.keys()
         if len(subplatform_ids):
             log.debug("%r: launching subplatforms %s", self._platform_id, subplatform_ids)
             for subplatform_id in subplatform_ids:
@@ -1467,7 +1462,8 @@ class PlatformAgent(ResourceAgent):
 
     def _subplatforms_initialize(self):
         """
-        Initializes all my sub-platforms.
+        Initializes all my sub-platforms that have been launched and not
+        currently invalidated.
 
         Note that invalidated children are ignored.
 
@@ -1476,7 +1472,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _subplatforms_initialize. _pa_clients=%s",
                   self._platform_id, self._pa_clients)
 
-        subplatform_ids = self._get_subplatform_ids()
+        subplatform_ids = self._pa_clients.keys()
         children_with_errors = {}
 
         if not len(subplatform_ids):
@@ -1508,6 +1504,8 @@ class PlatformAgent(ResourceAgent):
                                     expected_state=None):
         """
         Supporting routine for various commands sent to sub-platforms.
+        Executes a command on sub-platforms that have been launched and not
+        currently invalidated
 
         Note that invalidated children are ignored.
 
@@ -1523,10 +1521,7 @@ class PlatformAgent(ResourceAgent):
         @return dict with children having caused some error. Empty if all
                 children were processed OK.
         """
-        subplatform_ids = self._get_subplatform_ids()
-        if set(subplatform_ids) != set(self._pa_clients.keys()) :
-            raise PlatformException("PlatformAgent._subplatforms_execute_agent: platform ids %s does not equal pa client ids %s ",
-                                    subplatform_ids, self._pa_clients.keys())
+        subplatform_ids = self._pa_clients.keys()
 
         children_with_errors = {}
 
@@ -1806,16 +1801,14 @@ class PlatformAgent(ResourceAgent):
 
     def _subplatforms_shutdown_and_terminate(self):
         """
-        Executes SHUTDOWN with recursion=True on all sub-platform and then
-        terminates those sub-platform process.
+        Executes SHUTDOWN with recursion=True on all sub-platforms that have
+        been launched and not currently invalidated, and then
+        terminates those sub-platform processes.
 
         @return dict with children having caused some error. Empty if all
                 children were processed OK.
         """
-        subplatform_ids = self._get_subplatform_ids()
-        if set(subplatform_ids) != set(self._pa_clients.keys()) :
-            raise PlatformException("PlatformAgent._subplatforms_shutdown_and_terminate: platform ids %s does not equal pa client ids %s ",
-                                    subplatform_ids, self._pa_clients.keys())
+        subplatform_ids = self._pa_clients.keys()
 
         children_with_errors = {}
         if len(subplatform_ids):
