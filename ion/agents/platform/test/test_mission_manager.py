@@ -134,24 +134,34 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         """
         self._set_receive_timeout()
 
-        self._start_everything_up(instr_keys, in_command_state)
+        p_root = self._start_everything_up(instr_keys, in_command_state)
         mission_yml = self._get_processed_yml(instr_keys, mission_filename)
 
-        no_expected_events = len(expected_events) if isinstance(expected_events, list) else expected_events
-
         # prepare to receive expected mission events:
+        no_expected_events = len(expected_events) if isinstance(expected_events, list) else expected_events
         async_event_result, events_received = self._start_event_subscriber2(
             count=no_expected_events,
             event_type="MissionLifecycleEvent",
-            origin_type="PlatformDevice")
+            cb=lambda evt, *args, **kwargs: log.debug('MissionLifecycleEvent received: %s', evt),
+            origin_type="PlatformDevice",
+            origin=p_root.platform_device_id)
 
+        # prepare to receive the two state transition events
+        trans_async_event_result, trans_events_received = self._start_event_subscriber2(
+            count=2,
+            event_type="ResourceAgentStateEvent",
+            cb=lambda evt, *args, **kwargs: log.debug('ResourceAgentStateEvent received: %s', evt),
+            origin_type="PlatformDevice",
+            origin=p_root.platform_device_id)
+
+        log.debug('[mm] waiting for %s expected MissionLifecycleEvents', no_expected_events)
+        log.debug('[mm] waiting for %s expected ResourceAgentStateEvents', 2)
+
+        self._run_mission(mission_filename, mission_yml)
         try:
-            self._run_mission(mission_filename, mission_yml)
-
-            log.debug('[mm] waiting for %s expected MissionLifecycleEvents', no_expected_events)
             started = time.time()
             async_event_result.get(timeout=max_wait)
-            log.debug('[mm] got %d events (%s secs):\n%s',
+            log.debug('[mm] got %d MissionLifecycleEvents (%s secs):\n%s',
                       len(events_received),
                       time.time() - started,
                       self._pp.pformat(events_received))
@@ -166,8 +176,15 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
                         received_event[key] = events_received[i][key]
                     self.assertEqual(expected_event, received_event)
         finally:
-            if not in_command_state:
-                self._stop_resource_monitoring()
+            try:
+                trans_async_event_result.get(timeout=max_wait)
+                log.debug('[mm] got %d ResourceAgentStateEvents:\n%s',
+                          len(trans_events_received),
+                          self._pp.pformat(trans_events_received))
+                self.assertEqual(len(trans_events_received), 2)
+            finally:
+                if not in_command_state:
+                    self._stop_resource_monitoring()
 
     def _test_multiple_missions(self, instr_keys, mission_filenames, max_wait=None):
         """
@@ -193,12 +210,13 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         self._set_receive_timeout()
 
         # start everything up to platform agent in COMMAND state.
-        self._start_everything_up(instr_keys, True)
+        p_root = self._start_everything_up(instr_keys, True)
 
         async_event_result, events_received = self._start_event_subscriber2(
             count=2,
             event_type="ResourceAgentStateEvent",
-            origin_type="PlatformDevice")
+            origin_type="PlatformDevice",
+            origin=p_root.platform_device_id)
 
         for mission_filename in mission_filenames:
             mission_yml = self._get_processed_yml(instr_keys, mission_filename)
@@ -291,7 +309,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             ['SBE37_SIM_02', 'SBE37_SIM_03'],
             "ion/agents/platform/test/mission_RSN_simulator_multiple_threads.yml",
             in_command_state=True,
-            expected_events=10,
+            expected_events=9,
             max_wait=200 + 300)
 
     def test_simple_event_driven_mission(self):
