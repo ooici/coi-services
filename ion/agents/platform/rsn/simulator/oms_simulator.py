@@ -56,6 +56,9 @@ class CIOMSSimulator(CIOMSClient):
         self._ndef = NetworkUtil.deserialize_network_definition(file(yaml_filename))
         self._pnodes = self._ndef.pnodes
 
+        # note that all ports are implicitly init'ed with state='OFF'
+        self._portState = {}
+
         # registered event listeners: {url: reg_time, ...},
         # where reg_time is the NTP time of (latest) registration.
         # NOTE: for simplicity, we don't keep info about unregistered listeners
@@ -149,6 +152,14 @@ class CIOMSSimulator(CIOMSClient):
 
         return {platform_id: vals}
 
+    def _set_port_state(self, platform_id, port_id, state):
+        pp_id = '%s %s' % (platform_id, port_id)
+        self._portState[pp_id] = state
+
+    def _get_port_state(self, platform_id, port_id):
+        pp_id = '%s %s' % (platform_id, port_id)
+        return self._portState.get(pp_id, 'OFF')
+
     def get_platform_ports(self, platform_id):
         self._enter()
 
@@ -156,8 +167,9 @@ class CIOMSSimulator(CIOMSClient):
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         ports = {}
-        for port_id, port in self._pnodes[platform_id].ports.iteritems():
-            ports[port_id] = {'state'  : port.state}
+        for port_id in self._pnodes[platform_id].ports:
+            state = self._get_port_state(platform_id, port_id)
+            ports[port_id] = {'state': state}
 
         return {platform_id: ports}
 
@@ -170,12 +182,12 @@ class CIOMSSimulator(CIOMSClient):
         if port_id not in self._pnodes[platform_id].ports :
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
-        port = self._pnodes[platform_id].get_port(port_id)
-        if port.state == "ON":
+        state = self._get_port_state(platform_id, port_id)
+        if state == "ON":
             result = NormalResponse.PORT_ALREADY_ON
             log.warn("port %s in platform %s already turned on." % (port_id, platform_id))
         else:
-            port.set_state("ON")
+            self._set_port_state(platform_id, port_id, 'ON')
             result = NormalResponse.PORT_TURNED_ON
             log.info("port %s in platform %s turned on." % (port_id, platform_id))
 
@@ -190,12 +202,12 @@ class CIOMSSimulator(CIOMSClient):
         if port_id not in self._pnodes[platform_id].ports :
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
-        port = self._pnodes[platform_id].get_port(port_id)
-        if port.state == "OFF":
+        state = self._get_port_state(platform_id, port_id)
+        if state == "OFF":
             result = NormalResponse.PORT_ALREADY_OFF
             log.warn("port %s in platform %s already turned off." % (port_id, platform_id))
         else:
-            port.set_state("OFF")
+            self._set_port_state(platform_id, port_id, 'OFF')
             result = NormalResponse.PORT_TURNED_OFF
             log.info("port %s in platform %s turned off." % (port_id, platform_id))
 

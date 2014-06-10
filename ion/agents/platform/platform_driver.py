@@ -277,6 +277,20 @@ class PlatformDriver(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
+    def get_attributes(self):
+        """
+        To be implemented by subclass.
+        Returns the attributes of this platform. This is used by the agent
+        for attribute monitoring purposes.
+
+        @retval {attr_id: dict, ...}
+                dict indexed by attribute ID with associated properties.
+
+        @raise PlatformConnectionException  If the connection to the external
+               platform is lost.
+        """
+        raise NotImplementedError()  #pragma: no cover
+
     def get_attribute_values(self, attrs):
         """
         To be implemented by subclass.

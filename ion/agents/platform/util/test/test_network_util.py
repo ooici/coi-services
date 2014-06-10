@@ -20,7 +20,7 @@ from pyon.public import log
 import logging
 
 from ion.agents.platform.util.network_util import NetworkUtil
-from ion.agents.platform.exceptions import PlatformDefinitionException
+from ion.agents.platform.util.network_util import NetworkDefinitionException
 
 from pyon.util.containers import DotDict
 
@@ -59,7 +59,7 @@ class Test(IonUnitTestCase):
         })
 
         # device_type
-        with self.assertRaises(PlatformDefinitionException):
+        with self.assertRaises(NetworkDefinitionException):
             NetworkUtil.create_network_definition_from_ci_config(CFG)
 
         CFG = DotDict({
@@ -67,7 +67,7 @@ class Test(IonUnitTestCase):
         })
 
         # missing platform_id
-        with self.assertRaises(PlatformDefinitionException):
+        with self.assertRaises(NetworkDefinitionException):
             NetworkUtil.create_network_definition_from_ci_config(CFG)
 
         CFG = DotDict({
@@ -79,7 +79,7 @@ class Test(IonUnitTestCase):
         })
 
         # missing driver_config
-        with self.assertRaises(PlatformDefinitionException):
+        with self.assertRaises(NetworkDefinitionException):
             NetworkUtil.create_network_definition_from_ci_config(CFG)
 
     def test_create_network_definition_from_ci_config(self):

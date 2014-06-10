@@ -5,6 +5,8 @@
 @file    ion/agents/platform/util/network_util.py
 @author  Carlos Rueda
 @brief   Utilities related with platform network definition
+         Note that this module is also used by simulator so it does not
+         import any ION modules.
 """
 
 __author__ = 'Carlos Rueda'
@@ -16,10 +18,15 @@ from ion.agents.platform.util.network import AttrNode
 from ion.agents.platform.util.network import PortNode
 from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.util.network import NetworkDefinition
-from ion.agents.platform.exceptions import PlatformDefinitionException
 
 import yaml
 from collections import OrderedDict
+
+
+class NetworkDefinitionException(Exception):
+    def __init__(self, msg=''):
+        super(NetworkDefinitionException, self).__init__()
+        self.msg = msg
 
 
 class NetworkUtil(object):
@@ -55,7 +62,6 @@ class NetworkUtil(object):
                     _require('port_id' in port_info)
                     port_id = port_info['port_id']
                     port = PortNode(port_id)
-                    port.set_state(port_info.get('state', None))
                     if 'instruments' in port_info:
                         for instrument in port_info['instruments']:
                             instrument_id = instrument['instrument_id']
@@ -283,7 +289,7 @@ class NetworkUtil(object):
         @param CFG CI agent configuration
         @return A NetworkDefinition object
 
-        @raise PlatformDefinitionException device_type is not 'PlatformDevice'
+        @raise NetworkDefinitionException device_type is not 'PlatformDevice'
         """
 
         # verify CFG corresponds to PlatformDevice:
@@ -318,6 +324,8 @@ class NetworkUtil(object):
                          "_add_ports_to_platform_node(): 'port_id' not in port_info")
                 port_id = port_info['port_id']
                 port = PortNode(port_id)
+                for instrument_id in port_info.get('instrument_ids', []):
+                    port.add_instrument_id(instrument_id)
                 pn.add_port(port)
 
         def build_platform_node(CFG, parent_node):
@@ -339,10 +347,6 @@ class NetworkUtil(object):
             _add_attrs_to_platform_node(attributes.itervalues(), pn)
 
             # ports:
-            # TODO(OOIION-1495) the following was commented out,
-            # but we need to capture the ports, at least under the current logic.
-            # remove until network checkpoint needs are defined.
-            # port info can be retrieve from active deployment
             _add_ports_to_platform_node(ports.itervalues(), pn)
 
             # children:
@@ -378,7 +382,7 @@ def _get_attr_id(attr_defn):
     elif 'attr_name' in attr_defn and 'attr_instance' in attr_defn:
         attr_id = "%s|%s" % (attr_defn['attr_name'], attr_defn['attr_instance'])
     else:
-        raise PlatformDefinitionException(
+        raise NetworkDefinitionException(
             "Attribute definition does now include 'attr_name' nor 'attr_instance'. "
             "attr_defn = %s" % attr_defn)
 
@@ -387,4 +391,4 @@ def _get_attr_id(attr_defn):
 
 def _require(cond, msg=""):
     if not cond:
-        raise PlatformDefinitionException(msg)
+        raise NetworkDefinitionException(msg)
