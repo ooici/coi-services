@@ -3552,7 +3552,7 @@ class PlatformAgent(ResourceAgent):
             raise FSMError('mission_run: missing mission_yml argument')
 
         curr_state = self.get_agent_state()
-        if curr_state in [PlatformAgentState.COMMAND, PlatformAgentState.MISSION_STREAMING]:
+        if curr_state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
             # save state to return to when all mission executions are completed
             self._pre_mission_state = curr_state
 
