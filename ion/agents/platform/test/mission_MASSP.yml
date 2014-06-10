@@ -13,6 +13,7 @@ mission:
       maxRetries: 3
     schedule:
       startTime: 02/25/2014 21:03:00
+      timeZone:
       loop:
         quantity: -1  # No. of loops (-1 for infinite)
         value: 4     # Repeat missionParams every 'xx' 'units'
