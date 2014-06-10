@@ -147,15 +147,18 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             origin=p_root.platform_device_id)
 
         # prepare to receive the two state transition events
+        #  - when transitioning to mission state
+        #  - when transitioning back to base state
+        origin = p_root.platform_device_id
         trans_async_event_result, trans_events_received = self._start_event_subscriber2(
             count=2,
             event_type="ResourceAgentStateEvent",
             cb=lambda evt, *args, **kwargs: log.debug('ResourceAgentStateEvent received: %s', evt),
             origin_type="PlatformDevice",
-            origin=p_root.platform_device_id)
+            origin=origin)
 
-        log.debug('[mm] waiting for %s expected MissionLifecycleEvents', no_expected_events)
-        log.debug('[mm] waiting for %s expected ResourceAgentStateEvents', 2)
+        log.debug('[mm] waiting for %s expected MissionLifecycleEvents from origin=%r', no_expected_events, origin)
+        log.debug('[mm] waiting for %s expected ResourceAgentStateEvents from origin=%r', 2, origin)
 
         self._run_mission(mission_filename, mission_yml)
         try:
@@ -181,7 +184,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
                 log.debug('[mm] got %d ResourceAgentStateEvents:\n%s',
                           len(trans_events_received),
                           self._pp.pformat(trans_events_received))
-                self.assertEqual(len(trans_events_received), 2)
+                self.assertGreaterEqual(len(trans_events_received), 2)
             finally:
                 if not in_command_state:
                     self._stop_resource_monitoring()
@@ -212,17 +215,18 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # start everything up to platform agent in COMMAND state.
         p_root = self._start_everything_up(instr_keys, True)
 
+        origin = p_root.platform_device_id
         async_event_result, events_received = self._start_event_subscriber2(
             count=2,
             event_type="ResourceAgentStateEvent",
             origin_type="PlatformDevice",
-            origin=p_root.platform_device_id)
+            origin=origin)
 
         for mission_filename in mission_filenames:
             mission_yml = self._get_processed_yml(instr_keys, mission_filename)
             self._run_mission(mission_filename, mission_yml)
 
-        log.debug('[mm] waiting for %s expected ResourceAgentStateEvent', 2)
+        log.debug('[mm] waiting for %s expected MissionLifecycleEvents from origin=%r', 2, origin)
         started = time.time()
         async_event_result.get(timeout=max_wait)
         log.debug('[mm] got %d events (%s secs):\n%s',
