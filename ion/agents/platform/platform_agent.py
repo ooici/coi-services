@@ -952,11 +952,11 @@ class PlatformAgent(ResourceAgent):
         At the moment it only notifies the mission manager for any handling
         there.
         """
-        # TODO any additional handling
+        # TODO any needed external event dispatch handling.
 
         evt = driver_event.event_instance
 
-        log.debug("%r: handling external platform event: %s", self._platform_id, evt)
+        # log.debug("%r: handling external platform event: %s", self._platform_id, evt)
 
         if self._mission_manager:
             self._mission_manager.external_event_received(evt)
