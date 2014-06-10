@@ -185,7 +185,7 @@ class CIOMSSimulator(CIOMSClient):
         state = self._get_port_state(platform_id, port_id)
         if state == "ON":
             result = NormalResponse.PORT_ALREADY_ON
-            log.warn("port %s in platform %s already turned on." % (port_id, platform_id))
+            log.debug("port %s in platform %s already turned on." % (port_id, platform_id))
         else:
             self._set_port_state(platform_id, port_id, 'ON')
             result = NormalResponse.PORT_TURNED_ON
@@ -205,7 +205,7 @@ class CIOMSSimulator(CIOMSClient):
         state = self._get_port_state(platform_id, port_id)
         if state == "OFF":
             result = NormalResponse.PORT_ALREADY_OFF
-            log.warn("port %s in platform %s already turned off." % (port_id, platform_id))
+            log.debug("port %s in platform %s already turned off." % (port_id, platform_id))
         else:
             self._set_port_state(platform_id, port_id, 'OFF')
             result = NormalResponse.PORT_TURNED_OFF
