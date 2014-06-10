@@ -27,7 +27,6 @@ from interface.objects import AgentCommand
 from pyon.public import log, CFG
 
 import time
-from gevent import sleep
 from mock import patch
 from unittest import skipIf
 import os
@@ -83,27 +82,6 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         cmd = AgentCommand(command=PlatformAgentEvent.RUN_MISSION, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         log.debug('[mm] _run_mission mission_id=%s: RUN_MISSION return: %s', mission_id, retval)
-
-    def _await_mission_completion(self, mission_state, max_wait=None):
-        """
-        @param mission_state  The mission that we are waiting to leave
-        @param max_wait       maximum wait; no effect if None
-        """
-        step = 5
-        elapsed = 0
-        while (max_wait is None or elapsed < max_wait) and mission_state == self._get_state():
-            sleep(step)
-            elapsed += step
-            if elapsed % 20 == 0:
-                log.debug('[mm] _await_mission_completion: waiting, elapsed=%s', elapsed)
-
-        state = self._get_state()
-        if mission_state != state:
-            log.info('[mm] _await_mission_completion: completed, elapsed=%s, '
-                     'transitioned from=%s to=%s', elapsed, mission_state, state)
-        else:
-            log.warn('[mm] _await_mission_completion: timeout, elapsed=%s, '
-                     'still in state=%s', elapsed, mission_state)
 
     def _get_processed_yml(self, instr_keys, mission_filename):
         # TODO determine appropriate instrument identification mechanism as the
@@ -194,7 +172,10 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
     def _test_multiple_missions(self, instr_keys, mission_filenames, max_wait=None):
         """
         Verifies platform agent can dispatch execution of multiple missions.
-        No explicit verifications in the test, but the logs should show lines
+        Should receive 2 ResourceAgentStateEvents from the platform:
+         - when transitioning to MISSION_COMMAND (upon first mission execition started)
+         - when transitioning back to COMMAND
+        No other explicit verifications, but the logs should show lines
         like the following where the number of running missions is included:
 
         DEBUG Dummy-204 ion.agents.platform.mission_manager:58 [mm] starting mission_id='ion/agents/platform/test/multi_mission_1.yml' (#running missions=1)
@@ -211,22 +192,26 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         """
         self._set_receive_timeout()
 
-        base_state    = PlatformAgentState.COMMAND
-        mission_state = PlatformAgentState.MISSION_COMMAND
-
         # start everything up to platform agent in COMMAND state.
         self._start_everything_up(instr_keys, True)
+
+        async_event_result, events_received = self._start_event_subscriber2(
+            count=2,
+            event_type="ResourceAgentStateEvent",
+            origin_type="PlatformDevice")
 
         for mission_filename in mission_filenames:
             mission_yml = self._get_processed_yml(instr_keys, mission_filename)
             self._run_mission(mission_filename, mission_yml)
 
-        state = self._get_state()
-        if state == mission_state:
-            self._await_mission_completion(mission_state, max_wait)
-
-        # verify we are back to the base_state:
-        self._assert_state(base_state)
+        log.debug('[mm] waiting for %s expected ResourceAgentStateEvent', 2)
+        started = time.time()
+        async_event_result.get(timeout=max_wait)
+        log.debug('[mm] got %d events (%s secs):\n%s',
+                  len(events_received),
+                  time.time() - started,
+                  self._pp.pformat(events_received))
+        self.assertEqual(len(events_received), 2)
 
     def test_simple_mission_command_state(self):
         #
