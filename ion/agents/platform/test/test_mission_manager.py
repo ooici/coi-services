@@ -195,6 +195,8 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         if not in_command_state:
             self._stop_resource_monitoring()
 
+        return events_received
+
     def _test_multiple_missions(self, instr_keys, mission_filenames, max_wait=None):
         """
         Verifies platform agent can dispatch execution of multiple missions.
@@ -249,21 +251,25 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         #
         # With mission plan to be started in COMMAND state.
         #
-        self._test_simple_mission(
+        events_received = self._test_simple_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator0C.yml",
             in_command_state=True,
             max_wait=200 + 300)
+        # Should receive 6 events from mission executive if successful
+        self.assertEqual(len(events_received), 6)
 
     def test_simple_mission_streaming_state(self):
         #
         # With mission plan to be started in MONITORING state.
         #
-        self._test_simple_mission(
+        events_received = self._test_simple_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator0S.yml",
-            in_command_state=False,
+            in_command_state=True,
             max_wait=200 + 300)
+        # Should receive 6 events from mission executive if successful
+        self.assertEqual(len(events_received), 6)
 
     def test_multiple_missions(self):
         #
@@ -280,41 +286,49 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # Test TURN_ON_PORT and TURN_OFF_PORT
         # Mission plan to be started in COMMAND state.
         #
-        self._test_simple_mission(
+        events_received = self._test_simple_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator_ports.yml",
             in_command_state=True,
             max_wait=200 + 300)
+        # Should receive 6 events from mission executive if successful
+        self.assertEqual(len(events_received), 6)
 
     def test_mission_abort(self):
         #
         # Intentially invalid mission file
         # Mission plan to be started in COMMAND state.
         #
-        self._test_simple_mission(
+        events_received = self._test_simple_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator_abort.yml",
             in_command_state=True,
             max_wait=200 + 300)
+        # Should receive 6 events from mission executive if successful
+        self.assertEqual(len(events_received), 6)
 
     def test_mission_multiple_instruments(self):
         #
         # Multiple instruments example
         # Mission plan to be started in COMMAND state.
         #
-        self._test_simple_mission(
+        events_received = self._test_simple_mission(
             ['SBE37_SIM_02', 'SBE37_SIM_03'],
             "ion/agents/platform/test/mission_RSN_simulator_multiple_threads.yml",
             in_command_state=True,
             max_wait=200 + 300)
+        # Should receive 10 events from mission executive if successful
+        self.assertEqual(len(events_received), 10)
 
     def test_simple_event_driven_mission(self):
         #
         # Event driven mission example
         # Mission plan to be started in COMMAND state.
         #
-        self._test_simple_mission(
+        events_received = self._test_simple_mission(
             ['SBE37_SIM_02', 'SBE37_SIM_03'],
             "ion/agents/platform/test/mission_RSN_simulator_event.yml",
             in_command_state=True,
             max_wait=200 + 300)
+        # Should receive 9 events from mission executive if successful
+        self.assertEqual(len(events_received), 9)
