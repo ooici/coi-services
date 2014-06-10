@@ -82,9 +82,7 @@ class RSNPlatformDriver(PlatformDriver):
         self._rsn_oms = None
 
         # TODO(OOIION-1495) review the following. Commented out for the moment.
-        # But yes, we would probably need some concept of currently "active
-        # ports", probably defined as those where there are active instruments
-        #  associated.
+        # What does "ports that have devices attached" mean?
         """
         # Simple list of active ports in this deployment configuration:
         # (this should be all the ports that have devices attached. Used in go_active processing
@@ -142,19 +140,14 @@ class RSNPlatformDriver(PlatformDriver):
                 self._instr_port_map[instr_id] = port_id
         log.debug("%r: _instr_port_map: %s", self._platform_id, self._instr_port_map)
 
-        # TODO(OOIION-1495) review the following added logic Commented out
-        # for the moment. We need to determine where and how exactly port
-        # information is maintained.
+        # TODO(OOIION-1495) review the following added logic.
+        # Per recent discussions there would be two main sources for platform
+        # port information: 1- from ongoing deployment; 2- from direct port
+        # configuration when no ongoing deployment available.
         """
-        # validate and process ports
-        if not 'ports' in driver_config:
-            log.error("port information not present in driver_config = %s", driver_config)
-            raise PlatformDriverException(msg="driver_config does not indicate 'ports'")
-
         # Create an IonObjectDeserializer
         ior = IonObjectRegistry()
         ion_deserializer = IonObjectDeserializer(obj_registry=ior)
-
 
         port_info_dict = driver_config['ports']
         for device_id, platform_port_serialized in port_info_dict.iteritems():
@@ -167,8 +160,6 @@ class RSNPlatformDriver(PlatformDriver):
                 #strip leading zeros from port numbers as OMS stores as strings w/o leading zeros
                 port_string = str( int(ooi_rd.port) )
                 self._active_ports.append(port_string)
-
-
         """
     def configure(self, driver_config):
         """
@@ -318,8 +309,7 @@ class RSNPlatformDriver(PlatformDriver):
         # TODO(OOIION-1495) review the following. Only change is the use
         # of self._pnode.ports instead of self._active_ports,
         # while we address the "active ports" concept mentioned above.
-        # Also, it is probably OK to turn off all ports in this "disconnect
-        # driver" operation.
+        # BTW, is it OK to turn off ports in this "disconnect driver" operation?
 
         # power off all ports with connected devices
         if recursion:
