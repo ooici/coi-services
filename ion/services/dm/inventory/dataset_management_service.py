@@ -108,7 +108,8 @@ class DatasetManagementService(BaseDatasetManagementService):
                     "units" : p.units,
                     "standard_name" : p.name,
                     "display_name" : p.display_name,
-                    "description" : p.description
+                    "description" : p.description,
+                    "fill_value" : p.fill_value
                 }
                 self._create_single_resource(dataset_id, param_defs)
 
