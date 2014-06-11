@@ -154,7 +154,8 @@ instruments_dict = {
         'DEV_PORT'  : 4002,
         'DATA_PORT' : 5002,
         'CMD_PORT'  : 6002,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : "port_agent",
+        'alt_ids'   : ["PRE:SBE37_SIM_02"]
     },
 
     "SBE37_SIM_03": {
@@ -162,7 +163,8 @@ instruments_dict = {
         'DEV_PORT'  : 4003,
         'DATA_PORT' : 5003,
         'CMD_PORT'  : 6003,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : "port_agent",
+        'alt_ids'   : ["PRE:SBE37_SIM_03"]
     },
 
     "SBE37_SIM_04": {
@@ -969,11 +971,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                                   alerts=[temp_alert_def, late_data_alert_def])
 
         instrument_agent_instance_obj.agent_config = agent_config
+        instrument_agent_instance_obj.alt_ids = instr_info.get('alt_ids', [])
 
         instrument_agent_instance_id = self.IMS.create_instrument_agent_instance(instrument_agent_instance_obj)
 
         # data products
-
 
         org_id = self.RR2.create(org_obj)
 
