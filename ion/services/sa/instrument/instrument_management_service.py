@@ -1629,10 +1629,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.instrument_device_extension.container')
 
         try:
+            extended_instrument.platform_model = None
             if extended_instrument.platform_device:
-                extended_instrument.platform_model = RR2.read_object(extended_instrument.platform_device._id, PRED.hasModel, RT.PlatformModel, id_only=False)
-            else:
-                extended_instrument.platform_model = None
+                try:
+                    extended_instrument.platform_model = RR2.read_object(extended_instrument.platform_device._id, PRED.hasModel, RT.PlatformModel, id_only=False)
+                except Exception as ex:
+                    log.exception("Cannot get platform_model for platform_device=%s", extended_instrument.platform_device._id)
+
             statuses = outil.get_status_roll_ups(instrument_device_id, include_structure=True)
 
             comms_rollup = statuses.get(instrument_device_id,{}).get(AggregateStatusType.AGGREGATE_COMMS,DeviceStatusType.STATUS_UNKNOWN)
