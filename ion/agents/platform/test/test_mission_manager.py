@@ -84,18 +84,8 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         log.debug('[mm] _run_mission mission_id=%s: RUN_MISSION return: %s', mission_id, retval)
 
     def _get_processed_yml(self, instr_keys, mission_filename):
-        # TODO determine appropriate instrument identification mechanism as the
-        # instrument keys (like SBE37_SIM_02) are basically only known in
-        # the scope of the tests. In the following, we transform the mission
-        # file so the instrument keys are replaced by the corresponding
-        # instrument_device_id's:
         with open(mission_filename) as f:
             mission_yml = f.read()
-        for instr_key in instr_keys:
-            i_obj = self._get_instrument(instr_key)
-            resource_id = i_obj.instrument_device_id
-            log.debug('[mm] replacing %s to %s', instr_key, resource_id)
-            mission_yml = mission_yml.replace(instr_key, resource_id)
         log.debug('[mm] mission_yml=%s', mission_yml)
         return mission_yml
 
