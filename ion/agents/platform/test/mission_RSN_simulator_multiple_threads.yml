@@ -44,7 +44,7 @@ mission:
         onError: retry
 
   - missionThread:
-    instrumentID: ['SBE37_SIM_03']
+    instrumentID: ['PRE:SBE37_SIM_03']
     errorHandling:
       default: retry
       maxRetries: 3
@@ -59,15 +59,15 @@ mission:
         parentID: 
         eventID: 
     preMissionSequence:
-      - command: SBE37_SIM_03, set_resource(INTERVAL{1})
+      - command: PRE:SBE37_SIM_03, set_resource(INTERVAL{1})
         onError: retry
     missionSequence:
-      - command: SBE37_SIM_03, execute_resource(START_AUTOSAMPLE)
+      - command: PRE:SBE37_SIM_03, execute_resource(START_AUTOSAMPLE)
         onError: retry
       - command: wait(0.2)
         onError:
-      - command: SBE37_SIM_03, execute_resource(STOP_AUTOSAMPLE)
+      - command: PRE:SBE37_SIM_03, execute_resource(STOP_AUTOSAMPLE)
         onError: retry
     postMissionSequence:
-      - command: SBE37_SIM_03, execute_agent(RESET)
+      - command: PRE:SBE37_SIM_03, execute_agent(RESET)
         onError: retry
