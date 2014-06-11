@@ -1952,7 +1952,8 @@ class PlatformAgent(ResourceAgent):
         # get InstrumentsNode, corresponding CFG, and resource_id:
         inode = self._pnode.instruments[instrument_id]
         i_CFG = inode.CFG
-        i_resource_id = i_CFG.get("agent", {}).get("resource_id", None)
+        agent_CFG = i_CFG.get("agent", {})
+        i_resource_id = agent_CFG.get("resource_id", None)
 
         if i_resource_id is None:
             log.error("PlatformAgent._launch_instrument_agent: agent.resource_id must be present for child %r" % instrument_id)
@@ -2019,7 +2020,8 @@ class PlatformAgent(ResourceAgent):
 
         self._ia_clients[instrument_id] = DotDict(ia_client=ia_client,
                                                   pid=pid,
-                                                  resource_id=i_resource_id)
+                                                  resource_id=i_resource_id,
+                                                  alt_ids=agent_CFG.get("alt_ids", []))
 
         self._status_manager.instrument_launched(ia_client, i_resource_id)
 
