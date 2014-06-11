@@ -95,13 +95,13 @@ class DatasetManagementService(BaseDatasetManagementService):
 
         log.debug('creating dataset: %s', dataset_id)
 
-
-
         #table loader create resource
         if self._get_eoi_service_available() and parameter_dictionary_id:
+
             params = self.read_parameter_contexts(parameter_dictionary_id)
             param_defs = {}
-            for p in params:
+
+            for p in params:                
                 param_defs[p.name] = {
                     "value_encoding" : p.value_encoding,
                     "parameter_type" : p.parameter_type,
@@ -111,7 +111,8 @@ class DatasetManagementService(BaseDatasetManagementService):
                     "description" : p.description,
                     "fill_value" : p.fill_value
                 }
-                self._create_single_resource(dataset_id, param_defs)
+
+            self._create_single_resource(dataset_id, param_defs)
 
         self.clients.resource_registry.create_association(dataset_id, PRED.hasParameterDictionary, parameter_dictionary_id)
 
@@ -132,12 +133,21 @@ class DatasetManagementService(BaseDatasetManagementService):
         if self._get_eoi_service_available():
             self._remove_single_resource(dataset._id)
 
-            parameter_dictionary_id = self.clients.resource_registry.find_objects(dataset._id, PRED.hasParameterDictionary, id_only=True)[0][0]
-            pdict = self._coverage_parameter_dictionary(parameter_dictionary_id)
-            pdict = pdict.dump() # Serialize
-            pdict = self.numpy_walk(pdict)
-
-            self._create_single_resource(dataset._id, pdict)
+            parameter_dictionary_ids,_ = self.clients.resource_registry.find_objects(dataset._id, PRED.hasParameterDictionary, id_only=True)
+            if parameter_dictionary_ids:
+                params = self.read_parameter_contexts(parameter_dictionary_ids[0])
+                param_defs = {}
+                for p in params:
+                    param_defs[p.name] = {
+                        "value_encoding" : p.value_encoding,
+                        "parameter_type" : p.parameter_type,
+                        "units" : p.units,
+                        "standard_name" : p.name,
+                        "display_name" : p.display_name,
+                        "description" : p.description,
+                        "fill_value" : p.fill_value
+                    }
+                self._create_single_resource(dataset_id, param_defs)
 
         return True
 
