@@ -123,7 +123,6 @@ class AgentConfigurationBuilder(object):
 
         for p in self._predicates_to_cache():
             self.RR2.clear_cached_predicate(p)
-            
 
     def _lookup_means(self):
         """
@@ -165,7 +164,6 @@ class AgentConfigurationBuilder(object):
         #check_keys([PRED.hasAgentInstance, PRED.hasModel, PRED.hasAgentDefinition])
         check_keys([PRED.hasAgentInstance, PRED.hasAgentDefinition])
         assert RT.ProcessDefinition in self.associated_objects
-
 
     def set_agent_instance_object(self, agent_instance_obj):
         """
@@ -265,7 +263,6 @@ class AgentConfigurationBuilder(object):
 
         return result
 
-
     def _generate_stream_config(self):
         log.debug("_generate_stream_config for %s", self.agent_instance_obj.name)
         dsm = self.clients.dataset_management
@@ -349,6 +346,8 @@ class AgentConfigurationBuilder(object):
         if self.agent_instance_obj.saved_agent_state:
             agent_config["prior_state"] = self.agent_instance_obj.saved_agent_state
 
+        agent_config['alt_ids'] = self.agent_instance_obj.alt_ids
+
         return agent_config
 
     def _generate_alerts_config(self):
@@ -392,7 +391,6 @@ class AgentConfigurationBuilder(object):
 
         return agent_config
 
-
     def _summarize_children(self, config_dict):
         ret = dict([(v['instance_name'], self._summarize_children(v))
                                 for k, v in config_dict["children"].iteritems()])
@@ -435,7 +433,6 @@ class AgentConfigurationBuilder(object):
         self.generated_config = True
 
         return agent_config
-
 
     def record_launch_parameters(self, agent_config):
         """
@@ -614,7 +611,6 @@ class AgentConfigurationBuilder(object):
                          product_id, device_obj.name, device_obj._id)
 
         self.associated_objects = ret
-
 
     def _get_device(self):
         self._check_associations()
