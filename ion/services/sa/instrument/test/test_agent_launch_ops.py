@@ -314,7 +314,8 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
                 self.assertEqual(v, driver_config[k])
             self.assertEqual
 
-            self.assertEqual({'resource_id': device_id}, config['agent'])
+            self.assertIn('resource_id', config['agent'])
+            self.assertEqual(device_id, config['agent']['resource_id'])
             self.assertEqual(inst_startup_config, config['startup_config'])
             self.assertIn('aparam_alerts_config', config)
             self.assertEqual(generic_alerts_config, config['aparam_alerts_config'])
@@ -336,13 +337,13 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
                 self.assertIn(key, config)
             self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
-            self.assertEqual({'resource_id': device_id}, config['agent'])
+            self.assertIn('resource_id', config['agent'])
+            self.assertEqual(device_id, config['agent']['resource_id'])
             self.assertIn('aparam_alerts_config', config)
             self.assertEqual(generic_alerts_config, config['aparam_alerts_config'])
             self.assertIn('stream_config', config)
             self.assertIn('driver_config', config)
             self.assertIn('foo', config['driver_config'])
-            # TODO(OOIION-1495) review "ports" aspect in driver config
             """
             self.assertIn('ports', config['driver_config'])
             """
@@ -360,7 +361,6 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
                 self.assertIn(inst_device_id, config['children'])
                 verify_instrument_config(config['children'][inst_device_id], inst_device_id)
 
-            # TODO(OOIION-1495) review "ports" aspect in driver config
             """
             if config['driver_config']['ports']:
                 self.assertTrue( isinstance(config['driver_config']['ports'], dict) )
@@ -372,19 +372,18 @@ class TestAgentLaunchOps(IonIntegrationTestCase):
             self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertIn('process_type', config['driver_config'])
-            # TODO(OOIION-1495) review "ports" aspect in driver config
             """
             self.assertIn('ports', config['driver_config'])
             """
             self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
-            self.assertEqual({'resource_id': parent_device_id}, config['agent'])
+            self.assertIn('resource_id', config['agent'])
+            self.assertEqual(parent_device_id, config['agent']['resource_id'])
             self.assertIn('aparam_alerts_config', config)
             self.assertEqual(generic_alerts_config, config['aparam_alerts_config'])
             self.assertIn('stream_config', config)
             for key in ['startup_config']:
                 self.assertEqual({}, config[key])
 
-            # TODO(OOIION-1495) review "ports" aspect in driver config
             """
             if config['driver_config']['ports']:
                 self.assertTrue( isinstance(config['driver_config']['ports'], dict) )
