@@ -11,7 +11,7 @@ platform:
 
 mission:
   - missionThread:
-    instrumentID: [SBE37_SIM_03]
+    instrumentID: ['PRE:SBE37_SIM_03']
     errorHandling:
       default: retry
       maxRetries: 1
