@@ -185,7 +185,7 @@ class QCProcessor(SimpleProcess):
             for p in parameters:
                 # for each parameter, if the name ends in _qc run the qc
                 if p.name.endswith('_qc'):
-                    self.run_qc(data_product,rd, p, qc_mapping)
+                    self.run_qc(data_product,rd, p, qc_mapping, parameters)
 
             # Break early if we can
             if self.event.is_set(): 
@@ -230,13 +230,36 @@ class QCProcessor(SimpleProcess):
         rd = site.reference_designator
         return rd
 
-    def calibrated_candidates(self, input_name):
+    def calibrated_candidates(self, data_product, parameter, qc_mapping, parameters):
         '''
         Returns a list of potential candidate parameter names to use as the input parameter
         '''
-        print input_name
 
-    def run_qc(self, data_product, reference_designator, parameter, qc_mapping):
+        # 1st Priority is *b_interp
+        # 2nd Priority is *b_pd
+        # 3rd Priority is input_name
+        parameters = {p.name : p for p in parameters }
+
+        dp_ident, alg, qc = parameter.ooi_short_name.split('_')
+        input_name = qc_mapping[dp_ident] # input_name is the third priority
+
+        sname = parameters[input_name].ooi_short_name # should be something like tempwat_l1
+
+        interp = sname.lower() + 'b_interp'
+        pd = sname.lower() + 'b_pd'
+
+        print "1st priority:", interp     # 1st priority
+        print "2nd priority:", pd         # 2nd priority
+        print "3rd priority:", input_name # 3rd priority
+
+        if interp in parameters:
+            return interp
+        elif pd in parameters:
+            return pd
+        else:
+            return input_name
+
+    def run_qc(self, data_product, reference_designator, parameter, qc_mapping, parameters):
         '''
         Determines which algorithm the parameter should run, then evaluates the QC
 
@@ -251,8 +274,7 @@ class QCProcessor(SimpleProcess):
         dp_ident, alg, qc = parameter.ooi_short_name.split('_')
         if dp_ident not in qc_mapping:
             return # No input!
-        input_name = qc_mapping[dp_ident]
-        self.calibrated_candidates(input_name)
+        input_name = self.calibrated_candidates(data_product, parameter, qc_mapping, parameters)
 
         try:
             doc = self.container.object_store.read_doc(reference_designator)
@@ -492,7 +514,6 @@ class QCProcessor(SimpleProcess):
                 most_recent = row
                 ts = row['ts_created']
         return most_recent
-
 
     def get_parameters(self, data_product):
         '''
