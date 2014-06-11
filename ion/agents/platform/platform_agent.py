@@ -21,6 +21,7 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.event.event import EventSubscriber
 
 from pyon.core.exception import NotFound, Inconsistent
+from pyon.core.exception import BadRequest
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_valid_resource_commitments, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
@@ -3507,15 +3508,15 @@ class PlatformAgent(ResourceAgent):
     # mission related handlers
     ##############################################################
 
-    def _run_mission(self, mission_id, mission_yml):
+    def _run_mission(self, mission_id, mission_loader, mission_scheduler, instrument_objs):
         """
-        Method launched in a separate greenlet to run a mission, at the end
-        of which, if no remaining missions are executing, EXIT_MISSION is
-        triggered to return to saved state.
+        Method launched in a separate greenlet to run a mission that has been
+        already loaded sucessfully. At the end of the execution, if no remaining
+        missions are executing, EXIT_MISSION is triggered to return to saved state.
         """
         time_start = time.time()
         log.debug('[mm] _run_mission: running mission_id=%r ...', mission_id)
-        self._mission_manager.run_mission(mission_id, mission_yml)
+        self._mission_manager.run_mission(mission_id, mission_loader, mission_scheduler, instrument_objs)
 
         elapsed_time = time.time() - time_start
         log.debug('[mm] _run_mission: completed mission_id=%s. elapsed_time=%s',
@@ -3536,8 +3537,10 @@ class PlatformAgent(ResourceAgent):
 
     def _handler_mission_run(self, *args, **kwargs):
         """
-        In a separate thread, starts the execution of the mission indicated
-        with the kwargs 'mission_id' and 'mission_yml'.
+        Loads and executes mission indicated with the kwargs 'mission_id' and 'mission_yml'.
+        The load is done in current thread with an immediate failure (BadRequest) if
+        there's any problem with the mission plan.
+        The execution is started in a separate thread.
         If not already in a mission state, it saves current state to return to
         upon all mission executions are completed, and transitions to the
         appropriate mission substate.
@@ -3553,6 +3556,14 @@ class PlatformAgent(ResourceAgent):
         if mission_yml is None:
             raise FSMError('mission_run: missing mission_yml argument')
 
+        # immediately fail if any problem with the mission plan itself:
+        try:
+            exec_args = self._mission_manager.load_mission(mission_id, mission_yml)
+        except BadRequest as ex:
+            raise
+        except Exception as ex:
+            raise BadRequest('load_mission: %s', ex)
+
         curr_state = self.get_agent_state()
         if curr_state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
             # save state to return to when all mission executions are completed
@@ -3564,7 +3575,7 @@ class PlatformAgent(ResourceAgent):
             # just stay in the current state:
             next_state = None
 
-        self._mission_greenlet = spawn(self._run_mission, mission_id, mission_yml)
+        self._mission_greenlet = spawn(self._run_mission, *exec_args)
         log.info("%r: started mission execution, mission_id=%r", self._platform_id, mission_id)
 
         result = None

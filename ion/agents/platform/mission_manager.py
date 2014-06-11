@@ -71,15 +71,16 @@ class MissionManager(object):
     def get_number_of_running_missions(self):
         return len(self._running_missions)
 
-    # TODO perhaps we need some additional error handling below besides the
-    # relevant event notifications done by mission executive.
-
-    def run_mission(self, mission_id, mission_yml):
+    def load_mission(self, mission_id, mission_yml):
         """
-        Runs a mission returning to caller when the execution is completed.
+        Loads a mission as preparation prior to its actual execution.
 
         @param mission_id
         @param mission_yml
+        @return (mission_loader, mission_scheduler, instrument_objs) arguments
+                for subsequence call to run_mission
+        @raise BadRequest if mission_id is already running or there's any
+                          problem loading the mission
         """
 
         if mission_id in self._running_missions:
@@ -89,8 +90,20 @@ class MissionManager(object):
             mission_loader, mission_scheduler, instrument_objs = \
                 self._create_mission_scheduler(mission_id, mission_yml)
         except Exception as ex:
-            log.exception('[mm] run_mission: mission_id=%r _create_mission_scheduler exception', mission_id)
-            return
+            msg = '[mm] run_mission: mission_id=%r _create_mission_scheduler exception: %s' % (mission_id, ex)
+            log.exception(msg)
+            raise BadRequest(msg)
+
+        return mission_id, mission_loader, mission_scheduler, instrument_objs
+
+    def run_mission(self, mission_id, mission_loader, mission_scheduler, instrument_objs):
+        """
+        Runs a mission returning to caller when the execution is completed.
+        Parameters as returned by load_mission.
+        """
+
+        if mission_id in self._running_missions:
+            raise BadRequest('run_mission: mission_id=%r is already running', mission_id)
 
         self._running_missions[mission_id] = mission_scheduler
         log.debug('[mm] starting mission_id=%r (#running missions=%s)',
@@ -199,6 +212,10 @@ class MissionManager(object):
             for instrument_id in mission_entry.get('instrument_id', []):
                 if instrument_id in instrument_objs:
                     instrument_ids.add(instrument_id)
+                else:
+                    raise Exception('No stable ID found for instrument_id=%r referenced'
+                                    ' in mission, mission_id=%r' % (
+                                    instrument_id, mission_id))
 
         # get exclusive access to those instruments. If any one fails,
         # rollback and raise that first exception:
