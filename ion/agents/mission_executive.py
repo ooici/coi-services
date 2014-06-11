@@ -620,9 +620,10 @@ class MissionScheduler(object):
         log.debug('[mm] schedule: waiting for mission to complete')
         gevent.joinall(self.threads)
 
-    def _send_command(self, agent_client, cmd):
+    def _send_command(self, instrument_id, agent_client, cmd):
         """
         Send agent command
+        @param instrument_id        for logging
         @param agent_client         Instrument/platform agent client
         @param cmd                  Mission command
         """
@@ -631,10 +632,9 @@ class MissionScheduler(object):
         command = cmd['command']
         parameters = cmd['parameters']
 
-        log.debug('[mm] Send mission command =  %s - %s', method, command)
-
         # Three types of commands: wait, platform cmd, and instrument cmd
         if command == 'wait':
+            log.debug('[mm] Send mission command = %s', command)
             wait_duration = parameters * 60
             now = time.time()
             wait_end = now + wait_duration
@@ -643,6 +643,8 @@ class MissionScheduler(object):
 
         elif agent_client is None:
             # This indicates platform agent command
+            log.debug('[mm] Send mission command = %s - %s to platform agent %r',
+                      method, command, instrument_id)
             driver_event_class = self.platform_agent._plat_driver.get_platform_driver_event_class()
             if command in driver_event_class.__dict__.keys():
                 kwargs = {}
@@ -659,6 +661,8 @@ class MissionScheduler(object):
 
         else:
             # This indicates instrument agent command
+            log.debug('[mm] Send mission command = %s - %s to instrument agent resource_id=%r, instrument_id=%r',
+                      method, command, agent_client.resource_id, instrument_id)
             retval = agent_client.get_capabilities()
             agt_cmds, agt_pars, res_cmds, res_iface, res_pars = self._sort_capabilities(retval)
 
@@ -682,8 +686,9 @@ class MissionScheduler(object):
                     log.debug('[mm] %s = %s', command, str(reply[command]))
 
                     if parameters != reply[command]:
-                        log.error('[mm] Mission Error: Parameter ' + parameters + ' not set')
-                        raise Exception('Mission Error: Parameter ' + parameters + ' not set')
+                        msg = '[mm] Mission Error: Parameter %s not set' % parameters
+                        log.error(msg)
+                        raise Exception(msg)
 
             else:
                 log.error('[mm] Mission Error: Command %s not recognized', command)
@@ -710,10 +715,7 @@ class MissionScheduler(object):
                 # This command is for the parent platform agent or a 'wait'
                 ia_client = None
             else:
-                # TODO we can remove this verification or handle it in a
-                # different way -- it was added while playing with possible
-                # ways to select an instrument identification mechanism.
-                log.warn('[mm] instrument_id=%s not present in instruments dict', instrument_id)
+                log.warn('[mm] instrument_id=%r unrecognized', instrument_id)
                 continue
 
             error_handling = cmd['error']
@@ -721,7 +723,7 @@ class MissionScheduler(object):
             if not error_handling:
                 error_handling = self.default_error
 
-            log.debug('[mm] %s', instrument_id)
+            log.debug('[mm] instrument_id=%r', instrument_id)
 
             while attempt < self.max_attempts:
                 error_string = ''
@@ -731,7 +733,7 @@ class MissionScheduler(object):
                 attempt += 1
                 log.debug('[mm] Mission command = %s, Attempt # %d', cmd['command'], attempt)
                 try:
-                    self._send_command(ia_client, cmd)
+                    self._send_command(instrument_id, ia_client, cmd)
                 except Exception, ex:
                     # Get a description of the error
                     error_string = str(ex) + ' Mission sequence command = ' + str(cmd)

@@ -71,25 +71,39 @@ class MissionManager(object):
     def get_number_of_running_missions(self):
         return len(self._running_missions)
 
-    # TODO perhaps we need some additional error handling below besides the
-    # relevant event notifications done by mission executive.
-
-    def run_mission(self, mission_id, mission_yml):
+    def load_mission(self, mission_id, mission_yml):
         """
-        Runs a mission returning to caller when the execution is completed.
+        Loads a mission as preparation prior to its actual execution.
 
         @param mission_id
         @param mission_yml
+        @return (mission_loader, mission_scheduler, instrument_objs) arguments
+                for subsequence call to run_mission
+        @raise BadRequest if mission_id is already running or there's any
+                          problem loading the mission
         """
 
         if mission_id in self._running_missions:
             raise BadRequest('run_mission: mission_id=%r is already running', mission_id)
 
         try:
-            mission_loader, mission_scheduler = self._create_mission_scheduler(mission_id, mission_yml)
+            mission_loader, mission_scheduler, instrument_objs = \
+                self._create_mission_scheduler(mission_id, mission_yml)
         except Exception as ex:
-            log.exception('[mm] run_mission: mission_id=%r _create_mission_scheduler exception', mission_id)
-            return
+            msg = '[mm] run_mission: mission_id=%r _create_mission_scheduler exception: %s' % (mission_id, ex)
+            log.exception(msg)
+            raise BadRequest(msg)
+
+        return mission_id, mission_loader, mission_scheduler, instrument_objs
+
+    def run_mission(self, mission_id, mission_loader, mission_scheduler, instrument_objs):
+        """
+        Runs a mission returning to caller when the execution is completed.
+        Parameters as returned by load_mission.
+        """
+
+        if mission_id in self._running_missions:
+            raise BadRequest('run_mission: mission_id=%r is already running', mission_id)
 
         self._running_missions[mission_id] = mission_scheduler
         log.debug('[mm] starting mission_id=%r (#running missions=%s)',
@@ -106,7 +120,9 @@ class MissionManager(object):
             for mission_entry in mission_entries:
                 instrument_ids = mission_entry.get('instrument_id', [])
                 for instrument_id in instrument_ids:
-                    self._remove_exclusive_access(instrument_id, mission_id)
+                    if instrument_id in instrument_objs:
+                        resource_id = instrument_objs[instrument_id].resource_id
+                        self._remove_exclusive_access(instrument_id, resource_id, mission_id)
 
             log.debug('[mm] completed mission_id=%r (#running missions=%s)',
                       mission_id, len(self._running_missions))
@@ -154,7 +170,7 @@ class MissionManager(object):
         @param mission_id
         @param mission_yml
 
-        @return (mission_loader, mission_scheduler)
+        @return (mission_loader, mission_scheduler, instrument_objs)
         @raise  Exception the first exception while requesting exclusive
                 access to a child instrument. All other successful
                 such requests, if any, are reverted.
@@ -169,16 +185,24 @@ class MissionManager(object):
             log.debug('[mm] _create_mission_scheduler: _ia_clients=\n%s',
                       self._agent._pp.pformat(self._agent._ia_clients))
 
-        # get instrument IDs and clients for the valid running instruments:
-        instruments = {}
+        # {stable_id: obj, ...} objects of valid running instruments:
+        instrument_objs = {}
         for (instrument_id, obj) in self._agent._ia_clients.iteritems():
-            if isinstance(obj, dict):
-                # it's valid instrument.
-                if instrument_id != obj.resource_id:
-                    log.error('[mm] _create_mission_scheduler: instrument_id=%s, '
-                              'resource_id=%s', instrument_id, obj.resource_id)
+            if isinstance(obj, dict):   # dict means it's valid instrument.
+                # get first "PRE:*" ID from obj.alt_ids:
+                pres = [alt_id for alt_id in obj.alt_ids if alt_id.startswith('PRE:')]
+                if not pres:
+                    raise Exception('No stable ID found for instrument_id=%r. alt_ids=%s' % (
+                                    instrument_id, obj.alt_ids))
+                stable_id = pres[0]
+                log.debug('[mm] _create_mission_scheduler: instrument_id=%r, stable_id=%r,'
+                          ' resource_id=%r', instrument_id, stable_id, obj.resource_id)
 
-                instruments[obj.resource_id] = obj.ia_client
+                instrument_objs[stable_id] = obj
+
+        # {stable_id: client, ...} dict for scheduler
+        instruments_for_scheduler = dict((stable_id, obj.ia_client) for
+                                         stable_id, obj in instrument_objs.iteritems())
 
         mission_entries = mission_loader.mission_entries
 
@@ -186,21 +210,27 @@ class MissionManager(object):
         instrument_ids = set()
         for mission_entry in mission_entries:
             for instrument_id in mission_entry.get('instrument_id', []):
-                if instrument_id in instruments:
+                if instrument_id in instrument_objs:
                     instrument_ids.add(instrument_id)
+                else:
+                    raise Exception('No stable ID found for instrument_id=%r referenced'
+                                    ' in mission, mission_id=%r' % (
+                                    instrument_id, mission_id))
 
         # get exclusive access to those instruments. If any one fails,
         # rollback and raise that first exception:
         instrument_ids_ok = set()
         exception = None
         for instrument_id in instrument_ids:
+            resource_id = instrument_objs[instrument_id].resource_id
             try:
-                self._get_exclusive_access(instrument_id, mission_id)
+                self._get_exclusive_access(instrument_id, resource_id, mission_id)
                 instrument_ids_ok.add(instrument_id)
             except Exception as ex:
                 exception = ex
                 log.warn('[xa] _create_mission_scheduler: exclusive access request to'
-                         ' resource_id=%r failed: %s', instrument_id, exception)
+                         ' resource_id=%r, instrument_id=%r failed: %s',
+                         resource_id, instrument_id, exception)
                 break
 
         if exception:
@@ -208,29 +238,31 @@ class MissionManager(object):
                 log.warn('[xa] _create_mission_scheduler: reverting exclusive access '
                          'to the resources: %s', instrument_ids_ok)
                 for instrument_id in instrument_ids_ok:
+                    resource_id = instrument_objs[instrument_id].resource_id
                     try:
-                        self._remove_exclusive_access(instrument_id, mission_id)
+                        self._remove_exclusive_access(resource_id, mission_id)
                     except Exception as ex:
                         # just log warning an continue
                         log.warn('[xa] exception while reverting exclusive access to '
-                                 'resource_id=%r: %s', instrument_id, ex)
+                                 'resource_id=%r, instrument_id=%r: %s', resource_id, instrument_id, ex)
 
             raise exception
 
         mission_scheduler = MissionScheduler(self._agent,
-                                             instruments,
+                                             instruments_for_scheduler,
                                              mission_entries)
         log.debug('[mm] _create_mission_scheduler: MissionScheduler created. entries=%s',
                   mission_entries)
-        return mission_loader, mission_scheduler
+        return mission_loader, mission_scheduler, instrument_objs
 
-    def _get_exclusive_access(self, resource_id, mission_id):
+    def _get_exclusive_access(self, instrument_id, resource_id, mission_id):
         """
         Gets exclusive access for the given resource_id. The actual request is
         only done once for the same resource_id, but we keep track of the
         associated mission_id such that the exclusive access is removed when
         no missions remain referencing the resource_id.
 
+        @param instrument_id        for logging
         @param resource_id
         @param mission_id
         """
@@ -247,20 +279,20 @@ class MissionManager(object):
                           'previous call with mission_id=%r', resource_id, mission_ids[0])
             return
 
-        log.debug('[xa] _get_exclusive_access: resource_id=%s, actor_id=%r, provider=%r',
-                  resource_id, self._actor_id, self._provider_id)
+        log.debug('[xa] _get_exclusive_access: instrument_id=%r resource_id=%r, actor_id=%r, provider=%r',
+                  instrument_id, resource_id, self._actor_id, self._provider_id)
 
         # TODO proper handling of BadRequest exception upon failure to obtain
         # exclusive access. For now, just logging ghe exception.
         try:
-            commitment_id = self._do_get_exclusive_access(resource_id)
+            commitment_id = self._do_get_exclusive_access(instrument_id, resource_id)
             self._exaccess[resource_id] = dict(commitment_id=commitment_id,
                                                mission_ids=[mission_id])
         except BadRequest:
-            log.exception('[xa] _get_exclusive_access: resource_id=%r, mission_id=%r',
-                          resource_id, mission_id)
+            log.exception('[xa] _get_exclusive_access: instrument_id=%r resource_id=%r, mission_id=%r',
+                          instrument_id, resource_id, mission_id)
 
-    def _do_get_exclusive_access(self, resource_id):
+    def _do_get_exclusive_access(self, instrument_id, resource_id):
         """
         Gets exclusive access to a given resource.
 
@@ -288,8 +320,8 @@ class MissionManager(object):
 
         # we are initially opting for only "phase 2" -- just acquire_resource:
         commitment_id = self.ORG.acquire_resource(arxp, headers=self._actor_header)
-        log.debug('[xa] AcquireResourceExclusiveProposal: '
-                  'resource_id=%s -> commitment_id=%s', resource_id, commitment_id)
+        log.debug('[xa] AcquireResourceExclusiveProposal: instrument_id=%r '
+                  'resource_id=%s -> commitment_id=%s', instrument_id, resource_id, commitment_id)
         return commitment_id
 
         # #####################################################################
@@ -311,49 +343,53 @@ class MissionManager(object):
         # log.debug('[xa] _get_exclusive_access/AcquireResourceExclusiveProposal: '
         #           'resource_id=%s -> arxp_response=%s', resource_id, arxp_response)
 
-    def _remove_exclusive_access(self, resource_id, mission_id):
+    def _remove_exclusive_access(self, instrument_id, resource_id, mission_id):
         """
         Removes the exclusive access for the given resource_id. The actual
         removal is only done if there are no more missions associated.
 
+        @param instrument_id      for logging
         @param resource_id
         @param mission_id
         """
         if not resource_id in self._exaccess:
-            log.warn('[xa] not associated with exclusive access resource_id=%r', resource_id)
+            log.warn('[xa] not associated with exclusive access resource_id=%r instrument_id=%r',
+                     resource_id, instrument_id)
             return
 
         mission_ids = self._exaccess[resource_id]['mission_ids']
         if not mission_id in mission_ids:
-            log.warn('[xa] not associated with exclusive access resource_id=%r', resource_id)
+            log.warn('[xa] not associated with exclusive access resource_id=%r instrument_id=%r',
+                     resource_id, instrument_id)
             return
 
         mission_ids.remove(mission_id)
 
         if len(mission_ids) > 0:
-            log.debug('[xa] exclusive access association removed: resource_id=%r -> mission_id=%r',
-                      resource_id, mission_id)
+            log.debug('[xa] exclusive access association removed: resource_id=%r -> mission_id=%r, instrument_id=%r',
+                      resource_id, mission_id, instrument_id)
             return
 
         # no more mission_ids associated, so release the exclusive access:
         commitment_id = self._exaccess[resource_id]['commitment_id']
         del self._exaccess[resource_id]
-        self._do_remove_exclusive_access(commitment_id, resource_id)
+        self._do_remove_exclusive_access(commitment_id, instrument_id, resource_id)
 
-    def _do_remove_exclusive_access(self, commitment_id, resource_id):
+    def _do_remove_exclusive_access(self, commitment_id, instrument_id, resource_id):
         """
         Does the actual release of the exclusive access.
 
         @param commitment_id   commitment to the released
+        @param instrument_id   associated ID for logging purposes
         @param resource_id     associated resource ID for logging purposes
         """
         # TODO: any exception below is just logged out; need different handling?
         try:
             ret = self.ORG.release_commitment(commitment_id)
-            log.debug('[xa] exclusive access removed: resource_id=%r: '
+            log.debug('[xa] exclusive access removed: resource_id=%r instrument_id=%r: '
                       'ORG.release_commitment(commitment_id=%r) returned=%r',
-                      resource_id, commitment_id, ret)
+                      resource_id, instrument_id, commitment_id, ret)
 
         except Exception as ex:
-            log.exception('[xa] resource_id=%r: ORG.release_commitment(commitment_id=%r)',
-                          resource_id, commitment_id)
+            log.exception('[xa] resource_id=%r instrument_id=%r: ORG.release_commitment(commitment_id=%r)',
+                          resource_id, instrument_id, commitment_id)
