@@ -37,9 +37,11 @@ class ResourceParser(object):
         self.resetstore         = CFG.get_safe('eoi.importer_service.reset_store', 'resetstore')
         self.removelayer        = CFG.get_safe('eoi.importer_service.remove_layer', 'removelayer')
         self.addlayer           = CFG.get_safe('eoi.importer_service.add_layer', 'addlayer')
-
         self.server             = CFG.get_safe('eoi.importer_service.server', "localhost")+":"+str(CFG.get_safe('eoi.importer_service.port', 8844))
+        
         self.database           = CFG.get_safe('eoi.postgres.database', 'postgres')
+        self.host               = CFG.get_safe('eoi.postgres.host', 'localhost')
+        self.port               = CFG.get_safe('eoi.postgres.post', 5432)
         self.db_user            = CFG.get_safe('eoi.postgres.user_name', 'postgres')
         self.db_pass            = CFG.get_safe('eoi.postgres.password', '')
 
@@ -59,7 +61,7 @@ class ResourceParser(object):
         self.use_geo_services = False
 
         try:
-            self.con = psycopg2.connect(database=self.database, user=self.db_user, password=self.db_pass)
+            self.con = psycopg2.connect(port=self.port, host=self.host, database=self.database, user=self.db_user, password=self.db_pass)
             self.cur = self.con.cursor()
             #checks the connection
             self.cur.execute('SELECT version()')
@@ -152,13 +154,12 @@ class ResourceParser(object):
             log.debug("could not remove,does not exist")
 
         # try and remove it from geoserver
-        self.send_geonode_request(self.removelayer, resource_id)
+        #self.send_geonode_request(self.removelayer, resource_id)
 
     def create_single_resource(self, new_resource_id, param_dict):
         """
         Creates a single resource
         """              
-        print "create_single"
         #only go forward if there are params available        
         coverage_path = self._get_coverage_path(new_resource_id)
 
@@ -166,7 +167,7 @@ class ResourceParser(object):
         [success, prim_types] = self.generate_sql_table(new_resource_id, param_dict, coverage_path)            
         if success:
             #generate geoserver layer
-            self.send_geonode_request(self.addlayer, new_resource_id, prim_types)
+            self.send_geonode_request(self.addlayer, new_resource_id, prim_types)          
     
     def get_value_encoding(self, name, value_encoding):
         encoding_string = None
@@ -253,8 +254,7 @@ class ResourceParser(object):
 
                 #check that the dataproduct has all the required fields                
                 try:       
-                    log.debug(create_table_string)      
-
+                    log.debug(create_table_string)                          
                     self.cur.execute(create_table_string)
                     self.con.commit()
                     #should always be lat and lon
@@ -266,12 +266,10 @@ class ResourceParser(object):
                     #error setting up connection
                     log.debug('Error %s', e)
                     raise
-                else: 
-                    log.warn('resource skipped, it does not contain all of the required params:')  
-                    return [False,None]    
-            else:              
-                log.warn("not enough params,"+str(params.keys()))
-                return [False,None]
+                  
+            else: 
+                log.warn('resource skipped, it does not contain all of the required params:')  
+                return [False,None]  
         else:          
             log.debug('table is already there dropping it')
             self.drop_existing_table(dataset_id, use_cascade=True)
@@ -307,11 +305,12 @@ class ResourceParser(object):
     def does_table_exist(self, dataset_id):
         """
         Checks to see if the table already exists before we add it
-        """
+        """        
         self.cur.execute(self.get_table_exist_cmd(dataset_id))
         out = self.cur.fetchone()
-        #check table exist
+        #check table exist       
         if out is None:
+            log.error('cound not find table, that was created:'+dataset_id)  
             return False
         else:
             return True
