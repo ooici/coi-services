@@ -124,7 +124,11 @@ class ReplayProcess(BaseReplayProcess):
             rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         else:
             rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
-        if data_dict.shape[0] == 0:
+        if not data_dict:
+            log.warning('Retrieve returning empty set')
+            return rdt
+
+        if 'time' in data_dict and data_dict['time'].shape[0] == 0:
             log.warning('Retrieve returning empty set')
             return rdt
 
@@ -134,7 +138,7 @@ class ReplayProcess(BaseReplayProcess):
             if field == coverage.temporal_parameter_name:
                 continue
             # The values have already been inside a coverage so we know they're safe and they exist, so they can be inserted directly.
-            if field in data_dict.dtype.names:
+            if field in data_dict:
                 rdt._rd[field] = data_dict[field]
             #rdt[k] = v
 
@@ -150,7 +154,10 @@ class ReplayProcess(BaseReplayProcess):
             end_time += 2208988800
 
         if tdoa is None:
-            data_dict = coverage.get_parameter_values(param_names=parameters, time_segment=(start_time, end_time), stride_length=stride_time, fill_empty_params=True).get_data()
+            if start_time is None and end_time is None:
+                data_dict = coverage.get_parameter_values(param_names=parameters, stride_length=stride_time, fill_empty_params=True).get_data()
+            else:
+                data_dict = coverage.get_parameter_values(param_names=parameters, time_segment=(start_time, end_time), stride_length=stride_time, fill_empty_params=True).get_data()
         elif isinstance(tdoa, slice):
             log.warning("Using tdoa argument on large datasets can consume too much memory")
             data_dict = coverage.get_parameter_values(param_names=parameters, fill_empty_params=True).get_data()

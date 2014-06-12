@@ -1484,7 +1484,19 @@ def rotate_v(u,v,theta):
         self.data_product_management.create_dataset_for_data_product(data_product_id)
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
 
+
+        # Make some fake data
+        rdt = self.ph.rdt_for_data_product(device_data_product_id)
+        rdt['time'] = np.arange(60)
+        rdt['data'] = np.arange(60)
+        monitor = DatasetMonitor(data_product_id=device_data_product_id)
+        self.ph.publish_rdt_to_data_product(device_data_product_id, rdt)
+        self.assertTrue(monitor.wait())
         self.dataset_management.add_dataset_window_to_complex(device_dataset_id, (20, 40), dataset_id)
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_allclose(rdt['time'], np.arange(20,41))
 
 
 

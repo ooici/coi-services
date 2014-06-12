@@ -19,6 +19,7 @@ from pyon.event.event import EventSubscriber
 
 from interface.objects import Replay, CoverageTypeEnum
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
+from coverage_model import SimplexCoverage
 
 import collections
 import time
@@ -148,7 +149,7 @@ class DataRetrieverService(BaseDataRetrieverService):
             coverage = cls._get_coverage(dataset_id)
             if coverage is None:
                 raise BadRequest('no such coverage')
-            if coverage.is_empty():
+            if isinstance(coverage, SimplexCoverage) and coverage.is_empty():
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else:
@@ -174,9 +175,6 @@ class DataRetrieverService(BaseDataRetrieverService):
         @param kwargs          Keyword Arguments to pass into the transform.
 
         '''
-        dataset = self.clients.dataset_management.read_dataset(dataset_id)
-        if dataset.coverage_type == CoverageTypeEnum.COMPLEX:
-            raise BadRequest("Can't retrieve from complex coverage stub")
 
         retrieve_data = self.retrieve_oob(dataset_id=dataset_id,query=query,delivery_format=delivery_format)
 
