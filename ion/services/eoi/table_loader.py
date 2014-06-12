@@ -16,13 +16,12 @@ from pyon.util.log import log
 from pyon.util.breakpoint import breakpoint
 from pyon.container.cc import Container
 from pyon.public import BadRequest
-
-DEBUG = False
+import logging
 
 REAL = "real"
 INT = "int"
 TIMEDATE = "timestamp"
-REQUIRED_PARAMS = ["lat","lon"]
+REQUIRED_PARAMS = ["time","lat","lon"]
 
 
 class ResourceParser(object):
@@ -38,9 +37,11 @@ class ResourceParser(object):
         self.resetstore         = CFG.get_safe('eoi.importer_service.reset_store', 'resetstore')
         self.removelayer        = CFG.get_safe('eoi.importer_service.remove_layer', 'removelayer')
         self.addlayer           = CFG.get_safe('eoi.importer_service.add_layer', 'addlayer')
-
         self.server             = CFG.get_safe('eoi.importer_service.server', "localhost")+":"+str(CFG.get_safe('eoi.importer_service.port', 8844))
+        
         self.database           = CFG.get_safe('eoi.postgres.database', 'postgres')
+        self.host               = CFG.get_safe('eoi.postgres.host', 'localhost')
+        self.port               = CFG.get_safe('eoi.postgres.post', 5432)
         self.db_user            = CFG.get_safe('eoi.postgres.user_name', 'postgres')
         self.db_pass            = CFG.get_safe('eoi.postgres.password', '')
 
@@ -60,7 +61,7 @@ class ResourceParser(object):
         self.use_geo_services = False
 
         try:
-            self.con = psycopg2.connect(database=self.database, user=self.db_user, password=self.db_pass)
+            self.con = psycopg2.connect(port=self.port, host=self.host, database=self.database, user=self.db_user, password=self.db_pass)
             self.cur = self.con.cursor()
             #checks the connection
             self.cur.execute('SELECT version()')
@@ -151,31 +152,22 @@ class ResourceParser(object):
             self.drop_existing_table(resource_id, use_cascade=True) 
         else:
             log.debug("could not remove,does not exist")
-            pass
 
         # try and remove it from geoserver
-        self.send_geonode_request(self.removelayer, resource_id)
+        #self.send_geonode_request(self.removelayer, resource_id)
 
     def create_single_resource(self, new_resource_id, param_dict):
         """
         Creates a single resource
-        """
-        
-        #parse relevant params from the dict
-        relevant = []
-        for k, v in param_dict.iteritems():
-            if isinstance(v, (tuple, list)) and len(v) == 2 and 'param_type' in v[1]:
-                relevant.append(k)
-
+        """              
         #only go forward if there are params available        
-        if relevant:
-            coverage_path = self._get_coverage_path(new_resource_id)
+        coverage_path = self._get_coverage_path(new_resource_id)
 
-            #generate table from params and id
-            [success, prim_types] = self.generate_sql_table(new_resource_id, param_dict, relevant, coverage_path)            
-            if success:
-                #generate geoserver layer
-                self.send_geonode_request(self.addlayer, new_resource_id, prim_types)
+        #generate table from params and id
+        [success, prim_types] = self.generate_sql_table(new_resource_id, param_dict, coverage_path)            
+        if success:
+            #generate geoserver layer
+            self.send_geonode_request(self.addlayer, new_resource_id, prim_types)          
     
     def get_value_encoding(self, name, value_encoding):
         encoding_string = None
@@ -219,78 +211,50 @@ class ResourceParser(object):
     '''
     def required_fields_satisfied(self,param_list): 
         #should always contain atleast 3 params
-        if (len(param_list)>3): 
-            return set(REQUIRED_PARAMS).issubset(set(param_list))        
-        else:
-            return False    
+        try:            
+            if (len(param_list)>3): 
+                return set(REQUIRED_PARAMS).issubset(set(param_list))        
+            else:
+                return False    
+        except Exception, e:
+            return False  
 
-    def generate_sql_table(self, dataset_id, params, relevant, coverage_path):
+    def generate_sql_table(self, dataset_id, params, coverage_path):
         """
         Generates Foreign data table for used with postgres
         """
         #check table exists
         if not self.does_table_exist(dataset_id):
-            valid_types = {}
+            valid_types = {}               
             create_table_string = 'create foreign table "%s" (' % dataset_id            
-            log.debug("relevant:"+relevant+" valid?:"+self.required_fields_satisfied(relevant))                      
-            if self.required_fields_satisfied(relevant):       
-                #loop through the params
-                encodings = []     
+            #loop through the params
+            encodings = []               
+            if self.required_fields_satisfied(params.keys()):                
 
-                for param in relevant:
-                    #get the information
-                    data_item = params[param]
-                    desc = data_item[1]['description']
-                    ooi_short_name = data_item[1]['ooi_short_name']
-                    name = data_item[1]['name']
-                    disp_name = data_item[1]['display_name']
-                    internal_name = data_item[1]['internal_name']
-                    cm_type = data_item[1]['param_type']['cm_type']
-                    units = ""
-                    try:
-                        units = data_item[1]['uom']
-                    except Exception as e:
-                        if DEBUG:
-                            log.debug("no units available...%s", e.message)
-                    
-                    value_encoding = data_item[1]['param_type']['_value_encoding']
-                    fill_value = data_item[1]['param_type']['_fill_value']
-                    std_name = data_item[1]['standard_name']
-                    
-                    #only use things that have valid value
-                    if len(name) > 0: #and (len(desc)>0) and (len(units)>0) and (value_encoding is not None)):
-                        if DEBUG:
-                            log.debug("-------processed-------")
-                            log.debug(str(ooi_short_name))
-                            log.debug(str(desc))
-                            log.debug(str(name))
-                            log.debug(str(disp_name))
-                            log.debug(str(units))
-                            log.debug(str(internal_name))
-                            log.debug(str(value_encoding))
-                            log.debug(str(cm_type[1]))
-
-                        if cm_type[1] == "ArrayType":
-                            #ignore array types
-                            pass
-                        else:
-                            [encoding, prim_type] = self.get_value_encoding(name, value_encoding)
-                            if encoding is not None:
-                                encodings.append(encoding)
-                                valid_types[name] = prim_type
-
-                    pass
-
+                for p_name, p_def in params.iteritems():                    
+                    cm_type = p_def["parameter_type"]                    
+                    #not supporting anyothing other than quantity or sparse
+                    if cm_type not in ("quantity","sparse"):
+                        continue
+                    #get the information                                                                        
+                    units = p_def["units"] or "1"
+                                        
+                    value_encoding = p_def['value_encoding']
+                    fill_value = p_def["fill_value"]
+                    std_name = p_def['standard_name']                   
+                    #only use things that have valid value                                    
+                    [encoding, prim_type] = self.get_value_encoding(p_name, value_encoding)
+                    if encoding is not None:
+                        encodings.append(encoding)
+                        valid_types[p_name] = prim_type
+                
                 create_table_string += ','.join(encodings)
-                log.debug("coverage path:"+coverage_path)
+                log.debug("coverage path:"+coverage_path)            
                 create_table_string = self.add_server_info(create_table_string, coverage_path, dataset_id)
-                
-                if DEBUG:
-                    log.debug('\n%s', create_table_string)
 
-                #check that the dataproduct has all the required fields
-                
-                try:                                       
+                #check that the dataproduct has all the required fields                
+                try:       
+                    log.debug(create_table_string)                          
                     self.cur.execute(create_table_string)
                     self.con.commit()
                     #should always be lat and lon
@@ -302,15 +266,14 @@ class ResourceParser(object):
                     #error setting up connection
                     log.debug('Error %s', e)
                     raise
+                  
             else: 
                 log.warn('resource skipped, it does not contain all of the required params:')  
-                return False              
-
-        else:
-            if DEBUG:
-                log.debug('table is already there dropping it')
+                return [False,None]  
+        else:          
+            log.debug('table is already there dropping it')
             self.drop_existing_table(dataset_id, use_cascade=True)
-            return False
+            return [False,None]
 
     def generate_table_view(self, dataset_id, lat_field, lon_field):
         """
@@ -342,11 +305,12 @@ class ResourceParser(object):
     def does_table_exist(self, dataset_id):
         """
         Checks to see if the table already exists before we add it
-        """
+        """        
         self.cur.execute(self.get_table_exist_cmd(dataset_id))
         out = self.cur.fetchone()
-        #check table exist
+        #check table exist       
         if out is None:
+            log.error('cound not find table, that was created:'+dataset_id)  
             return False
         else:
             return True
