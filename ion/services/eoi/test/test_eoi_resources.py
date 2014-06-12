@@ -191,6 +191,7 @@ class TestEOIExternalResources(DMTestCase):
     '''
     preload data from select scenario
     ''' 
+    @unittest.skip    
     def preload_external_providers(self):
         config = DotDict()
         config.op = 'load'
