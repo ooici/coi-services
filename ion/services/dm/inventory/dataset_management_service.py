@@ -78,6 +78,7 @@ class DatasetManagementService(BaseDatasetManagementService):
                 cov.close()
             elif dataset.coverage_type == CoverageTypeEnum.COMPLEX:
                 cov = self._create_complex_coverage(dataset_id, dataset.description or dataset_id, parameter_dict)
+                cov.close()
             else:
                 raise BadRequest("Unknown Coverage Type")
 
@@ -656,13 +657,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov_location)
         return vcov
 
-    def _create_complex_coverage(self, dataset_id, description, parameter_dict):
-        object_store_blank = {
-            'dataset_id' : dataset_id,
-            'parameter_dictionary' : parameter_dict,
-            'references': []
-        }
-        self.container.object_store.create_doc(object_store_blank, 'cov_' + dataset_id)
+    @classmethod
+    def _create_complex_coverage(cls, dataset_id, description, parameter_dict):
+        file_root = FileSystem.get_url(FS.CACHE, 'datasets')
+        ccov = ComplexCoverageType(file_root, dataset_id, 'Complex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dict, complex_type=ComplexCoverageType.TEMPORAL_AGGREGATION)
+        return ccov
 
 
     @classmethod
