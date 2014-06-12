@@ -1467,7 +1467,7 @@ def rotate_v(u,v,theta):
                 "parameter_type" : "quantity",
                 "value_encoding" : "float32",
                 "display_name" : "Data",
-                "description" : "The Red Pill",
+                "description" : "Active Matrix, over a million psychadelic colors",
                 "units" : "1"
             }
         }
@@ -1498,7 +1498,26 @@ def rotate_v(u,v,theta):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_allclose(rdt['time'], np.arange(20,41))
 
+        # Have another device data product
+        device_data_product = DataProduct('Da Vinci') # Category defaults to device
+        device_data_product_id = self.data_product_from_params(device_data_product, params)
+        # Creates the dataset and the ingestion worker
+        self.data_product_management.activate_data_product_persistence(device_data_product_id)
+        device_dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(device_data_product_id)
+        rdt = self.ph.rdt_for_data_product(device_data_product_id)
+        rdt['time'] = np.arange(60)
+        rdt['data'] = np.arange(60)
+        monitor = DatasetMonitor(data_product_id=device_data_product_id)
+        self.ph.publish_rdt_to_data_product(device_data_product_id, rdt)
+        self.assertTrue(monitor.wait())
 
+        self.dataset_management.add_dataset_window_to_complex(device_dataset_id, (41, 80), dataset_id)
+        # TODO: Figure out WHY gevent is needed at all here, and what to do to make it event-driven instead of polling
+        gevent.sleep(30)
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_allclose(rdt['time'], np.arange(20,60))
 
     def data_product_from_params(self, data_product, param_struct):
 
