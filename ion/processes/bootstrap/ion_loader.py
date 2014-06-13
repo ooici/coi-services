@@ -3315,6 +3315,10 @@ Reason: %s
             if not self.debug and get_typed_value(row['persist_data'], targettype="bool"):
                 dpms_client.activate_data_product_persistence(res_id, headers=headers)
 
+            if res_obj.category == DataProductTypeEnum.SITE:
+                dpms_client.create_dataset_for_data_product(res_id)
+
+
         self._resource_assign_org(row, res_id)
         self._resource_advance_lcs(row, res_id)
 
@@ -3569,7 +3573,7 @@ Reason: %s
                         newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                         newrow['parent'] = ''
                         newrow['default_stream_configuration'] = scfg
-                        newrow['persist_data'] = 'True'
+                        newrow['persist_data'] = 'False' # We don't persist Site Data
                         newrow['lcstate'] = "DEPLOYED_AVAILABLE"
                         newrows.append((obj._id, newrow))
 
