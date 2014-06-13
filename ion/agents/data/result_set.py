@@ -53,6 +53,7 @@ import yaml
 import ntplib
 from dateutil import parser
 import pprint
+import numpy as np
 
 from pyon.public import log
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
@@ -349,7 +350,7 @@ class ResultSet(object):
             granule_value = round(granule_value, round_factor)
             log.debug("rounded value to %s", granule_value)
 
-        if ex_value != granule_value:
+        if not np.isclose(ex_value, granule_value):
             return "value mismatch, %s != %s (decimals may be rounded)" % (ex_value, granule_value)
 
         return None
