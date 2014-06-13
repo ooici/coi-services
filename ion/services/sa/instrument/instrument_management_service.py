@@ -38,7 +38,6 @@ from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.util.agent_launcher import AgentLauncher
 from ion.util.module_uploader import RegisterModulePreparerEgg
-from ion.util.qa_doc_parser import QADocParser
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.util.resource_lcs_policy import AgentPolicy, ResourceLCSPolicy, ModelPolicy, DevicePolicy
 

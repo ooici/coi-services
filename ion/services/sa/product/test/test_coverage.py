@@ -20,7 +20,6 @@ from pyon.util.log import log
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
 
-from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 
@@ -68,8 +67,6 @@ class TestDataProductManagementServiceCoverage(IonIntegrationTestCase):
         # Create the environment
         #------------------------------------------
         log.debug("get datastore")
-        datastore_name = CACHE_DATASTORE_NAME
-        self.db = self.container.datastore_manager.get_datastore(datastore_name)
         self.stream_def_id = self.PSMS.create_stream_definition(name='SBE37_CDM')
 
         self.process_definitions  = {}

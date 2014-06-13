@@ -268,8 +268,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         if t0 > t1:
             log.error("This should never happen but t0 > t1")
 
-        data_product.nominal_datetime.start_datetime = t0
-        data_product.nominal_datetime.end_datetime = t1
+        data_product.nominal_datetime.start_datetime = float(t0)
+        data_product.nominal_datetime.end_datetime = float(t1)
 
     def get_datetime(self, nominal_datetime):
         '''

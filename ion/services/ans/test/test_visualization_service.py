@@ -52,7 +52,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         # simulate preloading
-        preload_ion_params(self.container)
+        #preload_ion_params(self.container)
         logging.disable(logging.NOTSET)
 
         #Instantiate a process to represent the test

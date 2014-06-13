@@ -20,7 +20,6 @@ from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublishe
 from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.event import EventSubscriber
 
-from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
@@ -97,8 +96,6 @@ class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
         # Create the environment
         #------------------------------------------
 
-        datastore_name = CACHE_DATASTORE_NAME
-        self.db = self.container.datastore_manager.get_datastore(datastore_name)
         self.stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM')
 
         self.process_definitions  = {}

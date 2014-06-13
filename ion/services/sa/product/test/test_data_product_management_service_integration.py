@@ -21,7 +21,6 @@ from pyon.datastore.datastore import DataStore
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from pyon.ion.event import EventSubscriber, EventPublisher
 
-from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.utility.granule import RecordDictionaryTool
@@ -72,8 +71,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # Create the environment
         #------------------------------------------
 
-        datastore_name = CACHE_DATASTORE_NAME
-        self.db = self.container.datastore_manager.get_datastore(datastore_name)
         self.stream_def_id = self.pubsubcli.create_stream_definition(name='SBE37_CDM')
 
         self.process_definitions  = {}

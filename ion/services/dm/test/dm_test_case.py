@@ -189,7 +189,7 @@ class DMTestCase(IonIntegrationTestCase):
         config.path = 'master'
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
-        self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'load', 'instrument':'CTDPF'})
+        self.container.spawn_process('agentctrl', 'ion.agents.agentctrl', 'AgentControl', {'op':'load', 'instrument':'CTDPF'})
 
     def preload_lctest(self):
         config = DotDict()
@@ -223,7 +223,7 @@ class DMTestCase(IonIntegrationTestCase):
         config.path = 'master'
         #config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary,StreamDefinition,DataProduct'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
-        self.container.spawn_process('import_dataset', 'ion.processes.data.import_dataset', 'ImportDataset', {'op':'load', 'instrument':'CTDGV'})
+        self.container.spawn_process('agentctrl', 'ion.agents.agentctrl', 'AgentControl', {'op':'load', 'instrument':'CTDGV'})
 
     def preload_vel3d_cd(self):
         config = DotDict()
