@@ -627,7 +627,7 @@ class TestDMExtended(DMTestCase):
         breakpoint(locals(), globals())
 
 
-    @attr("INT")
+    @attr("PRELOAD")
     def test_prest(self):
         '''
         Tests the prest configuration data product to make sure that the 
@@ -862,32 +862,8 @@ class TestDMExtended(DMTestCase):
             pass
         breakpoint(locals(), globals())
 
-    @attr("INT")
-    def test_catalog_repair(self):
-        data_product_id = self.make_ctd_data_product()
-        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
-        dataset_monitor = DatasetMonitor(dataset_id)
-        self.addCleanup(dataset_monitor.stop)
 
-        rdt = self.ph.rdt_for_data_product(data_product_id)
-        rdt['time'] = np.arange(30)
-        rdt['temp'] = np.arange(30)
-        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
-        self.assertTrue(dataset_monitor.wait())
-        dataset_monitor.event.clear()
-
-        datasets_xml_path = RegistrationProcess.get_datasets_xml_path(CFG)
-        with open(datasets_xml_path, 'w'):
-            pass # Corrupt the file
-
-
-        self.container.spawn_process('reregister', 'ion.processes.bootstrap.registration_bootstrap', 'RegistrationBootstrap', {'op':'register_datasets'})
-
-        with open(datasets_xml_path, 'r') as f:
-            buf = f.read()
-        self.assertIn(data_product_id, buf)
-
-    @attr("INT")
+    @attr("PRELOAD")
     def test_ctdmo(self):
         self.preload_mflm()
         #2014-01-24 08:16:00,373 INFO Dummy-391 ion.agents.data.dataset_agent:289 Particle received: {"quality_flag": "ok", "preferred_timestamp": "internal_timestamp", "stream_name": "ctdmo_parsed", "pkt_format_id": "JSON_Data", "pkt_version": 1, "internal_timestamp": 3587292001.0, "values": [{"value_id": "inductive_id", "value": 55}, {"value_id": "temperature", "value": 205378}, {"value_id": "conductivity", "value": 410913}, {"value_id": "pressure", "value": 3939}, {"value_id": "ctd_time", "value": 431618401}], "driver_timestamp": 3599568956.723209, "new_sequence": false}
@@ -1006,7 +982,7 @@ def rotate_v(u,v,theta):
         self.assertEquals(density_dependencies, what_it_should_be)
 
 
-    @attr("INT")
+    @attr("PRELOAD")
     def test_data_product_assocs(self):
         # req-tag: L4-CI-SA-RQ-364 
         self.preload_mflm()
@@ -1202,8 +1178,10 @@ def rotate_v(u,v,theta):
         with self.assertRaises(NotFound):
             self.data_product_management.read_catalog_entry(data_product_id)
 
-    @attr("INT")
-    def test_bad_xml(self):
+
+        self.verify_bad_xml()
+
+    def verify_bad_xml(self):
         with self.assertRaises(NotFound):
             self.data_product_management.read_catalog_entry('fakeid1')
         data_product_id = self.make_ctd_data_product()
