@@ -1713,7 +1713,6 @@ class AgentControl(ImmediateProcess):
         log.debug("Cloned StreamDefinition %s %s as: %s %s '%s'", sdef_obj._id,
                   res_pre_id, newsdef_id, resnew_pre_id, newsdef_obj.name)
 
-        newdp_obj.category = DataProductTypeEnum.DERIVED
         # Create agent instance, association to agent definition and to device
         newdp_id = dpms.create_data_product(newdp_obj,
                                             stream_definition_id=newsdef_id,
