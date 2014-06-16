@@ -76,33 +76,33 @@ class Test(IonUnitTestCase):
         self._verify_attr_grouping(
             platform_id="LJ01D",
             expected_groups={
-                2.5 : ["input_voltage|0"],
-                4.0 : ["MVPC_pressure_1|0", "MVPC_temperature|0"],
-                5.0 : ["input_bus_current|0"],
+                2.5 : ["input_voltage"],
+                4.0 : ["MVPC_pressure_1", "MVPC_temperature"],
+                5.0 : ["input_bus_current"],
             }
         )
 
         self._verify_attr_grouping(
             platform_id="Node1D",
             expected_groups={
-                5.0 : ["input_voltage|0", "input_bus_current|0"],
-                10.0 : ["MVPC_pressure_1|0", "MVPC_temperature|0"],
+                5.0 : ["input_voltage", "input_bus_current"],
+                10.0 : ["MVPC_pressure_1", "MVPC_temperature"],
             }
         )
 
         self._verify_attr_grouping(
             platform_id="MJ01C",
             expected_groups={
-                2.5 : ["input_voltage|0"],
-                5.0 : ["input_bus_current|0"],
-                4.0 : ["MVPC_pressure_1|0", "MVPC_temperature|0"],
+                2.5 : ["input_voltage"],
+                5.0 : ["input_bus_current"],
+                4.0 : ["MVPC_pressure_1", "MVPC_temperature"],
             }
         )
 
         self._verify_attr_grouping(
             platform_id="ShoreStation",
             expected_groups={
-                5.0 : ["ShoreStation_attr_1|0", "ShoreStation_attr_2|0"],
+                5.0 : ["ShoreStation_attr_1", "ShoreStation_attr_2"],
             }
         )
 
