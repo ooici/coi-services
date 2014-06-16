@@ -1683,13 +1683,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(len(self._samples_received) >= 1)
         log.info("Received samples: %s", len(self._samples_received))
 
-    def _wait_for_external_event(self):
-        log.info("waiting for reception of an external event...")
-        # just wait for at least one -- see consume_event
-        self._async_event_result.get(timeout=EVENT_TIMEOUT)
-        self.assertTrue(len(self._events_received) >= 1)
-        log.info("Received events: %s", len(self._events_received))
-
     def _stop_resource_monitoring(self, recursion=True):
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING, kwargs=kwargs)
