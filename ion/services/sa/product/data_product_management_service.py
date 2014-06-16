@@ -674,8 +674,6 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def add_parameter_to_data_product(self, parameter_context_id='', data_product_id=''):
         data_product = self.read_data_product(data_product_id)
-        if data_product.category != DataProductTypeEnum.DEVICE:
-            raise BadRequest("Can only add parameters to device data products")
 
         data_product = self.read_data_product(data_product_id)
         pc = self.clients.dataset_management.read_parameter_context(parameter_context_id)
@@ -690,12 +688,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             self.clients.resource_registry.update(stream_def)
 
         datasets, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
-        if not datasets:
-            if data_product.category != DataProductTypeEnum.EXTERNAL:
-                raise BadRequest("No associated dataset, please ensure that this data product is activated")
-            else:
-                return # We're done, and yeah
-        else:
+        if datasets:
             dataset_id = datasets[0]
             self.clients.dataset_management.add_parameter_to_dataset(parameter_context_id, dataset_id)
 

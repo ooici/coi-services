@@ -50,7 +50,7 @@ from interface.objects import DataSource, ExternalDataProvider,DataProduct
 
 MOCK_HARVESTER_NAME = "test_harvester"
 
-@attr('INT', group='eoi')
+@attr(group='eoi')
 class TestEOIExternalResources(DMTestCase):
     
     def preload_ui(self):
@@ -63,6 +63,7 @@ class TestEOIExternalResources(DMTestCase):
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
     
+    @attr('UTIL')
     def test_generation_of_dp_load_ui(self):
         url = "http://r3-pg-test02.oceanobservatories.org:8080/geonetwork/srv/eng/main.home?uuid={9C0EC29F-7A36-45AD-9EAB-99D82AB80F6D}"
         url = url.replace("{","%7B")
@@ -120,6 +121,7 @@ class TestEOIExternalResources(DMTestCase):
     checks that there are datasources in geonetwork
     checks that neptune and ioos have been added through preload as resources
     '''
+    @attr('UTIL')
     @unittest.skipIf( not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test services are not loaded')  
     def test_external_data_provider_during_preload(self):
         self.preload_external_providers()
@@ -191,7 +193,6 @@ class TestEOIExternalResources(DMTestCase):
     '''
     preload data from select scenario
     ''' 
-    @unittest.skip    
     def preload_external_providers(self):
         config = DotDict()
         config.op = 'load'
