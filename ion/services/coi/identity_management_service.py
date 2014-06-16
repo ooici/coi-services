@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Thomas R. Lennan, Stephen Henrie'
-__license__ = 'Apache 2.0'
+
 
 from pyon.core.exception import Conflict, Inconsistent, NotFound, BadRequest
 from pyon.core.security.authentication import Authentication

@@ -2,7 +2,7 @@
 from pyon.util.log import log
 
 __author__ = 'Stephen P. Henrie, Dave Foster <dfoster@asascience.com>'
-__license__ = 'Apache 2.0'
+
 
 from pyon.core import exception
 from pyon.ion import exchange

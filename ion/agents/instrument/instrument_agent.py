@@ -9,7 +9,7 @@ This resource fronts instruments and instrument drivers one-to-one in ION.
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 # Pyon imports
 from pyon.public import IonObject, log, RT, PRED, LCS, OT, CFG

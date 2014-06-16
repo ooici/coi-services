@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Stephen P. Henrie'
-__license__ = 'Apache 2.0'
+
 
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import PRED, RT, Container, CFG, OT, IonObject

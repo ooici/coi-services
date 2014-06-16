@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Bill French, Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 import numpy
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Thomas R. Lennan, Michael Meisinger, Stephen Henrie'
-__license__ = 'Apache 2.0'
+
 
 from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, \
     GovernanceHeaderValues, has_org_role

@@ -9,7 +9,7 @@ in the driver code.
 """
 
 __author__ = 'Bill French'
-__license__ = 'Apache 2.0'
+
 
 from ion.agents.instrument.common import InstErrorCode
 import traceback

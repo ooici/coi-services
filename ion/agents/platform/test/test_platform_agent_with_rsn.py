@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 # The following can be prefixed with PLAT_NETWORK=single to exercise the tests
 # with a single platform (with no sub-platforms). Otherwise a small network is

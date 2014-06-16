@@ -9,7 +9,7 @@
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 # Pyon object and resource imports.
 from pyon.public import IonObject, log, RT, PRED, LCS, OT, CFG

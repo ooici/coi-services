@@ -3,7 +3,7 @@
 """Observes message interactions through the Exchange"""
 
 __author__ = 'Prashant Kediyal, Michael Meisinger'
-__license__ = 'Apache 2.0'
+
 
 import string
 

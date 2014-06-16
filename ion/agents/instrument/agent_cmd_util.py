@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 """
 from ion.agents.instrument.agent_cmd_util import *
