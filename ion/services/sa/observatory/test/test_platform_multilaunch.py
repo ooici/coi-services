@@ -9,7 +9,7 @@
 """
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_multilaunch.py:TestMultiLaunch.test_01_platforms_and_00_instruments
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_multilaunch.py:TestMultiLaunch.test_01_platforms_and_01_instruments

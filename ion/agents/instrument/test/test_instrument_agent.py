@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 # Import pyon first for monkey patching.
 

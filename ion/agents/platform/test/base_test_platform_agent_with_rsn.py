@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
-__license__ = 'Apache 2.0'
+
 
 #
 # The original test set-up in this file adapted pieces from various sources:

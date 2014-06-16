@@ -3,7 +3,7 @@
 
 
 __author__ = 'Raj Singh, Stephen Henrie'
-__license__ = 'Apache 2.0'
+
 
 """
 Note:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Roger Unwin'
-__license__ = 'Apache 2.0'
+
 
 from ion.agents.instrument.common import BaseEnum
 

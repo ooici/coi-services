@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 _author_ = 'Seman, Michael Meisinger'
-_license_ = 'Apache 2.0'
 
 from pyon.public import IonObject, RT, log
 from pyon.core.exception import BadRequest

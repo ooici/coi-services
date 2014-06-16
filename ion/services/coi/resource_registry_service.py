@@ -2,7 +2,7 @@
 
 
 __author__ = 'Thomas R. Lennan, Michael Meisinger, Stephen Henrie'
-__license__ = 'Apache 2.0'
+
 from pyon.core.exception import ServerError
 from pyon.ion.resregistry import ResourceRegistryServiceWrapper
 from pyon.public import log, OT

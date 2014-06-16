@@ -3,7 +3,7 @@
 """Test cases for launching and shutting down a platform agent network"""
 
 __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
-__license__ = 'Apache 2.0'
+
 
 #
 # Base preparations and construction of the platform topology are provided by

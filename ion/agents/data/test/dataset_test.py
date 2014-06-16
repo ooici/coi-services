@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Bill French'
-__license__ = 'Apache 2.0'
+
 
 import os
 import sys

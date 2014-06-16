@@ -4,7 +4,8 @@ Integrated Observatory Network (ION) - OOINet
 
 coi-services - OOINet system and services
 
-(C) UC Regents, 2010-2014
+(C) The Regents of the University of California, 2010-2014
+Open source under BSD license. See LICENSE.txt for details.
 ===========================================================
 
 This is the repository that defines the OOINet with its services and agents.

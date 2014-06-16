@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 #
 # bin/nosetests -sv ion.agents.platform.util.test.test_network_util:Test.test_create_node_network
