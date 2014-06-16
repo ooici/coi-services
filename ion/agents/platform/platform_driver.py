@@ -25,7 +25,6 @@ from pyon.agent.common import BaseEnum
 from pyon.agent.instrument_fsm import ThreadSafeFSM
 from pyon.agent.instrument_fsm import FSMError
 from ion.agents.platform.exceptions import PlatformConnectionException
-from ion.agents.platform.util.network_util import NetworkUtil
 
 
 class PlatformDriverState(BaseEnum):
@@ -89,12 +88,6 @@ class PlatformDriver(object):
                  in particular regarding the Managed Endpoint API.
         """
 
-        #
-        # NOTE the "pnode" parameter may be not very "standard" but it is the
-        # current convenient mechanism that captures the overall definition
-        # of the corresponding platform (most of which coming from configuration)
-        #
-
         self._pnode = pnode
         self._send_event = event_callback
 
@@ -106,16 +99,6 @@ class PlatformDriver(object):
             self._parent_platform_id = self._pnode.parent.platform_id
         else:
             self._parent_platform_id = None
-
-        self._platform_attributes = \
-            dict((a.attr_id, a.defn) for a in self._pnode.attrs.itervalues())
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: PlatformDriver constructor called: pnode:\n%s\n"
-                      "_platform_attributes=%s",
-                      self._platform_id,
-                      NetworkUtil._dump_pnode(self._pnode, include_subplatforms=False),
-                      self._platform_attributes)
 
         self._driver_config = None
         self._resource_schema = {}
@@ -205,13 +188,6 @@ class PlatformDriver(object):
         resource command. The actual action occurs in execute.
         """
         return self._fsm.on_event(PlatformDriverEvent.EXECUTE, resource_cmd, *args, **kwargs)
-
-    def _get_platform_attributes(self):
-        """
-        Gets a dict of the attribute definitions in this platform as given at
-        construction time (from pnode parameter).
-        """
-        return self._platform_attributes
 
     def validate_driver_configuration(self, driver_config):
         """
