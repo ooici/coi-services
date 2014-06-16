@@ -47,10 +47,6 @@ class AttrNode(BaseNode):
     def defn(self):
         return self._defn
 
-    @property
-    def writable(self):
-        return self.defn.get('read_write', '').lower().find("write") >= 0
-
     def diff(self, other):
         if self.attr_id != other.attr_id:
             return "Attribute IDs are different: %r != %r" % (
