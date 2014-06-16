@@ -2,7 +2,7 @@
 
 
 __author__ = 'Stephen P. Henrie, Michael Meisinger'
-__license__ = 'Apache 2.0'
+
 
 
 from interface.services.cei.iexecution_engine_management_service import BaseExecutionEngineManagementService

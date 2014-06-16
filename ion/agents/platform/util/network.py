@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 
 # NOTE: No use of any pyon stuff in this module mainly to also facilitate use by

@@ -15,7 +15,7 @@
 """
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 import sys
 from ion.agents.platform.cgsn.simulator.cgsn_simulator import CgsnSimulator

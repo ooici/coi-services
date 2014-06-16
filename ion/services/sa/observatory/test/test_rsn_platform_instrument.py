@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Carlos Rueda, Maurice Manning'
-__license__ = 'Apache 2.0'
+
 
 #
 # Base preparations and construction of the platform topology are provided by

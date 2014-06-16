@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 """
 python pkg_tools/dvr_setup.py /Users/edward/Documents/Dev/code/test_eggs/drivers/driver_a/v_0_1/driver.py

@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 #
 # bin/nosetests -v ion/agents/platform/test/test_platform_resource_monitor.py:Test.test_attr_grouping_by_similar_rate

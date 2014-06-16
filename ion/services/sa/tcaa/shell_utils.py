@@ -7,7 +7,7 @@
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 """
 # Launch container shell with deploy file and force clean broker.

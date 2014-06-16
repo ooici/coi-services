@@ -3,7 +3,7 @@
 
 
 __author__ = 'Stephen P. Henrie'
-__license__ = 'Apache 2.0'
+
 
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
 from pyon.core.exception import NotFound, BadRequest, Inconsistent

@@ -10,7 +10,7 @@
 from ion.agents.instrument.common import BaseEnum
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 
 class NormalResponse(BaseEnum):

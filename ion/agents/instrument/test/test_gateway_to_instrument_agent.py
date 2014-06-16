@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Stephen Henrie'
-__license__ = 'Apache 2.0'
+
 
 import simplejson, urllib, os, unittest
 from mock import patch

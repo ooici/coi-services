@@ -9,7 +9,7 @@ and logging.
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 import socket
 import threading

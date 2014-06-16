@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 __author__ = 'Maurice Manning'
-__license__ = 'Apache 2.0'
+
 
 from pyon.public import  log, IonObject
 from pyon.util.containers import DotDict
