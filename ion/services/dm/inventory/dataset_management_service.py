@@ -17,7 +17,7 @@ from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDict
 from ion.util.time_utils import TimeUtils
 
 from interface.objects import ParameterContext as ParameterContextResource, ParameterDictionary as ParameterDictionaryResource, ParameterFunction as ParameterFunctionResource
-from interface.objects import Dataset
+from interface.objects import Dataset, ResourceVisibilityEnum
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
@@ -33,7 +33,6 @@ from ion.services.eoi.table_loader import ResourceParser
 
 from uuid import uuid4
 from udunitspy.udunits2 import UdunitsError
-
 import os
 import numpy as np
 import re
@@ -95,22 +94,25 @@ class DatasetManagementService(BaseDatasetManagementService):
 
         log.debug('creating dataset: %s', dataset_id)
 
-
-
         #table loader create resource
-        if self._get_eoi_service_available() and parameter_dictionary_id:
-            params = self.read_parameter_contexts(parameter_dictionary_id)
-            param_defs = {}
-            for p in params:
-                param_defs[p.name] = {
-                    "value_encoding" : p.value_encoding,
-                    "parameter_type" : p.parameter_type,
-                    "units" : p.units,
-                    "standard_name" : p.name,
-                    "display_name" : p.display_name,
-                    "description" : p.description,
-                    "fill_value" : p.fill_value
-                }
+        if dataset.visibility == ResourceVisibilityEnum.PUBLIC:
+            log.debug('dataset visible: %s', dataset_id)
+            if self._get_eoi_service_available() and parameter_dictionary_id:
+
+                params = self.read_parameter_contexts(parameter_dictionary_id)
+                param_defs = {}
+
+                for p in params:                
+                    param_defs[p.name] = {
+                        "value_encoding" : p.value_encoding,
+                        "parameter_type" : p.parameter_type,
+                        "units" : p.units,
+                        "standard_name" : p.name,
+                        "display_name" : p.display_name,
+                        "description" : p.description,
+                        "fill_value" : p.fill_value
+                    }
+
                 self._create_single_resource(dataset_id, param_defs)
 
         self.clients.resource_registry.create_association(dataset_id, PRED.hasParameterDictionary, parameter_dictionary_id)
@@ -127,18 +129,7 @@ class DatasetManagementService(BaseDatasetManagementService):
             raise BadRequest('%s: Dataset either not provided or malformed.' % self.logging_name)
         self.clients.resource_registry.update(dataset)
         #@todo: Check to make sure retval is boolean
-
         log.debug('DM:update dataset: dataset_id: %s', dataset._id)
-        if self._get_eoi_service_available():
-            self._remove_single_resource(dataset._id)
-
-            parameter_dictionary_id = self.clients.resource_registry.find_objects(dataset._id, PRED.hasParameterDictionary, id_only=True)[0][0]
-            pdict = self._coverage_parameter_dictionary(parameter_dictionary_id)
-            pdict = pdict.dump() # Serialize
-            pdict = self.numpy_walk(pdict)
-
-            self._create_single_resource(dataset._id, pdict)
-
         return True
 
     def delete_dataset(self, dataset_id=''):
