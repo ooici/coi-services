@@ -4,7 +4,6 @@
 
 network:
 - platform_id: LJ01D
-  platform_types: []
   attrs:
   - attr_id: input_voltage
     type: float

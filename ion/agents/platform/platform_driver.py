@@ -261,6 +261,10 @@ class PlatformDriver(object):
 
         @retval {attr_id: dict, ...}
                 dict indexed by attribute ID with associated properties.
+                attr_id is in particular used during get_attribute_values
+                calls to retrieve values during resource monitoring.
+                The dict for each attribute should contain the following properties:
+                - monitor_cycle_seconds: nominal period in seconds for monitoring
 
         @raise PlatformConnectionException  If the connection to the external
                platform is lost.
@@ -273,12 +277,12 @@ class PlatformDriver(object):
         Returns the values for specific attributes since a given time for
         each attribute.
 
-        @param attrs     [(attrName, from_time), ...] desired attributes.
+        @param attrs     [(attr_id, from_time), ...] desired attributes.
                          from_time Assummed to be in the format basically described by
                          pyon's get_ion_ts function, "a str representing an
                          integer number, the millis in UNIX epoch."
 
-        @retval {attrName : [(attrValue, timestamp), ...], ...}
+        @retval {attr_id : [(attrValue, timestamp), ...], ...}
                 dict indexed by attribute name with list of (value, timestamp)
                 pairs. Timestamps in same format as from_time.
 
@@ -298,9 +302,9 @@ class PlatformDriver(object):
         Sets values for writable attributes in this platform.
         Only called by SET handler when supports_set_operation() returns True.
 
-        @param attrs 	[(attrName, attrValue), ...] 	List of attribute values
+        @param attrs 	[(attr_id, attrValue), ...] 	List of attribute values
 
-        @retval {attrName : [(attrValue, timestamp), ...], ...}
+        @retval {attr_id : [(attrValue, timestamp), ...], ...}
                 dict with a list of (value,timestamp) pairs for each attribute
                 indicated in the input. Returned timestamps indicate the time when the
                 value was set. Each timestamp is "a str representing an
@@ -310,9 +314,6 @@ class PlatformDriver(object):
         @raise PlatformConnectionException  If the connection to the external
                platform is lost.
         """
-        #
-        # TODO Any needed alignment with the instrument case?
-        #
         raise NotImplementedError()  #pragma: no cover
 
     def execute(self, cmd, *args, **kwargs):
