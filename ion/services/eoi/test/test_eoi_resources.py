@@ -3,50 +3,20 @@
 @author Jim Case
 @brief Test cases for the eoi data provider resources, 
 """
-from ion.services.dm.test.dm_test_case import DMTestCase, Streamer
-from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
-from ion.processes.data.replay.replay_process import RetrieveProcess
-from ion.services.dm.utility.test.parameter_helper import ParameterHelper
-from ion.services.dm.utility.granule import RecordDictionaryTool
-from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
-from ion.services.dm.utility.tmpsf_simulator import TMPSFSimulator
-from ion.services.dm.utility.bad_simulator import BadSimulator
-from ion.util.direct_coverage_utils import DirectCoverageAccess
-from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
-from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from ion.services.dm.utility.provenance import graph
-from ion.processes.data.registration.registration_process import RegistrationProcess
-from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext as CovParameterContext
-from ion.processes.data.transforms.transform_worker import TransformWorker
-from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT, ParameterContext
-from nose.plugins.attrib import attr
-from pyon.util.breakpoint import breakpoint
-from pyon.core.exception import NotFound
-from pyon.event.event import EventSubscriber
-from pyon.util.file_sys import FileSystem
-from pyon.public import IonObject, RT, CFG, PRED, OT
+from pyon.public import RT, CFG 
 from pyon.util.containers import DotDict
-from pydap.client import open_url
-from shutil import rmtree
-from datetime import datetime, timedelta
-from pyon.net.endpoint import RPCClient
 from pyon.util.log import log
-from pyon.ion.event import EventPublisher
-from interface.objects import InstrumentSite, InstrumentModel, PortTypeEnum, Deployment, CabledInstrumentDeploymentContext
-from nose.tools import with_setup
+
+from ion.services.dm.test.dm_test_case import DMTestCase
+
+from interface.objects import ParameterContext, DataSource, ExternalDataProvider,DataProduct
+
+from nose.plugins.attrib import attr
 import lxml.etree as etree
-import simplejson as json
-import pkg_resources
-import tempfile
-import os
 import unittest
-import numpy as np
-import time
-import gevent
 import requests
-from gevent.event import Event
-import calendar
-from interface.objects import DataSource, ExternalDataProvider,DataProduct
+
+from pyon.util.breakpoint import breakpoint
 
 MOCK_HARVESTER_NAME = "test_harvester"
 
@@ -116,14 +86,14 @@ class TestEOIExternalResources(DMTestCase):
 
 
 
-    '''
-    tests the addition of external resources in to the system through preload
-    checks that there are datasources in geonetwork
-    checks that neptune and ioos have been added through preload as resources
-    '''
-    @attr('UTIL')
     @unittest.skipIf( not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test services are not loaded')  
+    @attr('UTIL')
     def test_external_data_provider_during_preload(self):
+        '''
+        tests the addition of external resources in to the system through preload
+        checks that there are datasources in geonetwork
+        checks that neptune and ioos have been added through preload as resources
+        '''
         self.preload_external_providers()
 
         self.rr = self.container.resource_registry
@@ -173,27 +143,28 @@ class TestEOIExternalResources(DMTestCase):
         self.remove_added_harvesters()
 
 
-    '''
-    tests the addition of external resources in to the system, 
-    skipped as not really needed, but might be useful down the road
-    '''
-    @unittest.skip
+    @unittest.skip("Potentially deprecated for the time being")
+    @attr('INT')
     def test_add_datasource_externaldataprovider_to_rr(self):
+        '''
+        tests the addition of external resources in to the system, 
+        skipped as not really needed, but might be useful down the road
+        '''
         self.preload_external_providers()
 
         ds = DataSource(name='bob')     
-        cc.resource_registry.create(ds)
+        self.container.resource_registry.create(ds)
 
         edp = ExternalDataProvider(name='bob')
-        cc.resource_registry.create(edp)
+        self.container.resource_registry.create(edp)
 
         self.remove_added_harvesters()
         
 
-    '''
-    preload data from select scenario
-    ''' 
     def preload_external_providers(self):
+        '''
+        preload data from select scenario
+        ''' 
         config = DotDict()
         config.op = 'load'
         config.loadui=True
@@ -203,10 +174,10 @@ class TestEOIExternalResources(DMTestCase):
         config.path = 'master'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
 
-    '''
-    can get the list of harvesters from th importer service, hits the geonetwork service
-    '''
     def get_harvester_list(self):
+        '''
+        can get the list of harvesters from th importer service, hits the geonetwork service
+        '''
         IMPORTER_SERVICE_SERVER = CFG.get_safe('eoi.importer_service.server', 'http://localhost')
         IMPORTER_SERVICE_PORT = str(CFG.get_safe('eoi.importer_service.port', 8844))
         self.importer_service_url = ''.join([IMPORTER_SERVICE_SERVER, ':', IMPORTER_SERVICE_PORT])
@@ -221,10 +192,10 @@ class TestEOIExternalResources(DMTestCase):
             log.error("check service, as it appears to not be running...%s", e)     
         return None 
 
-    '''
-    can get the list of harvesters from th importer service, hits the geonetwork service
-    '''
     def remove_harvester_list(self,name):
+        '''
+        can get the list of harvesters from th importer service, hits the geonetwork service
+        '''
         IMPORTER_SERVICE_SERVER = CFG.get_safe('eoi.importer_service.server', 'http://localhost')
         IMPORTER_SERVICE_PORT = str(CFG.get_safe('eoi.importer_service.port', 8844))
         self.importer_service_url = ''.join([IMPORTER_SERVICE_SERVER, ':', IMPORTER_SERVICE_PORT])
@@ -263,12 +234,13 @@ class TestEOIExternalResources(DMTestCase):
             return []
 
 
-    '''
-    checks that havester information is available
-    can be added too via the importer interface
-    '''
     @unittest.skipIf( not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test services are not loaded')  
+    @attr('INT')
     def test_adding_removing_harvester(self):
+        '''
+        checks that havester information is available
+        can be added too via the importer interface
+        '''
 
         IMPORTER_SERVICE_SERVER = CFG.get_safe('eoi.importer_service.server', 'http://localhost')
         IMPORTER_SERVICE_PORT = str(CFG.get_safe('eoi.importer_service.port', 8844))
@@ -335,12 +307,11 @@ class TestEOIExternalResources(DMTestCase):
         self.remove_added_harvesters()
 
 
-    '''
-    checks that havester information is available
-    can be added too via the importer interface
-    '''
-    @unittest.skipIf( not (CFG.get_safe('eoi.meta.use_eoi_services', False)), 'Skip test services are not loaded')  
     def remove_added_harvesters(self):
+        '''
+        checks that havester information is available
+        can be added too via the importer interface
+        '''
         names = self.get_harvester_names(self.get_harvester_list())
         expected_list = ['neptune','ioos','ooi']
         for n in names:
