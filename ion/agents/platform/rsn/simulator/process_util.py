@@ -12,7 +12,7 @@ simple test:
 """
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 

@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 
 # bin/nosetests -sv ion/agents/platform/rsn/test/test_rsn_platform_driver.py

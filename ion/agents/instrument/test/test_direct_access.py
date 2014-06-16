@@ -15,7 +15,7 @@ NOTE: MANY OF THESE TESTS WON"T PASS IF USED WITH THE OLDER DRIVER EGGS (THAT IN
 """
 
 __author__ = 'Bill Bollenbacher'
-__license__ = 'Apache 2.0'
+
 
 # Import pyon first for monkey patching.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Stephen P. Henrie'
-__license__ = 'Apache 2.0'
+
 
 import unittest
 from mock import Mock, patch

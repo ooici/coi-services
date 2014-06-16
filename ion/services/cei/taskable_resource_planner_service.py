@@ -2,7 +2,7 @@
 
 
 __author__ = 'Stephen P. Henrie'
-__license__ = 'Apache 2.0'
+
 
 from interface.services.cei.itaskable_resource_planner_service import BaseTaskableResourcePlannerService
 

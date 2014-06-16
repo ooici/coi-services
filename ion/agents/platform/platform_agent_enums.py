@@ -8,7 +8,7 @@
 """
 
 __author__ = 'Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 
 from pyon.agent.agent import ResourceAgentState

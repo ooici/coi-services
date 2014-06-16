@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Michael Meisinger'
-__license__ = 'Apache 2.0'
+
 
 import collections, traceback, datetime, time, yaml
 import flask, ast, pprint

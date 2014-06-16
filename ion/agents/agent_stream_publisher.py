@@ -9,7 +9,7 @@ that stream data.
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 # Basic Pyon imports
 from pyon.public import log

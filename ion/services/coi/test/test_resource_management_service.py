@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Stephen P. Henrie, Michael Meisinger'
-__license__ = 'Apache 2.0'
+
 
 from mock import Mock, patch
 from nose.plugins.attrib import attr

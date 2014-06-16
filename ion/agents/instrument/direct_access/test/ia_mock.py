@@ -3,7 +3,7 @@
 """IA mock for DA demo"""
 
 __author__ = 'Bill Bollenbacher'
-__license__ = 'Apache 2.0'
+
 
 from pyon.agent.agent import ResourceAgent, UserAgent
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer, DirectAccessTypes

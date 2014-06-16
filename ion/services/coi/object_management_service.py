@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 __author__ = 'Stephen P. Henrie'
-__license__ = 'Apache 2.0'
+
 
 from interface.services.coi.iobject_management_service import BaseObjectManagementService
 from pyon.util.containers import is_basic_identifier

@@ -7,7 +7,7 @@
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 from pyon.public import log
 from pyon.public import CFG

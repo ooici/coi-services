@@ -9,7 +9,7 @@
 from ion.agents.port.port_agent_process import PortAgentProcess
 
 __author__ = 'Steve Foley, Carlos Rueda'
-__license__ = 'Apache 2.0'
+
 
 import gevent
 import os

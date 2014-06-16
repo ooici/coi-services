@@ -46,7 +46,7 @@ contiguous records.
 """
 
 __author__ = 'Bill French'
-__license__ = 'Apache 2.0'
+
 
 import re
 import yaml

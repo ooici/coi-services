@@ -9,7 +9,7 @@ activation integration test cases. Output files formatted for cut and paste conf
 """
 
 __author__ = 'Edward Hunter'
-__license__ = 'Apache 2.0'
+
 
 
 def probe_res(container=None, restype='', predicate=''):
