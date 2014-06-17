@@ -28,7 +28,7 @@ import yaml
 
 # some bogus IDs
 BOGUS_PLATFORM_ID = 'bogus_plat_id'
-BOGUS_ATTR_NAMES = ['bogus_attr1|1', 'bogus_attr2|2']
+BOGUS_ATTR_NAMES = ['bogus_attr1', 'bogus_attr2']
 BOGUS_PORT_ID = 'bogus_port_id'
 BOGUS_INSTRUMENT_ID = 'bogus_instrument_id'
 BOGUS_EVENT_TYPE = "bogus_event_type"

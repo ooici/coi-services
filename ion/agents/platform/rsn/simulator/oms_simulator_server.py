@@ -4,19 +4,24 @@
 @package ion.agents.platform.rsn.simulator.oms_simulator_server
 @file    ion/agents/platform/rsn/simulator/oms_simulator_server.py
 @author  Carlos Rueda
-@brief   OMS simulator XML/RPC server. Program intended to be run outside of
-         pyon.
+@brief   OMS simulator XML/RPC server. Program intended to be run outside of pyon.
 
  USAGE:
     $ bin/python ion/agents/platform/rsn/simulator/oms_simulator_server.py
-    ...
-    2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :107 <module> Listening on localhost:7700
-    2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :108 <module> Enter ^D to exit
+    oms_simulator: setting log level to: logging.WARN
 
+ Run with --help for usage options.
+
+ Define environment variable oms_simulator_loglevel to set logging level, for example:
+    $ oms_simulator_loglevel=INFO bin/python ion/agents/platform/rsn/simulator/oms_simulator_server.py
+    oms_simulator: setting log level to: logging.INFO
+    2014-06-16 14:49:02,228 INFO     MainThread oms_simulator  :145 __init__ Definition file: ion/agents/platform/rsn/simulator/network.yml
+    2014-06-16 14:49:02,228 INFO     MainThread oms_simulator  :146 __init__ Events file:     ion/agents/platform/rsn/simulator/events.yml
+    2014-06-16 14:49:02,439 INFO     MainThread oms_simulator  :167 __init__ Methods: ['generate_test_event', 'get_platform_attribute_values', 'get_platform_metadata', 'get_platform_ports', 'get_registered_event_listeners', 'ping', 'register_event_listener', 'set_over_current', 'system.listMethods', 'system.methodHelp', 'system.methodSignature', 'turn_off_platform_port', 'turn_on_platform_port', 'unregister_event_listener', 'x_disable', 'x_enable', 'x_exit_inactivity', 'x_exit_simulator']
+    2014-06-16 14:49:02,439 INFO     MainThread oms_simulator  :175 __init__ OMS simulator xmlrpc server listening on http://localhost:7700/
 """
 
 __author__ = 'Carlos Rueda'
-
 
 
 from ion.agents.platform.rsn.simulator.logger import Logger
@@ -42,11 +47,13 @@ class CIOMSSimulatorWithExit(CIOMSSimulator):
                        inactivity.
     """
 
-    def __init__(self, oss):
+    def __init__(self, oss, def_file, events_file):
         """
         @param oss   CIOMSSimulatorServer
+        @param def_file      Platform network definition file
+        @param events_file   File with events to be published
         """
-        CIOMSSimulator.__init__(self)
+        CIOMSSimulator.__init__(self, def_file, events_file)
         self._oss = oss
 
         # for inactivity checking
@@ -108,16 +115,21 @@ class CIOMSSimulatorServer(object):
     Intended to be run outside of pyon.
     """
 
-    def __init__(self, host, port, inactivity_period=None):
+    def __init__(self, def_file, events_file, host, port, inactivity_period):
         """
         Creates a SimpleXMLRPCServer and starts a Thread where serve_forever
         is called on the server.
 
+        @param def_file      Platform network definition file
+        @param events_file   File with events to be published
         @param host   Hostname for the service
         @param port   Port for the service
         """
+        log.info("Definition file: %s", def_file)
+        log.info("Events file:     %s", events_file)
+
         self._running = True
-        self._sim = CIOMSSimulatorWithExit(self)
+        self._sim = CIOMSSimulatorWithExit(self, def_file, events_file)
 
         if log.isEnabledFor(logging.DEBUG):
             ser = NetworkUtil.serialize_network_definition(self._sim._ndef)
@@ -135,7 +147,7 @@ class CIOMSSimulatorServer(object):
         self._server.register_introspection_functions()
         self._server.register_instance(self._sim, allow_dotted_names=True)
 
-        log.info("Methods:\n\t%s", "\n\t".join(self._server.system_listMethods()))
+        log.info("Methods: %s", self._server.system_listMethods())
 
         self._check_pyon()
 
@@ -178,11 +190,19 @@ if __name__ == "__main__":  # pragma: no cover
 
     DEFAULT_HOST = 'localhost'
     DEFAULT_PORT = 7700
+    DEFAULT_DEF_FILE = 'ion/agents/platform/rsn/simulator/network.yml'
+    DEFAULT_EVENT_FILE = 'ion/agents/platform/rsn/simulator/events.yml'
 
     import argparse
     import signal
 
-    parser = argparse.ArgumentParser(description="OMS Simulator server")
+    parser = argparse.ArgumentParser(description="OMS simulator XML/RPC server")
+    parser.add_argument("-d", "--definition",
+                        help="platform network definition file (default: %s)" % DEFAULT_DEF_FILE,
+                        default=DEFAULT_DEF_FILE)
+    parser.add_argument("-e", "--events",
+                        help="file with events to be published (default: %s)" % DEFAULT_EVENT_FILE,
+                        default=DEFAULT_EVENT_FILE)
     parser.add_argument("-H", "--host",
                         help="host (default: %s)" % DEFAULT_HOST,
                         default=DEFAULT_HOST)
@@ -197,8 +217,10 @@ if __name__ == "__main__":  # pragma: no cover
     host = opts.host
     port = int(opts.port)
     inactivity_period = int(opts.inactivity) if opts.inactivity else None
+    def_file = opts.definition
+    events_file = opts.events
 
-    oss = CIOMSSimulatorServer(host, port, inactivity_period)
+    oss = CIOMSSimulatorServer(def_file, events_file, host, port, inactivity_period)
 
     def handler(signum, frame):
         log.info("\n--SIGINT--")

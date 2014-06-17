@@ -379,11 +379,9 @@ class NetworkUtil(object):
 def _get_attr_id(attr_defn):
     if 'attr_id' in attr_defn:
         attr_id = attr_defn['attr_id']
-    elif 'attr_name' in attr_defn and 'attr_instance' in attr_defn:
-        attr_id = "%s|%s" % (attr_defn['attr_name'], attr_defn['attr_instance'])
     else:
         raise NetworkDefinitionException(
-            "Attribute definition does now include 'attr_name' nor 'attr_instance'. "
+            "Attribute definition does now include 'attr_id'. "
             "attr_defn = %s" % attr_defn)
 
     return attr_id

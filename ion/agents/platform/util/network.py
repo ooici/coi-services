@@ -31,38 +31,13 @@ class AttrNode(BaseNode):
     Represents a platform attribute.
     """
     def __init__(self, attr_id, defn):
-        """
-        OOIION-1551:
-        First, get attr_name and attr_instance from the given attr_id (this is
-        the preferred mechanism as it's expected to be of the form
-        "<name>|<instance>") or from properties in defn, and resorting to
-        the given attr_id for the name, and "0" for the instance.
-        Finally, the store attr_id is composed from the name and instance as
-        captured above.
-        """
         BaseNode.__init__(self)
-        idx = attr_id.rfind('|')
-        if idx >= 0:
-            self._attr_name     = attr_id[:idx]
-            self._attr_instance = attr_id[idx + 1:]
-        else:
-            self._attr_name     = defn.get('attr_name', attr_id)
-            self._attr_instance = defn.get('attr_instance', "0")
-
-        self._attr_id = "%s|%s" % (self._attr_name, self._attr_instance)
+        self._attr_id = attr_id
         defn['attr_id'] = self._attr_id
         self._defn = defn
 
     def __repr__(self):
         return "AttrNode{id=%s, defn=%s}" % (self.attr_id, self.defn)
-
-    @property
-    def attr_name(self):
-        return self._attr_name
-
-    @property
-    def attr_instance(self):
-        return self._attr_instance
 
     @property
     def attr_id(self):
@@ -71,10 +46,6 @@ class AttrNode(BaseNode):
     @property
     def defn(self):
         return self._defn
-
-    @property
-    def writable(self):
-        return self.defn.get('read_write', '').lower().find("write") >= 0
 
     def diff(self, other):
         if self.attr_id != other.attr_id:

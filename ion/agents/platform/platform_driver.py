@@ -25,7 +25,6 @@ from pyon.agent.common import BaseEnum
 from pyon.agent.instrument_fsm import ThreadSafeFSM
 from pyon.agent.instrument_fsm import FSMError
 from ion.agents.platform.exceptions import PlatformConnectionException
-from ion.agents.platform.util.network_util import NetworkUtil
 
 
 class PlatformDriverState(BaseEnum):
@@ -89,12 +88,6 @@ class PlatformDriver(object):
                  in particular regarding the Managed Endpoint API.
         """
 
-        #
-        # NOTE the "pnode" parameter may be not very "standard" but it is the
-        # current convenient mechanism that captures the overall definition
-        # of the corresponding platform (most of which coming from configuration)
-        #
-
         self._pnode = pnode
         self._send_event = event_callback
 
@@ -106,16 +99,6 @@ class PlatformDriver(object):
             self._parent_platform_id = self._pnode.parent.platform_id
         else:
             self._parent_platform_id = None
-
-        self._platform_attributes = \
-            dict((a.attr_id, a.defn) for a in self._pnode.attrs.itervalues())
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: PlatformDriver constructor called: pnode:\n%s\n"
-                      "_platform_attributes=%s",
-                      self._platform_id,
-                      NetworkUtil._dump_pnode(self._pnode, include_subplatforms=False),
-                      self._platform_attributes)
 
         self._driver_config = None
         self._resource_schema = {}
@@ -206,13 +189,6 @@ class PlatformDriver(object):
         """
         return self._fsm.on_event(PlatformDriverEvent.EXECUTE, resource_cmd, *args, **kwargs)
 
-    def _get_platform_attributes(self):
-        """
-        Gets a dict of the attribute definitions in this platform as given at
-        construction time (from pnode parameter).
-        """
-        return self._platform_attributes
-
     def validate_driver_configuration(self, driver_config):
         """
         Called by configure so a subclass can perform any needed additional
@@ -285,6 +261,10 @@ class PlatformDriver(object):
 
         @retval {attr_id: dict, ...}
                 dict indexed by attribute ID with associated properties.
+                attr_id is in particular used during get_attribute_values
+                calls to retrieve values during resource monitoring.
+                The dict for each attribute should contain the following properties:
+                - monitor_cycle_seconds: nominal period in seconds for monitoring
 
         @raise PlatformConnectionException  If the connection to the external
                platform is lost.
@@ -297,12 +277,12 @@ class PlatformDriver(object):
         Returns the values for specific attributes since a given time for
         each attribute.
 
-        @param attrs     [(attrName, from_time), ...] desired attributes.
+        @param attrs     [(attr_id, from_time), ...] desired attributes.
                          from_time Assummed to be in the format basically described by
                          pyon's get_ion_ts function, "a str representing an
                          integer number, the millis in UNIX epoch."
 
-        @retval {attrName : [(attrValue, timestamp), ...], ...}
+        @retval {attr_id : [(attrValue, timestamp), ...], ...}
                 dict indexed by attribute name with list of (value, timestamp)
                 pairs. Timestamps in same format as from_time.
 
@@ -322,9 +302,9 @@ class PlatformDriver(object):
         Sets values for writable attributes in this platform.
         Only called by SET handler when supports_set_operation() returns True.
 
-        @param attrs 	[(attrName, attrValue), ...] 	List of attribute values
+        @param attrs 	[(attr_id, attrValue), ...] 	List of attribute values
 
-        @retval {attrName : [(attrValue, timestamp), ...], ...}
+        @retval {attr_id : [(attrValue, timestamp), ...], ...}
                 dict with a list of (value,timestamp) pairs for each attribute
                 indicated in the input. Returned timestamps indicate the time when the
                 value was set. Each timestamp is "a str representing an
@@ -334,9 +314,6 @@ class PlatformDriver(object):
         @raise PlatformConnectionException  If the connection to the external
                platform is lost.
         """
-        #
-        # TODO Any needed alignment with the instrument case?
-        #
         raise NotImplementedError()  #pragma: no cover
 
     def execute(self, cmd, *args, **kwargs):

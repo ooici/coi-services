@@ -220,8 +220,8 @@ class Test(IonUnitTestCase):
         self.assertIn('Node1D', ndef.pnodes)
         Node1D = ndef.pnodes['Node1D']
 
-        common_attr_names = ['MVPC_pressure_1|0', 'MVPC_temperature|0',
-                             'input_bus_current|0',  'input_voltage|0', ]
+        common_attr_names = ['MVPC_pressure_1', 'MVPC_temperature',
+                             'input_bus_current', 'input_voltage' ]
 
         for attr_name in common_attr_names:
             self.assertIn(attr_name, Node1D.attrs)

@@ -89,6 +89,8 @@ class RSNPlatformDriver(PlatformDriver):
         self._active_ports = []
         """
 
+        # captured in validate_driver_configuration
+        self._attributes = {}
         self._instr_port_map = {}
 
         # URL for the event listener registration/unregistration (based on
@@ -109,15 +111,33 @@ class RSNPlatformDriver(PlatformDriver):
         return RSNPlatformDriverCapability
 
     def validate_driver_configuration(self, driver_config):
-        """
-        Driver config must include 'oms_uri' entry.
-        """
         if not 'oms_uri' in driver_config:
             msg = "%r: 'oms_uri' not present in driver_config = %s" % (
                   self._platform_id, driver_config)
             log.error(msg)
             raise PlatformDriverException(msg=msg)
 
+        #####################################
+        # validate and process attributes
+        if not 'attributes' in driver_config:
+            msg = "%r: 'attributes' not present in driver_config = %s" % (
+                self._platform_id, driver_config)
+            log.error(msg)
+            raise PlatformDriverException(msg=msg)
+
+        self._attributes = {}
+        attributes = driver_config['attributes']
+        for attr_id, attr_dict in attributes.iteritems():
+            for k in ['monitor_cycle_seconds']:
+                if not k in attr_dict:
+                    msg = "%r: %r not present in attribute definition for %r" % (
+                        self._platform_id, k, attr_id)
+                    raise PlatformDriverException(msg=msg)
+            self._attributes[attr_id] = attr_dict
+
+        log.debug("%r: _attributes=%s", self._platform_id, self._attributes)
+
+        #####################################
         # validate and process ports
         if not 'ports' in driver_config:
             msg = "%r: 'ports' not present in driver_config = %s" % (
@@ -161,6 +181,7 @@ class RSNPlatformDriver(PlatformDriver):
                 port_string = str( int(ooi_rd.port) )
                 self._active_ports.append(port_string)
         """
+
     def configure(self, driver_config):
         """
         Nothing special done here, only calls super.configure(driver_config)
@@ -345,9 +366,7 @@ class RSNPlatformDriver(PlatformDriver):
         return self._pnode.subplatforms.keys()
 
     def get_attributes(self):
-        attrs = self._driver_config.get('attributes', {})
-        log.debug("%r: get_attributes=%s", self._platform_id, attrs)
-        return attrs
+        return self._attributes
 
     def get_attribute_values(self, attrs):
         """
