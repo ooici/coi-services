@@ -6,13 +6,13 @@ __author__ = 'Stephen P. Henrie, Michael Meisinger'
 from mock import Mock, patch
 from nose.plugins.attrib import attr
 
-from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import PRED, RT, IonObject, OT, log
-from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
+from pyon.public import PRED, RT, IonObject, OT, log, BadRequest, Conflict, Inconsistent, NotFound
+from pyon.util.context import LocalContextMixin
 
 from ion.services.coi.resource_management_service import ResourceManagementService
+from ion.util.testing_utils import create_dummy_resources, create_dummy_events
 
 from interface.services.coi.iresource_management_service import ResourceManagementServiceClient, ResourceManagementServiceProcessClient
 from interface.services.coi.iobject_management_service import ObjectManagementServiceClient
@@ -129,7 +129,7 @@ class TestResourceManagementService(IonIntegrationTestCase):
         self.rms = ResourceManagementServiceClient()
         self.oms = ObjectManagementServiceClient()
 
-    def test_create_and_delete_resource(self):
+    def test_resource_type(self):
         object_definition = '''
 Policy2: !Extends_InformationResource
   enabled: True
@@ -147,57 +147,13 @@ Policy2: !Extends_InformationResource
         resource_id = self.rms.create_resource_type(rt, object_id)
         self.assertTrue(type(resource_id) == str)
 
-        # Cleanup by deleting the ObjectType and ResourceType
-        self.rms.delete_resource_type(resource_id, object_id)
-        self.oms.delete_object_type(object_id)
-
-    def test_read_resource(self):
-        object_definition = '''
-Policy3: !Extends_InformationResource
-  enabled: True
-  definition: {}
-'''
-        # Create ObjectType
-        ot = IonObject(RT.ObjectType, {"definition": object_definition})
-        object_id = self.oms.create_object_type(ot)
-        self.assertTrue(type(object_id) == str)
-
-        # Create ResourceType and create association
-        rt = IonObject(RT.ResourceType)
-        resource_id = self.rms.create_resource_type(rt, object_id)
-        self.assertTrue(type(resource_id) == str)
-
         # Read resource
         resource_type = self.rms.read_resource_type(resource_id)
         self.assertTrue(resource_type)
         with self.assertRaises(BadRequest):
             self.rms.read_resource_type("")
 
-        # Cleanup by deleting the ObjectType and the ResourceType
-        self.rms.delete_resource_type(resource_id, object_id)
-        self.oms.delete_object_type(object_id)
-
-    def test_read_resource_not_found(self):
-        object_definition = '''
-Policy4: !Extends_InformationResource
-  enabled: True
-  definition: {}
-'''
-        # Create ObjectType
-        ot = IonObject(RT.ObjectType, {"definition": object_definition})
-        object_id = self.oms.create_object_type(ot)
-        self.assertTrue(type(object_id) == str)
-
-        # Create ResourceType and create association
-        rt = IonObject(RT.ResourceType)
-        resource_id = self.rms.create_resource_type(rt, object_id)
-        self.assertTrue(type(resource_id) == str)
-
-        # Read resource
-        resource_type = self.rms.read_resource_type(resource_id)
-        self.assertTrue(resource_type)
-
-        # Delete
+        # Cleanup by deleting the ObjectType and ResourceType
         self.rms.delete_resource_type(resource_id, object_id)
         self.oms.delete_object_type(object_id)
 
@@ -205,33 +161,80 @@ Policy4: !Extends_InformationResource
         with self.assertRaises(NotFound):
             self.rms.read_resource_type(resource_id)
 
-    def test_delete_resource_not_found(self):
-        object_definition = '''
-Policy5: !Extends_InformationResource
-  enabled: True
-  definition: {}
-'''
-        # Create ObjectType
-        ot = IonObject(RT.ObjectType, {"definition": object_definition})
-        object_id = self.oms.create_object_type(ot)
-        self.assertTrue(type(object_id) == str)
-
-        # Create ResourceType and create association
-        rt = IonObject(RT.ResourceType)
-        resource_id = self.rms.create_resource_type(rt, object_id)
-        self.assertTrue(type(resource_id) == str)
-
-        # Read resource
-        resource_type = self.rms.read_resource_type(resource_id)
-        self.assertTrue(resource_type)
-
-        # Delete
-        self.rms.delete_resource_type(resource_id, object_id)
-        self.oms.delete_object_type(object_id)
-
         # Delete a ResourceType that has already been deleted
         with self.assertRaises(NotFound):
             self.rms.delete_resource_type(resource_id, object_id)
+
+    def test_ui_ops(self):
+        res_objs = [
+            dict(res=IonObject(RT.Org, name="Org1")),
+            dict(res=IonObject(RT.Org, name="Org2")),
+
+            dict(res=IonObject(RT.InstrumentDevice, name="ID1", firmware_version='A1'), org="Org1"),
+            dict(res=IonObject(RT.InstrumentDevice, name="ID2", firmware_version='A2'), org="Org1"),
+            dict(res=IonObject(RT.InstrumentDevice, name="ID3", firmware_version='A2'), org="Org1"),
+            dict(res=IonObject(RT.InstrumentDevice, name="ID4", firmware_version='A3'), org="Org1"),
+
+            dict(res=IonObject(RT.PlatformDevice, name="PD1", firmware_version='P1', hardware_version="X"), org="Org1"),
+            dict(res=IonObject(RT.PlatformDevice, name="PD2", firmware_version='P1', hardware_version="Y"), org="Org1"),
+            dict(res=IonObject(RT.PlatformDevice, name="PD2", firmware_version='P1', hardware_version="Y"), org="Org1"),
+            dict(res=IonObject(RT.PlatformDevice, name="PD2", firmware_version='P2', hardware_version="X"), org="Org1"),
+            dict(res=IonObject(RT.PlatformDevice, name="PD2", firmware_version='P2', hardware_version="Z"), org="Org1"),
+
+            dict(res=IonObject(RT.InstrumentDevice, name="ID1o2", firmware_version='A1'), org="Org2"),
+            dict(res=IonObject(RT.PlatformDevice, name="PD1o2", firmware_version='P1', hardware_version="X"), org="Org2"),
+
+            dict(res=IonObject(RT.PlatformDevice, name="PD1ono", firmware_version='P1', hardware_version="X")),
+
+            dict(res=IonObject(RT.Attachment, name="Att1")),
+            dict(res=IonObject(RT.Attachment, name="Att2")),
+
+            dict(res=IonObject(RT.UserRole, name="Role1")),
+            dict(res=IonObject(RT.UserRole, name="Role2")),
+        ]
+        assocs = [
+            ("Org1", PRED.hasAttachment, "Att1"),
+            ("Org1", PRED.hasRole, "Role1"),
+
+        ]
+        res_by_name = create_dummy_resources(res_objs, assocs)
+
+        # Distinct value
+        value_list = self.rms.get_distinct_values(RT.InstrumentDevice, attr_list=["firmware_version"])
+        self.assertEquals(len(value_list), 3)
+        self.assertTrue(all(type(le) is list and len(le) == 1 for le in value_list))
+        self.assertEquals({le[0] for le in value_list}, {"A1", "A2", "A3"})
+
+        value_list = self.rms.get_distinct_values(RT.PlatformDevice, attr_list=["firmware_version"])
+        self.assertEquals(len(value_list), 2)
+
+        value_list = self.rms.get_distinct_values(RT.PlatformDevice, attr_list=["firmware_version", "hardware_version"])
+        self.assertEquals(len(value_list), 4)
+        self.assertTrue(all(type(le) is list and len(le) == 2 for le in value_list))
+        self.assertEquals({le[0] for le in value_list}, {"P1", "P2"})
+        self.assertEquals({le[1] for le in value_list}, {"X", "Y", "Z"})
+
+        # Org resources
+        res_list, _ = self.rms.get_org_resource_attributes(org_id=res_by_name["Org1"])
+        self.assertEquals(len(res_list), 11)
+        self.assertTrue(all(type(le) is dict for le in res_list))
+        self.assertTrue(all("name" in le for le in res_list))
+        self.assertIn("Att1", [le["name"] for le in res_list])
+        self.assertIn("Role1", [le["name"] for le in res_list])
+        self.assertIn("ID1", [le["name"] for le in res_list])
+
+        res_list, _ = self.rms.get_org_resource_attributes(org_id=res_by_name["Org2"])
+        self.assertEquals(len(res_list), 2)
+
+        res_list, _ = self.rms.get_org_resource_attributes(org_id=res_by_name["Org1"], limit=2)
+        self.assertEquals(len(res_list), 2)
+        self.assertIn("Att1", [le["name"] for le in res_list])
+        self.assertIn("ID1", [le["name"] for le in res_list])
+
+        res_list, _ = self.rms.get_org_resource_attributes(org_id=res_by_name["Org1"], limit=2, order_by="name")
+        self.assertEquals(len(res_list), 2)
+        self.assertIn("Att1", [le["name"] for le in res_list])
+        self.assertIn("ID1", [le["name"] for le in res_list])
 
 
 class FakeProcess(LocalContextMixin):
