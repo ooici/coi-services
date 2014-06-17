@@ -12,7 +12,6 @@
 __author__ = 'Carlos Rueda'
 
 
-
 import sys
 from time import sleep
 import time
@@ -233,7 +232,6 @@ if __name__ == "__main__":  # pragma: no cover
     # then, on a second terminal, with argument 'notifier'
     #
     host, port = "localhost", 8000
-    import sys
     if len(sys.argv) > 1 and sys.argv[1] == "listener":
         # run listener
         from gevent.pywsgi import WSGIServer

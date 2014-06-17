@@ -15,11 +15,10 @@
 __author__ = 'Carlos Rueda'
 
 
-
 from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
-from ion.agents.platform.responses import NormalResponse, InvalidResponse
+from ion.agents.platform.responses import InvalidResponse
 from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 

@@ -57,7 +57,6 @@ from ion.agents.platform.util import ntp_2_ion_ts
 from gevent import sleep
 from gevent.event import AsyncResult
 from mock import patch
-from pyon.public import CFG
 import unittest
 import os
 
@@ -800,8 +799,9 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._initialize()
 
-        self._start_event_subscriber(event_type="ResourceAgentResourceStateEvent",
-                                     count=2)
+        async_event_result, events_received = self._start_event_subscriber2(
+            count=2,
+            event_type="ResourceAgentResourceStateEvent")
 
         res_state = self._pa_client.get_resource_state()
         self.assertEqual(res_state, RSNPlatformDriverState.DISCONNECTED)
@@ -826,8 +826,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
         with self.assertRaises(Conflict):
             self._pa_client.get_resource_state()
 
-        self._async_event_result.get(timeout=self._receive_timeout)
-        self.assertGreaterEqual(len(self._events_received), 2)
+        async_event_result.get(timeout=self._receive_timeout)
+        self.assertGreaterEqual(len(events_received), 2)
 
     def test_lost_connection_and_reconnect(self):
         #
