@@ -289,11 +289,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._samples_received = []
         self.addCleanup(self._stop_data_subscribers)
 
-        self._async_event_result = AsyncResult()
         self._event_subscribers = []
-        self._events_received = []
         self.addCleanup(self._stop_event_subscribers)
-        self._start_event_subscriber(sub_type="platform_event")
 
         # instruments that have been set up: instr_key: i_obj
         self._setup_instruments = {}
@@ -402,49 +399,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     #################################################################
     # event subscribers handling
     #################################################################
-
-    def _start_event_subscriber(self, event_type="DeviceEvent",
-                                origin=None,
-                                sub_type=None,
-                                count=0):
-        """
-        DEPRECATED: to be replaced by _start_event_subscriber2, which always
-        returns newly AsyncResult and list objects.
-
-        Starts event subscriber for events of given event_type ("DeviceEvent"
-        by default), origin (None by default), and given sub_type (None by
-        default).
-        Note: only the events of exactly the given type are considered,
-        *no* subclasses of that type (note that the subscriber callback is also
-        called with subclasses of the given type).
-        """
-
-        self._async_event_result = AsyncResult()
-        self._events_received = []
-
-        def consume_event(evt, *args, **kwargs):
-            # A callback for consuming events.
-            if evt.type_ != event_type:
-                return
-            log.info('Event subscriber received evt: %s.', str(evt))
-            self._events_received.append(evt)
-            if count == 0:
-                self._async_event_result.set(evt)
-
-            elif count == len(self._events_received):
-                self._async_event_result.set()
-
-        sub = EventSubscriber(event_type=event_type,
-                              origin=origin,
-                              sub_type=sub_type,
-                              callback=consume_event)
-
-        sub.start()
-        log.info("registered event subscriber for event_type=%r, sub_type=%r, count=%d",
-                 event_type, sub_type, count)
-
-        self._event_subscribers.append(sub)
-        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
 
     def _start_event_subscriber2(self, count, event_type, cb=None, **kwargs):
         """
