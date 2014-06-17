@@ -10,7 +10,6 @@
 __author__ = 'Carlos Rueda'
 
 
-
 from pyon.public import log, RT
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentState
@@ -71,8 +70,6 @@ from gevent import sleep
 from gevent import spawn
 from gevent.event import AsyncResult
 from gevent.coros import RLock
-
-import traceback
 
 import pprint
 

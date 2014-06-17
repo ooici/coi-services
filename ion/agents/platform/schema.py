@@ -15,7 +15,6 @@ from ion.agents.platform.platform_agent import PlatformAgentCapability
 from ion.agents.platform.platform_agent import PlatformAgentState
 from interface.objects import DeviceStatusType
 from interface.objects import AggregateStatusType
-from interface.objects import StreamAlertType
 
 # TBD TBD what is comms config for platforms?
 """
