@@ -12,7 +12,6 @@ __author__ = 'Carlos Rueda'
 
 
 from pyon.public import log, CFG
-from pyon.core.exception import BadRequest
 import logging
 
 from copy import deepcopy

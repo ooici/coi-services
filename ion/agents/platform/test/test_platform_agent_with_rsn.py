@@ -57,7 +57,6 @@ from ion.agents.platform.util import ntp_2_ion_ts
 from gevent import sleep
 from gevent.event import AsyncResult
 from mock import patch
-from pyon.public import CFG
 import unittest
 import os
 
