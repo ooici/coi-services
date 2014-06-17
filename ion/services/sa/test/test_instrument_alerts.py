@@ -235,7 +235,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
 
         port_agent_config = {
             'device_addr': CFG.device.sbe37.host,
-            'device_port': 4009,
+            'device_port': CFG.device.sbe37.port,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
             'port_agent_addr': 'localhost',
@@ -368,7 +368,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         # Prevent this test from hanging indefinitely until
         # OOIION-1313 is resolved
-        timeout_val = 60
+        timeout_val = 90
         with gevent.Timeout(timeout_val, Exception('Agent failed to initialize after %fs' % timeout_val)):
             reply = self._ia_client.execute_agent(cmd)
         self.assertTrue(reply.status == 0)
