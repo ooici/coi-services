@@ -140,71 +140,73 @@ required_config_keys = [
 
 # Instruments that can be used (see _create_instrument). Reflects available
 # simulators on sbe37-simulator.oceanobservatories.org as of 2013/03/31.
+# Note(2014-06-18): actually only the one on port 4001 can be used in tests,
+# but this can be "instantiated" multiple times.
 instruments_dict = {
     "SBE37_SIM_01": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4001,
+        'DEV_ADDR'  : CFG.device.sbe37.host,
+        'DEV_PORT'  : CFG.device.sbe37.port,
         'DATA_PORT' : 5001,
         'CMD_PORT'  : 6001,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : CFG.device.sbe37.port_agent_binary
     },
 
     "SBE37_SIM_02": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4002,
+        'DEV_ADDR'  : CFG.device.sbe37.host,
+        'DEV_PORT'  : CFG.device.sbe37.port,
         'DATA_PORT' : 5002,
         'CMD_PORT'  : 6002,
-        'PA_BINARY' : "port_agent",
+        'PA_BINARY' : CFG.device.sbe37.port_agent_binary,
         'alt_ids'   : ["PRE:SBE37_SIM_02"]
     },
 
     "SBE37_SIM_03": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4003,
+        'DEV_ADDR'  : CFG.device.sbe37.host,
+        'DEV_PORT'  : CFG.device.sbe37.port,
         'DATA_PORT' : 5003,
         'CMD_PORT'  : 6003,
-        'PA_BINARY' : "port_agent",
+        'PA_BINARY' : CFG.device.sbe37.port_agent_binary,
         'alt_ids'   : ["PRE:SBE37_SIM_03"]
     },
 
     "SBE37_SIM_04": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4004,
+        'DEV_ADDR'  : CFG.device.sbe37.host,
+        'DEV_PORT'  : CFG.device.sbe37.port,
         'DATA_PORT' : 5004,
         'CMD_PORT'  : 6004,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : CFG.device.sbe37.port_agent_binary
     },
 
     "SBE37_SIM_05": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4005,
+        'DEV_ADDR'  : CFG.device.sbe37.host,
+        'DEV_PORT'  : CFG.device.sbe37.port,
         'DATA_PORT' : 5005,
         'CMD_PORT'  : 6005,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : CFG.device.sbe37.port_agent_binary
     },
 
     "SBE37_SIM_06": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4006,
+        'DEV_ADDR'  : CFG.device.sbe37.host,
+        'DEV_PORT'  : CFG.device.sbe37.port,
         'DATA_PORT' : 5006,
         'CMD_PORT'  : 6006,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : CFG.device.sbe37.port_agent_binary
     },
 
     "SBE37_SIM_07": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4007,
+        'DEV_ADDR'  : CFG.device.sbe37.host,
+        'DEV_PORT'  : CFG.device.sbe37.port,
         'DATA_PORT' : 5007,
         'CMD_PORT'  : 6007,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : CFG.device.sbe37.port_agent_binary
     },
 
     "SBE37_SIM_08": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4008,
+        'DEV_ADDR'  : CFG.device.sbe37.host,
+        'DEV_PORT'  : CFG.device.sbe37.port,
         'DATA_PORT' : 5008,
         'CMD_PORT'  : 6008,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : CFG.device.sbe37.port_agent_binary
     },
 }
 
@@ -828,7 +830,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
             # Start port agent, add stop to cleanup.
             port = support.start_pagent()
-            log.info('Port agent started at port %i', port)
+            log.info('Port agent started at port %i. device=%s:%s', port, DEV_ADDR, DEV_PORT)
             self.addCleanup(support.stop_pagent)
 
             # Configure instrument driver to use port agent port number.
