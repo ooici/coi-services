@@ -151,7 +151,8 @@ instruments_dict = {
         'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5001,
         'CMD_PORT'  : 6001,
-        'PA_BINARY' : SBE37.port_agent_binary
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_01"]
     },
 
     "SBE37_SIM_02": {
@@ -177,7 +178,8 @@ instruments_dict = {
         'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5004,
         'CMD_PORT'  : 6004,
-        'PA_BINARY' : SBE37.port_agent_binary
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_04"]
     },
 
     "SBE37_SIM_05": {
@@ -185,7 +187,8 @@ instruments_dict = {
         'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5005,
         'CMD_PORT'  : 6005,
-        'PA_BINARY' : SBE37.port_agent_binary
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_05"]
     },
 
     "SBE37_SIM_06": {
@@ -193,7 +196,8 @@ instruments_dict = {
         'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5006,
         'CMD_PORT'  : 6006,
-        'PA_BINARY' : SBE37.port_agent_binary
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_06"]
     },
 
     "SBE37_SIM_07": {
@@ -201,7 +205,8 @@ instruments_dict = {
         'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5007,
         'CMD_PORT'  : 6007,
-        'PA_BINARY' : SBE37.port_agent_binary
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_07"]
     },
 
     "SBE37_SIM_08": {
@@ -209,7 +214,8 @@ instruments_dict = {
         'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5008,
         'CMD_PORT'  : 6008,
-        'PA_BINARY' : SBE37.port_agent_binary
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_08"]
     },
 }
 
