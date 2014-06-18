@@ -459,6 +459,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
                 value = v
 
             try:
+                if k == 'temp_sample':
+                    print repr(value)
                 np_dict[k] = NumpyParameterData(k, value, time_array)
             except:
                 raise

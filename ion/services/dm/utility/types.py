@@ -39,7 +39,8 @@ class TypesManager(object):
     def get_array_type(self,parameter_type=None, encoding=None):
         if encoding in ('str', '', 'opaque'):
             encoding = None
-        return ArrayType(inner_encoding=encoding)
+        log.error("Array types are temporarily unsupported during refactoring")
+        return ArrayType()
 
     def get_boolean_type(self):
         return QuantityType(value_encoding = np.dtype('int8'))

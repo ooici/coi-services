@@ -234,6 +234,7 @@ class TestDMExtended(DMTestCase):
         breakpoint(locals(), globals())
 
     
+    @unittest.skip("Array types are temporarily unsupported")
     @attr('INT',group='dm')
     def test_array_visualization(self):
         data_product_id, stream_def_id = self.make_array_data_product()
@@ -285,14 +286,33 @@ class TestDMExtended(DMTestCase):
              'viz_product_type': 'google_dt'}
         self.assertEquals(rdt['google_dt_components'][0], testval)
 
+    @unittest.skip("Array types temporarily unsupported")
     @attr('INT',group='dm')
     def test_array_flow_paths(self):
-        data_product_id, stream_def_id = self.make_array_data_product()
+        params = {
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "Time",
+                "description" : "Timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "temp_sample" : {
+                "parameter_type" : "array<5>",
+                "value_encoding" : "float32",
+                "display_name" : "Data",
+                "description" : "Active Matrix, over a million psychadelic colors",
+                "units" : "1",
+                "fill_value" : -9999
+            }
+        }
+        data_product = DataProduct("Array data product")
+        data_product_id = self.data_product_from_params(data_product, params)
+        self.data_product_management.activate_data_product_persistence(data_product_id)
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         dm = DatasetMonitor(dataset_id)
         self.addCleanup(dm.stop)
-
 
         # I need to make sure that we can fill the RDT with its values
         # Test for one timestep
@@ -305,10 +325,10 @@ class TestDMExtended(DMTestCase):
         # Ensure that the RDT can be filled with ArrayType values
         #--------------------------------------------------------------------------------
         
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = [0]
-        rdt['temp_sample'] = [[0,1,2,3,4]]
-        np.testing.assert_array_equal(rdt['temp_sample'], np.array([[0,1,2,3,4]]))
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.array([0], dtype=np.float64)
+        rdt['temp_sample'] = np.array([[0,1,2,3,4]], dtype=np.float32)
+        np.testing.assert_allclose(rdt['temp_sample'], np.array([[0,1,2,3,4]]))
 
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         self.assertTrue(dm.wait())
@@ -322,12 +342,10 @@ class TestDMExtended(DMTestCase):
         # Ensure that it deals with multiple values
         #--------------------------------------------------------------------------------
 
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = [1,2,3]
-        rdt['temp_sample'] = [[0,1,2,3,4],[1,3,3,3,3],[5,5,5,5,5]]
+        rdt = self.ph.rdt_for_data_product(data_product_id)
+        rdt['time'] = np.array([1,2,3], dtype=np.float64)
+        rdt['temp_sample'] = np.array([[0,1,2,3,4],[1,3,3,3,3],[5,5,5,5,5]], np.float32)
 
-        m = rdt.fill_value('temp_sample') or np.finfo(np.float32).max
-        np.testing.assert_equal(m,np.finfo(np.float32).max)
         np.testing.assert_array_equal(rdt['temp_sample'], [[0,1,2,3,4],[1,3,3,3,3],[5,5,5,5,5]])
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         self.assertTrue(dm.wait())
@@ -645,6 +663,7 @@ class TestDMExtended(DMTestCase):
         breakpoint(locals(), globals())
 
 
+    @unittest.skip('Array types temporarily unsupported')
     @attr("PRELOAD")
     def test_prest(self):
         '''
