@@ -6,11 +6,12 @@ import re
 
 from pyon.agent.agent import ResourceAgentClient
 from pyon.core.bootstrap import get_service_registry
-from pyon.public import log, IonObject, iex, NotFound, BadRequest, PRED
+from pyon.public import log, IonObject, iex, NotFound, BadRequest, PRED, ResourceQuery
 from pyon.core.exception import Unauthorized
 from pyon.util.config import Config
 from pyon.util.containers import get_safe, named_any, get_ion_ts, is_basic_identifier
 
+import interface.objects
 from interface.objects import AgentCapability, AgentCommandResult, CapabilityType, Resource
 from interface.services.coi.iresource_management_service import BaseResourceManagementService
 
@@ -198,6 +199,11 @@ class ResourceManagementService(BaseResourceManagementService):
                        "lcstate", "availability", "visibility", "alt_resource_type"}
 
     def get_org_resource_attributes(self, org_id='', order_by='', type_filter=None, limit=0, skip=0):
+        """For a given org, return a list of dicts with core resource attributes (_id, type_, name, description,
+        ts_created, ts_modified, lcstate, availability, visibility and alt_resource_type).
+        The returned list is ordered by name unless otherwise specified.
+        Supports pagination and white-list filtering if provided.
+        """
         if not org_id:
             raise BadRequest("Must provide org_id")
         res_list = []
@@ -230,6 +236,42 @@ class ResourceManagementService(BaseResourceManagementService):
         # Need to return a similar type than RR.find_objects
         # Major bug in service gateway
         return attr_list, []
+
+    def get_distinct_values(self, restype='', attr_list=None, res_filter=None):
+        """Returns a list of distinct values for given resource type and list of attribute names.
+        Only supports simple types for the attribute values.
+        Returns a sorted list of values or tuples of values.
+        """
+        if not restype or type(restype) != str:
+            raise BadRequest("Illegal value for argument restype")
+        if not hasattr(interface.objects, restype):
+            raise BadRequest("Given restype is not a resource type")
+        if not attr_list or not type(attr_list) in (list, tuple):
+            raise BadRequest("Illegal value for argument attr_list")
+        type_cls = getattr(interface.objects, restype)
+        try:
+            if not all(type_cls._schema[an]["type"] in {"str", "int", "float"} for an in attr_list):
+                raise BadRequest("Attribute in attr_list if invalid type")
+        except KeyError:
+            raise BadRequest("Attribute in attr_list unknown")
+        if res_filter and type(res_filter) not in (list, tuple):
+            raise BadRequest("Illegal value for argument res_filter")
+
+        # NOTE: This can alternatively be implemented as a SELECT DISTINCT query, but this is not
+        # supported by the underlying datastore interface.
+        rq = ResourceQuery()
+        if res_filter:
+            rq.set_filter(rq.eq(rq.ATT_TYPE, restype), res_filter)
+        else:
+            rq.set_filter(rq.eq(rq.ATT_TYPE, restype))
+        res_list = self.clients.resource_registry.find_resources_ext(query=rq.get_query(), id_only=False)
+
+        log.debug("Found %s resources of type %s", len(res_list), restype)
+        att_values = sorted({tuple(getattr(res, an) for an in attr_list) for res in res_list})
+
+        log.debug("Found %s distinct vales for attribute(s): %s", len(att_values), attr_list)
+
+        return att_values
 
     def execute_lifecycle_transition(self, resource_id='', transition_event=''):
         """Alter object lifecycle according to given transition event. Throws exception

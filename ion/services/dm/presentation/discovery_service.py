@@ -130,6 +130,7 @@ class DiscoveryService(BaseDiscoveryService):
             raise BadRequest('No request query provided')
 
         if QUERY_EXP_KEY in query and self.ds_discovery:
+            query.setdefault("query_args", {})["id_only"] = id_only
             # Query in datastore query format (dict)
             log.debug("Executing datastore query: %s", query)
 
@@ -167,6 +168,7 @@ class DiscoveryService(BaseDiscoveryService):
         attr_filter = search_args.get("attribute_filter", [])
         if type(attr_filter) not in (list, tuple):
             raise BadRequest("Illegal argument type: attribute_filter")
+
         if not id_only and attr_filter:
             filtered_res = [dict(__noion__=True, **{k: v for k, v in obj.__dict__.iteritems() if k in attr_filter or k in {"_id", "type_"}}) for obj in query_results]
             return filtered_res

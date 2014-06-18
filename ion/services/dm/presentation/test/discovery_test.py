@@ -274,9 +274,14 @@ class DiscoveryQueryTest(IonIntegrationTestCase):
 
         search_string = "search 'firmware_version' is 'A2' from 'resources_index'"
         result = self.discovery.parse(search_string, id_only=False, search_args=dict(attribute_filter=["firmware_version"]))
-        self.assertTrue(all(True for eo in result if isinstance(eo, dict)))
-        self.assertTrue(all(True for eo in result if "firmware_version" in eo))
-        self.assertTrue(all(True for eo in result if len(eo) <= 4))
+        self.assertTrue(all(isinstance(eo, dict) for eo in result))
+        self.assertTrue(all("firmware_version" in eo for eo in result))
+        self.assertTrue(all(len(eo) <= 4 for eo in result))
+
+        result = self.discovery.query(query_obj, id_only=False, search_args=dict(attribute_filter=["firmware_version"]))
+        self.assertTrue(all(isinstance(eo, dict) for eo in result))
+        self.assertTrue(all("firmware_version" in eo for eo in result))
+        self.assertTrue(all(len(eo) <= 4 for eo in result))
 
         # Resource attribute match
         search_string = "search 'firmware_version' is 'A*' from 'resources_index'"
@@ -861,6 +866,22 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         result = self.discovery.parse(search_string, id_only=True)
         self.assertEquals(len(result), 1)
         self.assertIsInstance(result[0], str)
+
+        query_str = """{'QUERYEXP': 'qexp_v1.0',
+            'query_args': {'datastore': 'resources', 'id_only': False, 'limit': 0, 'profile': 'RESOURCES', 'skip': 0},
+            'where': ['xop:attilike', ('firmware_version', 'A2')],
+            'order_by': {}}"""
+        query_obj = eval(query_str)
+        result = self.discovery.query(query_obj, id_only=False)
+        self.assertEquals(len(result), 1)
+        self.assertTrue(all(isinstance(eo, InstrumentDevice) for eo in result))
+
+        result = self.discovery.query(query_obj, id_only=False, search_args=dict(attribute_filter=["firmware_version"]))
+        self.assertEquals(len(result), 1)
+        self.assertTrue(all(isinstance(eo, dict) for eo in result))
+        self.assertTrue(all("firmware_version" in eo for eo in result))
+        self.assertTrue(all(len(eo) <= 4 for eo in result))
+
 
         # ----------------------------------------------------
         # Events setup
