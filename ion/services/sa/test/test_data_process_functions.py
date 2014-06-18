@@ -238,8 +238,6 @@ class TestDataProcessFunctions(DMTestCase):
                                      units='deg_C',
                                      display_name='Temperature Corrected')
         p_id = self.dataset_management.create_parameter(parameter)
-        # Should fail BECAUSE we can't add parameters to derived data products
-        self.assertRaises(BadRequest, self.data_product_management.add_parameter_to_data_product, p_id, dp_id)
 
         # Add it to the parent or parsed data product
         self.data_product_management.add_parameter_to_data_product(p_id, data_product_id)
