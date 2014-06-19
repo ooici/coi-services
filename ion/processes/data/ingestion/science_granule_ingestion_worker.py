@@ -26,7 +26,7 @@ from gevent import event
 from coverage_model.parameter_values import SparseConstantValue
 from coverage_model import SparseConstantType
 from coverage_model import NumpyParameterData, ConstantOverTime
-from coverage_model.parameter_types import CategoryType
+from coverage_model.parameter_types import CategoryType, RecordType
 
 from ooi.timer import Timer, Accumulator
 from ooi.logging import TRACE
@@ -454,7 +454,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
                 np_dict[k] = ConstantOverTime(k, value, time_start=time_start, time_end=None) # From now on
                 continue
             elif isinstance(rdt.param_type(k), CategoryType):
-                value = np.asarray(v, dtype='S')
+                log.warning("Category types temporarily unsupported")
+                continue
+            elif isinstance(rdt.param_type(k), RecordType):
+                value = v
             else:
                 value = v
 
@@ -472,10 +475,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         np_dict = self.build_data_dict(rdt)
 
         if 'ingestion_timestamp' in coverage.list_parameters():
-            t_now = time.time()
-            ntp_time = TimeUtils.ts_to_units(coverage.get_parameter_context('ingestion_timestamp').uom, t_now)
-            ntp_time = np.ones_like(rdt[rdt.temporal_parameter]) * rdt[rdt.temporal_parameter]
-            np_dict['ingestion_timestamp'] = NumpyParameterData('ingestion_timestamp', ntp_time, rdt[rdt.temporal_parameter])
+            timestamps = np.array([(time.time()+2208988800) for i in rdt[rdt.temporal_parameter]])
+            np_dict['ingestion_timestamp'] = NumpyParameterData('ingestion_timestamp', timestamps, rdt[rdt.temporal_parameter])
+
 
         # If it's sparse only
         if self.sparse_only(rdt):

@@ -427,7 +427,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             self._ia_client.execute_resource(AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE))
             if not monitor.wait():
                 raise AssertionError('Failed on the %ith granule' % i)
-            monitor.stop()
+            monitor.reset()
 
 
 #        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
