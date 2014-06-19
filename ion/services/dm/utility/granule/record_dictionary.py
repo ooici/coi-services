@@ -212,7 +212,7 @@ class RecordDictionaryTool(object):
         granule = Granule()
         granule.record_dictionary = {}
         
-        for key,val in self._rd.iteritems():
+        for key, val in self.iteritems():
             if val is not None:
                 granule.record_dictionary[self.to_ordinal(key)] = self[key]
             else:

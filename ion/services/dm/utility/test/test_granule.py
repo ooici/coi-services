@@ -40,7 +40,8 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
     def verify_incoming(self, m,r,s):
         rdt = RecordDictionaryTool.load_from_granule(m)
-        self.assertEquals(rdt, self.rdt)
+        for k,v in rdt.iteritems():
+            np.testing.assert_array_equal(v, self.rdt[k])
         self.assertEquals(m.data_producer_id, self.data_producer_id)
         self.assertEquals(m.provider_metadata_update, self.provider_metadata_update)
         self.assertNotEqual(m.creation_timestamp, None)
@@ -154,12 +155,10 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         with self.assertRaises(KeyError):
             rdt['pressure'] = np.arange(20)
 
-        granule = rdt.to_granule(connection_id='c1', connection_index='0')
+        granule = rdt.to_granule()
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
         self.assertEquals(rdt._available_fields, rdt2._available_fields)
         self.assertEquals(rdt.fields, rdt2.fields)
-        self.assertEquals(rdt2.connection_id,'c1')
-        self.assertEquals(rdt2.connection_index,'0')
         for k,v in rdt.iteritems():
             self.assertTrue(np.array_equal(rdt[k], rdt2[k]))
         
