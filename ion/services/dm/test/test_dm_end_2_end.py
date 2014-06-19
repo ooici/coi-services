@@ -520,53 +520,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         publisher.publish(granule)
         self.assertTrue(dataset_monitor.wait())
 
-    @unittest.skip('Gap support disabled')
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_thorough_gap_analysis(self):
-        dataset_id = self.test_ingestion_gap_analysis()
-        vcov = DatasetManagementService._get_coverage(dataset_id)
-
-        self.assertIsInstance(vcov,ViewCoverage)
-        ccov = vcov.reference_coverage
-
-        self.assertIsInstance(ccov, ComplexCoverage)
-        self.assertEquals(len(ccov._reference_covs), 3)
-
-
-    def test_ingestion_gap_analysis(self):
-        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
-        self.start_ingestion(stream_id, dataset_id)
-        self.addCleanup(self.stop_ingestion, stream_id)
-
-        connection1 = uuid4().hex
-        connection2 = uuid4().hex
-
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = [0]
-        rdt['temp'] = [0]
-        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='0'))
-        rdt['time'] = [1]
-        rdt['temp'] = [1]
-        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='1'))
-        rdt['time'] = [2]
-        rdt['temp'] = [2]
-        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='3')) # Gap, missed message
-        rdt['time'] = [3]
-        rdt['temp'] = [3]
-        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index='3')) # Gap, new connection
-        rdt['time'] = [4]
-        rdt['temp'] = [4]
-        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index='4'))
-        rdt['time'] = [5]
-        rdt['temp'] = [5]
-        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index='5'))
-
-        granule = self.data_retriever.retrieve(dataset_id)
-        rdt = RecordDictionaryTool.load_from_granule(granule)
-        np.testing.assert_array_equal(rdt['time'], np.arange(6))
-        np.testing.assert_array_equal(rdt['temp'], np.arange(6))
-        return dataset_id
 
     def test_sparse_values(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
