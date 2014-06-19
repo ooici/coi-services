@@ -315,11 +315,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['time'], rdt['time'])
         np.testing.assert_array_almost_equal(rdt_out['temp'], rdt['temp'])
 
-        np.testing.assert_array_almost_equal(rdt_out['conductivity_L1'], np.array([42.914]))
-        np.testing.assert_array_almost_equal(rdt_out['temp_L1'], np.array([20.]))
-        np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
-        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881], dtype='float32'))
-        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283], dtype='float32'))
+        np.testing.assert_allclose(rdt_out['conductivity_L1'], np.array([42.914]))
+        np.testing.assert_allclose(rdt_out['temp_L1'], np.array([20.]))
+        np.testing.assert_allclose(rdt_out['pressure_L1'], np.array([3.068]))
+        np.testing.assert_allclose(rdt_out['density'], np.array([1021.7144739593881], dtype='float32'))
+        np.testing.assert_allclose(rdt_out['salinity'], np.array([30.935132729668283], dtype='float32'))
 
 
     def test_ingestion_pause(self):
