@@ -142,7 +142,7 @@ class TestTypes(PyonTestCase):
         self.cov_io(context, ['hi'] * 20)
 
     def test_string_arrays(self):
-        ptype = 'array<quantity>'
+        ptype = 'string'
         encoding = 'str'
         fill_value = 'none'
     
