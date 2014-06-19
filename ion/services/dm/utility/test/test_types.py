@@ -28,6 +28,8 @@ from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordTyp
 
 from udunitspy.udunits2 import UdunitsError
 
+from coverage_model.test.test_postgres_storage import _make_cov
+
 import numpy as np
 import gevent
 import shutil
@@ -72,20 +74,7 @@ class TestTypes(PyonTestCase):
             np.testing.assert_array_equal(testval, actual)
 
     def cov_io(self, context, value_array, comp_val=None):
-        pdict = ParameterDictionary()
-        time = ParameterContext(name='time', param_type=QuantityType(value_encoding=np.float64))
-        pdict.add_context(context)
-        pdict.add_context(time, True)
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 0d spatial topology (station/trajectory)
-
-        # Instantiate the SimplexCoverage providing the ParameterDictionary, spatial Domain and temporal Domain
-        cov = SimplexCoverage('test_data', create_guid(), 'sample coverage_model', parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+        cov = _make_cov('test_data', [context], nt=0)
         self.addCleanup(shutil.rmtree, cov.persistence_dir)
         value_array = np.asanyarray(value_array)
 
@@ -120,7 +109,7 @@ class TestTypes(PyonTestCase):
         self.cov_io(context, np.arange(20))
 
     def test_string_type(self):
-        ptype      = 'quantity'
+        ptype      = 'string'
         encoding   = 'S8'
         fill_value = 'empty'
 
