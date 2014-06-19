@@ -97,7 +97,6 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from ion.services.sa.test.helpers import any_old, AgentProcessStateGate
 
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
-DRV_URI_GOOD = CFG.device.sbe37.dvr_egg
 
 
 ###############################################################################
@@ -138,77 +137,87 @@ required_config_keys = [
     'children']
 
 
+# for common parameters to launch instrument simulator instances
+SBE37 = CFG.device.sbe37
+
+
 # Instruments that can be used (see _create_instrument). Reflects available
 # simulators on sbe37-simulator.oceanobservatories.org as of 2013/03/31.
+# Note(2014-06-18): actually only the one on port 4001 can be used in tests,
+# but this can be "instantiated" multiple times.
 instruments_dict = {
     "SBE37_SIM_01": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4001,
+        'DEV_ADDR'  : SBE37.host,
+        'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5001,
         'CMD_PORT'  : 6001,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_01"]
     },
 
     "SBE37_SIM_02": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4002,
+        'DEV_ADDR'  : SBE37.host,
+        'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5002,
         'CMD_PORT'  : 6002,
-        'PA_BINARY' : "port_agent",
+        'PA_BINARY' : SBE37.port_agent_binary,
         'alt_ids'   : ["PRE:SBE37_SIM_02"]
     },
 
     "SBE37_SIM_03": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4003,
+        'DEV_ADDR'  : SBE37.host,
+        'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5003,
         'CMD_PORT'  : 6003,
-        'PA_BINARY' : "port_agent",
+        'PA_BINARY' : SBE37.port_agent_binary,
         'alt_ids'   : ["PRE:SBE37_SIM_03"]
     },
 
     "SBE37_SIM_04": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4004,
+        'DEV_ADDR'  : SBE37.host,
+        'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5004,
         'CMD_PORT'  : 6004,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_04"]
     },
 
     "SBE37_SIM_05": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4005,
+        'DEV_ADDR'  : SBE37.host,
+        'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5005,
         'CMD_PORT'  : 6005,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_05"]
     },
 
     "SBE37_SIM_06": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4006,
+        'DEV_ADDR'  : SBE37.host,
+        'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5006,
         'CMD_PORT'  : 6006,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_06"]
     },
 
     "SBE37_SIM_07": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4007,
+        'DEV_ADDR'  : SBE37.host,
+        'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5007,
         'CMD_PORT'  : 6007,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_07"]
     },
 
     "SBE37_SIM_08": {
-        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
-        'DEV_PORT'  : 4008,
+        'DEV_ADDR'  : SBE37.host,
+        'DEV_PORT'  : SBE37.port,
         'DATA_PORT' : 5008,
         'CMD_PORT'  : 6008,
-        'PA_BINARY' : "port_agent"
+        'PA_BINARY' : SBE37.port_agent_binary,
+        'alt_ids'   : ["PRE:SBE37_SIM_08"]
     },
 }
-
-SBE37_EGG = DRV_URI_GOOD
 
 
 class FakeProcess(LocalContextMixin):
@@ -787,14 +796,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         import sys
         from ion.agents.instrument.driver_process import DriverProcessType
 
-        # A seabird driver.
-        DRV_URI = SBE37_EGG
-        DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
-        DRV_CLS = 'SBE37Driver'
-
-        WORK_DIR = '/tmp/'
-        DELIM = ['<<', '>>']
-
         DEV_ADDR  = instr_info['DEV_ADDR']
         DEV_PORT  = instr_info['DEV_PORT']
         CMD_PORT  = instr_info['CMD_PORT']
@@ -802,10 +803,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         PA_BINARY = instr_info['PA_BINARY']
 
         instrument_driver_config = {
-            'dvr_egg' : DRV_URI,
-            'dvr_mod' : DRV_MOD,
-            'dvr_cls' : DRV_CLS,
-            'workdir' : WORK_DIR,
+            'dvr_egg' : SBE37.dvr_egg,
+            'dvr_mod' : SBE37.dvr_mod,
+            'dvr_cls' : SBE37.dvr_cls,
+            'workdir' : SBE37.workdir,
             'process_type' : (DriverProcessType.EGG,)
         }
 
@@ -813,7 +814,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             # Dynamically load the egg into the test path
             from ion.agents.instrument.driver_process import ZMQEggDriverProcess
             launcher = ZMQEggDriverProcess(instrument_driver_config)
-            egg = launcher._get_egg(DRV_URI)
+            egg = launcher._get_egg(SBE37.dvr_egg)
             if not egg in sys.path: sys.path.insert(0, egg)
 
             support = DriverIntegrationTestSupport(None,
@@ -823,12 +824,12 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                                    DATA_PORT,
                                                    CMD_PORT,
                                                    PA_BINARY,
-                                                   DELIM,
-                                                   WORK_DIR)
+                                                   SBE37.delim,
+                                                   SBE37.workdir)
 
             # Start port agent, add stop to cleanup.
             port = support.start_pagent()
-            log.info('Port agent started at port %i', port)
+            log.info('Port agent started at port %i. device=%s:%s', port, DEV_ADDR, DEV_PORT)
             self.addCleanup(support.stop_pagent)
 
             # Configure instrument driver to use port agent port number.
@@ -857,7 +858,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         instrument_agent_obj = IonObject(RT.InstrumentAgent,
                                          name='agent007_%s' % instr_key,
                                          description="SBE37IMAgent_%s" % instr_key,
-                                         driver_uri=SBE37_EGG,
+                                         driver_uri=SBE37.dvr_egg,
                                          stream_configurations=self._get_instrument_stream_configs())
 
         instrument_agent_id = self.IMS.create_instrument_agent(instrument_agent_obj)
