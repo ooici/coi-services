@@ -14,7 +14,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 
 from coverage_model.parameter_types import QuantityType, ArrayType, TextType
 from coverage_model.parameter_types import RecordType, CategoryType 
-from coverage_model.parameter_types import ConstantType, ConstantRangeType
+from coverage_model.parameter_types import ConstantType, ConstantRangeType, RaggedArrayType
 from coverage_model.parameter_functions import AbstractFunction
 from coverage_model import ParameterFunctionType, ParameterContext, SparseConstantType, ConstantType
 
@@ -121,7 +121,7 @@ class TypesManager(object):
             return self.get_array_type(parameter_type, encoding)
         elif re.match(r'category<.*>', parameter_type):
             return self.get_category_type(parameter_type, encoding, code_set)
-        elif parameter_type == 'str':
+        elif re.match(r'str(ing)?', parameter_type):
             return self.get_string_type()
         elif re.match(r'constant<.*>', parameter_type):
             return self.get_constant_type(parameter_type, encoding, code_set)
@@ -135,6 +135,8 @@ class TypesManager(object):
             return self.get_function_type(parameter_type, encoding, pfid, pmap)
         elif parameter_type == 'sparse':
             return self.get_sparse_type(parameter_type, encoding)
+        elif parameter_type == 'ragged':
+            return self.get_ragged_type(parameter_type, encoding)
         else:
             raise TypeError( 'Invalid Parameter Type: %s' % parameter_type)
 
@@ -498,12 +500,14 @@ class TypesManager(object):
         else:
             return SparseConstantType()
 
+    def get_ragged_type(self, parameter_type, encoding):
+        return RaggedArrayType()
 
     def get_record_type(self):
         return RecordType()
 
     def get_string_type(self):
-        return TextType()
+        return RecordType()
 
     def get_unit(self, uom):
         return Unit(uom, system=self.system)
