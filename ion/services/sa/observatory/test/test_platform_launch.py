@@ -12,7 +12,6 @@ __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 # launch and shutdown of the various platforms in the hierarchy.
 #
 
-# developer conveniences:
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_deployed_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_hierarchy
@@ -28,7 +27,7 @@ __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_8_instruments
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_platform_device_extended_attributes
 
-from unittest import skip
+from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform, instruments_dict
 from mock import patch
 import gevent
 import unittest
@@ -38,7 +37,6 @@ from pyon.agent.agent import ResourceAgentState
 from pyon.util.context import LocalContextMixin
 from pyon.public import log, CFG, RT
 from ion.services.sa.test.helpers import any_old
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform, instruments_dict
 
 from interface.objects import ComputedIntValue, ComputedValueAvailability, ComputedListValue, ComputedDictValue
 from interface.objects import AggregateStatusType, DeviceStatusType
@@ -382,7 +380,6 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         self._run_startup_commands()
 
-    @skip("Runs fine but waiting for comments to enable in general")
     @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 420}}})
     def test_13_platforms_and_8_instruments(self):
         #
