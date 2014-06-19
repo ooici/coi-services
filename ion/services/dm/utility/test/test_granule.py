@@ -165,16 +165,145 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
 
     def test_rdt_param_funcs(self):
-        rdt = self.create_rdt()
-        rdt['TIME'] = [0]
-        rdt['TEMPWAT_L0'] = [280000]
-        rdt['CONDWAT_L0'] = [100000]
-        rdt['PRESWAT_L0'] = [2789]
+        param_funcs = {
+            'identity' : {
+                'function_type' : PFT.PYTHON,
+                'owner' : 'ion_functions.data.interpolation',
+                'function' : 'identity',
+                'args':['x']
+            },
+            'ctd_tempwat' : {
+                'function_type' : PFT.PYTHON,
+                'owner' : 'ion_functions.data.ctd_functions',
+                'function' : 'ctd_sbe37im_tempwat',
+                'args' : ['t0']
+            },
+            'ctd_preswat' : {
+                'function_type' : PFT.PYTHON,
+                'owner' : 'ion_functions.data.ctd_functions',
+                'function' : 'ctd_sbe37im_preswat',
+                'args' : ["p0", "p_range_psia"]
+            },
+            'ctd_condwat' : {
+                'function_type' : PFT.PYTHON,
+                'owner' : 'ion_functions.data.ctd_functions',
+                'function' : 'ctd_sbe37im_condwat',
+                'args' : ['c0']
+            },
+            'ctd_pracsal' : {
+                'function_type' : PFT.PYTHON,
+                'owner' : 'ion_functions.data.ctd_functions',
+                'function' : 'ctd_pracsal',
+                'args' : ['c', 't', 'p']
+            },
+            'ctd_density' : {
+                'function_type' : PFT.PYTHON,
+                'owner' : 'ion_functions.data.ctd_functions',
+                'function' : 'ctd_density',
+                'args' : ['SP','t','p','lat','lon']
+            }
+        }
 
-        rdt['LAT'] = [45]
-        rdt['LON'] = [-71]
+        pfunc_ids = {}
+        for name, param_def in param_funcs.iteritems():
+            paramfunc = ParameterFunction(name, **param_def)
+            pf_id = self.dataset_management.create_parameter_function(paramfunc)
+            pfunc_ids[name] = pf_id
 
-        np.testing.assert_array_almost_equal(rdt['DENSITY'], np.array([1037.5534668], dtype='float32'))
+
+        params = {
+            'time' : {
+                'parameter_type' : 'quantity',
+                'value_encoding' : 'float64',
+                'units' : 'seconds since 1900-01-01'
+            },
+            'temperature_counts' : {
+                'parameter_type' : 'quantity',
+                'value_encoding' : 'float32',
+                'units' : '1'
+            },
+            'pressure_counts' : {
+                'parameter_type' : 'quantity',
+                'value_encoding' : 'float32',
+                'units' : '1'
+            },
+            'conductivity_counts' : {
+                'parameter_type' : 'quantity',
+                'value_encoding' : 'float32',
+                'units' : '1'
+            },
+            'temperature' : {
+                'parameter_type' : 'function',
+                'parameter_function_id' : pfunc_ids['ctd_tempwat'],
+                'parameter_function_map' : { 't0' : 'temperature_counts'},
+                'value_encoding' : 'float32',
+                'units' : 'deg_C'
+            },
+            'pressure' : {
+                'parameter_type' : 'function',
+                'parameter_function_id' : pfunc_ids['ctd_preswat'],
+                'parameter_function_map' : {'p0' : 'pressure_counts', 'p_range_psia' : 679.34040721},
+                'value_encoding' : 'float32',
+                'units' : 'dbar'
+            },
+            'conductivity' : {
+                'parameter_type' : 'function',
+                'parameter_function_id' : pfunc_ids['ctd_condwat'],
+                'parameter_function_map' : {'c0' : 'conductivity_counts'},
+                'value_encoding' : 'float32',
+                'units' : 'Sm-1'
+            },
+            'salinity' : {
+                'parameter_type' : 'function',
+                'parameter_function_id' : pfunc_ids['ctd_pracsal'],
+                'parameter_function_map' : {'c' : 'conductivity', 't' : 'temperature', 'p' : 'pressure'},
+                'value_encoding' : 'float32',
+                'units' : '1'
+            },
+            'density' : {
+                'parameter_type' : 'function',
+                'parameter_function_id' : pfunc_ids['ctd_density'],
+                'parameter_function_map' : {
+                    'SP' : 'salinity',
+                    't' : 'temperature',
+                    'p' : 'pressure',
+                    'lat' : 'lat',
+                    'lon' : 'lon'
+                },
+                'value_encoding' : 'float32',
+                'units' : 'kg m-1'
+            },
+            'lat' : {
+                'parameter_type' : 'sparse',
+                'value_encoding' : 'float32',
+                'units' : 'degrees_north'
+            },
+            'lon' : {
+                'parameter_type' : 'sparse',
+                'value_encoding' : 'float32',
+                'units' : 'degrees_east'
+            }
+        }
+        param_dict = {}
+        for name, param in params.iteritems():
+            pcontext = ParameterContext(name, **param)
+            param_id = self.dataset_management.create_parameter(pcontext)
+            param_dict[name] = param_id
+            
+        pdict_id = self.dataset_management.create_parameter_dictionary('ctd_test', param_dict.values(), 'time')
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd_test', parameter_dictionary_id=pdict_id)
+
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0]
+        rdt['temperature_counts'] = [280000]
+        rdt['conductivity_counts'] = [100000]
+        rdt['pressure_counts'] = [2789]
+
+        rdt['lat'] = [45]
+        rdt['lon'] = [-71]
+
+        np.testing.assert_allclose(rdt['density'], np.array([1001.00543606]))
 
     def test_rdt_lookup(self):
         rdt = self.create_lookup_rdt()

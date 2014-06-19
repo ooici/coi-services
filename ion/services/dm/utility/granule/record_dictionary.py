@@ -393,12 +393,15 @@ class RecordDictionaryTool(object):
         # get the arrays for each
         array_map = {}
         for k,v in arg_map.iteritems():
+            if isinstance(v, basestring):
 
-            array_value = self[v]
-            if array_value is None:
-                log.warning("Missing inputs for parameter function %s", name)
-                return None
-            array_map[k] = array_value
+                array_value = self[v]
+                if array_value is None:
+                    log.warning("Missing inputs for parameter function %s", name)
+                    return None
+                array_map[k] = array_value
+            else:
+                array_map[k] = v
 
         if return_dict:
             return array_map
