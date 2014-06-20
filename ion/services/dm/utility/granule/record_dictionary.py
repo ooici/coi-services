@@ -25,8 +25,11 @@ from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType,
 from coverage_model.parameter_functions import ParameterFunctionException
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
 from coverage_model.parameter_types import ParameterFunctionType
+from coverage_model import PythonFunction, NumexprFunction
 
 import numpy as np
+import numexpr as ne
+from copy import copy
 import msgpack
 import time
 
@@ -188,12 +191,17 @@ class RecordDictionaryTool(object):
         if g.creation_timestamp:
             instance._creation_timestamp = g.creation_timestamp
 
+        # Do time first
+        time_ord = instance.to_ordinal(instance.temporal_parameter)
+        if g.record_dictionary[time_ord] is not None:
+            instance._rd[instance.temporal_parameter] = g.record_dictionary[time_ord]
+
         for k,v in g.record_dictionary.iteritems():
-            key = instance._pdict.key_from_ord(k)
+            key = instance.from_ordinal(k)
             if v is not None:
-                ptype = instance._pdict.get_context(key).param_type
-                paramval = cls.get_paramval(ptype, instance.domain, v)
-                instance._rd[key] = paramval
+                #ptype = instance._pdict.get_context(key).param_type
+                #paramval = cls.get_paramval(ptype, instance.domain, v)
+                instance._rd[key] = v
         
         instance.connection_id = g.connection_id
         instance.connection_index = g.connection_index
@@ -206,9 +214,9 @@ class RecordDictionaryTool(object):
         
         for key,val in self._rd.iteritems():
             if val is not None:
-                granule.record_dictionary[self._pdict.ord_from_key(key)] = self[key]
+                granule.record_dictionary[self.to_ordinal(key)] = self[key]
             else:
-                granule.record_dictionary[self._pdict.ord_from_key(key)] = None
+                granule.record_dictionary[self.to_ordinal(key)] = None
         
         granule.param_dictionary = {} if self._stream_def else self._pdict.dump()
         if self._definition:
@@ -308,9 +316,8 @@ class RecordDictionaryTool(object):
             elif isinstance(vals, list):
                 validate_equal(len(vals), self._shp[0], 'Invalid shape on input')
 
-        dom = self.domain
-        paramval = self.get_paramval(context.param_type, dom, vals)
-        self._rd[name] = paramval
+        #paramval = self.get_paramval(context.param_type, dom, vals)
+        self._rd[name] = vals
 
     def param_type(self, name):
         if name in self.fields:
@@ -336,18 +343,70 @@ class RecordDictionaryTool(object):
         if self._available_fields and name not in self._available_fields:
             raise KeyError(name)
         ptype = self._pdict.get_context(name).param_type
+
         if isinstance(ptype, ParameterFunctionType):
-            if self._rd[name] is not None and getattr(self._rd[name],'memoized_values',None) is not None:
-                return self._rd[name].memoized_values[:]
+            if self._rd[name] is not None:
+                return np.atleast_1d(self._rd[name]) # It was already set
+            
             try:
-                pfv = get_value_class(ptype, self.domain)
-                pfv._pval_callback = self._pval_callback
-                return pfv[:]
+                return self._get_param_func(name)
             except ParameterFunctionException:
                 log.debug('failed to get parameter function field: %s (%s)', name, self._pdict.keys(), exc_info=True)
+
         if self._rd[name] is not None:
-            return self._rd[name][:]
+            return np.atleast_1d(self._rd[name])
         return None
+
+    def _get_param_func(self, name):
+        ptype = self._pdict.get_context(name).param_type
+        if isinstance(ptype.function, PythonFunction):
+
+            args = self._build_arg_map(name, ptype)
+
+            # For missing parameter inputs, return None
+            if args is None:
+                return None
+
+            if not hasattr(ptype.function,'_callable'):
+                ptype.function._import_func()
+
+            retval = ptype.function._callable(*args)
+            return retval
+
+        elif isinstance(ptype.function, NumexprFunction):
+            args = self._build_arg_map(name, ptype, return_dict=True)
+
+            # For missing parameter inputs, return None
+            if args is None:
+                return None
+            retval = ne.evaluate(ptype.function.expression, local_dict=args)
+            return retval
+
+        else:
+            raise BadRequest("%s not supported parameter function type" % type(ptype.function))
+
+    def _build_arg_map(self, name, ptype, return_dict=False):
+        # get the arg list
+        arg_list = ptype.function.arg_list
+        # the map
+        arg_map = ptype.function.param_map
+        # get the arrays for each
+        array_map = {}
+        for k,v in arg_map.iteritems():
+            if isinstance(v, basestring):
+
+                array_value = self[v]
+                if array_value is None:
+                    log.warning("Missing inputs for parameter function %s", name)
+                    return None
+                array_map[k] = array_value
+            else:
+                array_map[k] = v
+
+        if return_dict:
+            return array_map
+
+        return [array_map[i] for i in arg_list]
 
     def iteritems(self):
         """ D.iteritems() -> an iterator over the (key, value) items of D """
@@ -406,25 +465,12 @@ class RecordDictionaryTool(object):
         @brief Pretty Print the record dictionary for debug or log purposes.
         """
         from pprint import pformat
-        return pformat(self.__dict__)
+        repr_dict = {}
+        for field in self.fields:
+            if self[field] is not None:
+                repr_dict[field] = self[field][:]
+        return pformat(repr_dict)
 
-
-    def __eq__(self, comp):
-        if self._shp != comp._shp:
-            return False
-        if self._pdict != comp._pdict:
-            return False
-
-        for k,v in self._rd.iteritems():
-            if v != comp._rd[k]:
-                if isinstance(v, AbstractParameterValue) and isinstance(comp._rd[k], AbstractParameterValue):
-                    if (v.content == comp._rd[k].content).all():
-                        continue
-                return False
-        return True
-
-    def __ne__(self, comp):
-        return not (self == comp)
 
     def size(self):
         '''
@@ -438,8 +484,21 @@ class RecordDictionaryTool(object):
         return len(byte_stream)
 
     
+    def to_ordinal(self, key):
+        params = copy(self._rd.keys())
+        params.sort()
+        try:
+            return params.index(key)
+        except ValueError:
+            raise KeyError(key)
+        
+    def from_ordinal(self, ordinal):
+        params = copy(self._rd.keys())
+        params.sort()
+        return params[ordinal]
+
+
     @staticmethod
-    @memoize_lru(maxsize=100)
     def read_stream_def(stream_def_id):
         pubsub_cli = PubsubManagementServiceClient()
         stream_def_obj = pubsub_cli.read_stream_definition(stream_def_id)

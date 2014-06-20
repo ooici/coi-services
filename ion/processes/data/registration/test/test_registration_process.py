@@ -96,7 +96,7 @@ class RegistrationProcessTest(IonIntegrationTestCase):
                 elif isinstance(context.param_type, ConstantType):
                     np.testing.assert_array_equal(list(ds['data'][k]), rdt[k])
                 elif isinstance(context.param_type, CategoryType):
-                    np.testing.assert_array_equal(list(ds['data'][k]), rdt[k])
+                    np.testing.assert_array_equal(list(ds['data'][k]), rdt[k].astype('|S'))
                 else:
                     untested.append('%s (%s)' % (k,context.param_type))
             if untested:

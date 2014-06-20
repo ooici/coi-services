@@ -12,9 +12,9 @@ from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model.parameter_types import QuantityType, ArrayType 
+from coverage_model.parameter_types import QuantityType, ArrayType, TextType
 from coverage_model.parameter_types import RecordType, CategoryType 
-from coverage_model.parameter_types import ConstantType, ConstantRangeType
+from coverage_model.parameter_types import ConstantType, ConstantRangeType, RaggedArrayType
 from coverage_model.parameter_functions import AbstractFunction
 from coverage_model import ParameterFunctionType, ParameterContext, SparseConstantType, ConstantType
 
@@ -39,7 +39,8 @@ class TypesManager(object):
     def get_array_type(self,parameter_type=None, encoding=None):
         if encoding in ('str', '', 'opaque'):
             encoding = None
-        return ArrayType(inner_encoding=encoding)
+        log.error("Array types are temporarily unsupported during refactoring")
+        return ArrayType()
 
     def get_boolean_type(self):
         return QuantityType(value_encoding = np.dtype('int8'))
@@ -116,24 +117,26 @@ class TypesManager(object):
     def get_parameter_type(self,parameter_type, encoding, code_set=None, pfid=None, pmap=None):
         if parameter_type == 'quantity':
             return self.get_quantity_type(parameter_type,encoding)
-        elif re.match(r'array<.*>', parameter_type):
+        elif re.match(r'array<?.*>?', parameter_type):
             return self.get_array_type(parameter_type, encoding)
         elif re.match(r'category<.*>', parameter_type):
             return self.get_category_type(parameter_type, encoding, code_set)
-        elif parameter_type == 'str':
+        elif re.match(r'str(ing)?', parameter_type):
             return self.get_string_type()
         elif re.match(r'constant<.*>', parameter_type):
             return self.get_constant_type(parameter_type, encoding, code_set)
         elif parameter_type == 'boolean':
             return self.get_boolean_type()
         elif re.match(r'range<.*>', parameter_type):
-            return self.get_range_type(parameter_type, encoding)
+            return self.get_array_type(parameter_type, encoding)
         elif re.match(r'record<.*>', parameter_type):
             return self.get_record_type()
         elif parameter_type == 'function':
             return self.get_function_type(parameter_type, encoding, pfid, pmap)
         elif parameter_type == 'sparse':
             return self.get_sparse_type(parameter_type, encoding)
+        elif parameter_type == 'ragged':
+            return self.get_ragged_type(parameter_type, encoding)
         else:
             raise TypeError( 'Invalid Parameter Type: %s' % parameter_type)
 
@@ -492,14 +495,19 @@ class TypesManager(object):
             raise TypeError('Unsupported Constant Range Type: %s' % groups[2])
 
     def get_sparse_type(self, parameter_type, encoding):
-        return SparseConstantType(value_encoding=encoding)
+        if encoding:
+            return SparseConstantType(value_encoding=encoding)
+        else:
+            return SparseConstantType()
 
+    def get_ragged_type(self, parameter_type, encoding):
+        return RaggedArrayType()
 
     def get_record_type(self):
         return RecordType()
 
     def get_string_type(self):
-        return self.get_array_type()
+        return RecordType()
 
     def get_unit(self, uom):
         return Unit(uom, system=self.system)

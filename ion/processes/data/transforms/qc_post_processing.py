@@ -185,7 +185,7 @@ class QCProcessor(SimpleProcess):
             for p in parameters:
                 # for each parameter, if the name ends in _qc run the qc
                 if p.name.endswith('_qc'):
-                    self.run_qc(data_product,rd, p, qc_mapping)
+                    self.run_qc(data_product,rd, p, qc_mapping, parameters)
 
             # Break early if we can
             if self.event.is_set(): 
@@ -230,9 +230,43 @@ class QCProcessor(SimpleProcess):
         rd = site.reference_designator
         return rd
 
-    def run_qc(self, data_product, reference_designator, parameter, qc_mapping):
+    def calibrated_candidates(self, data_product, parameter, qc_mapping, parameters):
+        '''
+        Returns a list of potential candidate parameter names to use as the input parameter
+        '''
+
+        # 1st Priority is *b_interp
+        # 2nd Priority is *b_pd
+        # 3rd Priority is input_name
+        parameters = {p.name : p for p in parameters }
+
+        dp_ident, alg, qc = parameter.ooi_short_name.split('_')
+        input_name = qc_mapping[dp_ident] # input_name is the third priority
+
+        sname = parameters[input_name].ooi_short_name # should be something like tempwat_l1
+
+        interp = sname.lower() + 'b_interp'
+        pd = sname.lower() + 'b_pd'
+
+        print "1st priority:", interp     # 1st priority
+        print "2nd priority:", pd         # 2nd priority
+        print "3rd priority:", input_name # 3rd priority
+
+        if interp in parameters:
+            return interp
+        elif pd in parameters:
+            return pd
+        else:
+            return input_name
+
+    def run_qc(self, data_product, reference_designator, parameter, qc_mapping, parameters):
         '''
         Determines which algorithm the parameter should run, then evaluates the QC
+
+        data_product         - Data Product Resource
+        reference_designator - reference designator string
+        parameter            - parameter context resource
+        qc_mapping           - a dictionary of { data_product_name : parameter_name }
         '''
 
         # We key off of the OOI Short Name
@@ -240,7 +274,7 @@ class QCProcessor(SimpleProcess):
         dp_ident, alg, qc = parameter.ooi_short_name.split('_')
         if dp_ident not in qc_mapping:
             return # No input!
-        input_name = qc_mapping[dp_ident]
+        input_name = self.calibrated_candidates(data_product, parameter, qc_mapping, parameters)
 
         try:
             doc = self.container.object_store.read_doc(reference_designator)
@@ -325,6 +359,11 @@ class QCProcessor(SimpleProcess):
     def set_error(self, coverage, parameter):
         log.error("setting coverage parameter %s to -99", parameter.name)
 
+    def get_parameter_values(self, coverage, name):
+        array = coverage.get_parameter_values([name], fill_empty_params=True).get_data()[name]
+        return array
+
+
     def process_glblrng(self, coverage, parameter, input_name, min_value, max_value):
         '''
         Evaluates the QC for global range for all data values that equal -88 (not yet evaluated)
@@ -333,12 +372,12 @@ class QCProcessor(SimpleProcess):
         log.info("Num timesteps: %s", coverage.num_timesteps)
 
         # Get all of the QC values, and find where -88 is set (uninitialized)
-        qc_array = coverage.get_parameter_values(parameter.name)
+        qc_array = self.get_parameter_values(coverage, parameter.name)
         indexes = np.where( qc_array == -88 )[0]
 
         # Now build a variable, but I need to keep track of the time where the data goes
-        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
-        value_array = coverage.get_parameter_values(input_name)[indexes]
+        time_array = self.get_parameter_values(coverage, coverage.temporal_parameter_name)[indexes]
+        value_array = self.get_parameter_values(coverage, input_name)[indexes]
 
         from ion_functions.qc.qc_functions import dataqc_globalrangetest
         qc = dataqc_globalrangetest(value_array, [min_value, max_value])
@@ -353,15 +392,15 @@ class QCProcessor(SimpleProcess):
         Evaluates the QC for stuck value for all data values that equal -88 (not yet evaluated)
         '''
         # Get al of the QC values and find out where -88 is set
-        qc_array = coverage.get_parameter_values(parameter.name)
+        qc_array = self.get_parameter_values(coverage, parameter.name)
         indexes = np.where(qc_array == -88)[0]
 
         # Horribly inefficient...
         from ion_functions.qc.qc_functions import dataqc_stuckvaluetest_wrapper
-        value_array = coverage.get_parameter_values(input_name)
+        value_array = self.get_parameter_values(coverage, input_name)[indexes]
         qc_array = dataqc_stuckvaluetest_wrapper(value_array, resolution, N)
         qc_array = qc_array[indexes]
-        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
+        time_array = self.get_parameter_values(coverage, coverage.temporal_parameter_name)[indexes]
 
         return_dictionary = {
                 coverage.temporal_parameter_name : time_array,
@@ -374,12 +413,12 @@ class QCProcessor(SimpleProcess):
         Evaluates the QC for trend test for all data values that equal -88 (not yet evaluated)
         '''
         # Get al of the QC values and find out where -88 is set
-        qc_array = coverage.get_parameter_values(parameter.name)
+        qc_array = self.get_parameter_values(coverage, parameter.name)
         indexes = np.where(qc_array == -88)[0]
 
         from ion_functions.qc.qc_functions import dataqc_polytrendtest_wrapper
-        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)
-        value_array = coverage.get_parameter_values(input_name)
+        time_array = self.get_parameter_values(coverage, coverage.temporal_parameter_name)[indexes]
+        value_array = self.get_parameter_values(coverage, input_name)[indexes]
 
         qc_array = dataqc_polytrendtest_wrapper(value_array, time_array, ord_n, nstd)
         qc_array = qc_array[indexes]
@@ -393,26 +432,26 @@ class QCProcessor(SimpleProcess):
         Evaluates the QC for spike test for all data values that equal -88 (not yet evaluated)
         '''
         # Get al of the QC values and find out where -88 is set
-        qc_array = coverage.get_parameter_values(parameter.name)
+        qc_array = self.get_parameter_values(coverage, parameter.name)
         indexes = np.where(qc_array == -88)[0]
 
         from ion_functions.qc.qc_functions import dataqc_spiketest_wrapper
-        value_array = coverage.get_parameter_values(input_name)
+        value_array = self.get_parameter_values(coverage, input_name)[indexes]
         qc_array = dataqc_spiketest_wrapper(value_array, acc, N, L)
         qc_array = qc_array[indexes]
-        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)[indexes]
+        time_array = self.get_parameter_values(coverage, coverage.temporal_parameter_name)[indexes]
         return_dictionary = {
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
         }
 
     def process_gradient_test(self, coverage, parameter, input_name, ddatdx, mindx, startdat, toldat):
-        qc_array = coverage.get_parameter_values(parameter.name)
+        qc_array = self.get_parameter_values(coverage, parameter.name)
         indexes = np.where(qc_array == -88)[0]
 
         from ion_functions.qc.qc_functions import dataqc_gradienttest_wrapper
-        value_array = coverage.get_parameter_values(input_name)
-        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)
+        value_array = self.get_parameter_values(coverage, input_name)[indexes]
+        time_array = self.get_parameter_values(coverage, coverage.temporal_parameter_name)[indexes]
         
         qc_array = dataqc_gradienttest_wrapper(value_array, time_array, ddatdx, mindx, startdat, toldat)
 
@@ -423,13 +462,14 @@ class QCProcessor(SimpleProcess):
 
 
     def process_local_range_test(self, coverage, parameter, input_name, datlim, datlimz, dims):
-        qc_array = coverage.get_parameter_values(parameter.name)
+        return # Not ready
+        qc_array = self.get_parameter_values(coverage, parameter.name)
         indexes = np.where(qc_array == -88)[0]
 
         from ion_functions.qc.qc_functions import dataqc_localrangetest_wrapper
         # dat
-        value_array = coverage.get_parameter_values(input_name)
-        time_array = coverage.get_parameter_values(coverage.temporal_parameter_name)
+        value_array = self.get_parameter_values(coverage, input_name)[indexes]
+        time_array = self.get_parameter_values(coverage, coverage.temporal_parameter_name)[indexes]
 
         # datlim is an argument and comes from the lookup table
         # datlimz is an argument and comes from the lookup table
@@ -474,7 +514,6 @@ class QCProcessor(SimpleProcess):
                 most_recent = row
                 ts = row['ts_created']
         return most_recent
-
 
     def get_parameters(self, data_product):
         '''

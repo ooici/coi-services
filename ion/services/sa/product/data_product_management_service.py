@@ -19,10 +19,10 @@ from ion.util.time_utils import TimeUtils
 from ion.util.geo_utils import GeoUtils
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from interface.objects import ComputedValueAvailability, DataProductTypeEnum, Dataset, CoverageTypeEnum
+from interface.objects import ComputedValueAvailability, DataProductTypeEnum, Dataset, CoverageTypeEnum, ParameterContext
 from interface.objects import DataProduct, DataProductVersion, InformationStatus, DataProcess, DataProcessTypeEnum, Device
 
-from coverage_model import QuantityType, ParameterContext, ParameterDictionary, NumexprFunction, ParameterFunctionType
+from coverage_model import QuantityType, ParameterDictionary, NumexprFunction, ParameterFunctionType
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
@@ -39,6 +39,7 @@ import matplotlib.pyplot as plt
 from collections import deque
 from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
 from pyon.core.exception import Inconsistent
+import re
 
 import functools
 from pyon.util.breakpoint import debug_wrapper
@@ -130,6 +131,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         # If there were physical datasets
         if dataset_ids:
             self.create_catalog_entry(data_product_id)
+
+        self._check_qc(data_product_id)
 
         return data_product_id
 
@@ -235,11 +238,69 @@ class DataProductManagementService(BaseDataProductManagementService):
             self.clients.resource_registry.create_association(dpd._id, PRED.hasDataProcess, dp_id)
             self.clients.resource_registry.create_association(dp_id, PRED.hasOutputProduct, data_product._id)
 
-    def check_qc(self, data_product):
+    def _check_qc(self, data_product_id):
         '''
-        Determine the relevant parameters that need QC applied and create parameters for the evaluations
+        Creates the necessary QC parameters where the "qc_applications" attribute is specified.
         '''
-        pass
+
+
+        data_product = self.read_data_product(data_product_id)
+        parameters = self.get_data_product_parameters(data_product_id)
+        parameter_names = [p.name for p in parameters]
+        pmap = {}
+
+        # Make a map from the ooi short name to the parameter object
+        for p in parameters:
+            if p.ooi_short_name:
+                pmap[re.sub(r'_L[0-2]', '', p.ooi_short_name)] = p
+
+
+        for sname, qc_applicability in data_product.qc_applications.iteritems():
+
+            parameter_list = self._generate_qc(pmap[sname], qc_applicability)
+            for parameter in parameter_list:
+                if parameter.name in parameter_names: # Parameter already exists
+                    continue
+
+                parameter_id = self.clients.dataset_management.create_parameter(parameter)
+                self.add_parameter_to_data_product(parameter_id, data_product_id)
+
+        return True
+
+
+    def _generate_qc(self, parameter, qc_list):
+        sname = parameter.ooi_short_name
+        # DATAPROD_ALGORTHM_QC
+        # drop the _L?
+        sname = re.sub(r'_L[0-2]', '', sname)
+
+        retval = []
+        for qc_thing in qc_list:
+
+            if qc_thing not in ('qc_glblrng', 'qc_gradtst', 'qc_trndtst', 'qc_spketst', 'qc_loclrng', 'qc_stuckvl'):
+                log.warning("Invalid QC: %s", qc_thing)
+                continue
+
+            qc_thing = qc_thing.replace('qc_', '')
+            new_param_name = '_'.join([sname, qc_thing.upper(), 'QC'])
+
+            parameter = ParameterContext(new_param_name.lower(),
+                                         parameter_type='quantity',
+                                         value_encoding='int8',
+                                         ooi_short_name=new_param_name,
+                                         display_name=' '.join([sname, qc_thing.upper()]),
+                                         units='1',
+                                         description=' '.join([qc_thing.upper(), 'Quality Control for', sname]),
+                                         fill_value=-88
+                                         )
+            retval.append(parameter)
+        return retval
+
+        
+        '''
+    { TEMPWAT_L1: [qc_glblrng, qc_gradtst],
+      DENSITY_L2: [qc_glblrng] }
+        '''
 
     def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point='', stream_configuration=None):
 
@@ -320,6 +381,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         if self._metadata_changed(original, data_product):
             self.update_catalog_entry(data_product._id)
 
+        if self._qc_application_changed(original, data_product):
+            self._check_qc(data_product._id)
+
     def _metadata_changed(self, original_dp, new_dp):
         from ion.processes.data.registration.registration_process import RegistrationProcess
         for field in RegistrationProcess.catalog_metadata:
@@ -327,6 +391,10 @@ class DataProductManagementService(BaseDataProductManagementService):
                 return True
         return False
 
+
+    def _qc_application_changed(self, original_dp, new_dp):
+        retval = original_dp.qc_applications != new_dp.qc_applications
+        return retval
 
 
 

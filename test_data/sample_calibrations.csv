@@ -1,0 +1,5 @@
+#property id, name, value, units, desc, start-date
+ooi-inst-1,cc_a0,1.13e2,1,,2014-01-01
+ooi-inst-1,cc_a1,1.13e2,1,,2014-01-01
+ooi-inst-1,cc_a2,1.13e2,1,,2014-01-01
+

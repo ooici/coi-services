@@ -25,6 +25,7 @@ from coverage_model import AbstractCoverage, ViewCoverage, ComplexCoverage, Comp
 from coverage_model.parameter_functions import AbstractFunction
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceProcessClient
 from coverage_model import NumexprFunction, PythonFunction, QuantityType, ParameterFunctionType
+from coverage_model.coverages.coverage_extents import ReferenceCoverageExtents
 from interface.objects import DataProcessDefinition, DataProcessTypeEnum, ParameterFunctionType as PFT
 from interface.objects import CoverageTypeEnum
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -72,13 +73,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         dataset.coverage_version = 'UNSET'
         dataset_id, rev = self.clients.resource_registry.create(dataset)
         try:
-
             if dataset.coverage_type == CoverageTypeEnum.SIMPLEX:
                 cov = self._create_coverage(dataset_id, dataset.description or dataset_id, parameter_dict)
                 self._save_coverage(cov)
                 cov.close()
             elif dataset.coverage_type == CoverageTypeEnum.COMPLEX:
                 cov = self._create_complex_coverage(dataset_id, dataset.description or dataset_id, parameter_dict)
+                cov.close()
             else:
                 raise BadRequest("Unknown Coverage Type")
 
@@ -149,8 +150,15 @@ class DatasetManagementService(BaseDatasetManagementService):
         '''
         Adds target dataset to the complex coverage for the window specified
         '''
-        doc = self.container.object_store.read_doc('cov_' + site_dataset_id)
-        doc['references'].append( (window, site_dataset_id) )
+        if window is None:
+            raise BadRequest("Window must be specified")
+
+        device_path = self._get_coverage_path(device_dataset_id)
+        site_path = self._get_coverage_path(site_dataset_id)
+
+        ccov = ComplexCoverage.load(site_path)
+        ccov.append_reference_coverage(device_path, ReferenceCoverageExtents('', device_dataset_id, time_extents=window))
+        ccov.close()
 
 
 #--------
@@ -657,13 +665,12 @@ class DatasetManagementService(BaseDatasetManagementService):
         vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov_location)
         return vcov
 
-    def _create_complex_coverage(self, dataset_id, description, parameter_dict):
-        object_store_blank = {
-            'dataset_id' : dataset_id,
-            'parameter_dictionary' : parameter_dict,
-            'references': []
-        }
-        self.container.object_store.create_doc(object_store_blank, 'cov_' + dataset_id)
+    @classmethod
+    def _create_complex_coverage(cls, dataset_id, description, parameter_dict):
+        pdict = ParameterDictionary.load(parameter_dict)
+        file_root = FileSystem.get_url(FS.CACHE, 'datasets')
+        ccov = ComplexCoverage(file_root, dataset_id, 'Complex Coverage for %s' % dataset_id, parameter_dictionary=pdict, complex_type=ComplexCoverageType.TEMPORAL_AGGREGATION)
+        return ccov
 
 
     @classmethod
