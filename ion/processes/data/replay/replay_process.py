@@ -161,7 +161,7 @@ class ReplayProcess(BaseReplayProcess):
         elif isinstance(tdoa, slice):
             log.warning("Using tdoa argument on large datasets can consume too much memory")
             data_dict = coverage.get_parameter_values(param_names=parameters, fill_empty_params=True).get_data()
-            data_dict = data_dict[tdoa]
+            data_dict = { k : v[tdoa] for k,v in data_dict.iteritems() }
         else:
             raise TypeError("tdoa is incorrect type: %s" % type(tdoa))
 

@@ -212,7 +212,7 @@ class RecordDictionaryTool(object):
         granule = Granule()
         granule.record_dictionary = {}
         
-        for key, val in self.iteritems():
+        for key,val in self._rd.iteritems():
             if val is not None:
                 granule.record_dictionary[self.to_ordinal(key)] = self[key]
             else:
@@ -485,7 +485,7 @@ class RecordDictionaryTool(object):
 
     
     def to_ordinal(self, key):
-        params = copy(self.fields)
+        params = copy(self._rd.keys())
         params.sort()
         try:
             return params.index(key)
@@ -493,7 +493,7 @@ class RecordDictionaryTool(object):
             raise KeyError(key)
         
     def from_ordinal(self, ordinal):
-        params = copy(self.fields)
+        params = copy(self._rd.keys())
         params.sort()
         return params[ordinal]
 
