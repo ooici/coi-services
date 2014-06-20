@@ -445,12 +445,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Now get the data in one chunk using an RPC Call to start_retreive
         #--------------------------------------------------------------------------------
 
-        replay_data_raw = self.dataretrieverclient.retrieve(self.raw_dataset)
+        replay_data_raw = self.dataretrieverclient.retrieve(self.raw_dataset, query={'sort_parameter':'ingestion_timestamp'})
         self.assertIsInstance(replay_data_raw, Granule)
         rdt_raw = RecordDictionaryTool.load_from_granule(replay_data_raw)
         log.debug("RDT raw: %s", str(rdt_raw.pretty_print()) )
 
-        self.assertIn('raw', rdt_raw)
         raw_vals = rdt_raw['raw']
 
         all_raw = "".join(raw_vals)

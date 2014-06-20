@@ -153,7 +153,16 @@ class DataRetrieverService(BaseDataRetrieverService):
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else:
-                rdt = ReplayProcess._cov2granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
+                args = {
+                    'start_time'     : query.get('start_time', None),
+                    'end_time'       : query.get('end_time', None),
+                    'stride_time'    : query.get('stride_time', None),
+                    'parameters'     : query.get('parameters', None),
+                    'stream_def_id'  : delivery_format,
+                    'tdoa'           : query.get('tdoa', None),
+                    'sort_parameter' : query.get('sort_parameter', None)
+                }
+                rdt = ReplayProcess._cov2granule(coverage=coverage, **args)
         except Exception as e:
             cls._eject_cache(dataset_id)
             data_products, _ = Container.instance.resource_registry.find_subjects(object=dataset_id, predicate=PRED.hasDataset, subject_type=RT.DataProduct)
@@ -168,7 +177,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         '''
         Retrieves a dataset.
         @param dataset_id      Dataset identifier
-        @param query           Query parameters (start_time, end_time, stride_time, parameters, tdoa)
+        @param query           Query parameters (start_time, end_time, stride_time, parameters, tdoa, sort_parameter)
         @param delivery_format The stream definition identifier for the outgoing granule (stream_defintinition_id)
         @param module          Module to chain a transform into
         @param cls             Class of the transform

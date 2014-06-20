@@ -145,8 +145,7 @@ class ReplayProcess(BaseReplayProcess):
         return rdt
 
     @classmethod
-    @debug_wrapper
-    def _cov2granule(cls, coverage, start_time=None, end_time=None, stride_time=None, stream_def_id=None, parameters=None, tdoa=None):
+    def _cov2granule(cls, coverage, start_time=None, end_time=None, stride_time=None, stream_def_id=None, parameters=None, tdoa=None, sort_parameter=None):
         # Deal with the NTP
         if start_time:
             start_time += 2208988800
@@ -155,9 +154,9 @@ class ReplayProcess(BaseReplayProcess):
 
         if tdoa is None:
             if start_time is None and end_time is None:
-                data_dict = coverage.get_parameter_values(param_names=parameters, stride_length=stride_time, fill_empty_params=True).get_data()
+                data_dict = coverage.get_parameter_values(param_names=parameters, stride_length=stride_time, fill_empty_params=True, sort_parameter=sort_parameter).get_data()
             else:
-                data_dict = coverage.get_parameter_values(param_names=parameters, time_segment=(start_time, end_time), stride_length=stride_time, fill_empty_params=True).get_data()
+                data_dict = coverage.get_parameter_values(param_names=parameters, time_segment=(start_time, end_time), stride_length=stride_time, fill_empty_params=True, sort_parameter=sort_parameter).get_data()
         elif isinstance(tdoa, slice):
             log.warning("Using tdoa argument on large datasets can consume too much memory")
             data_dict = coverage.get_parameter_values(param_names=parameters, fill_empty_params=True).get_data()
