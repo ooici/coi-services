@@ -37,7 +37,7 @@ class TestSiteDataProducts(DMTestCase):
         self.addCleanup(dataset_monitor.stop)
         rdt  = self.ph.get_rdt(stream_def._id)
         rdt_ = self.ph.rdt_for_data_product(data_product_id)
-        self.assertEquals(rdt, rdt_)
+        self.assertEquals(rdt.fields, rdt_.fields)
         rdt['time'] = [0,   1,  2,  3]
         rdt['temp'] = [10, 11, 12, 13]
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
