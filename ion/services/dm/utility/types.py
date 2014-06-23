@@ -37,10 +37,15 @@ class TypesManager(object):
         self.resource_objs = resource_objs
 
     def get_array_type(self,parameter_type=None, encoding=None):
-        if encoding in ('str', '', 'opaque'):
-            encoding = None
-        log.error("Array types are temporarily unsupported during refactoring")
-        return ArrayType()
+        if encoding in ('string', 'char', 'str', '', 'opaque'):
+            return self.get_string_type()
+        if 'int' in encoding:
+            fill = -9999
+        elif 'float' in encoding:
+            fill = np.nan
+        else:
+            raise TypeError("Unknown encoding for array types %s" % encoding)
+        return ArrayType(inner_encoding=encoding, inner_fill_value=fill)
 
     def get_boolean_type(self):
         return QuantityType(value_encoding = np.dtype('int8'))
