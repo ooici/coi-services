@@ -2315,10 +2315,9 @@ class PlatformAgent(ResourceAgent):
                 children were processed OK.
         """
 
-        expected_state = None
         children_with_errors = self._instruments_execute_agent(
             command=DriverEvent.START_AUTOSAMPLE,
-            expected_state=expected_state)
+            expected_state=ResourceAgentState.STREAMING)
 
         return children_with_errors
 
