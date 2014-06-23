@@ -24,7 +24,9 @@ from pyon.public import OT
 import time
 import numpy as np
 from gevent.queue import Queue, Empty
+import unittest
 
+@unittest.skip("QC Processing Dependent on M088")
 @attr('INT',group='dm')
 class TestQCPostProcessing(DMTestCase):
     '''
