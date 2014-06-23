@@ -40,6 +40,7 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         dataset_id = self.dataset_management.create_dataset(dataset, parameter_dictionary_id=parameter_dict_id)
         return dataset_id
 
+    @unittest.skip("Array types temporarily unsupported")
     def test_pydap(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         pdict_id = ph.create_extended_parsed()
