@@ -13,6 +13,7 @@ from pyon.util.context import LocalContextMixin
 from pyon.agent.agent import ResourceAgentState, ResourceAgentEvent
 from interface.objects import AgentCommand
 
+from gevent.timeout import Timeout
 from mock import patch
 import unittest
 import os
@@ -31,6 +32,10 @@ class FakeProcess(LocalContextMixin):
 @unittest.skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestPlatformRobustness(BaseIntTestPlatform):
 
+    ###################
+    # auxiliary methods
+    ###################
+
     def _launch_network(self, p_root, recursion=True):
         def shutdown():
             try:
@@ -42,6 +47,59 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
         self.addCleanup(shutdown)
+
+    def _start_device_failed_command_event_subscriber(self, p_root, count=1):
+        return self._start_event_subscriber2(
+            count=count,
+            event_type="DeviceStatusEvent",
+            origin_type="PlatformDevice",
+            origin=p_root.platform_device_id,
+            sub_type="device_failed_command")
+
+    def _instrument_initialize(self, instr_key, ia_client):
+        self._instrument_execute_agent(instr_key, ia_client, ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
+
+    def _instrument_go_active(self, instr_key, ia_client):
+        self._instrument_execute_agent(instr_key, ia_client, ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE)
+
+    def _instrument_run(self, instr_key, ia_client):
+        self._instrument_execute_agent(instr_key, ia_client, ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
+
+    def _instrument_start_autosample(self, instr_key, ia_client):
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+        command = SBE37ProtocolEvent.START_AUTOSAMPLE
+        self._instrument_execute_resource(instr_key, ia_client, command, ResourceAgentState.STREAMING)
+
+    def _instrument_stop_autosample(self, instr_key, ia_client):
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+        command = SBE37ProtocolEvent.STOP_AUTOSAMPLE
+        self._instrument_execute_resource(instr_key, ia_client, command, ResourceAgentState.COMMAND)
+
+    def _instrument_reset(self, instr_key, ia_client):
+        self._instrument_execute_agent(instr_key, ia_client, ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED)
+
+    def _instrument_execute_agent(self, instr_key, ia_client, command, expected_state=None):
+        log.debug("execute_agent %r on instrument %r", command, instr_key)
+        cmd = AgentCommand(command=command)
+        retval = ia_client.execute_agent(cmd, timeout=self._receive_timeout)
+        log.debug("execute_agent of %r on instrument %r returned: %s", command, instr_key, retval)
+        if expected_state:
+            self.assertEqual(expected_state, ia_client.get_agent_state())
+
+    def _instrument_execute_resource(self, instr_key, ia_client, command, expected_state=None):
+        log.debug("execute_resource %r on instrument %r", command, instr_key)
+        cmd = AgentCommand(command=command)
+        retval = ia_client.execute_resource(cmd, timeout=self._receive_timeout)
+        log.debug("execute_resource of %r on instrument %r returned: %s", command, instr_key, retval)
+        if expected_state:
+            self.assertEqual(expected_state, ia_client.get_agent_state())
+
+    def _assert_instrument_state(self, instr_key, ia_client, state):
+        self.assertEqual(state, ia_client.get_agent_state())
+
+    ###################
+    # tests
+    ###################
 
     def test_instrument_reset_externally(self):
         #
@@ -77,11 +135,7 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         self.assertEqual(ia_client.get_agent_state(), ResourceAgentState.COMMAND)
 
         # reset the instrument
-        log.debug("resetting instrument %r", instr_keys[0])
-        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-        retval = ia_client.execute_agent(cmd, timeout=self._receive_timeout)
-        log.debug("reset instrument %r returned: %s", instr_keys[0], retval)
-        self.assertEqual(ia_client.get_agent_state(), ResourceAgentState.UNINITIALIZED)
+        self._instrument_reset(instr_keys[0], ia_client)
 
         # and let the test complete with regular shutdown sequence.
 
@@ -115,41 +169,21 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         self.assertEqual(ia_client.get_agent_state(), ResourceAgentState.INACTIVE)
 
         # reset the instrument before we continue the activation of the network
-        log.debug("resetting instrument %r", instr_keys[0])
-        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-        retval = ia_client.execute_agent(cmd, timeout=self._receive_timeout)
-        log.debug("reset instrument %r returned: %s", instr_keys[0], retval)
-        self.assertEqual(ia_client.get_agent_state(), ResourceAgentState.UNINITIALIZED)
+        self._instrument_reset(instr_keys[0], ia_client)
 
-        # prepare to receive "device_failed_command" event during GO_ACTIVE:
+        # prepare to receive 2 "device_failed_command" events, one during GO_ACTIVE and one during RUN:
         # (See StatusManager.publish_device_failed_command_event)
-        async_event_result, events_received = self._start_event_subscriber2(
-            count=1,
-            event_type="DeviceStatusEvent",
-            origin_type="PlatformDevice",
-            sub_type="device_failed_command"
-        )
+        async_event_result, events_received = self._start_device_failed_command_event_subscriber(p_root, 2)
 
-        # activate network:
+        # activate and run network:
         self._go_active(recursion)
-
-        # verify publication of "device_failed_command" event
-        async_event_result.get(timeout=self._receive_timeout)
-        self.assertEquals(len(events_received), 1)
-        event_received = events_received[0]
-        log.info("DeviceStatusEvents received (%d): %s", len(events_received), event_received)
-        self.assertGreaterEqual(len(event_received.values), 1)
-        failed_resource_id = event_received.values[0]
-        self.assertEquals(i_obj.instrument_device_id, failed_resource_id)
-
-        # "run" network:
         self._run(recursion)
 
-        # verify publication of 2nd "device_failed_command" event
+        # verify publication of "device_failed_command" events
         async_event_result.get(timeout=self._receive_timeout)
         self.assertEquals(len(events_received), 2)
-        event_received = events_received[1]
-        log.info("DeviceStatusEvents received (%d): %s", len(events_received), event_received)
-        self.assertGreaterEqual(len(event_received.values), 1)
-        failed_resource_id = event_received.values[0]
-        self.assertEquals(i_obj.instrument_device_id, failed_resource_id)
+        log.info("DeviceStatusEvents received (%d): %s", len(events_received), events_received)
+        for event_received in events_received:
+            self.assertGreaterEqual(len(event_received.values), 1)
+            failed_resource_id = event_received.values[0]
+            self.assertEquals(i_obj.instrument_device_id, failed_resource_id)
