@@ -187,3 +187,48 @@ class TestPlatformRobustness(BaseIntTestPlatform):
             self.assertGreaterEqual(len(event_received.values), 1)
             failed_resource_id = event_received.values[0]
             self.assertEquals(i_obj.instrument_device_id, failed_resource_id)
+
+    def test_with_instrument_directly_put_into_streaming(self):
+        #
+        # - network (of a platform with an instrument) is launched until COMMAND state
+        # - instrument is directly moved to STREAMING
+        # - network is moved to STREAMING
+        # - instrument is directly stopped STREAMING
+        # - network is moved back to COMMAND
+        #
+        # All of this should be handled without errors, in particular no DeviceStatusEvent's should be published.
+        #
+        self._set_receive_timeout()
+        recursion = True
+
+        instr_key = 'SBE37_SIM_01'
+        p_root = self._set_up_single_platform_with_some_instruments([instr_key])
+        self._launch_network(p_root, recursion)
+
+        i_obj = self._get_instrument(instr_key)
+        ia_client = self._create_resource_agent_client(i_obj.instrument_device_id)
+
+        # initialize the network
+        self._ping_agent()
+        self._initialize(recursion)
+        self._go_active(recursion)
+        self._run(recursion)
+        self._assert_instrument_state(instr_key, ia_client, ResourceAgentState.COMMAND)
+
+        async_event_result, events_received = self._start_device_failed_command_event_subscriber(p_root, 1)
+
+        # move instrument directly to STREAMING
+        self._instrument_start_autosample(instr_key, ia_client)
+
+        # continue moving network to streaming
+        self._start_resource_monitoring(recursion)
+
+        # directly stop streaming in instrument
+        self._instrument_stop_autosample(instr_key, ia_client)
+
+        # stop streaming through the platform
+        self._stop_resource_monitoring(recursion)
+
+        # verify no device_failed_command events were published
+        with self.assertRaises(Timeout):
+            async_event_result.get(timeout=10)
