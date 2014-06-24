@@ -1044,7 +1044,7 @@ class PlatformAgent(ResourceAgent):
 
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             if not child_resource_id in self._ia_clients and \
-               not child_resource_id in self._ia_clients:
+               not child_resource_id in self._pa_clients:
                 log.trace("%r: OOIION-1077 _child_running: %r is not a direct child",
                           self._platform_id, child_resource_id)
 
