@@ -45,7 +45,6 @@ from ion.agents.agent_alert_manager import AgentAlertManager
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
 from ion.core.includes.mi import DriverEvent
 
-
 from pyon.util.containers import DotDict
 
 from pyon.agent.instrument_fsm import FSMStateError
@@ -416,37 +415,26 @@ class PlatformAgent(ResourceAgent):
         Launches the sub-platform agents.
         Launches the associated instrument agents;
         """
-        log.info("PlatformAgent %r: _children_launch greenlet starting ...", self._platform_id)
-
-        log.info("PlatformAgent %r: _children_launch greenlet, launching sub-platform agents started", self._platform_id)
-        # launch the sub-platform agents:
+        log.info("%r: _children_launch greenlet: launching sub-platform agents", self._platform_id)
         try:
             self._subplatforms_launch()
         except Exception:
-            log.exception("PlatformAgent %r: _children_launch greenlet, exception while launching sub-platform agents", self._platform_id)
-        log.info("PlatformAgent %r: _children_launch greenlet, launching sub-platform agents completed", self._platform_id)
+            log.exception("%r: _children_launch greenlet: exception while launching sub-platform agents", self._platform_id)
+        log.info("%r: _children_launch greenlet: launching sub-platform agents completed", self._platform_id)
 
-        log.info("PlatformAgent %r: _children_launch greenlet, launching instrument agents started", self._platform_id)
-        # launch the instrument agents:
+        log.info("%r: _children_launch greenlet: launching instrument agents", self._platform_id)
         try:
             self._instruments_launch()
         except Exception:
-            log.exception("PlatformAgent %r: _children_launch greenlet, exception while launching instrument agents", self._platform_id)
-        log.info("PlatformAgent %r: _children_launch greenlet, launching instrument agents completed", self._platform_id)
+            log.exception("%r: _children_launch greenlet: exception while launching instrument agents", self._platform_id)
+        log.info("%r: _children_launch greenlet: launching instrument agents completed", self._platform_id)
 
         # Ready, children launched and event subscribers in place
-        try:
-            self._async_children_launched.set()
-        except Exception:
-            log.exception("PlatformAgent %r: _children_launch greenlet, exception while trying to set self._async_children_launched", self._platform_id)
+        self._async_children_launched.set()
 
-        #processing complete so unblock fsm and accept cmds
-        try:
-            self._fsm.on_event(PlatformAgentEvent.LAUNCH_COMPLETE)
-        except Exception:
-            log.exception("PlatformAgent %r: _children_launch greenlet, fsm exception for LAUNCH_COMPLETE event", self._platform_id)
-
-        log.info("PlatformAgent %r: _children_launch greenlet stopping", self._platform_id)
+        # launch complete so let FSM transition to UNINITIALIZED
+        self._fsm.on_event(PlatformAgentEvent.LAUNCH_COMPLETE)
+        log.info("%r: _children_launch greenlet stopping", self._platform_id)
 
     def _get_children_resource_ids(self):
         """
@@ -463,20 +451,22 @@ class PlatformAgent(ResourceAgent):
             sub_pnode = pnode.subplatforms[subplatform_id]
             sub_agent_config = sub_pnode.CFG
             sub_resource_id = sub_agent_config.get("agent", {}).get("resource_id", None)
-            if sub_resource_id is None:
-                log.error("PlatformAgent._get_children_resource_ids: agent.resource_id must be present for sub-platform child %r" % subplatform_id)
-            else:
+            if sub_resource_id:
                 resource_ids.append(sub_resource_id)
+            else:
+                log.error("%r: _get_children_resource_ids: agent.resource_id must be present for sub-platform child %r",
+                          self._platform_id, subplatform_id)
 
         # get resource_ids of instruments:
         for instrument_id in pnode.instruments:
             inode = pnode.instruments[instrument_id]
             agent_config = inode.CFG
             resource_id = agent_config.get("agent", {}).get("resource_id", None)
-            if resource_id is None:
-                 log.error("PlatformAgent._get_children_resource_ids: agent.resource_id must be present for instrument child %r" % instrument_id)
-            else:
+            if resource_id:
                 resource_ids.append(resource_id)
+            else:
+                log.error("%r: _get_children_resource_ids: agent.resource_id must be present for instrument child %r",
+                          self._platform_id, instrument_id)
 
         return resource_ids
 
@@ -815,11 +805,6 @@ class PlatformAgent(ResourceAgent):
         driver_module = self._driver_config['dvr_mod']
         driver_class  = self._driver_config['dvr_cls']
 
-        if self._platform_id is None:
-            msg = "PlatformAgent._create_driver: must know platform_id to create driver"
-            log.error(msg)
-            raise CannotInstantiateDriverException(msg)
-
         if log.isEnabledFor(logging.DEBUG):
             log.debug('%r: creating driver: driver_module=%s driver_class=%s' % (
                 self._platform_id, driver_module, driver_class))
@@ -875,10 +860,6 @@ class PlatformAgent(ResourceAgent):
         The callback for resource monitoring.
         This method will return None is case of lost connection.
         """
-        if self._plat_driver is None:
-            msg = "PlatformAgent._get_attribute_values: _create_driver must be called first"
-            log.error(msg)
-            raise PlatformDriverException(msg)
         kwargs = dict(attrs=attrs)
         result = self._plat_driver.get_resource(**kwargs)
         return result
@@ -1281,7 +1262,7 @@ class PlatformAgent(ResourceAgent):
         sub_resource_id = sub_agent_config.get("agent", {}).get("resource_id", None)
 
         if sub_resource_id is None:
-            log.error("PlatformAgent._launch_platform_agent: agent.resource_id must be present for child %r" % subplatform_id)
+            log.error("%r: _launch_platform_agent: agent.resource_id must be present for child %r", self._platform_id, subplatform_id)
             return
 
         # first, is the agent already running?
@@ -1954,11 +1935,10 @@ class PlatformAgent(ResourceAgent):
         i_resource_id = agent_CFG.get("resource_id", None)
 
         if i_resource_id is None:
-            log.error("PlatformAgent._launch_instrument_agent: agent.resource_id must be present for child %r" % instrument_id)
+            log.error("%r: _launch_instrument_agent: agent.resource_id must be present for child %r", self._platform_id, instrument_id)
             return
-
         if i_resource_id != instrument_id:
-            log.error("PlatformAgent._launch_instrument_agent: agent.resource_id %r must be equal to %r" % (i_resource_id, instrument_id))
+            log.error("%r: _launch_instrument_agent: agent.resource_id %r must be equal to %r", self._platform_id, i_resource_id, instrument_id)
             return
 
         # first, is the agent already running?
@@ -2007,9 +1987,9 @@ class PlatformAgent(ResourceAgent):
             ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
 
             state = ia_client.get_agent_state()
-            if ResourceAgentState.UNINITIALIZED != state:
-                log.error("PlatformAgent._launch_instrument_agent: child instrument %r started but state is not %s, it is %s"
-                          % (instrument_id, ResourceAgentState.UNINITIALIZED, state))
+            if state != ResourceAgentState.UNINITIALIZED:
+                log.error("%r: _launch_instrument_agent: child instrument %r started but state is not %s, it is %s",
+                          self._platform_id, instrument_id, ResourceAgentState.UNINITIALIZED, state)
 
         # here, instrument agent process is running.
 
@@ -2946,17 +2926,14 @@ class PlatformAgent(ResourceAgent):
             instruments_with_errors = self._instruments_stop_streaming()
 
             if len(subplatforms_with_errors) or len(instruments_with_errors):
-                log.warning("%r: some sub-platforms or instruments failed to stop streaming. "
-                          "subplatforms_with_errors=%s "
-                          "instruments_with_errors=%s",
-                          self._platform_id, subplatforms_with_errors, instruments_with_errors)
+                log.warn("%r: some sub-platforms or instruments failed to stop streaming. "
+                         "subplatforms_with_errors=%s "
+                         "instruments_with_errors=%s",
+                         self._platform_id, subplatforms_with_errors, instruments_with_errors)
 
-        if self._platform_resource_monitor is None:
-            log.error("PlatformAgent._stop_resource_monitoring: _start_resource_monitoring must be called first")
-            return
-
-        self._platform_resource_monitor.destroy()
-        self._platform_resource_monitor = None
+        if self._platform_resource_monitor:
+            self._platform_resource_monitor.destroy()
+            self._platform_resource_monitor = None
 
     ##############################################################
     # LAUNCHING event handlers.
@@ -3406,11 +3383,11 @@ class PlatformAgent(ResourceAgent):
             self._asp.reset_connection()
 
         except Exception as e:
-            log.error("PlatformAgent._handler_lost_connection_autoreconnect: %r: Exception while trying CONNECT: %s", self._platform_id, e)
+            log.error("%r: _handler_lost_connection_autoreconnect: Exception while trying CONNECT: %s", self._platform_id, e)
             return None, None
 
         if driver_state != PlatformDriverState.CONNECTED:
-            log.error("PlatformAgent._handler_lost_connection_autoreconnect: %r: driver state not %s, it is %s",
+            log.error("%r: _handler_lost_connection_autoreconnect: driver state not %s, it is %s",
                       self._platform_id, PlatformDriverState.CONNECTED, driver_state)
             return None, None
 
