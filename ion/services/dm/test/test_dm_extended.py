@@ -1468,6 +1468,204 @@ def rotate_v(u,v,theta):
         event.set()
         g.join()
 
+
+    def initialize_deployment_resources(self):
+        from interface.objects import PlatformDevice, InstrumentDevice, PlatformSite, InstrumentSite, PlatformPort, PlatformModel
+        res = {}
+
+        #--------------------------------------------------------------------------------
+        # The Devices
+        #--------------------------------------------------------------------------------
+
+        #----------------------------------------
+        # Models
+        #----------------------------------------
+
+        # A model to represent a CTDBP
+        model = InstrumentModel(name='SBE37')
+        res["ctd_model"] = self.instrument_management.create_instrument_model(model)
+
+        # A model to represent the Platform
+        model = PlatformModel(name='Endurance WA Offshore (500 m) Surface Mooring')
+        res['platform_model'] = self.instrument_management.create_platform_model(model)
+        
+        #----------------------------------------
+        # Devices
+        #----------------------------------------
+
+        # Platform that will contain the CTD
+        platform = PlatformDevice("Platform1")
+        res["platform1"] = self.instrument_management.create_platform_device(platform)
+        self.instrument_management.assign_platform_model_to_platform_device(res['platform_model'], res['platform1'])
+
+        # A CTDBP for this platform
+        device = InstrumentDevice("CTD1")
+        res["ctd1"] = self.instrument_management.create_instrument_device(device)
+        self.instrument_management.assign_instrument_model_to_instrument_device(res["ctd_model"], res["ctd1"])
+        # Link Platform -> CTD1
+        self.instrument_management.assign_instrument_device_to_platform_device(res['ctd1'], res['platform1'])
+        # Register the instrument as a producer and assign a data product
+        self.data_acquisition_management.register_instrument(res['ctd1'])
+        
+        # ---
+
+        # A differnet platform
+        platform = PlatformDevice(name="Platform2")
+        res["platform2"] = self.instrument_management.create_platform_device(platform)
+        self.instrument_management.assign_platform_model_to_platform_device(res['platform_model'], res['platform2'])
+
+        # Another or different CTD than the aforementioned one
+        device = InstrumentDevice("CTD2")
+        res["ctd2"] = self.instrument_management.create_instrument_device(device)
+        self.instrument_management.assign_instrument_model_to_instrument_device(res["ctd_model"], res["ctd2"])
+
+        # Link the platform device to the instrument device
+        self.instrument_management.assign_instrument_device_to_platform_device(res['ctd2'], res['platform2'])
+
+        #--------------------------------------------------------------------------------
+        # The Data Product for the CTD and the Platform
+        #--------------------------------------------------------------------------------
+
+        params = {
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "Time",
+                "description" : "Timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "temperature" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Calibrated Seawater Temperature",
+                "description" : "Calibrated Seawater Temperature",
+                "units" : "deg_C"
+            }
+        }
+
+        # Make the data product for the CTD
+        data_product = DataProduct('CTD Parsed for CTD1')
+        res['ctd_data1'] = self.data_product_from_params(data_product, params)
+
+        # Register the data product as a product of CTD1
+        self.data_acquisition_management.assign_data_product(res['ctd1'], res['ctd_data1'])
+
+        # Activate it
+        self.data_product_management.activate_data_product_persistence(res['ctd_data1'])
+
+        params = {
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "Time",
+                "description" : "Timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "battery" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Battery Voltage",
+                "description" : "Platform Battery Voltage",
+                "units" : "volts"
+            }
+        }
+
+        # Make the Platform Engineering Data Product
+        data_product = DataProduct('Platform Engineering Data')
+        res['eng_data'] = self.data_product_from_params(data_product, params)
+
+        # Register the data product as a result of the Platform
+        self.data_acquisition_management.assign_data_product(res['platform1'], res['eng_data'])
+
+
+        #--------------------------------------------------------------------------------
+        # The Site(s)
+        #--------------------------------------------------------------------------------
+        
+        # The site (conceptual place) where the platform can be deployed
+        platform_site = PlatformSite("Platform Site", reference_designator='CE09OSSM-RID27')
+        res["platform_site"] = self.observatory_management.create_platform_site(platform_site)
+        self.observatory_management.assign_platform_model_to_platform_site(res['platform_model'], res['platform_site'])
+
+        # The site for where the CTD can be deployed
+        site = InstrumentSite("CTD Port 1", reference_designator='CE09OSSM-RID27-01-CTDBPC000')
+        res["site1"] = self.observatory_management.create_instrument_site(site)
+        self.observatory_management.assign_instrument_model_to_instrument_site(res['ctd_model'], res['site1'])
+
+        # Link the platform site to the ctd site
+        self.resource_registry.create_association(res["platform_site"], PRED.hasSite, res["site1"])
+
+        #--------------------------------------------------------------------------------
+        # And now, the site data product for the CTD on port 1
+        #--------------------------------------------------------------------------------
+
+        params = {
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "Time",
+                "description" : "Timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "temperature" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Calibrated Seawater Temperature",
+                "description" : "Calibrated Seawater Temperature",
+                "units" : "deg_C"
+            }
+        }
+
+        # Make the data product for the CTD
+        data_product = DataProduct('CTD Parsed for Deployed CTD at Site', category=DataProductTypeEnum.SITE)
+        res['site_data'] = self.data_product_from_params(data_product, params)
+        self.resource_registry.create_association(res['site1'], PRED.hasOutputProduct, res['site_data'])
+        
+        # Make a dataset for it
+        self.data_product_management.create_dataset_for_data_product(res['site_data'])
+
+
+        #--------------------------------------------------------------------------------
+        # The Deployment
+        #--------------------------------------------------------------------------------
+
+
+        # Create a port configuration in the deployment that links the instrument device to the 
+        # instrument site
+        port1 = PlatformPort(reference_designator='CE09OSSM-RID27-01-CTDBPC000', port_type=PortTypeEnum.PAYLOAD, ip_address='10.90.27.1')
+        port_assignments = {res['ctd1'] : port1}
+        deployment = Deployment(name='Summer Deployment', type='Cabled', port_assignments=port_assignments)
+
+        from ion.services.sa.observatory.deployment_util import DeploymentUtil
+
+        dep_util = DeploymentUtil(self.container)
+        start_date = datetime(2014,5,1)
+        end_date   = datetime(2014,11,1)
+        start_date = calendar.timegm(start_date.timetuple())
+        end_date   = calendar.timegm(end_date.timetuple())
+
+        dep_util.set_temporal_constraint(deployment, str(start_date), str(end_date))
+
+        res['deployment1'] = self.observatory_management.create_deployment(deployment, res['platform_site'], res['platform1'])
+        self.observatory_management.activate_deployment(res['deployment1'])
+
+        return res
+
+    @attr("UTIL")
+    def test_cabled_deployments(self):
+        res = self.initialize_deployment_resources()
+        from pprint import pprint
+        pprint(res)
+        rdt = self.ph.rdt_for_data_product(res['ctd_data1'])
+        rdt['time'] = np.array([0, 1])
+        rdt['temperature'] = np.array([10, 11])
+        dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data1'])
+        self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
+        self.assertTrue(dataset_monitor.wait())
+        breakpoint(locals(), globals())
+
+
+
     @attr("INT")
     def test_complex_stubs(self):
         params = {
@@ -1486,6 +1684,9 @@ def rotate_v(u,v,theta):
                 "units" : "1"
             }
         }
+
+
+
         # Make the device data product
         device_data_product = DataProduct('The Gibson') # Category defaults to device
         device_data_product_id = self.data_product_from_params(device_data_product, params)
