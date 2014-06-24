@@ -2001,11 +2001,8 @@ class PlatformAgent(ResourceAgent):
 
             pid = self._launcher.launch_instrument(instrument_id, i_CFG)
 
-            log.debug("OOIION-1077 launched instrument:\n"
-                      " instrument_id = %r\n"
-                      " pid           = %r\n"
-                      " i_resource_id = %r",
-                      instrument_id, pid, i_resource_id)
+            log.debug("%r: OOIION-1077 launched instrument: instrument_id=%r pid=%r i_resource_id=%r",
+                      self._platform_id, instrument_id, pid, i_resource_id)
 
             ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
 
