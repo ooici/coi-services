@@ -102,10 +102,8 @@ class PlatformAgent(ResourceAgent):
     Platform resource agent.
     """
 
-    # Override to publish specific types of events
-    COMMAND_EVENT_TYPE = "DeviceCommandEvent" #TODO how this works?
+    COMMAND_EVENT_TYPE = "DeviceCommandEvent"
 
-    # Override to set specific origin type
     ORIGIN_TYPE = "PlatformDevice"
 
     def __init__(self):
