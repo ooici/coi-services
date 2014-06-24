@@ -6,12 +6,15 @@ __author__ = 'Carlos Rueda'
 
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_instrument_reset_externally
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_adverse_activation_sequence
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_instrument_directly_put_into_streaming
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_instrument_directly_stopped
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform, instruments_dict
 from pyon.public import log, CFG
 from pyon.util.context import LocalContextMixin
 from pyon.agent.agent import ResourceAgentState, ResourceAgentEvent
 from interface.objects import AgentCommand
+from interface.objects import ProcessStateEnum
 
 from gevent.timeout import Timeout
 from mock import patch
@@ -55,6 +58,13 @@ class TestPlatformRobustness(BaseIntTestPlatform):
             origin_type="PlatformDevice",
             origin=p_root.platform_device_id,
             sub_type="device_failed_command")
+
+    def _start_ProcessLifecycleEvent_subscriber(self, origin, count=1):
+        return self._start_event_subscriber2(
+            count=count,
+            event_type="ProcessLifecycleEvent",
+            origin_type="DispatchedProcess",
+            origin=origin)
 
     def _instrument_initialize(self, instr_key, ia_client):
         self._instrument_execute_agent(instr_key, ia_client, ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
@@ -232,3 +242,43 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         # verify no device_failed_command events were published
         with self.assertRaises(Timeout):
             async_event_result.get(timeout=10)
+
+    def test_with_instrument_directly_stopped(self):
+        #
+        # - network (of a platform with an instrument) is launched until COMMAND state
+        # - instrument is directly stopped
+        # - TERMINATED lifecycle event from instrument when stopped should be published
+        # - shutdown sequence of the test should complete without issues
+        #
+        self._set_receive_timeout()
+        recursion = True
+
+        instr_key = 'SBE37_SIM_01'
+        p_root = self._set_up_single_platform_with_some_instruments([instr_key])
+        self._launch_network(p_root, recursion)
+
+        i_obj = self._get_instrument(instr_key)
+        ia_client = self._create_resource_agent_client(i_obj.instrument_device_id)
+
+        # initialize the network
+        self._ping_agent()
+        self._initialize(recursion)
+        self._go_active(recursion)
+        self._run(recursion)
+        self._assert_instrument_state(instr_key, ia_client, ResourceAgentState.COMMAND)
+
+        # use associated process ID for the subscription:
+        instrument_pid = ia_client.get_agent_process_id()
+        async_event_result, events_received = self._start_ProcessLifecycleEvent_subscriber(instrument_pid)
+
+        # directly stop instrument
+        log.info("stopping instrument %r", i_obj.instrument_device_id)
+        self._stop_instrument(i_obj)
+
+        # verify publication of TERMINATED lifecycle event from instrument when stopped
+        async_event_result.get(timeout=self._receive_timeout)
+        self.assertEquals(len(events_received), 1)
+        event_received = events_received[0]
+        log.info("ProcessLifecycleEvent received: %s", event_received)
+        self.assertEquals(instrument_pid, event_received.origin)
+        self.assertEquals(ProcessStateEnum.TERMINATED, event_received.state)
