@@ -67,8 +67,6 @@ class DatasetManagementService(BaseDatasetManagementService):
             parameter_dict = self._coverage_parameter_dictionary(parameter_dictionary_id)
             parameter_dict = parameter_dict.dump() # Serialize it
 
-        # Strip away NaNs and numpy types
-        parameter_dict = self.numpy_walk(parameter_dict)
         
         dataset.coverage_version = 'UNSET'
         dataset_id, rev = self.clients.resource_registry.create(dataset)
@@ -235,8 +233,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         """
 
         context = self.get_coverage_parameter(parameter_context)
-        parameter_context.parameter_context = context.dump()
-        parameter_context = self.numpy_walk(parameter_context)
+        parameter_context.parameter_context = self.numpy_walk(context.dump())
         parameter_context_id, _ = self.clients.resource_registry.create(parameter_context)
         if parameter_context.parameter_function_id:
             self.read_parameter_function(parameter_context.parameter_function_id)

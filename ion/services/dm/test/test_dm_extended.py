@@ -234,7 +234,6 @@ class TestDMExtended(DMTestCase):
         breakpoint(locals(), globals())
 
     
-    @unittest.skip("Array types are temporarily unsupported")
     @attr('INT',group='dm')
     def test_array_visualization(self):
         data_product_id, stream_def_id = self.make_array_data_product()
@@ -244,8 +243,8 @@ class TestDMExtended(DMTestCase):
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(2208988800, 2208988810)
-        rdt['temp_sample'] = np.arange(10*4).reshape(10,4)
-        rdt['cond_sample'] = np.arange(10*4).reshape(10,4)
+        rdt['temp_sample'] = np.arange(10*4, dtype=np.float32).reshape(10,4)
+        rdt['cond_sample'] = np.arange(10*4, dtype=np.float64).reshape(10,4)
 
         granule = rdt.to_granule()
         dataset_monitor = DatasetMonitor(self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id))
@@ -286,7 +285,6 @@ class TestDMExtended(DMTestCase):
              'viz_product_type': 'google_dt'}
         self.assertEquals(rdt['google_dt_components'][0], testval)
 
-    @unittest.skip("Array types temporarily unsupported")
     @attr('INT',group='dm')
     def test_array_flow_paths(self):
         params = {
@@ -298,7 +296,7 @@ class TestDMExtended(DMTestCase):
                 "units" : "seconds since 1900-01-01"
             },
             "temp_sample" : {
-                "parameter_type" : "array<5>",
+                "parameter_type" : "array",
                 "value_encoding" : "float32",
                 "display_name" : "Data",
                 "description" : "Active Matrix, over a million psychadelic colors",
@@ -532,7 +530,6 @@ class TestDMExtended(DMTestCase):
             
         breakpoint(locals())
 
-    @unittest.skip("Array types return objects temporarily")
     @attr("INT")
     def test_ccov_visualization(self):
         '''
@@ -547,8 +544,8 @@ class TestDMExtended(DMTestCase):
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(2208988800, 2208988801, .1)
-        rdt['temp_sample'] = np.arange(10*4).reshape(10,4)
-        rdt['cond_sample'] = np.arange(10*4).reshape(10,4)
+        rdt['temp_sample'] = np.arange(10*4, dtype=np.float32).reshape(10,4)
+        rdt['cond_sample'] = np.arange(10*4, dtype=np.float64).reshape(10,4)
 
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         dataset_monitor = DatasetMonitor(dataset_id)
@@ -560,8 +557,8 @@ class TestDMExtended(DMTestCase):
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(2208988810, 2208988820)
-        rdt['temp_sample'] = np.arange(10*4).reshape(10,4)
-        rdt['cond_sample'] = np.arange(10*4).reshape(10,4)
+        rdt['temp_sample'] = np.arange(10*4, dtype=np.float32).reshape(10,4)
+        rdt['cond_sample'] = np.arange(10*4, dtype=np.float64).reshape(10,4)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt, connection_id='abc2', connection_index='1')
         self.assertTrue(dataset_monitor.wait())
         dataset_monitor.event.clear()
@@ -663,7 +660,6 @@ class TestDMExtended(DMTestCase):
         breakpoint(locals(), globals())
 
 
-    @unittest.skip('Array types temporarily unsupported')
     @attr("PRELOAD")
     def test_prest(self):
         '''
@@ -679,7 +675,7 @@ class TestDMExtended(DMTestCase):
 
         rdt = self.ph.rdt_for_data_product(data_product_id)
         rdt['time'] = [0]
-        rdt['pressure_sensor_range'] = [(6000,6000)]
+        rdt['pressure_sensor_range'] = np.array([(6000,6000)], dtype=np.int32)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)
         self.assertTrue(dataset_monitor.wait())
 
@@ -978,11 +974,11 @@ class TestDMExtended(DMTestCase):
         rdt['cc_lat'] = 40.
         rdt['cc_lon'] = -70.
 
-        np.testing.assert_array_equal(rdt['seawater_pressure'], np.array([  20.71102333,  194.42785645], dtype=np.float32))
-        np.testing.assert_array_equal(rdt['seawater_conductivity'], np.array([3.5, 3.5], dtype=np.float32))
-        np.testing.assert_array_equal(rdt['seawater_temperature'], np.array([10., 18.], dtype=np.float32))
-        np.testing.assert_array_equal(rdt['sci_water_pracsal'], np.array([31.84717941,  25.82336998], dtype=np.float32))
-        np.testing.assert_array_equal(rdt['seawater_density'], np.array([1024.58862305,  1019.12799072], dtype=np.float32))
+        np.testing.assert_allclose(rdt['seawater_pressure'], np.array([  20.71102333,  194.42785645], dtype=np.float32))
+        np.testing.assert_allclose(rdt['seawater_conductivity'], np.array([3.5, 3.5], dtype=np.float32))
+        np.testing.assert_allclose(rdt['seawater_temperature'], np.array([10., 18.], dtype=np.float32))
+        np.testing.assert_allclose(rdt['sci_water_pracsal'], np.array([31.84717941,  25.82336998], dtype=np.float32))
+        np.testing.assert_allclose(rdt['seawater_density'], np.array([1024.58862305,  1019.12799072], dtype=np.float32))
 
     @attr("UTIL")
     def test_egg_packaging(self):
