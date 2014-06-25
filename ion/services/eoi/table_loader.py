@@ -18,6 +18,7 @@ from pyon.public import BadRequest
 import logging
 
 REAL = "real"
+DOUBLE = "double precision"
 INT = "int"
 TIMEDATE = "timestamp"
 REQUIRED_PARAMS = ["time","lat","lon"]
@@ -169,9 +170,12 @@ class ResourceParser(object):
             self.send_geonode_request(self.addlayer, new_resource_id, prim_types)          
     
     def get_value_encoding(self, name, value_encoding):
+        '''
+        get the primitve type, and generate something using NAME
+        '''
         encoding_string = None
         prim_type = None
-        #get the primitve type, and generate something using NAME
+        
         if name == "time":
             encoding_string = "\""+name+"\" "+TIMEDATE
             prim_type = "time"
@@ -189,16 +193,16 @@ class ResourceParser(object):
             prim_type = "int"
         elif value_encoding.startswith('float'):
             #float
-            encoding_string = "\""+name+"\" "+REAL
-            prim_type = "real"
+            encoding_string = "\""+name+"\" "+DOUBLE
+            prim_type = DOUBLE
         elif value_encoding.find('f4') > -1:
             #float
-            encoding_string = "\""+name+"\" "+REAL
-            prim_type = "real"
+            encoding_string = "\""+name+"\" "+DOUBLE
+            prim_type = DOUBLE
         elif value_encoding.find('f8') > -1:
             #float
-            encoding_string = "\""+name+"\" "+REAL
-            prim_type = "real"
+            encoding_string = "\""+name+"\" "+DOUBLE
+            prim_type = DOUBLE
 
         log.debug('encoding_string: %s', str(encoding_string))
         log.debug('prim_type: %s', str(prim_type))
