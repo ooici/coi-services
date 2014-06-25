@@ -28,6 +28,7 @@ from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from ion.util.stored_values import StoredValueManager
 
+from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -39,7 +40,7 @@ from interface.services.sa.idata_product_management_service import  DataProductM
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability, Granule, DataProduct, DataProductTypeEnum
 from interface.objects import ProcessDefinition, DataProducer, DataProcessProducerContext 
-
+from interface.objects import DeliveryModeEnum, NotificationFrequencyEnum, NotificationTypeEnum, NotificationRequest, UserInfo
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -66,6 +67,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.dataset_management = DatasetManagementServiceClient()
         self.unsc               = UserNotificationServiceClient()
         self.data_retriever     = DataRetrieverServiceClient()
+        self.identcli           = IdentityManagementServiceClient()
 
         #------------------------------------------
         # Create the environment
@@ -205,6 +207,53 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.assertIn("PRODNAME", group_names)
 
 
+        #----------------------------------------------------------------------------------------
+        # Create users then notifications to this data product for each user
+        #----------------------------------------------------------------------------------------
+
+        # user_1
+        user_1 = UserInfo()
+        user_1.name = 'user_1'
+        user_1.contact.email = 'user_1@gmail.com'
+
+        # user_2
+        user_2 = UserInfo()
+        user_2.name = 'user_2'
+        user_2.contact.email = 'user_2@gmail.com'
+        #user1 is a complete user
+        self.subject = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254"
+        actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})
+        actor_id = self.identcli.create_actor_identity(actor_identity_obj)
+
+        user_credentials_obj = IonObject("UserCredentials", {"name": self.subject})
+        self.identcli.register_user_credentials(actor_id, user_credentials_obj)
+        user_id_1 = self.identcli.create_user_info(actor_id, user_1)
+        user_id_2, _ = self.rrclient.create(user_2)
+
+        delivery_config1a = IonObject(OT.DeliveryConfiguration, email='user_1@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config1b = IonObject(OT.DeliveryConfiguration, email='user_1@yahoo.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
+        notification_request_1 = NotificationRequest(   name = "notification_1",
+            origin=dp_id,
+            origin_type="type_1",
+            event_type=OT.ResourceLifecycleEvent,
+            disabled_by_system = False,
+            delivery_configurations=[delivery_config1a, delivery_config1b])
+
+        delivery_config2a = IonObject(OT.DeliveryConfiguration, email='user_2@gmail.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
+        delivery_config2b = IonObject(OT.DeliveryConfiguration, email='user_2@yahoo.com', mode=DeliveryModeEnum.EMAIL, frequency=NotificationFrequencyEnum.BATCH)
+        notification_request_2 = NotificationRequest(   name = "notification_2",
+            origin=dp_id,
+            origin_type="type_2",
+            disabled_by_system = False,
+            event_type=OT.DetectionEvent,
+            delivery_configurations=[delivery_config2a, delivery_config2b])
+
+        notification_request_1_id = self.unsc.create_notification(notification=notification_request_1, user_id=user_id_1)
+        notification_request_2_id = self.unsc.create_notification(notification=notification_request_2, user_id=user_id_2)
+        self.unsc.delete_notification(notification_request_1_id)
+
+
+
         # test reading a non-existent data product
         log.debug('reading non-existent data product')
 
@@ -234,6 +283,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         #test extension
         extended_product = self.dpsc_cli.get_data_product_extension(dp_id)
+        #validate that there is one active and one retired user notification for this data product
+        self.assertEqual(1, len(extended_product.computed.active_user_subscriptions.value))
+        self.assertEqual(1, len(extended_product.computed.past_user_subscriptions.value))
+
         self.assertEqual(dp_id, extended_product._id)
         self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_product.computed.product_download_size_estimated.status)
