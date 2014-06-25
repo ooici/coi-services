@@ -255,9 +255,9 @@ class PlatformAgent(ResourceAgent):
         # appropriate mechanism to guarantee patched values are seen.
         #
         cfg_timeout = self.CFG.get_safe("endpoint.receive.timeout", 0)
-        log.info("=== %r: CFG.endpoint.receive.timeout = %s", platform_id, cfg_timeout)
+        log.info("%r: === CFG.endpoint.receive.timeout = %s", platform_id, cfg_timeout)
         if cfg_timeout < 180:
-            log.warn("!!! %r: CFG.endpoint.receive.timeout=%s < 180. "
+            log.warn("%r: !!! CFG.endpoint.receive.timeout=%s < 180. "
                      "You may want to review your pyon{.local}.yml, @patch.dict, "
                      "etc. or adjust the code in this method as appropriate. "
                      "For now, will use 180 based on previous testing.",
@@ -286,7 +286,7 @@ class PlatformAgent(ResourceAgent):
           separate greenlet).
         """
         super(PlatformAgent, self).on_start()
-        log.info('platform agent is running: on_start called.')
+        log.info('%r: platform agent is running: on_start called.', self._platform_id)
 
         # Set up alert manager.
         self._aam = PlatformAgentAlertManager(self)
@@ -345,11 +345,11 @@ class PlatformAgent(ResourceAgent):
 
         self._driver_config = self.CFG.get('driver_config', None)
         if None is self._driver_config:
-            msg = "'driver_config' key not in configuration"
+            msg = "%r: 'driver_config' key not in configuration" % self._platform_id
             log.error(msg)
             raise PlatformConfigurationException(msg=msg)
 
-        log.debug("driver_config: %s", self._driver_config)
+        log.debug("%r: driver_config: %s", self._platform_id, self._driver_config)
 
         for k in ['dvr_mod', 'dvr_cls']:
             if not k in self._driver_config:
@@ -368,19 +368,20 @@ class PlatformAgent(ResourceAgent):
 
         # get PlatformNode corresponding to this agent:
         self._pnode = self._network_definition.pnodes[self._platform_id]
-        log.debug("PlatformAgent._validate_configuration: _pnode = %s", self._pnode)
+        log.debug("%r: _validate_configuration: _pnode = %s", self._platform_id, self._pnode)
 
         self._children_resource_ids = self._get_children_resource_ids()
 
         if 'ports' in self._driver_config:
             # Remove this device from the ports information, the driver does not use this
             platform_port = self._driver_config['ports'].pop(self.resource_id, None)
-            log.debug('_validate_configuration removed platform port info from ports config for driver.  dev_id:  %s   platform_port: %s', self.resource_id, platform_port)
+            log.debug('%r: _validate_configuration removed platform port info from ports config for driver.  '
+                      'dev_id:  %s   platform_port: %s', self._platform_id, self.resource_id, platform_port)
 
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
             self._parent_platform_id = ppid
-            log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
+            log.debug("%r: _parent_platform_id set to: %s", self._platform_id, self._parent_platform_id)
 
         self._provider_id = self.CFG.get('provider_id', None)
         if self._provider_id is None:
@@ -574,7 +575,7 @@ class PlatformAgent(ResourceAgent):
         """
         Disconnects the driver.
         """
-        log.debug("%r: triggering driver event DISCONNECT")
+        log.debug("%r: triggering driver event DISCONNECT", self._platform_id)
         kwargs = dict(recursion=recursion)
         self._trigger_driver_event(PlatformDriverEvent.DISCONNECT, **kwargs)
 
@@ -603,7 +604,7 @@ class PlatformAgent(ResourceAgent):
         if self._plat_driver:
             # disconnect driver if connected:
             driver_state = self._plat_driver._fsm.get_current_state()
-            log.debug("_reset_this_platform: driver_state = %s", driver_state)
+            log.debug("%r: _reset_this_platform: driver_state = %s", self._platform_id, driver_state)
             if driver_state == PlatformDriverState.CONNECTED:
                 self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
             # destroy driver:
@@ -804,8 +805,8 @@ class PlatformAgent(ResourceAgent):
         driver_class  = self._driver_config['dvr_cls']
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug('%r: creating driver: driver_module=%s driver_class=%s' % (
-                self._platform_id, driver_module, driver_class))
+            log.debug('%r: creating driver: driver_module=%s driver_class=%s',
+                      self._platform_id, driver_module, driver_class)
 
         try:
             module = __import__(driver_module, fromlist=[driver_class])
@@ -822,8 +823,7 @@ class PlatformAgent(ResourceAgent):
 
         self._plat_driver = driver
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: driver created: %s" % (self._platform_id, str(driver)))
+        log.debug("%r: driver created: %s", self._platform_id, driver)
 
     def _trigger_driver_event(self, event, **kwargs):
         """
@@ -836,22 +836,20 @@ class PlatformAgent(ResourceAgent):
         """
         Configures the platform driver object for this platform agent.
         """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug('%r: configuring driver: %s' % (self._platform_id, self._driver_config))
+        log.debug('%r: configuring driver: %s', self._platform_id, self._driver_config)
 
         self._trigger_driver_event(PlatformDriverEvent.CONFIGURE, driver_config=self._driver_config)
 
         curr_state = self._plat_driver._fsm.get_current_state()
         if PlatformDriverState.DISCONNECTED != curr_state:
-            msg = "PlatformAgent._configure_driver: expected driver state to be %s but got %s" % (
-                  PlatformDriverState.DISCONNECTED, curr_state)
+            msg = "%r: _configure_driver: expected driver state to be %s but got %s" % (
+                  self._platform_id, PlatformDriverState.DISCONNECTED, curr_state)
             log.error(msg)
             raise PlatformDriverException(msg)
 
         self._resource_schema = self._plat_driver.get_config_metadata()
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: driver configured." % self._platform_id)
+        log.debug("%r: driver configured.", self._platform_id)
 
     def _get_attribute_values(self, attrs):
         """
@@ -889,8 +887,7 @@ class PlatformAgent(ResourceAgent):
             return
 
         else:
-            log.warn('%r: driver_event not handled: %s',
-                     self._platform_id, str(type(driver_event)))
+            log.warn('%r: driver_event not handled: %s', self._platform_id, str(type(driver_event)))
             return
 
     def _async_driver_event_state_change(self, state):
@@ -1114,9 +1111,7 @@ class PlatformAgent(ResourceAgent):
         @param cmd        the command to execute
         @param sub_id     for logging
         """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _execute_agent: cmd=%r %s=%r ...",
-                      self._platform_id, cmd.command, poi, sub_id)
+        log.debug("%r: _execute_agent: cmd=%r %s=%r ...", self._platform_id, cmd.command, poi, sub_id)
 
         time_start = time.time()
 
@@ -1125,7 +1120,7 @@ class PlatformAgent(ResourceAgent):
         elif DriverEvent.has(cmd.command) :
             retval = a_client.execute_resource(cmd, timeout=self._timeout)
         else:
-            log.error('_execute_agent invalid command: %s is not ResourceAgentEvent or DriverEvent', cmd)
+            log.error('%r: _execute_agent invalid command: %s is not ResourceAgentEvent or DriverEvent', self._platform_id, cmd)
 
         if log.isEnabledFor(logging.DEBUG):
             elapsed_time = time.time() - time_start
@@ -1146,13 +1141,11 @@ class PlatformAgent(ResourceAgent):
         """
         recursion = kwargs.get('recursion', None)
         if recursion is None:
-            log.info("%r: %s called with no recursion parameter. "
-                     "Using recursion=True by default.",
+            log.info("%r: %s called with no recursion parameter. Using recursion=True by default.",
                      self._platform_id, method_name)
             recursion = True
         else:
-            log.info("%r: %s called with recursion parameter: %r",
-                     self._platform_id, method_name, recursion)
+            log.info("%r: %s called with recursion parameter: %r", self._platform_id, method_name, recursion)
             recursion = bool(recursion)
 
         return recursion
@@ -1290,8 +1283,7 @@ class PlatformAgent(ResourceAgent):
             # TODO if any, what kind of state check should be done? For the
             # moment don't do any state verification.
             state = pa_client.get_agent_state()
-            log.debug("%r: [LL] sub-platform agent already running=%r, "
-                      "sub_resource_id=%s, state=%s",
+            log.debug("%r: [LL] sub-platform agent already running=%r, sub_resource_id=%s, state=%s",
                       self._platform_id, subplatform_id, sub_resource_id, state)
         else:
             #
@@ -1320,14 +1312,12 @@ class PlatformAgent(ResourceAgent):
             pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
 
             # wait until UNINITIALIZED:
-            log.debug("%r: [LL] Got pa_client for sub-platform agent %r. Waiting "
-                      "for UNINITIALIZED state...",
+            log.debug("%r: [LL] Got pa_client for sub-platform agent %r. Waiting for UNINITIALIZED state...",
                       self._platform_id, subplatform_id)
 
             self._await_state(asyn_res, subscriber)
 
-            log.debug("%r: [LL] ok, my sub-platform agent %r is now in "
-                      "UNINITIALIZED state",
+            log.debug("%r: [LL] ok, my sub-platform agent %r is now in UNINITIALIZED state",
                       self._platform_id, subplatform_id)
 
         # here, sub-platform agent process is running.
@@ -1404,9 +1394,7 @@ class PlatformAgent(ResourceAgent):
 
         try:
             retval = self._execute_platform_agent(dd.pa_client, cmd, subplatform_id)
-            if log.isEnabledFor(logging.DEBUG):
-                log.debug("%r: _initialize_subplatform %r  retval = %s",
-                          self._platform_id, subplatform_id, str(retval))
+            log.debug("%r: _initialize_subplatform %r  retval = %s", self._platform_id, subplatform_id, retval)
         except Exception as ex:
             err_msg = str(ex)
 
@@ -1441,8 +1429,7 @@ class PlatformAgent(ResourceAgent):
 
         @return dict with failing children. Empty if all ok.
         """
-        log.debug("%r: _subplatforms_initialize. _pa_clients=%s",
-                  self._platform_id, self._pa_clients)
+        log.debug("%r: _subplatforms_initialize. _pa_clients=%s", self._platform_id, self._pa_clients)
 
         subplatform_ids = self._pa_clients.keys()
         children_with_errors = {}
@@ -3300,7 +3287,7 @@ class PlatformAgent(ResourceAgent):
             next_state = PlatformAgentState.MONITORING
 
         except Exception:
-            log.exception("error in _start_resource_monitoring") #, exc_Info=True)
+            log.exception("%r: error in _start_resource_monitoring", self._platform_id) #, exc_Info=True)
             raise
 
         return (next_state, result)
@@ -3321,7 +3308,7 @@ class PlatformAgent(ResourceAgent):
             next_state = PlatformAgentState.COMMAND
 
         except Exception:
-            log.exception("error in _stop_resource_monitoring") #, exc_Info=True)
+            log.exception("%r: error in _stop_resource_monitoring", self._platform_id) #, exc_Info=True)
             raise
 
         return (next_state, result)
@@ -3336,8 +3323,7 @@ class PlatformAgent(ResourceAgent):
         and starts reconnection greenlet.
         """
         super(PlatformAgent, self)._common_state_enter(*args, **kwargs)
-        log.error("%r: (LC) lost connection to the device. Will attempt to reconnect...",
-                  self._platform_id)
+        log.error("%r: (LC) lost connection to the device. Will attempt to reconnect...", self._platform_id)
 
         self._event_publisher.publish_event(
             event_type='ResourceAgentConnectionLostErrorEvent',
@@ -3372,8 +3358,7 @@ class PlatformAgent(ResourceAgent):
 
     def _handler_lost_connection_autoreconnect(self, *args, **kwargs):
 
-        log.debug("%r: (LC) _handler_lost_connection_autoreconnect: trying CONNECT...",
-                  self._platform_id)
+        log.debug("%r: (LC) _handler_lost_connection_autoreconnect: trying CONNECT...", self._platform_id)
         try:
             driver_state = self._trigger_driver_event(PlatformDriverEvent.CONNECT)
 
@@ -3395,8 +3380,7 @@ class PlatformAgent(ResourceAgent):
 
         next_state = self._state_when_lost
 
-        log.debug("%r: (LC) _handler_lost_connection_autoreconnect: next_state=%s",
-                  self._platform_id, next_state)
+        log.debug("%r: (LC) _handler_lost_connection_autoreconnect: next_state=%s", self._platform_id, next_state)
 
         return next_state, None
 
@@ -3483,12 +3467,12 @@ class PlatformAgent(ResourceAgent):
         missions are executing, EXIT_MISSION is triggered to return to saved state.
         """
         time_start = time.time()
-        log.debug('[mm] _run_mission: running mission_id=%r ...', mission_id)
+        log.debug('%r: [mm] _run_mission: running mission_id=%r ...', self._platform_id, mission_id)
         self._mission_manager.run_mission(mission_id, mission_loader, mission_scheduler, instrument_objs)
 
         elapsed_time = time.time() - time_start
-        log.debug('[mm] _run_mission: completed mission_id=%s. elapsed_time=%s',
-                  mission_id, elapsed_time)
+        log.debug('%r: [mm] _run_mission: completed mission_id=%s. elapsed_time=%s',
+                  self._platform_id, mission_id, elapsed_time)
 
         remaining = self._mission_manager.get_number_of_running_missions()
         if remaining == 0:
@@ -3497,11 +3481,11 @@ class PlatformAgent(ResourceAgent):
             curr_state = self.get_agent_state()
             if curr_state in [PlatformAgentState.MISSION_COMMAND,
                               PlatformAgentState.MISSION_STREAMING]:
-                log.debug('[mm] _run_mission: triggering EXIT_MISSION')
+                log.debug('%r: [mm] _run_mission: triggering EXIT_MISSION', self._platform_id)
                 self._fsm.on_event(PlatformAgentEvent.EXIT_MISSION)
             else:
-                log.warn('[mm] _run_mission: not triggering EXIT_MISSION: FSM not in '
-                         'mission substate (%s)', curr_state)
+                log.warn('%r: [mm] _run_mission: not triggering EXIT_MISSION: FSM not in '
+                         'mission substate (%s)', self._platform_id, curr_state)
 
     def _handler_mission_run(self, *args, **kwargs):
         """
@@ -3603,7 +3587,7 @@ class PlatformAgent(ResourceAgent):
         actual processing during on_start.
         """
 
-        log.debug("%r: _configure_aparams: aparams=%s" % (self._platform_id, aparams))
+        log.debug("%r: _configure_aparams: aparams=%s", self._platform_id, aparams)
 
         self._configure_aparams_arg = None
 
@@ -3627,8 +3611,8 @@ class PlatformAgent(ResourceAgent):
 
         # If specified and configed, build the alerts aparam.
         aparam_alerts_config = self.CFG.get('aparam_alerts_config', None)
-        log.debug("%r: _configure_aparams: aparam_alerts_config=%s" % (
-                  self._platform_id, aparam_alerts_config))
+        log.debug("%r: _configure_aparams: aparam_alerts_config=%s",
+                  self._platform_id, aparam_alerts_config)
         if aparam_alerts_config and 'alerts' in aparams:
             self.aparam_set_alerts(aparam_alerts_config)
 
@@ -3636,7 +3620,7 @@ class PlatformAgent(ResourceAgent):
         """
         Restore agent/resource configuration and state.
         """
-        log.warn("%r: PlatformAgent._restore_resource not implemented yet" % self._platform_id)
+        log.warn("%r: PlatformAgent._restore_resource not implemented yet", self._platform_id)
 
     ##############################################################
     # Base class overrides for state and cmd error alerts.
