@@ -44,7 +44,7 @@ class ParameterHelper(object):
         rdt['preferred_timestamp'] = ['driver_timestamp']
         rdt['time'] = [ntp_now]
         rdt['port_timestamp'] = [ntp_now]
-        rdt['quality_flag'] = [None]
+        rdt['quality_flag'] = ['']
         rdt['lat'] = [45]
         rdt['conductivity'] = [4341400]
         rdt['driver_timestamp'] = [ntp_now]
@@ -456,8 +456,7 @@ class ParameterHelper(object):
         contexts['internal_timestamp'] = internal, internal_ctxt_id
         
         quality_ctxt = ParameterContext(name='quality_flag', 
-                                        parameter_type='array<>',
-                                        value_encoding='int8',
+                                        parameter_type='string',
                                         units='1')
         quality_ctxt_id = self.dataset_management.create_parameter(quality_ctxt)
         quality = DatasetManagementService.get_coverage_parameter(quality_ctxt)
