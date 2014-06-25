@@ -354,7 +354,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         This method captures the current value of CFG.endpoint.receive.timeout
         to be used in some operations provided by the class.
         """
-        from pyon.public import CFG
         self._receive_timeout = CFG.endpoint.receive.timeout
         log.info("self._receive_timeout = %s", self._receive_timeout)
 

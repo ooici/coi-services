@@ -540,8 +540,8 @@ class StatusManager(object):
                   self._platform_id, evt, evt.sub_type)
 
         if not sub_type in expected_subtypes:
-            log.error("StatusManager._got_device_status_event: Unexpected sub_type=%r. Expecting one of %r" 
-                      % (sub_type, expected_subtypes))
+            log.error("%r: _got_device_status_event: Unexpected sub_type=%r. Expecting one of %r",
+                      self._platform_id, sub_type, expected_subtypes)
             return
 
         with self._lock:

@@ -23,9 +23,11 @@ from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
 from ion.agents.platform.platform_agent_enums import PlatformAgentState
 
 from interface.objects import AgentCommand
+from interface.objects import MissionExecutionStatus
 
 from pyon.public import log, CFG
 
+import logging
 import time
 from mock import patch
 from unittest import skipIf
@@ -154,26 +156,48 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         try:
             started = time.time()
             async_event_result.get(timeout=max_wait)
-            log.debug('[mm] got %d MissionLifecycleEvents (%s secs):\n%s',
-                      len(events_received),
-                      time.time() - started,
-                      self._pp.pformat(events_received))
+            if log.isEnabledFor(logging.DEBUG):
+                simplified = [dict(sub_type=e.sub_type,
+                                   mission_thread_id=e.mission_thread_id,
+                                   execution_status=e.execution_status) for e in events_received]
+                log.debug('[mm] got %d MissionLifecycleEvents received (%s secs):\n%s',
+                          len(events_received),
+                          time.time() - started,
+                          self._pp.pformat(simplified))
+
             self.assertEqual(len(events_received), no_expected_events)
 
             if isinstance(expected_events, list):
-                # compare each event based on given fields:
-                for i, expected_event in enumerate(expected_events):
-                    received_event = {}
-                    for key in expected_event.keys():
-                        self.assertIn(key, events_received[i])
-                        received_event[key] = events_received[i][key]
-                    self.assertEqual(expected_event, received_event)
+                # verify each expected event was received regardless of order or reception:
+                for expected_event in expected_events:
+                    was_received = False
+                    for idx, received_event in enumerate(events_received):
+                        contained = True
+                        for key in expected_event.keys():
+                            if key not in received_event or received_event[key] != expected_event[key]:
+                                contained = False
+                                break
+                        if contained:
+                            was_received = True
+                            break
+                    self.assertTrue(was_received)
+
+                # # the following would force the order of event reception, which is too strict as the
+                # # events might arrive out of order (especially with missions involving multiple instruments)
+                # for i, expected_event in enumerate(expected_events):
+                #     received_event = {}
+                #     for key in expected_event.keys():
+                #         self.assertIn(key, events_received[i])
+                #         received_event[key] = events_received[i][key]
+                #     self.assertEqual(expected_event, received_event)
+
         finally:
             try:
                 trans_async_event_result.get(timeout=max_wait)
-                log.debug('[mm] got %d ResourceAgentStateEvents:\n%s',
-                          len(trans_events_received),
-                          self._pp.pformat(trans_events_received))
+                if log.isEnabledFor(logging.DEBUG):
+                    log.debug('[mm] got %d ResourceAgentStateEvents:\n%s',
+                              len(trans_events_received),
+                              self._pp.pformat(trans_events_received))
                 self.assertGreaterEqual(len(trans_events_received), 2)
             finally:
                 if not in_command_state:
@@ -183,7 +207,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         """
         Verifies platform agent can dispatch execution of multiple missions.
         Should receive 2 ResourceAgentStateEvents from the platform:
-         - when transitioning to MISSION_COMMAND (upon first mission execition started)
+         - when transitioning to MISSION_COMMAND (upon first mission execution started)
          - when transitioning back to COMMAND
         No other explicit verifications, but the logs should show lines
         like the following where the number of running missions is included:
@@ -219,10 +243,11 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         log.debug('[mm] waiting for %s expected MissionLifecycleEvents from origin=%r', 2, origin)
         started = time.time()
         async_event_result.get(timeout=max_wait)
-        log.debug('[mm] got %d events (%s secs):\n%s',
-                  len(events_received),
-                  time.time() - started,
-                  self._pp.pformat(events_received))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug('[mm] got %d events (%s secs):\n%s',
+                      len(events_received),
+                      time.time() - started,
+                      self._pp.pformat(events_received))
         self.assertEqual(len(events_received), 2)
 
     def test_simple_mission_command_state(self):
@@ -230,11 +255,19 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # With mission plan to be started in COMMAND state.
         # Should receive 6 events from mission executive if successful
         #
+        expected_events = [
+            {'sub_type': 'STARTING', 'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'Mission thread _ has started'
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'MissionSequence starting...'
+            {'sub_type': 'STOPPED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '' , 'execution_status': MissionExecutionStatus.OK}]
+
         self._test_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator0C.yml",
             in_command_state=True,
-            expected_events=6,
+            expected_events=expected_events,
             max_wait=200 + 300)
 
     def test_simple_mission_streaming_state(self):
@@ -269,15 +302,23 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
 
     def test_simple_mission_ports_on_off(self):
         #
-        # Test TURN_ON_PORT and TURN_OFF_PORT
+        # Tests TURN_ON_PORT and TURN_OFF_PORT commands.
         # Mission plan to be started in COMMAND state.
         # Should receive 6 events from mission executive if successful
         #
+        expected_events = [
+            {'sub_type': 'STARTING', 'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'Mission thread _ has started'
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'MissionSequence starting...'
+            {'sub_type': 'STOPPED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '' , 'execution_status': MissionExecutionStatus.OK}]
+
         self._test_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator_ports.yml",
             in_command_state=True,
-            expected_events=6,
+            expected_events=expected_events,
             max_wait=200 + 300)
 
     def test_mission_abort(self):
@@ -286,24 +327,43 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # Mission plan to be started in COMMAND state.
         # Should receive 6 events from mission executive if successful
         #
+        expected_events = [
+            {'sub_type': 'STARTING', 'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'Mission thread _ has started'
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'MissionSequence starting...'
+            {'sub_type': 'STOPPED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.FAILED},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.FAILED}]
+
         self._test_mission(
             ['SBE37_SIM_02'],
             "ion/agents/platform/test/mission_RSN_simulator_abort.yml",
             in_command_state=True,
-            expected_events=6,
+            expected_events=expected_events,
             max_wait=200 + 300)
 
     def test_mission_multiple_instruments(self):
         #
         # Multiple instruments example
         # Mission plan to be started in COMMAND state.
-        # Should receive 10 events from mission executive if successful
+        # Should receive 9 events from mission executive if successful
         #
+        expected_events = [
+            {'sub_type': 'STARTING', 'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'Mission thread _ has started'
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'MissionSequence starting...'
+            {'sub_type': 'STARTED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},  # 'Mission thread _ has started'
+            {'sub_type': 'STARTED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},  # 'MissionSequence starting...'
+            {'sub_type': 'STOPPED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK}]
+
         self._test_mission(
             ['SBE37_SIM_02', 'SBE37_SIM_03'],
             "ion/agents/platform/test/mission_RSN_simulator_multiple_threads.yml",
             in_command_state=True,
-            expected_events=9,
+            expected_events=expected_events,
             max_wait=200 + 300)
 
     def test_simple_event_driven_mission(self):
@@ -312,9 +372,20 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # Mission plan to be started in COMMAND state.
         # Should receive 9 events from mission executive if successful
         #
+        expected_events = [
+            {'sub_type': 'STARTING', 'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'Mission thread _ has started'
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},  # 'MissionSequence starting...'
+            {'sub_type': 'STARTED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},  # 'Mission thread _ has started'
+            {'sub_type': 'STARTED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},  # 'MissionSequence starting...'
+            {'sub_type': 'STOPPED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK}]
+
         self._test_mission(
             ['SBE37_SIM_02', 'SBE37_SIM_03'],
             "ion/agents/platform/test/mission_RSN_simulator_event.yml",
             in_command_state=True,
-            expected_events=9,
+            expected_events=expected_events,
             max_wait=200 + 300)
