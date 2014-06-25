@@ -541,7 +541,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt['temp'] = [300000]
         rdt['preferred_timestamp'] = ['driver_timestamp']
         rdt['port_timestamp'] = [ntp_now]
-        rdt['quality_flag'] = [None]
+        rdt['quality_flag'] = ['']
         rdt['lat'] = [45]
         rdt['conductivity'] = [4341400]
         rdt['driver_timestamp'] = [ntp_now]
