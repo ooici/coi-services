@@ -238,8 +238,7 @@ class ParameterHelper(object):
         contexts['internal_timestamp'] = internal, internal_ctxt_id
         
         quality_ctxt = ParameterContext(name='quality_flag', 
-                                        parameter_type='array<quantity>',
-                                        value_encoding='float32',
+                                        parameter_type='string',
                                         units='1')
         quality_ctxt_id = self.dataset_management.create_parameter(quality_ctxt)
         quality = DatasetManagementService.get_coverage_parameter(quality_ctxt)
