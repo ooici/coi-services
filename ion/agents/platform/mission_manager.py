@@ -11,7 +11,6 @@
 __author__ = 'Carlos Rueda'
 
 
-
 from pyon.public import log
 import logging
 from ion.agents.mission_executive import MissionLoader
@@ -168,6 +167,11 @@ class MissionManager(object):
 
     def _create_mission_scheduler(self, mission_id, mission_yml):
         """
+        - loads the mission
+        - verifies instruments associated
+        - gets exclusive access to those instruments
+        - creates MissionScheduler
+
         @param mission_id
         @param mission_yml
 
@@ -242,7 +246,7 @@ class MissionManager(object):
                 for instrument_id in instrument_ids_ok:
                     resource_id = instrument_objs[instrument_id].resource_id
                     try:
-                        self._remove_exclusive_access(resource_id, mission_id)
+                        self._remove_exclusive_access(instrument_id, resource_id, mission_id)
                     except Exception as ex:
                         # just log warning an continue
                         log.warn('%r: [xa] exception while reverting exclusive access to resource_id=%r, '
