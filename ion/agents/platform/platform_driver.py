@@ -447,7 +447,7 @@ class PlatformDriver(object):
         except PlatformDriverException as e:
             result = None
             next_state = None
-            log.error("Error in platform driver configuration", e)
+            log.error("%r: Error in platform driver configuration", self._platform_id, e)
 
         return next_state, result
 
@@ -611,7 +611,7 @@ class PlatformDriver(object):
         Subclasses can override to indicate specific parameters and add new
         handlers (typically for the CONNECTED state).
         """
-        log.debug("constructing base platform driver FSM")
+        log.debug("%r: constructing base platform driver FSM", self._platform_id)
 
         self._fsm = ThreadSafeFSM(states, events, enter_event, exit_event)
 
