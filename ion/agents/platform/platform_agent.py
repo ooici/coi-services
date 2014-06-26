@@ -411,21 +411,16 @@ class PlatformAgent(ResourceAgent):
 
     def _children_launch(self):
         """
+        Method for the greenlet started in on_start.
         Launches the sub-platform agents.
         Launches the associated instrument agents;
         """
         log.info("%r: _children_launch greenlet: launching sub-platform agents", self._platform_id)
-        try:
-            self._subplatforms_launch()
-        except Exception:
-            log.exception("%r: _children_launch greenlet: exception while launching sub-platform agents", self._platform_id)
+        self._subplatforms_launch()
         log.info("%r: _children_launch greenlet: launching sub-platform agents completed", self._platform_id)
 
         log.info("%r: _children_launch greenlet: launching instrument agents", self._platform_id)
-        try:
-            self._instruments_launch()
-        except Exception:
-            log.exception("%r: _children_launch greenlet: exception while launching instrument agents", self._platform_id)
+        self._instruments_launch()
         log.info("%r: _children_launch greenlet: launching instrument agents completed", self._platform_id)
 
         # Ready, children launched and event subscribers in place
@@ -1409,16 +1404,25 @@ class PlatformAgent(ResourceAgent):
         """
         Launches all my configured sub-platforms storing the corresponding
         ResourceAgentClient objects in _pa_clients.
+
+        Note that any failure while trying to launch a child agent is just logged out.
         """
+        # TODO failure in a child agent launch should probably abort the whole launch?
+
         self._pa_clients.clear()
         subplatform_ids = self._pnode.subplatforms.keys()
-        if len(subplatform_ids):
-            log.debug("%r: launching subplatforms %s", self._platform_id, subplatform_ids)
-            for subplatform_id in subplatform_ids:
-                self._launch_platform_agent(subplatform_id)
+        if not len(subplatform_ids):
+            return
 
-            log.debug("%r: _subplatforms_launch completed. _pa_clients=%s",
-                      self._platform_id, self._pa_clients)
+        log.debug("%r: launching subplatforms %s", self._platform_id, subplatform_ids)
+        for subplatform_id in subplatform_ids:
+            try:
+                self._launch_platform_agent(subplatform_id)
+            except Exception:
+                log.exception("%r: _subplatforms_launch: exception while launching sub-platform %r",
+                              self._platform_id, subplatform_id)
+
+        log.debug("%r: _subplatforms_launch completed. _pa_clients=%s", self._platform_id, self._pa_clients)
 
     def _subplatforms_initialize(self):
         """
@@ -1989,15 +1993,24 @@ class PlatformAgent(ResourceAgent):
         """
         Launches all my configured instruments storing the corresponding
         ResourceAgentClient objects in _ia_clients.
+        Note that any failure while trying to launch a child agent is just logged out.
         """
+        # TODO failure in a child agent launch should probably abort the whole launch?
+
         self._ia_clients.clear()
         instrument_ids = self._pnode.instruments.keys()
-        if len(instrument_ids):
-            log.debug("%r: launching instruments %s", self._platform_id, instrument_ids)
-            for instrument_id in instrument_ids:
-                self._launch_instrument_agent(instrument_id)
+        if not len(instrument_ids):
+            return
 
-            log.debug("%r: _instruments_launch completed.", self._platform_id)
+        log.debug("%r: launching instruments %s", self._platform_id, instrument_ids)
+        for instrument_id in instrument_ids:
+            try:
+                self._launch_instrument_agent(instrument_id)
+            except Exception:
+                log.exception("%r: _instruments_launch: exception while launching instrument %r",
+                              self._platform_id, instrument_id)
+
+        log.debug("%r: _instruments_launch completed. _ia_clients=%s", self._platform_id, self._ia_clients)
 
     def _instruments_initialize(self):
         """
