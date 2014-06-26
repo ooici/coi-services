@@ -457,6 +457,7 @@ class StatusManager(object):
         """
 
         # notify platform:
+        log.debug("%r: notifying agent _child_terminated: origin=%r", self._platform_id, origin)
         self._agent._child_terminated(origin)
 
         if origin not in self.aparam_child_agg_status:

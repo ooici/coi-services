@@ -138,8 +138,10 @@ class PlatformAgent(ResourceAgent):
         # PlatformResourceMonitor
         self._platform_resource_monitor = None
 
-        # {subplatform_id: DotDict(ResourceAgentClient, PID), ...}
-        # (or subplatform_id : _INVALIDATED_CHILD)
+        # _pa_clients: {subplatform_id: DotDict(ResourceAgentClient, PID), ...}
+        # (or subplatform_id : _INVALIDATED_CHILD, when that child is invalidated).
+        # *NOTE*: the index here is actually the resource_id of the platform agent,
+        # but the code variables used to index this dict are often named "subplatform_id".
         self._pa_clients = {}  # Never None
 
         # see on_init
@@ -1233,13 +1235,14 @@ class PlatformAgent(ResourceAgent):
         Launches a sub-platform agent (if not already running) and waits until
         the sub-platform transitions to UNINITIALIZED state.
         It creates corresponding ResourceAgentClient,
-        set entry self._pa_clients[subplatform_id],
+        sets entry self._pa_clients[sub_resource_id] (where sub_resource_id is the
+        associated resource ID of the platform),
         and publishes device_added event.
 
         The mechanism to detect whether the sub-platform agent is already
         running is by simply trying to create a ResourceAgentClient to it.
 
-        @param subplatform_id Platform ID
+        @param subplatform_id Platform ID (a key in self._pnode.subplatforms)
         """
 
         # get PlatformNode, corresponding CFG, and resource_id:
@@ -1317,9 +1320,10 @@ class PlatformAgent(ResourceAgent):
 
         # here, sub-platform agent process is running.
 
-        self._pa_clients[subplatform_id] = DotDict(pa_client=pa_client,
-                                                   pid=pid,
-                                                   resource_id=sub_resource_id)
+        self._pa_clients[sub_resource_id] = DotDict(pa_client=pa_client,
+                                                    pid=pid,
+                                                    resource_id=sub_resource_id,
+                                                    platform_id=subplatform_id)
 
         self._status_manager.subplatform_launched(pa_client, sub_resource_id)
 
