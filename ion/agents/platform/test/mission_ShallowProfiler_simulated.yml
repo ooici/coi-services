@@ -15,7 +15,7 @@ mission:
       timeZone: 
       loop:
         quantity: 2   # No. of loops (-1 for infinite)
-        value: 5      # Repeat missionParams every 'xx' 'units'
+        value: 2      # Repeat missionParams every 'xx' 'units'
         units: mins    # mins, hrs, days
       event:
         parentID:
@@ -24,12 +24,8 @@ mission:
       - command: set_resource(INTERVAL{1})
         onError: retry
     missionSequence:
-      - command: execute_resource(START_AUTOSAMPLE)
-        onError: retry
-      - command: wait(1)
+      - command: wait(2)
         onError:
-      - command: execute_resource(STOP_AUTOSAMPLE)
-        onError: retry
     postMissionSequence:
 
 
@@ -52,11 +48,7 @@ mission:
       - command: set_resource(INTERVAL{1})
         onError: retry
     missionSequence:
-      - command: execute_resource(START_AUTOSAMPLE)
-        onError: retry
-      - command: wait(1)
-        onError:
-      - command: execute_resource(STOP_AUTOSAMPLE)
+      - command: PRE:SBE37_SIM_03, execute_resource(ACQUIRE_SAMPLE)
         onError: retry
     postMissionSequence:
 
@@ -79,10 +71,6 @@ mission:
       - command: set_resource(INTERVAL{5})
         onError: retry
     missionSequence:
-      - command: execute_resource(START_AUTOSAMPLE)
-        onError: retry
-      - command: wait(1)
-        onError:
-      - command: execute_resource(STOP_AUTOSAMPLE)
+      - command: PRE:SBE37_SIM_04, execute_resource(ACQUIRE_SAMPLE)
         onError: retry
     postMissionSequence:

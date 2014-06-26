@@ -111,8 +111,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         Simulate the Shallow Water profiler stair step mission
         """
         event_publisher = EventPublisher(event_type="OMSDeviceStatusEvent")
-
-        num_profiles = 2
+        num_profiles = 1
 
         def profiler_event_state_change(state, sleep_duration):
             """
@@ -126,18 +125,16 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             event_publisher.publish_event(event_type='OMSDeviceStatusEvent',
                                           origin='LJ01D',
                                           **event_data)
-
             gevent.sleep(sleep_duration)
 
         def stair_step_simulator():
             # Let's simulate a profiler stair step scenario
 
-            seconds_between_steps = 120
+            seconds_between_steps = 30
             num_steps = 2
 
             # Start Mission
             profiler_event_state_change('StartMission', 1)
-
             # Going up
             profiler_event_state_change('StartingAscent', seconds_between_steps)
 
@@ -160,10 +157,8 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         def up_down_simulator():
             # Let's simulate a profiler up-down scenario
             seconds_between_steps = 5 * 60
-
             # Start Mission
             profiler_event_state_change('StartMission', 1)
-
             # Start ascent
             profiler_event_state_change('StartingAscent', seconds_between_steps)
 
@@ -180,16 +175,12 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         def simulator_error():
             # Let's simulate a profiler up-down scenario
             seconds_between_steps = 60
-
             # Start Mission
             profiler_event_state_change('StartMission', 1)
-
             # Start ascent
             profiler_event_state_change('StartingAscent', seconds_between_steps)
-
             # Ascend to ceiling
             profiler_event_state_change('atCeiling', seconds_between_steps)
-
             profiler_event_state_change('systemError', 1)
 
         if profile_type == 'stair_step':
@@ -500,6 +491,6 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
                        expected_events=9,
                        max_wait=200 + 300))
 
-        threads.append(gevent.spawn_later(60, self.simulate_profiler_events, 'stair_step'))
+        threads.append(gevent.spawn_later(30, self.simulate_profiler_events, 'stair_step'))
 
         gevent.joinall(threads)
