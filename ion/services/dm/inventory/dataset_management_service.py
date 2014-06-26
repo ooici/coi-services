@@ -151,13 +151,45 @@ class DatasetManagementService(BaseDatasetManagementService):
         if window is None:
             raise BadRequest("Window must be specified")
 
-        device_path = self._get_coverage_path(device_dataset_id)
         site_path = self._get_coverage_path(site_dataset_id)
+        device_path = self._get_coverage_path(device_dataset_id)
 
         ccov = ComplexCoverage.load(site_path)
         ccov.append_reference_coverage(device_path, ReferenceCoverageExtents('', device_dataset_id, time_extents=window))
         ccov.close()
 
+    def update_dataset_window_for_complex(self, device_dataset_id='', old_window=None, new_window=None, site_dataset_id=''):
+        if old_window is None or new_window is None:
+            raise BadRequest("Windows must be specified")
+
+        site_path = self._get_coverage_path(site_dataset_id)
+
+        extents = self._list_reference_extents(site_dataset_id)
+        if device_dataset_id not in extents:
+            raise BadRequest("Dataset %s does not reference %s at all." % (site_dataset_id, device_dataset_id))
+
+        extent_list = extents[device_dataset_id]
+        listings = []
+        for i, pairing in enumerate(extent_list):
+            if list(pairing.time_extents) == list(old_window):
+                pairing = ReferenceCoverageExtents('', device_dataset_id, time_extents=new_window)
+            listings.append(pairing)
+        
+        cov = ComplexCoverage.load(site_path)
+        cov.set_reference_coverage_extents(device_dataset_id, listings, append=False)
+        cov.close()
+
+
+
+    def _list_reference_extents(self, dataset_id):
+        cov = self._get_coverage(dataset_id, mode='r')
+        retval = {}
+
+        for k,v in cov._persistence_layer.rcov_extents.data.iteritems():
+            retval[k] = v
+
+        cov.close()
+        return retval
 
 #--------
 

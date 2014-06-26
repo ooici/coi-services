@@ -261,42 +261,7 @@ class DeploymentPlanner(object):
         device_tree = self.outil.get_child_devices(device_id=self.top_device._id)
         self._get_device_resources(device_tree)
 
-        def _match_devices(device_id):
-
-            # there will not be a port assignment for the top device
-            if device_id == self.top_device._id:
-                self._validate_models(self.top_site._id, self.top_device._id)
-                self.match_list.append((self.top_site._id, self.top_device._id))
-
-            tuple_list = device_tree[device_id]
-
-            for (pt, child_id, ct) in tuple_list:
-                log.debug("  tuple  - pt: %s  child_id: %s  ct: %s", pt, child_id, ct)
-
-                # match this child device then if it has children, call _match_devices with this id
-
-                # check that this device is represented in device tree and in port assignments
-                if child_id in self.device_resources and child_id in self.deployment_obj.port_assignments:
-                    platform_port = self.deployment_obj.port_assignments[child_id]
-                    log.debug("device platform_port: %s", platform_port)
-
-                    # validate PlatformPort info for this device
-                    self._validate_port_assignments(child_id, platform_port)
-
-                    if platform_port.reference_designator in site_ref_designator_map:
-                        matched_site = site_ref_designator_map[platform_port.reference_designator]
-                        self._validate_models(matched_site, child_id)
-                        log.info("match_list append site: %s  device: %s", matched_site, child_id)
-                        self.match_list.append((matched_site, child_id))
-
-                        #recurse on the children of this device
-                        _match_devices(child_id)
-
-                # otherwise cant be matched to a site
-                else:
-                    self.unmatched_device_list.append(child_id)
-
-        _match_devices(self.top_device._id)
+        self._match_devices(self.top_device._id, device_tree, site_ref_designator_map)
 
         # check for hasDevice relations to remove and existing hasDevice relations
         self. _find_pairs_to_remove()
@@ -307,4 +272,38 @@ class DeploymentPlanner(object):
         return self.remove_list, self.match_list
 
 
+    def _match_devices(self, device_id, device_tree, site_ref_designator_map):
+
+        # there will not be a port assignment for the top device
+        if device_id == self.top_device._id:
+            self._validate_models(self.top_site._id, self.top_device._id)
+            self.match_list.append((self.top_site._id, self.top_device._id))
+
+        tuple_list = device_tree[device_id]
+
+        for (pt, child_id, ct) in tuple_list:
+            log.debug("  tuple  - pt: %s  child_id: %s  ct: %s", pt, child_id, ct)
+
+            # match this child device then if it has children, call _match_devices with this id
+
+            # check that this device is represented in device tree and in port assignments
+            if child_id in self.device_resources and child_id in self.deployment_obj.port_assignments:
+                platform_port = self.deployment_obj.port_assignments[child_id]
+                log.debug("device platform_port: %s", platform_port)
+
+                # validate PlatformPort info for this device
+                self._validate_port_assignments(child_id, platform_port)
+
+                if platform_port.reference_designator in site_ref_designator_map:
+                    matched_site = site_ref_designator_map[platform_port.reference_designator]
+                    self._validate_models(matched_site, child_id)
+                    log.info("match_list append site: %s  device: %s", matched_site, child_id)
+                    self.match_list.append((matched_site, child_id))
+
+                    #recurse on the children of this device
+                    self._match_devices(child_id, device_tree, site_ref_designator_map)
+
+            # otherwise cant be matched to a site
+            else:
+                self.unmatched_device_list.append(child_id)
 
