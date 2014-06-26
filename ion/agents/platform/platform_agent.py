@@ -147,8 +147,9 @@ class PlatformAgent(ResourceAgent):
         # see on_init
         self._launcher = None
 
-        # {instrument_id: DotDict(ResourceAgentClient, PID), ...}
+        # _ia_clients: {instrument_id: DotDict(ResourceAgentClient, PID), ...}
         # (or instrument_id : _INVALIDATED_CHILD)
+        # *NOTE*: instrument_id here the resource_id of the instrument agent.
         self._ia_clients = {}  # Never None
 
         # self.CFG.endpoint.receive.timeout -- see on_init
