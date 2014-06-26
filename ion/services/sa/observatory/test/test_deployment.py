@@ -343,6 +343,12 @@ class TestDeployment(IonIntegrationTestCase):
         deployment_obj = self.RR2.read(res.deployment_id)
         self.assertEquals(deployment_obj.lcstate, LCS.DEPLOYED)
 
+        extended_deployment = self.omsclient.get_deployment_extension(res.deployment_id)
+        # two sites in this test
+        self.assertEquals(len(extended_deployment.computed.portals.value), 2)
+        # only one portal instrument
+        self.assertEquals(len(extended_deployment.portal_instruments), 1)
+
         log.debug("deactivatin deployment, expecting success")
         self.omsclient.deactivate_deployment(res.deployment_id)
 

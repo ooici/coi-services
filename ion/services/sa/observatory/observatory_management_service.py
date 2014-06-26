@@ -1421,7 +1421,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     platform_device_ids.add(a.o)
 
         # get sites (portals)
-        extended_deployment.computed.portals = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[extended_deployment.site])
+        extended_deployment.computed.portals = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
         subsite_ids = set()
         device_by_site = { extended_deployment.site._id: extended_deployment.device._id }
         for did in platform_device_ids:
@@ -1466,10 +1466,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         extended_deployment.instrument_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.instrument_devices ]
         extended_deployment.platform_models = [ model_by_id[model_id_by_device[d._id]] for d in extended_deployment.platform_devices ]
-        extended_deployment.portal_instruments = [ device_by_id[device_by_site[p._id]]
-                                                   if p._id in device_by_site and device_by_site[p._id] in device_by_id
-                                                   else None
-                                                   for p in extended_deployment.computed.portals.value ]
+        for p in extended_deployment.computed.portals.value:
+            if p._id in device_by_site and device_by_site[p._id] in device_by_id:
+                extended_deployment.portal_instruments.append( device_by_id[device_by_site[p._id]] )
+
 
         # TODO -- all status values
         #
