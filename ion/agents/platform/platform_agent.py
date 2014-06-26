@@ -1127,26 +1127,24 @@ class PlatformAgent(ResourceAgent):
 
         return retval
 
-    def _get_recursion_parameter(self, method_name, *args, **kwargs):
+    def _get_recursion_parameter(self, method_name, default=True, *args, **kwargs):
         """
         Utility to extract the 'recursion' parameter.
 
         @param method_name   for logging purposes
+        @param default       default value (True by default)
         @param *args         as received by FSM handler (not used)
         @param *kwargs       as received by FSM handler
-        @return              The boolean value of the 'recursion' parameter in
-                             kwargs; True by default.
+        @return              The value of the 'recursion' parameter in kwargs; True by default.
         """
         recursion = kwargs.get('recursion', None)
         if recursion is None:
-            log.info("%r: %s called with no recursion parameter. Using recursion=True by default.",
-                     self._platform_id, method_name)
-            recursion = True
+            log.info("%r: %s called with no recursion parameter. Using recursion=%r by default.",
+                     self._platform_id, method_name, default)
+            return default
         else:
             log.info("%r: %s called with recursion parameter: %r", self._platform_id, method_name, recursion)
-            recursion = bool(recursion)
-
-        return recursion
+            return recursion
 
     def _create_event_subscriber(self, **kwargs):
         """
@@ -1642,15 +1640,14 @@ class PlatformAgent(ResourceAgent):
 
         return children_with_errors
 
-    def _subplatforms_start_streaming(self):
+    def _subplatforms_start_streaming(self, recursion):
         """
-        Executes START_MONITORING with recursion=True on all my sub-platforms.
+        Executes START_MONITORING with the given recursion parameter on all my sub-platforms.
 
         @return dict with children having caused some error. Empty if all
                 children were processed OK.
         """
-        # pass recursion=True to each sub-platform
-        kwargs = dict(recursion=True)
+        kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING, kwargs=kwargs)
         children_with_errors = self._subplatforms_execute_agent(
             command=cmd,
@@ -1658,15 +1655,14 @@ class PlatformAgent(ResourceAgent):
 
         return children_with_errors
 
-    def _subplatforms_stop_streaming(self):
+    def _subplatforms_stop_streaming(self, recursion):
         """
-        Executes STOP_MONITORING with recursion=True on all my sub-platforms.
+        Executes STOP_MONITORING with the given recursion parameter on all my sub-platforms.
 
         @return dict with children having caused some error. Empty if all
                 children were processed OK.
         """
-        # pass recursion=True to each sub-platform
-        kwargs = dict(recursion=True)
+        kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING, kwargs=kwargs)
         children_with_errors = self._subplatforms_execute_agent(
             command=cmd,
@@ -2872,14 +2868,16 @@ class PlatformAgent(ResourceAgent):
         """
         Starts resource monitoring.
 
-        STREAMING is dispatched in a bottom-up fashion:
-        - if recursion is True, "stream" the children
-        - then "stream" this platform itself.
+        STREAMING is dispatched in a bottom-up fashion if this command is to be propagated to child agents:
+        - first, the children are sent the corresponding command(*)
+        - then this platform itself starts resource monitoring.
 
+        (*) Instruments are sent the START_AUTOSAMPLE command
+            Sub-platforms are sent the START_MONITORING command
 
-        @param recursion  If True, children are sent the START_STREAMING command
-                          (with corresponding recursion parameter set to True
-                           in the case of platforms).
+        @param recursion
+                   Command is propagated to sub-platforms if recursion & 2;
+                   Command is propagated to instruments   if recursion & 1.
 
         @return None if all went ok; otherwise a dict
                 {"subplatforms_with_errors": dict, "instruments_with_errors": dict},
@@ -2892,21 +2890,24 @@ class PlatformAgent(ResourceAgent):
             log.error(msg)
             raise PlatformDriverException(msg)
 
-        if recursion:
-            # first sub-platforms:
-            subplatforms_with_errors = self._subplatforms_start_streaming()
+        log.debug("%r: _start_resource_monitoring: recursion=%r", self._platform_id, recursion)
 
-            # we proceed with instruments even if some sub-platforms failed.
+        subplatforms_with_errors = {}
+        instruments_with_errors = {}
 
-            # then my own instruments:
+        if recursion & 2:
+            subplatforms_with_errors = self._subplatforms_start_streaming(recursion)
+
+        if recursion & 1:
             instruments_with_errors = self._instruments_start_streaming()
 
-            if len(subplatforms_with_errors) or len(instruments_with_errors):
-                log.warning("%r: some sub-platforms or instruments failed to start streaming. "
-                          "subplatforms_with_errors=%s "
-                          "instruments_with_errors=%s",
-                          self._platform_id, subplatforms_with_errors, instruments_with_errors)
+        if len(subplatforms_with_errors) or len(instruments_with_errors):
+            log.warn("%r: some sub-platforms or instruments failed to start streaming. "
+                     "subplatforms_with_errors=%s "
+                     "instruments_with_errors=%s",
+                     self._platform_id, subplatforms_with_errors, instruments_with_errors)
 
+        # now start monitoring in this platform:
         platform_attributes = self._plat_driver.get_attributes()
         self._platform_resource_monitor = PlatformResourceMonitor(
             self._platform_id, platform_attributes,
@@ -2916,23 +2917,24 @@ class PlatformAgent(ResourceAgent):
 
     def _stop_resource_monitoring(self, recursion):
         """
-        Stops resource monitoring.
+        Stops resource monitoring. Symmetric handling wrt _start_resource_monitoring
         """
+        log.debug("%r: _stop_resource_monitoring: recursion=%r", self._platform_id, recursion)
 
-        if recursion:
-            # first sub-platforms:
-            subplatforms_with_errors = self._subplatforms_stop_streaming()
+        subplatforms_with_errors = {}
+        instruments_with_errors = {}
 
-            # we proceed with instruments even if some sub-platforms failed.
+        if recursion & 2:
+            subplatforms_with_errors = self._subplatforms_stop_streaming(recursion)
 
-            # then my own instruments:
+        if recursion & 1:
             instruments_with_errors = self._instruments_stop_streaming()
 
-            if len(subplatforms_with_errors) or len(instruments_with_errors):
-                log.warn("%r: some sub-platforms or instruments failed to stop streaming. "
-                         "subplatforms_with_errors=%s "
-                         "instruments_with_errors=%s",
-                         self._platform_id, subplatforms_with_errors, instruments_with_errors)
+        if len(subplatforms_with_errors) or len(instruments_with_errors):
+            log.warn("%r: some sub-platforms or instruments failed to stop streaming. "
+                     "subplatforms_with_errors=%s "
+                     "instruments_with_errors=%s",
+                     self._platform_id, subplatforms_with_errors, instruments_with_errors)
 
         if self._platform_resource_monitor:
             self._platform_resource_monitor.destroy()
@@ -3295,20 +3297,24 @@ class PlatformAgent(ResourceAgent):
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_start_resource_monitoring", *args, **kwargs)
+        default = 3  # by default propagate to both sub-platforms and instruments
+        recursion = self._get_recursion_parameter("_handler_start_resource_monitoring", default, *args, **kwargs)
+        if recursion is True:
+            recursion = default  # True equivalent to 3 here
+        elif recursion is False:
+            recursion = 0
 
         try:
             result = self._start_resource_monitoring(recursion)
-
             next_state = PlatformAgentState.MONITORING
 
         except Exception:
             log.exception("%r: error in _start_resource_monitoring", self._platform_id) #, exc_Info=True)
             raise
 
-        return (next_state, result)
+        return next_state, result
 
     def _handler_stop_resource_monitoring(self, *args, **kwargs):
         """
@@ -3316,20 +3322,24 @@ class PlatformAgent(ResourceAgent):
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        recursion = self._get_recursion_parameter("_handler_stop_resource_monitoring", *args, **kwargs)
+        default = 3  # by default propagate to both sub-platforms and instruments
+        recursion = self._get_recursion_parameter("_handler_stop_resource_monitoring", default, *args, **kwargs)
+        if recursion is True:
+            recursion = default  # True equivalent to 3 here
+        elif recursion is False:
+            recursion = 0
 
         try:
             result = self._stop_resource_monitoring(recursion)
-
             next_state = PlatformAgentState.COMMAND
 
         except Exception:
             log.exception("%r: error in _stop_resource_monitoring", self._platform_id) #, exc_Info=True)
             raise
 
-        return (next_state, result)
+        return next_state, result
 
     ##############################################################
     # LOST_CONNECTION event handlers.
