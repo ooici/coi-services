@@ -301,6 +301,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._event_subscribers = []
         self.addCleanup(self._stop_event_subscribers)
 
+        # platforms that have been set up: platform_id: p_obj
+        self._setup_platforms = {}
+
         # instruments that have been set up: instr_key: i_obj
         self._setup_instruments = {}
 
@@ -753,6 +756,15 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._start_data_subscriber(p_obj.platform_agent_instance_id,
                                     p_obj.stream_id)
 
+        self._setup_platforms[platform_id] = p_obj
+        return p_obj
+
+    def _get_platform(self, platform_id):
+        """
+        Gets the p_obj constructed by _create_platform(platform_id).
+        """
+        self.assertIn(platform_id, self._setup_platforms)
+        p_obj = self._setup_platforms[platform_id]
         return p_obj
 
     #################################################################
