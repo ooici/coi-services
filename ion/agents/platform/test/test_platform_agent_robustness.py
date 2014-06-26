@@ -8,6 +8,8 @@ __author__ = 'Carlos Rueda'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_adverse_activation_sequence
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_instrument_directly_put_into_streaming
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_instrument_directly_stopped
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_leaf_subplatform_directly_stopped
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_intermediate_subplatform_directly_stopped
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform, instruments_dict
 from pyon.public import log, CFG
@@ -104,8 +106,8 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         if expected_state:
             self.assertEqual(expected_state, ia_client.get_agent_state())
 
-    def _assert_instrument_state(self, instr_key, ia_client, state):
-        self.assertEqual(state, ia_client.get_agent_state())
+    def _assert_agent_client_state(self, a_client, state):
+        self.assertEqual(state, a_client.get_agent_state())
 
     ###################
     # tests
@@ -223,7 +225,7 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         self._initialize(recursion)
         self._go_active(recursion)
         self._run(recursion)
-        self._assert_instrument_state(instr_key, ia_client, ResourceAgentState.COMMAND)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.COMMAND)
 
         async_event_result, events_received = self._start_device_failed_command_event_subscriber(p_root, 1)
 
@@ -265,7 +267,7 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         self._initialize(recursion)
         self._go_active(recursion)
         self._run(recursion)
-        self._assert_instrument_state(instr_key, ia_client, ResourceAgentState.COMMAND)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.COMMAND)
 
         # use associated process ID for the subscription:
         instrument_pid = ia_client.get_agent_process_id()
@@ -281,4 +283,95 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         event_received = events_received[0]
         log.info("ProcessLifecycleEvent received: %s", event_received)
         self.assertEquals(instrument_pid, event_received.origin)
+        self.assertEquals(ProcessStateEnum.TERMINATED, event_received.state)
+
+    def test_with_leaf_subplatform_directly_stopped(self):
+        #
+        # - small network of platforms (no instruments) is launched and put in COMMAND state
+        # - leaf sub-platform is directly stopped
+        # - TERMINATED lifecycle event from leaf sub-platform when stopped should be published
+        # - shutdown sequence of the test should complete without issues
+        #
+        self._set_receive_timeout()
+        recursion = True
+
+        p_root = self._create_small_hierarchy()  # Node1D -> MJ01C -> LJ01D
+        self._launch_network(p_root, recursion)
+
+        log.info('platforms in the launched network (%d): %s', len(self._setup_platforms), self._setup_platforms.keys())
+        p_obj = self._get_platform('LJ01D')
+        pa_client = self._create_resource_agent_client(p_obj.platform_device_id)
+
+        # initialize the network
+        self._ping_agent()
+        self._initialize(recursion)
+        self._go_active(recursion)
+        self._run(recursion)
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+
+        # use associated process ID for the subscription:
+        platform_pid = pa_client.get_agent_process_id()
+        async_event_result, events_received = self._start_ProcessLifecycleEvent_subscriber(platform_pid)
+
+        # directly stop sub-platform
+        log.info("stopping sub-platform %r", p_obj.platform_device_id)
+        self.IMS.stop_platform_agent_instance(p_obj.platform_agent_instance_id)
+
+        # verify publication of TERMINATED lifecycle event from sub-platform when stopped
+        async_event_result.get(timeout=self._receive_timeout)
+        self.assertEquals(len(events_received), 1)
+        event_received = events_received[0]
+        log.info("ProcessLifecycleEvent received: %s", event_received)
+        self.assertEquals(platform_pid, event_received.origin)
+        self.assertEquals(ProcessStateEnum.TERMINATED, event_received.state)
+
+    def test_with_intermediate_subplatform_directly_stopped(self):
+        #
+        # - network of 13 platforms (no instruments) is launched and put in COMMAND state
+        # - one non-leaf sub-platform (LV01B) is directly stopped
+        # - TERMINATED lifecycle event from sub-platform when stopped should be published
+        # - shutdown sequence of the test should complete without issues.
+        #
+        # NOTE: However, there will be two leaked processes corresponding to the orphaned
+        # sub-platforms of LV01B:
+        #
+        # Process leak report
+        # Test                                                                       Leaked Processes
+        # ========================================================================== ==================================================================
+        # TestPlatformRobustness.test_with_intermediate_subplatform_directly_stopped
+        #                                                                            ('PlatformAgent_LJ01B1e97fe2656984d41ac58c5ce75f31208', 'RUNNING')
+        #                                                                            ('PlatformAgent_MJ01Bdf3ffb7e10ed4e649bdc437a14b5fc9f', 'RUNNING')
+        #
+        # TODO: determine how to handle this case.
+        #
+        self._set_receive_timeout()
+        recursion = True
+
+        p_root = self._set_up_platform_hierarchy_with_some_instruments([])
+        self._launch_network(p_root, recursion)
+
+        log.info('platforms in the launched network (%d): %s', len(self._setup_platforms), self._setup_platforms.keys())
+        p_obj = self._get_platform('LV01B')
+        pa_client = self._create_resource_agent_client(p_obj.platform_device_id)
+
+        self._ping_agent()
+        self._initialize(recursion)
+        self._go_active(recursion)
+        self._run(recursion)
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+
+        # use associated process ID for the subscription:
+        platform_pid = pa_client.get_agent_process_id()
+        async_event_result, events_received = self._start_ProcessLifecycleEvent_subscriber(platform_pid)
+
+        # directly stop sub-platform
+        log.info("stopping sub-platform %r", p_obj.platform_device_id)
+        self.IMS.stop_platform_agent_instance(p_obj.platform_agent_instance_id)
+
+        # verify publication of TERMINATED lifecycle event from sub-platform when stopped
+        async_event_result.get(timeout=self._receive_timeout)
+        self.assertEquals(len(events_received), 1)
+        event_received = events_received[0]
+        log.info("ProcessLifecycleEvent received: %s", event_received)
+        self.assertEquals(platform_pid, event_received.origin)
         self.assertEquals(ProcessStateEnum.TERMINATED, event_received.state)
