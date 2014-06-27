@@ -1559,6 +1559,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     def _assert_state(self, state):
         self.assertEquals(self._get_state(), state)
 
+    def _assert_agent_client_state(self, a_client, state):
+        self.assertEqual(state, a_client.get_agent_state())
+
     def _execute_agent(self, cmd):
         log.info("_execute_agent: cmd=%r kwargs=%r; timeout=%s ...",
                  cmd.command, cmd.kwargs, self._receive_timeout)

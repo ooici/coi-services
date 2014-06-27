@@ -106,9 +106,6 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         if expected_state:
             self.assertEqual(expected_state, ia_client.get_agent_state())
 
-    def _assert_agent_client_state(self, a_client, state):
-        self.assertEqual(state, a_client.get_agent_state())
-
     ###################
     # tests
     ###################
