@@ -1105,7 +1105,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         active = []
         nonactive = []
         for notification_obj in extended_product.computed.active_user_subscriptions.value:
-            if notification_obj.lcstate == LCS.DELETED:
+            if notification_obj.lcstate == LCS.RETIRED:
                 nonactive.append(notification_obj)
             else:
                 active.append(notification_obj)
