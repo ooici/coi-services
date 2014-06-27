@@ -28,6 +28,9 @@ from interface.services.sa.iobservatory_management_service import BaseObservator
 from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue, AggregateStatusType, DeviceStatusType, TemporalBounds, DatasetWindow
 from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum, GeospatialBounds
 
+from datetime import datetime
+import calendar
+
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
@@ -687,6 +690,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             self.assign_device_to_site(device_id, site_id)
             log.info("Adding geo and updating temporal attrs for device '%s'", device_id)
             self._update_device_add_geo_add_temporal(device_id, site_id, deployment_obj)
+            site_obj = self.RR2.read(site_id)
+            dev_obj = self.RR2.read(device_id)
 
             # Make this deployment Primary for every device and site
             self.RR.create_association(subject=device_id, predicate=PRED.hasPrimaryDeployment, object=deployment_id, assoc_type=RT.Deployment)
@@ -696,43 +701,43 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             # so the entire history of a Device can be found.
             self.RR.create_association(subject=device_id, predicate=PRED.withinDeployment, object=deployment_id, assoc_type=RT.Deployment)
 
-            sdps_ids, _  = self.RR.find_objects(subject=site_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
+            sdps, _  = self.RR.find_objects(subject=site_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=False)
+            sdps_ids = [s._id for s in sdps] # Get a list of Site Data Product IDs
             sdps_streams, _ = self.RR.find_objects_mult(subjects=sdps_ids, predicate=PRED.hasStream, id_only=False)
 
-            dps_ids, _ = self.RR.find_objects(subject=device_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
+            dpds, _ = self.RR.find_objects(subject=device_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=False)
+            dps_ids = [d._id for d in dpds] # Get a list of device data product ids
             dps_streams, _ = self.RR.find_objects_mult(subjects=dps_ids, predicate=PRED.hasStream, id_only=False)
 
             # Match SDPs to DDPs to get dataset_id and update the dataset_windows.
             if not sdps_ids and log.isEnabledFor(logging.DEBUG):
                 log.debug("Not updating data_windows on Site '%s'... no SiteDataProducts were found." % site_id)
 
-            for i, sstream in enumerate(sdps_streams):
-                # Find matching DeviceDataProduct (ddp), based on the assumption
-                # that they have matching stream_names.
-                matched_ddp_id = None
-                for i, dstream in enumerate(dps_streams):
-                    if sstream.stream_name == dstream.stream_name:
-                        matched_ddp_id = self.RR2.find_subject(predicate=PRED.hasStream, object=dstream._id, subject_type=RT.DataProduct, id_only=True)
+            for sdp in sdps:
+                if not sdp.ingest_stream_name:
+                    log.warning("Unable to pair site data product %s without an ingest stream name", sdp.name)
+                    continue # Ingest stream name isn't defined
 
-                if not matched_ddp_id:
-                    # No matching ddp found.  Not a problem, as this device
-                    # could not measure all quantities that the Site has/can
-                    if log.isEnabledFor(logging.DEBUG):
-                        log.debug("Could not match the SDP to a DDP using the stream_name.  Can not set dataset_window without a dataset_id!")
-                        log.debug("SDP stream_name: %s" % sstream.stream_name)
-                        log.debug("DDP stream_names to match against: %s" % map(lambda x: x.stream_name, dps_streams))
-                    continue
-                else:
-                    if log.isEnabledFor(logging.DEBUG):
-                        log.debug("Matched SDP to a DDP using the stream_name '%s'" % sstream.stream_name)
-                        log.debug("Updating data_windows on Site '%s'..." % site_id)
-                    dataset_id = self.RR2.find_object(subject=matched_ddp_id, predicate=PRED.hasDataset, id_only=True)
-                    # Add the new window
-                    bounds = TemporalBounds(start_datetime=temp_constraint.start_datetime, end_datetime='')
-                    window = DatasetWindow(dataset_id=dataset_id, bounds=bounds)
-                    sdp = self.RR2.find_subject(predicate=PRED.hasStream, object=sstream._id, subject_type=RT.DataProduct, id_only=False)
-                    sdp.dataset_windows.append(window)
-                    self.RR2.update(sdp)
+                for dpd in dpds:
+                    if sdp.ingest_stream_name == dpd.ingest_stream_name:
+
+                        # Update the window list in the resource
+                        site_dataset_id = self.RR2.find_object(sdp._id, PRED.hasDataset, id_only=True)
+                        device_dataset_id = self.RR2.find_object(dpd._id, PRED.hasDataset, id_only=True)
+                        bounds = TemporalBounds(start_datetime=temp_constraint.start_datetime, end_datetime=str(calendar.timegm(datetime(2038,1,1).utctimetuple())))
+                        window = DatasetWindow(dataset_id=device_dataset_id, bounds=bounds)
+                        sdp.dataset_windows.append(window)
+                        self.clients.data_product_management.update_data_product(sdp)
+
+                        # TODO: Once coverages support None for open intervals on complex, we'll change it
+                        # in the man time, 2038 is pretty far out, and the world will end shortly after, so
+                        # it's pretty good for an arbitrary point in the future
+                        start = int(temp_constraint.start_datetime) + 2208988800
+                        end   = calendar.timegm(datetime(2038,1,1).utctimetuple()) + 2208988800
+
+                        self.clients.dataset_management.add_dataset_window_to_complex(device_dataset_id, (start, end), site_dataset_id)
+
+
 
         if deployment_obj.lcstate != LCS.DEPLOYED:
             self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
@@ -822,9 +827,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 # properly.
                 for window in site_data_product.dataset_windows:
                     if window.dataset_id in dataset_ids:
+                        
+                        # Set up the tuples of start and stops
+                        old_start = int(window.bounds.start_datetime) + 2208988800
+                        old_end   = int(window.bounds.end_datetime)   + 2208988800
+                        new_start = old_start
+                        new_end   = int(temporal.end_datetime)        + 2208988800
+
+                        # Update the data product resource
                         window.bounds.end_datetime = temporal.end_datetime
+                        site_dataset_id = self.RR2.find_object(site_data_product._id, PRED.hasDataset, id_only=True)
+                        device_dataset_id = window.dataset_id
+
+                        # Update the dataset 
+                        self.clients.dataset_management.update_dataset_window_for_complex(device_dataset_id, (old_start, old_end), (new_start, new_end), site_dataset_id)
+
                         break
-                self.RR.update(object=site_data_product)
+                self.clients.data_product_management.update_data_product(site_data_product)
+
 
         # This should set the deployment resource to retired.
         # Michael needs to fix the RR retire logic so it does not

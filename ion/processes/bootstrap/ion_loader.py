@@ -3266,6 +3266,11 @@ Reason: %s
             else:
                 sc = None
                 log.warning("Unkonwn type for stream configuration in data product row")
+
+            # Fill in the ingest_stream_name using the stream configuration
+            if sc is not None:
+                res_obj.ingest_stream_name = sc.stream_name
+
                 
 
 
