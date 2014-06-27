@@ -1559,6 +1559,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     def _assert_state(self, state):
         self.assertEquals(self._get_state(), state)
 
+    def _assert_agent_client_state(self, a_client, state):
+        self.assertEqual(state, a_client.get_agent_state())
+
     def _execute_agent(self, cmd):
         log.info("_execute_agent: cmd=%r kwargs=%r; timeout=%s ...",
                  cmd.command, cmd.kwargs, self._receive_timeout)
@@ -1636,7 +1639,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
-    def _start_resource_monitoring(self, recursion=True):
+    def _start_resource_monitoring(self, recursion=3):
+        """
+        @param recursion by default 3 to propagate to both sub-platforms and instruments
+        """
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING, kwargs=kwargs)
         retval = self._execute_agent(cmd)
@@ -1649,7 +1655,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(len(self._samples_received) >= 1)
         log.info("Received samples: %s", len(self._samples_received))
 
-    def _stop_resource_monitoring(self, recursion=True):
+    def _stop_resource_monitoring(self, recursion=3):
+        """
+        @param recursion by default 3 to propagate to both sub-platforms and instruments
+        """
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING, kwargs=kwargs)
         retval = self._execute_agent(cmd)

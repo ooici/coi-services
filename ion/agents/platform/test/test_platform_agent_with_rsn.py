@@ -20,6 +20,7 @@ __author__ = 'Carlos Rueda'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_some_commands
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring_recent
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring_recursion_parameter
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_external_event_dispatch
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_turn_on_and_off_port
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_states
@@ -51,6 +52,7 @@ from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.public import IonObject
+from pyon.agent.agent import ResourceAgentState
 from pyon.util.containers import current_time_millis
 from ion.agents.platform.util import ntp_2_ion_ts
 
@@ -746,6 +748,85 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         finally:
             self._stop_resource_monitoring(recursion=False)
+
+    def test_resource_monitoring_recursion_parameter(self):
+        #
+        # Resource monitoring commands with various values for the recursion parameter.
+        # Network of 2 platforms: Node1D -> MJ01C, with instrument attached to the root NodeID.
+        # Verifications done on the child agents sub-platform MJ01C and instrument SBE37_SIM_01.
+        #
+        p_root = self._create_platform('Node1D')
+        p_obj  = self._create_platform('MJ01C', parent_platform_id='Node1D')
+        i_obj  = self._create_instrument('SBE37_SIM_01')
+
+        self._assign_child_to_parent(p_obj, p_root)
+        self._assign_instrument_to_platform(i_obj, p_root)
+
+        self._start_platform(p_root)
+
+        log.info('platforms in the launched network (%d): %s', len(self._setup_platforms), self._setup_platforms.keys())
+        log.info('instruments in the launched network (%d): %s', len(self._setup_instruments), self._setup_instruments.keys())
+
+        # clients for the two children
+        pa_client = self._create_resource_agent_client(p_obj.platform_device_id)
+        ia_client = self._create_resource_agent_client(i_obj.instrument_device_id)
+
+        self._ping_agent()
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.COMMAND)
+
+        ###############################################
+        # recursion=0: no propagation at all
+
+        self._start_resource_monitoring(recursion=0)
+
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.COMMAND)
+
+        self._stop_resource_monitoring(recursion=0)
+
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.COMMAND)
+
+        ################################################
+        # recursion=1: command propagation only to instruments
+
+        self._start_resource_monitoring(recursion=1)
+
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.STREAMING)
+
+        self._stop_resource_monitoring(recursion=1)
+
+        ################################################
+        # recursion=2 command propagation only to sub-platforms
+
+        self._start_resource_monitoring(recursion=2)
+
+        self._assert_agent_client_state(pa_client, PlatformAgentState.MONITORING)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.COMMAND)
+
+        self._stop_resource_monitoring(recursion=2)
+
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.COMMAND)
+
+        ################################################
+        # recursion=3 command propagation to both instruments and sub-platforms
+
+        self._start_resource_monitoring(recursion=3)
+
+        self._assert_agent_client_state(pa_client, PlatformAgentState.MONITORING)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.STREAMING)
+
+        self._stop_resource_monitoring(recursion=3)
+
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.COMMAND)
 
     def test_external_event_dispatch(self):
         self._create_network_and_start_root_platform()
