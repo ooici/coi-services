@@ -14,15 +14,13 @@ mission:
       startTime: 03/27/2014 00:00:00
       timeZone: 
       loop:
-        quantity: 2   # No. of loops (-1 for infinite)
+        quantity: 1   # No. of loops (-1 for infinite)
         value: 2      # Repeat missionParams every 'xx' 'units'
         units: mins    # mins, hrs, days
       event:
         parentID:
         eventID:
     preMissionSequence:
-      - command: set_resource(INTERVAL{1})
-        onError: retry
     missionSequence:
       - command: wait(2)
         onError:

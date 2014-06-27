@@ -131,7 +131,8 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             # Let's simulate a profiler stair step scenario
 
             seconds_between_steps = 30
-            num_steps = 2
+            seconds_at_ceiling = 5
+            num_steps = 1
 
             # Start Mission
             profiler_event_state_change('StartMission', 1)
@@ -146,11 +147,11 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
                     profiler_event_state_change('StartingUp', 1)
 
                 # Ascend to ceiling
-                profiler_event_state_change('atCeiling', seconds_between_steps)
+                profiler_event_state_change('atCeiling', seconds_at_ceiling )
                 # Start to descend
                 profiler_event_state_change('StartingDescent', seconds_between_steps)
                 # Arrive at floor
-                profiler_event_state_change('atFloor', seconds_between_steps)
+                profiler_event_state_change('atFloor', 1)
 
             profiler_event_state_change('MissionComplete', 1)
 
@@ -481,6 +482,19 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         # Mission plan to be started in COMMAND state.
         # Should receive 9 events from mission executive if successful
         #
+        expected_events = [
+            {'sub_type': 'STARTING', 'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '2', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '2', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '2', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK}]
 
         # Start profiler event simulator and mission scheduler
         threads = []
@@ -488,9 +502,9 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
                        ['SBE37_SIM_02', 'SBE37_SIM_03', 'SBE37_SIM_04'],
                        "ion/agents/platform/test/mission_ShallowProfiler_simulated.yml",
                        in_command_state=True,
-                       expected_events=9,
+                       expected_events=expected_events,
                        max_wait=200 + 300))
 
-        threads.append(gevent.spawn_later(30, self.simulate_profiler_events, 'stair_step'))
+        threads.append(gevent.spawn_later(45, self.simulate_profiler_events, 'stair_step'))
 
         gevent.joinall(threads)
