@@ -325,6 +325,10 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("activating deployment, expecting success")
         self.omsclient.activate_deployment(res.deployment_id)
 
+        # OOIION-1239: retrieve the extended resource and validate that only two sites are in the list of portals
+        extended_deployment = self.omsclient.get_deployment_extension(res.deployment_id)
+        self.assertEquals( len(extended_deployment.computed.portals.value), 2)
+
         def assertGeospatialBoundsEquals(a, b):
             self.assertEquals(a['geospatial_latitude_limit_north'],b['geospatial_latitude_limit_north'])
             self.assertEquals(a['geospatial_latitude_limit_south'],b['geospatial_latitude_limit_south'])

@@ -1441,7 +1441,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     platform_device_ids.add(a.o)
 
         # get sites (portals)
-        extended_deployment.computed.portals = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[extended_deployment.site])
+        extended_deployment.computed.portals = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
         subsite_ids = set()
         device_by_site = { extended_deployment.site._id: extended_deployment.device._id }
         for did in platform_device_ids:
