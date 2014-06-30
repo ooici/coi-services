@@ -1471,7 +1471,25 @@ def rotate_v(u,v,theta):
 
     def initialize_deployment_resources(self):
         from interface.objects import PlatformDevice, InstrumentDevice, PlatformSite, InstrumentSite, PlatformPort, PlatformModel
-        res = {}
+        res = DotDict({})
+
+        #--------------------------------------------------------------------------------
+        # Make the parameter functions
+        #--------------------------------------------------------------------------------
+        funcs = DotDict({
+            'temp_cal' : {
+                'function_type' : PFT.NUMEXPR,
+                'function' : 'x / 100000 + 10',
+                'args' : ['x']
+            }
+        })
+
+        for pf_name, pf in funcs.iteritems():
+            parameter_function = ParameterFunction(name=pf_name, **pf)
+            parameter_function_id = self.dataset_management.create_parameter_function(parameter_function)
+            res[pf_name] = parameter_function_id
+
+
 
         #--------------------------------------------------------------------------------
         # The Devices
@@ -1526,6 +1544,7 @@ def rotate_v(u,v,theta):
         # The Data Product for the CTD and the Platform
         #--------------------------------------------------------------------------------
 
+
         params = {
             "time" : {
                 "parameter_type" : "quantity",
@@ -1534,9 +1553,18 @@ def rotate_v(u,v,theta):
                 "description" : "Timestamp",
                 "units" : "seconds since 1900-01-01"
             },
-            "temperature" : {
+            "temperature_counts" : {
                 "parameter_type" : "quantity",
                 "value_encoding" : "float32",
+                "display_name" : "Temperature Counts",
+                "description" : "Temperature Counts",
+                "units" : "1"
+            },
+            "temperature" : {
+                "parameter_type" : "function",
+                "value_encoding" : "float32",
+                "parameter_function_id" : res.temp_cal,
+                "parameter_function_map" : {'x' : 'temperature_counts'},
                 "display_name" : "Calibrated Seawater Temperature",
                 "description" : "Calibrated Seawater Temperature",
                 "units" : "deg_C"
@@ -1607,9 +1635,18 @@ def rotate_v(u,v,theta):
                 "description" : "Timestamp",
                 "units" : "seconds since 1900-01-01"
             },
-            "temperature" : {
+            "temperature_counts" : {
                 "parameter_type" : "quantity",
                 "value_encoding" : "float32",
+                "display_name" : "Temperature Counts",
+                "description" : "Temperature Counts",
+                "units" : "1"
+            },
+            "temperature" : {
+                "parameter_type" : "function",
+                "value_encoding" : "float32",
+                "parameter_function_id" : res.temp_cal,
+                "parameter_function_map" : {'x' : 'temperature_counts'},
                 "display_name" : "Calibrated Seawater Temperature",
                 "description" : "Calibrated Seawater Temperature",
                 "units" : "deg_C"
@@ -1659,7 +1696,7 @@ def rotate_v(u,v,theta):
         rdt = self.ph.rdt_for_data_product(res['ctd_data1'])
         start_time = calendar.timegm(datetime(2014,5,20).utctimetuple())
         rdt['time'] = np.arange(start_time, start_time + 2) + 2208988800
-        rdt['temperature'] = np.array([10, 11])
+        rdt['temperature_counts'] = np.array([0, 100000])
         
         # Verify that the data was ingested
         dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data1'])
@@ -1679,7 +1716,7 @@ def rotate_v(u,v,theta):
         start_time = calendar.timegm(datetime(2020,5,20).utctimetuple())
         rdt = self.ph.rdt_for_data_product(res['ctd_data1'])
         rdt['time'] = np.arange(start_time, start_time + 20) + 2208988800
-        rdt['temperature'] = np.arange(20)
+        rdt['temperature_counts'] = (np.arange(20) - 10) * 100000
         dataset_monitor.reset()
         self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
         self.assertTrue(dataset_monitor.wait())
