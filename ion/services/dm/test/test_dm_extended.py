@@ -17,6 +17,7 @@ from ion.util.direct_coverage_utils import DirectCoverageAccess
 from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.provenance import graph
+from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.processes.data.registration.registration_process import RegistrationProcess
 from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext as CovParameterContext
 from coverage_model import NumpyParameterData
@@ -1683,8 +1684,6 @@ def rotate_v(u,v,theta):
         port_assignments = {res['ctd1'] : port1}
         deployment = Deployment(name='Summer Deployment', type='Cabled', port_assignments=port_assignments)
 
-        from ion.services.sa.observatory.deployment_util import DeploymentUtil
-
         dep_util = DeploymentUtil(self.container)
         start_date = datetime(2014,5,1)
         end_date   = datetime(2014,11,1)
@@ -1696,7 +1695,22 @@ def rotate_v(u,v,theta):
         res['deployment1'] = self.observatory_management.create_deployment(deployment, res['platform_site'], res['platform1'])
         self.observatory_management.activate_deployment(res['deployment1'])
 
+        # New port assignments
+        port_assignments = {res['ctd2'] : port1}
+        deployment = Deployment(name='June Deployment', type='Cabled', port_assignments=port_assignments)
+        dep_util = DeploymentUtil(self.container)
+        start_date = datetime(2014,6,14)
+        end_date   = datetime(2014,11,1)
+        start_date = calendar.timegm(start_date.utctimetuple())
+        end_date   = calendar.timegm(end_date.utctimetuple())
+
+        dep_util.set_temporal_constraint(deployment, str(start_date), str(end_date))
+        res['deployment2'] = self.observatory_management.create_deployment(deployment, res['platform_site'], res['platform2'])
+        # Note how I don't call activate
+
         return res
+
+
 
     @attr("INT")
     def test_cabled_deployments(self):
@@ -1710,14 +1724,18 @@ def rotate_v(u,v,theta):
         
         # Verify that the data was ingested
         dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data1'])
+        self.addCleanup(dataset_monitor.stop)
+        # Publish two data points to device 1
         self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
+        # Make sure the data was received and parsed
         self.assertTrue(dataset_monitor.wait())
-
         dataset_monitor.reset()
         rdt = self.ph.rdt_for_data_product(res['ctd_data1']) # Get the RDT for the device data product
         rdt['time'] = [start_time + 2208988800]
         rdt['lat'] = [40]
         rdt['lon'] = [-70]
+        # Publish sparse values for the lat and lon
+        # TODO: this sparse lat/lon setting will get moved into activate_deployment
         self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
         self.assertTrue(dataset_monitor.wait())
 
@@ -1729,8 +1747,12 @@ def rotate_v(u,v,theta):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_allclose(rdt['temperature'], np.array([10,11]))
 
+        # Deactivate the first deployment and make room for the second
         self.observatory_management.deactivate_deployment(res['deployment1'])
 
+        # Publish data passed the end deployment time for the first 
+        # device, to make sure that it doesn't show up in the site.
+        # This is to simulate bench testing and non-deployed instruments
         start_time = calendar.timegm(datetime(2020,5,20).utctimetuple())
         rdt = self.ph.rdt_for_data_product(res['ctd_data1'])
         rdt['time'] = np.arange(start_time, start_time + 20) + 2208988800
@@ -1739,14 +1761,37 @@ def rotate_v(u,v,theta):
         self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
         self.assertTrue(dataset_monitor.wait())
 
-
+        # Site should only have the two data points
         granule = self.data_retriever.retrieve(site_dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_allclose(rdt['temperature'], np.array([10,11]))
 
+        # Device should have all the data points
         granule = self.data_retriever.retrieve(device_dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_allclose(rdt['temperature'], np.concatenate((np.array([10,11]), np.arange(20))))
+
+        # Activate the second deployment
+        self.observatory_management.activate_deployment(res['deployment2'])
+
+        device2_dataset_id = self.RR2.find_object(res['ctd_data2'], PRED.hasDataset, id_only=True)
+        dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data2'])
+        self.addCleanup(dataset_monitor.stop)
+
+        start_time = calendar.timegm(datetime(2014,6,20).utctimetuple())
+        rdt = self.ph.rdt_for_data_product(res['ctd_data2'])
+        rdt['time'] = np.array([start_time, start_time+1]) + 2208988800
+        rdt['temperature_counts'] = np.array([0, 100000])
+        self.ph.publish_rdt_to_data_product(res['ctd_data2'], rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        gevent.sleep(30)
+
+        granule = self.data_retriever.retrieve(site_dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        # Make sure the site data product has data too
+        np.testing.assert_allclose(rdt['time'][-2:], np.array([start_time, start_time+1]) + 2208988800)
+
 
 
     @attr("INT")
