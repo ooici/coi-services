@@ -1541,17 +1541,31 @@ def rotate_v(u,v,theta):
         self.instrument_management.assign_instrument_device_to_platform_device(res['ctd2'], res['platform2'])
 
         #--------------------------------------------------------------------------------
-        # The Data Product for the CTD and the Platform
+        # The Data Product for the CTD and the Platform 1
         #--------------------------------------------------------------------------------
 
 
-        params = {
+        ctd_params = {
             "time" : {
                 "parameter_type" : "quantity",
                 "value_encoding" : "float64",
                 "display_name" : "Time",
                 "description" : "Timestamp",
                 "units" : "seconds since 1900-01-01"
+            },
+            "lat" : {
+                "parameter_type" : "sparse",
+                "value_encoding" : "float32",
+                "display_name" : "Latitude",
+                "description" : "Latitude",
+                "units" : "degrees_north",
+            },
+            "lon" : {
+                "parameter_type" : "sparse",
+                "value_encoding" : "float32",
+                "display_name" : "Longitude",
+                "description" : "Longitude",
+                "units" : "degrees_east",
             },
             "temperature_counts" : {
                 "parameter_type" : "quantity",
@@ -1573,7 +1587,7 @@ def rotate_v(u,v,theta):
 
         # Make the data product for the CTD
         data_product = DataProduct('CTD Parsed for CTD1', ingest_stream_name='parsed')
-        res['ctd_data1'] = self.data_product_from_params(data_product, params)
+        res['ctd_data1'] = self.data_product_from_params(data_product, ctd_params)
 
         # Register the data product as a product of CTD1
         self.data_acquisition_management.assign_data_product(res['ctd1'], res['ctd_data1'])
@@ -1581,7 +1595,7 @@ def rotate_v(u,v,theta):
         # Activate it
         self.data_product_management.activate_data_product_persistence(res['ctd_data1'])
 
-        params = {
+        platform_params = {
             "time" : {
                 "parameter_type" : "quantity",
                 "value_encoding" : "float64",
@@ -1600,10 +1614,32 @@ def rotate_v(u,v,theta):
 
         # Make the Platform Engineering Data Product
         data_product = DataProduct('Platform Engineering Data', ingest_stream_name='eng')
-        res['eng_data'] = self.data_product_from_params(data_product, params)
+        res['eng_data1'] = self.data_product_from_params(data_product, platform_params)
 
         # Register the data product as a result of the Platform
-        self.data_acquisition_management.assign_data_product(res['platform1'], res['eng_data'])
+        self.data_acquisition_management.assign_data_product(res['platform1'], res['eng_data1'])
+
+        #--------------------------------------------------------------------------------
+        # The Data Product for the CTD and the Platform 2
+        #--------------------------------------------------------------------------------
+
+        # Make the data product for the CTD
+        data_product = DataProduct('CTD Parsed for CTD2', ingest_stream_name='parsed')
+        res['ctd_data2'] = self.data_product_from_params(data_product, ctd_params)
+
+        # Register the data product as a product of CTD1
+        self.data_acquisition_management.assign_data_product(res['ctd2'], res['ctd_data2'])
+
+        # Activate it
+        self.data_product_management.activate_data_product_persistence(res['ctd_data2'])
+
+
+        # Make the Platform Engineering Data Product
+        data_product = DataProduct('Platform Engineering Data 2nd Platform', ingest_stream_name='eng')
+        res['eng_data2'] = self.data_product_from_params(data_product, platform_params)
+
+        # Register the data product as a result of the Platform
+        self.data_acquisition_management.assign_data_product(res['platform2'], res['eng_data2'])
 
 
         #--------------------------------------------------------------------------------
@@ -1627,35 +1663,9 @@ def rotate_v(u,v,theta):
         # And now, the site data product for the CTD on port 1
         #--------------------------------------------------------------------------------
 
-        params = {
-            "time" : {
-                "parameter_type" : "quantity",
-                "value_encoding" : "float64",
-                "display_name" : "Time",
-                "description" : "Timestamp",
-                "units" : "seconds since 1900-01-01"
-            },
-            "temperature_counts" : {
-                "parameter_type" : "quantity",
-                "value_encoding" : "float32",
-                "display_name" : "Temperature Counts",
-                "description" : "Temperature Counts",
-                "units" : "1"
-            },
-            "temperature" : {
-                "parameter_type" : "function",
-                "value_encoding" : "float32",
-                "parameter_function_id" : res.temp_cal,
-                "parameter_function_map" : {'x' : 'temperature_counts'},
-                "display_name" : "Calibrated Seawater Temperature",
-                "description" : "Calibrated Seawater Temperature",
-                "units" : "deg_C"
-            }
-        }
-
         # Make the data product for the CTD
         data_product = DataProduct('CTD Parsed for Deployed CTD at Site', category=DataProductTypeEnum.SITE, ingest_stream_name='parsed')
-        res['site_data'] = self.data_product_from_params(data_product, params)
+        res['site_data'] = self.data_product_from_params(data_product, ctd_params)
         self.resource_registry.create_association(res['site1'], PRED.hasOutputProduct, res['site_data'])
         
         # Make a dataset for it
@@ -1700,6 +1710,14 @@ def rotate_v(u,v,theta):
         
         # Verify that the data was ingested
         dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data1'])
+        self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        dataset_monitor.reset()
+        rdt = self.ph.rdt_for_data_product(res['ctd_data1']) # Get the RDT for the device data product
+        rdt['time'] = [start_time + 2208988800]
+        rdt['lat'] = [40]
+        rdt['lon'] = [-70]
         self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
         self.assertTrue(dataset_monitor.wait())
 
