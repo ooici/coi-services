@@ -24,6 +24,8 @@ class BootstrapQCPostProcessor(BootstrapPlugin):
     '''
 
     def on_initial_bootstrap(self, process, config, **kwargs):
+        # TODO: Temporary skip while refactoring QC work for M088
+        return
 
         if os.environ.get('PYCC_MODE'):
             # This environment is an ion integration test

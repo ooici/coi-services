@@ -17,6 +17,7 @@ from ion.util.direct_coverage_utils import DirectCoverageAccess
 from ion.services.dm.utility.hydrophone_simulator import HydrophoneSimulator
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.provenance import graph
+from ion.services.sa.observatory.deployment_util import DeploymentUtil
 from ion.processes.data.registration.registration_process import RegistrationProcess
 from coverage_model import ParameterFunctionType, ParameterDictionary, PythonFunction, ParameterContext as CovParameterContext
 from coverage_model import NumpyParameterData
@@ -1471,7 +1472,25 @@ def rotate_v(u,v,theta):
 
     def initialize_deployment_resources(self):
         from interface.objects import PlatformDevice, InstrumentDevice, PlatformSite, InstrumentSite, PlatformPort, PlatformModel
-        res = {}
+        res = DotDict({})
+
+        #--------------------------------------------------------------------------------
+        # Make the parameter functions
+        #--------------------------------------------------------------------------------
+        funcs = DotDict({
+            'temp_cal' : {
+                'function_type' : PFT.NUMEXPR,
+                'function' : 'x / 100000 + 10',
+                'args' : ['x']
+            }
+        })
+
+        for pf_name, pf in funcs.iteritems():
+            parameter_function = ParameterFunction(name=pf_name, **pf)
+            parameter_function_id = self.dataset_management.create_parameter_function(parameter_function)
+            res[pf_name] = parameter_function_id
+
+
 
         #--------------------------------------------------------------------------------
         # The Devices
@@ -1523,10 +1542,11 @@ def rotate_v(u,v,theta):
         self.instrument_management.assign_instrument_device_to_platform_device(res['ctd2'], res['platform2'])
 
         #--------------------------------------------------------------------------------
-        # The Data Product for the CTD and the Platform
+        # The Data Product for the CTD and the Platform 1
         #--------------------------------------------------------------------------------
 
-        params = {
+
+        ctd_params = {
             "time" : {
                 "parameter_type" : "quantity",
                 "value_encoding" : "float64",
@@ -1534,9 +1554,32 @@ def rotate_v(u,v,theta):
                 "description" : "Timestamp",
                 "units" : "seconds since 1900-01-01"
             },
-            "temperature" : {
+            "lat" : {
+                "parameter_type" : "sparse",
+                "value_encoding" : "float32",
+                "display_name" : "Latitude",
+                "description" : "Latitude",
+                "units" : "degrees_north",
+            },
+            "lon" : {
+                "parameter_type" : "sparse",
+                "value_encoding" : "float32",
+                "display_name" : "Longitude",
+                "description" : "Longitude",
+                "units" : "degrees_east",
+            },
+            "temperature_counts" : {
                 "parameter_type" : "quantity",
                 "value_encoding" : "float32",
+                "display_name" : "Temperature Counts",
+                "description" : "Temperature Counts",
+                "units" : "1"
+            },
+            "temperature" : {
+                "parameter_type" : "function",
+                "value_encoding" : "float32",
+                "parameter_function_id" : res.temp_cal,
+                "parameter_function_map" : {'x' : 'temperature_counts'},
                 "display_name" : "Calibrated Seawater Temperature",
                 "description" : "Calibrated Seawater Temperature",
                 "units" : "deg_C"
@@ -1545,7 +1588,7 @@ def rotate_v(u,v,theta):
 
         # Make the data product for the CTD
         data_product = DataProduct('CTD Parsed for CTD1', ingest_stream_name='parsed')
-        res['ctd_data1'] = self.data_product_from_params(data_product, params)
+        res['ctd_data1'] = self.data_product_from_params(data_product, ctd_params)
 
         # Register the data product as a product of CTD1
         self.data_acquisition_management.assign_data_product(res['ctd1'], res['ctd_data1'])
@@ -1553,7 +1596,7 @@ def rotate_v(u,v,theta):
         # Activate it
         self.data_product_management.activate_data_product_persistence(res['ctd_data1'])
 
-        params = {
+        platform_params = {
             "time" : {
                 "parameter_type" : "quantity",
                 "value_encoding" : "float64",
@@ -1572,10 +1615,32 @@ def rotate_v(u,v,theta):
 
         # Make the Platform Engineering Data Product
         data_product = DataProduct('Platform Engineering Data', ingest_stream_name='eng')
-        res['eng_data'] = self.data_product_from_params(data_product, params)
+        res['eng_data1'] = self.data_product_from_params(data_product, platform_params)
 
         # Register the data product as a result of the Platform
-        self.data_acquisition_management.assign_data_product(res['platform1'], res['eng_data'])
+        self.data_acquisition_management.assign_data_product(res['platform1'], res['eng_data1'])
+
+        #--------------------------------------------------------------------------------
+        # The Data Product for the CTD and the Platform 2
+        #--------------------------------------------------------------------------------
+
+        # Make the data product for the CTD
+        data_product = DataProduct('CTD Parsed for CTD2', ingest_stream_name='parsed')
+        res['ctd_data2'] = self.data_product_from_params(data_product, ctd_params)
+
+        # Register the data product as a product of CTD1
+        self.data_acquisition_management.assign_data_product(res['ctd2'], res['ctd_data2'])
+
+        # Activate it
+        self.data_product_management.activate_data_product_persistence(res['ctd_data2'])
+
+
+        # Make the Platform Engineering Data Product
+        data_product = DataProduct('Platform Engineering Data 2nd Platform', ingest_stream_name='eng')
+        res['eng_data2'] = self.data_product_from_params(data_product, platform_params)
+
+        # Register the data product as a result of the Platform
+        self.data_acquisition_management.assign_data_product(res['platform2'], res['eng_data2'])
 
 
         #--------------------------------------------------------------------------------
@@ -1599,26 +1664,9 @@ def rotate_v(u,v,theta):
         # And now, the site data product for the CTD on port 1
         #--------------------------------------------------------------------------------
 
-        params = {
-            "time" : {
-                "parameter_type" : "quantity",
-                "value_encoding" : "float64",
-                "display_name" : "Time",
-                "description" : "Timestamp",
-                "units" : "seconds since 1900-01-01"
-            },
-            "temperature" : {
-                "parameter_type" : "quantity",
-                "value_encoding" : "float32",
-                "display_name" : "Calibrated Seawater Temperature",
-                "description" : "Calibrated Seawater Temperature",
-                "units" : "deg_C"
-            }
-        }
-
         # Make the data product for the CTD
         data_product = DataProduct('CTD Parsed for Deployed CTD at Site', category=DataProductTypeEnum.SITE, ingest_stream_name='parsed')
-        res['site_data'] = self.data_product_from_params(data_product, params)
+        res['site_data'] = self.data_product_from_params(data_product, ctd_params)
         self.resource_registry.create_association(res['site1'], PRED.hasOutputProduct, res['site_data'])
         
         # Make a dataset for it
@@ -1636,8 +1684,6 @@ def rotate_v(u,v,theta):
         port_assignments = {res['ctd1'] : port1}
         deployment = Deployment(name='Summer Deployment', type='Cabled', port_assignments=port_assignments)
 
-        from ion.services.sa.observatory.deployment_util import DeploymentUtil
-
         dep_util = DeploymentUtil(self.container)
         start_date = datetime(2014,5,1)
         end_date   = datetime(2014,11,1)
@@ -1649,7 +1695,22 @@ def rotate_v(u,v,theta):
         res['deployment1'] = self.observatory_management.create_deployment(deployment, res['platform_site'], res['platform1'])
         self.observatory_management.activate_deployment(res['deployment1'])
 
+        # New port assignments
+        port_assignments = {res['ctd2'] : port1}
+        deployment = Deployment(name='June Deployment', type='Cabled', port_assignments=port_assignments)
+        dep_util = DeploymentUtil(self.container)
+        start_date = datetime(2014,6,14)
+        end_date   = datetime(2014,11,1)
+        start_date = calendar.timegm(start_date.utctimetuple())
+        end_date   = calendar.timegm(end_date.utctimetuple())
+
+        dep_util.set_temporal_constraint(deployment, str(start_date), str(end_date))
+        res['deployment2'] = self.observatory_management.create_deployment(deployment, res['platform_site'], res['platform2'])
+        # Note how I don't call activate
+
         return res
+
+
 
     @attr("INT")
     def test_cabled_deployments(self):
@@ -1659,10 +1720,22 @@ def rotate_v(u,v,theta):
         rdt = self.ph.rdt_for_data_product(res['ctd_data1'])
         start_time = calendar.timegm(datetime(2014,5,20).utctimetuple())
         rdt['time'] = np.arange(start_time, start_time + 2) + 2208988800
-        rdt['temperature'] = np.array([10, 11])
+        rdt['temperature_counts'] = np.array([0, 100000])
         
         # Verify that the data was ingested
         dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data1'])
+        self.addCleanup(dataset_monitor.stop)
+        # Publish two data points to device 1
+        self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
+        # Make sure the data was received and parsed
+        self.assertTrue(dataset_monitor.wait())
+        dataset_monitor.reset()
+        rdt = self.ph.rdt_for_data_product(res['ctd_data1']) # Get the RDT for the device data product
+        rdt['time'] = [start_time + 2208988800]
+        rdt['lat'] = [40]
+        rdt['lon'] = [-70]
+        # Publish sparse values for the lat and lon
+        # TODO: this sparse lat/lon setting will get moved into activate_deployment
         self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
         self.assertTrue(dataset_monitor.wait())
 
@@ -1674,24 +1747,51 @@ def rotate_v(u,v,theta):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_allclose(rdt['temperature'], np.array([10,11]))
 
+        # Deactivate the first deployment and make room for the second
         self.observatory_management.deactivate_deployment(res['deployment1'])
 
+        # Publish data passed the end deployment time for the first 
+        # device, to make sure that it doesn't show up in the site.
+        # This is to simulate bench testing and non-deployed instruments
         start_time = calendar.timegm(datetime(2020,5,20).utctimetuple())
         rdt = self.ph.rdt_for_data_product(res['ctd_data1'])
         rdt['time'] = np.arange(start_time, start_time + 20) + 2208988800
-        rdt['temperature'] = np.arange(20)
+        rdt['temperature_counts'] = (np.arange(20) - 10) * 100000
         dataset_monitor.reset()
         self.ph.publish_rdt_to_data_product(res['ctd_data1'], rdt)
         self.assertTrue(dataset_monitor.wait())
 
-
+        # Site should only have the two data points
         granule = self.data_retriever.retrieve(site_dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_allclose(rdt['temperature'], np.array([10,11]))
 
+        # Device should have all the data points
         granule = self.data_retriever.retrieve(device_dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_allclose(rdt['temperature'], np.concatenate((np.array([10,11]), np.arange(20))))
+
+        # Activate the second deployment
+        self.observatory_management.activate_deployment(res['deployment2'])
+
+        device2_dataset_id = self.RR2.find_object(res['ctd_data2'], PRED.hasDataset, id_only=True)
+        dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data2'])
+        self.addCleanup(dataset_monitor.stop)
+
+        start_time = calendar.timegm(datetime(2014,6,20).utctimetuple())
+        rdt = self.ph.rdt_for_data_product(res['ctd_data2'])
+        rdt['time'] = np.array([start_time, start_time+1]) + 2208988800
+        rdt['temperature_counts'] = np.array([0, 100000])
+        self.ph.publish_rdt_to_data_product(res['ctd_data2'], rdt)
+        self.assertTrue(dataset_monitor.wait())
+
+        gevent.sleep(30)
+
+        granule = self.data_retriever.retrieve(site_dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        # Make sure the site data product has data too
+        np.testing.assert_allclose(rdt['time'][-2:], np.array([start_time, start_time+1]) + 2208988800)
+
 
 
     @attr("INT")
