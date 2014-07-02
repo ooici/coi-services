@@ -69,8 +69,9 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
                 if v is not None:
                     self.assertIsInstance(v, np.ndarray)
             rdt = RecordDictionaryTool.load_from_granule(msg)
-            for field in rdt.fields:
-                self.assertIsInstance(rdt[field], np.ndarray)
+            for k,v in rdt.iteritems():
+                self.assertIsInstance(rdt[k], np.ndarray)
+                self.assertIsInstance(v, np.ndarray)
             verified.set()
 
         subscriber = StandaloneStreamSubscriber('sub1', callback=verifier)
@@ -81,7 +82,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         ph.fill_rdt(rdt,10)
         publisher.publish(rdt.to_granule())
-        self.assertTrue(verified.wait(10))
+        self.assertTrue(verified.wait(60))
 
 
     def test_granule(self):
