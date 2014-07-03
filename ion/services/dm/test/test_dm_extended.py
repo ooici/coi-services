@@ -47,6 +47,7 @@ import numpy as np
 import time
 import gevent
 from gevent.event import Event
+from netCDF4 import Dataset
 import calendar
 from ion.services.coi.service_gateway_service import service_gateway_app
 from webtest import TestApp
@@ -1550,29 +1551,29 @@ def rotate_v(u,v,theta):
             "time" : {
                 "parameter_type" : "quantity",
                 "value_encoding" : "float64",
-                "display_name" : "Time",
-                "description" : "Timestamp",
+                "display_name" : "time",
+                "description" : "timestamp",
                 "units" : "seconds since 1900-01-01"
             },
             "lat" : {
                 "parameter_type" : "sparse",
                 "value_encoding" : "float32",
-                "display_name" : "Latitude",
-                "description" : "Latitude",
+                "display_name" : "latitude",
+                "description" : "latitude",
                 "units" : "degrees_north",
             },
             "lon" : {
                 "parameter_type" : "sparse",
                 "value_encoding" : "float32",
-                "display_name" : "Longitude",
-                "description" : "Longitude",
+                "display_name" : "longitude",
+                "description" : "longitude",
                 "units" : "degrees_east",
             },
             "temperature_counts" : {
                 "parameter_type" : "quantity",
                 "value_encoding" : "float32",
-                "display_name" : "Temperature Counts",
-                "description" : "Temperature Counts",
+                "display_name" : "temperature counts",
+                "description" : "temperature counts",
                 "units" : "1"
             },
             "temperature" : {
@@ -1580,9 +1581,9 @@ def rotate_v(u,v,theta):
                 "value_encoding" : "float32",
                 "parameter_function_id" : res.temp_cal,
                 "parameter_function_map" : {'x' : 'temperature_counts'},
-                "display_name" : "Calibrated Seawater Temperature",
-                "description" : "Calibrated Seawater Temperature",
-                "units" : "deg_C"
+                "display_name" : "calibrated seawater temperature",
+                "description" : "calibrated seawater temperature",
+                "units" : "deg_c"
             }
         }
 
@@ -1791,7 +1792,8 @@ def rotate_v(u,v,theta):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         # Make sure the site data product has data too
         np.testing.assert_allclose(rdt['time'][-2:], np.array([start_time, start_time+1]) + 2208988800)
-
+        np.testing.assert_allclose(rdt['lat'][:2], np.array([40, 40]))
+        np.testing.assert_allclose(rdt['lon'][:2], np.array([-70, -70]))
 
 
     @attr("INT")
@@ -2103,3 +2105,93 @@ def rotate_v(u,v,theta):
 
 
         breakpoint(locals(), globals()) 
+
+    @attr('UTIL')
+    def test_notebook(self):
+        self.preload_beta()
+        data_product_id = self.load_glider_data()
+        self.data_product_management.activate_data_product_persistence(data_product_id)
+        dataset_id = self.RR2.find_object(data_product_id, PRED.hasDataset, id_only=True)
+
+        cov = DatasetManagementService._get_coverage(dataset_id, mode='r+')
+
+        with Dataset('test_data/sg523.nc', 'r') as nc:
+            data_dict = {}
+            for param in cov.list_parameters():
+                nc_array = np.ascontiguousarray(nc.variables[param][2000:3000])
+                if param == 'time':
+                    nc_array = nc_array + 2208988800
+                data_dict[param] = NumpyParameterData(param, nc_array)
+
+        cov.set_parameter_values(data_dict)
+        self.strap_erddap(data_product_id)
+        breakpoint(locals(), globals())
+
+
+    def load_glider_data(self):
+        params = DotDict({
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "time",
+                "description" : "timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "depth" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "standard_name" : "depth",
+                "units" : "m",
+                "description" : "distance below the surface, corrected for latitude"
+            },
+            "latitude" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "standard_name" : "latitude",
+                "units" : "degrees_north",
+                "description" : "sample latitude"
+            },
+            "longitude" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "standard_name" : "longitude",
+                "units" : "degrees_east",
+                "description" : "sample longitude"
+            },
+            "pressure" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "standard_name" : "sea_water_pressure",
+                "units" : "dbar"
+            },
+            "temp" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "standard_name" : "sea_water_temperature",
+                "units" : "deg_C"
+            },
+            "conductivity" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "units" : "S m-1",
+                "standard_name" : "sea_water_electrical_conductivity"
+            },
+            "salinity" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "units" : "1",
+                "standard_name" : "sea_water_salinity"
+            },
+            "density" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "units" : "kg m-3",
+                "standard_name" : "sea_water_density",
+            }
+        })
+        data_product = DataProduct('PacIOOS Ocean Gliders: SeaGlider 523: Mission 4')
+        data_product_id = self.data_product_from_params(data_product, params)
+        return data_product_id
+        
+
+
