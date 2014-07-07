@@ -372,4 +372,4 @@ class TestPlatformRobustness(BaseIntTestPlatform):
             try:
                 self.IMS.stop_platform_agent_instance(o_obj.platform_agent_instance_id)
             except Exception as ex:
-                log.warn("Error while trying IMS.stop_platform_agent_instance(%r)", o_obj.platform_device_id, ex)
+                log.warn("Error while trying IMS.stop_platform_agent_instance(%r)", o_obj.platform_agent_instance_id, ex)
