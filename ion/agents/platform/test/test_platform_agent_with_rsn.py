@@ -124,8 +124,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self.addCleanup(done)
 
     def _turn_on_port(self, port_id=None):
-        # TODO real settings and corresp verification
-
         src = self.__class__.__name__
         port_id = port_id or self.PORT_ID
         kwargs = dict(port_id=port_id, src=src)
@@ -137,8 +135,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_ON)
 
     def _turn_off_port(self, port_id=None):
-        # TODO real settings and corresp verification
-
         src = self.__class__.__name__
         port_id = port_id or self.PORT_ID
         kwargs = dict(port_id=port_id, src=src)
