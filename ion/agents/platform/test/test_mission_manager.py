@@ -3,11 +3,11 @@
 """
 @package ion.agents.platform.test.test_mission_manager
 @file    ion/agents/platform/test/test_mission_manager.py
-@author  Carlos Rueda
+@author  Carlos Rueda, Bob Fratantonio
 @brief   Test cases for platform agent integrated with mission scheduler
 """
 
-__author__ = 'Carlos Rueda'
+__author__ = 'Carlos Rueda, Bob Fratantonio'
 
 
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_mission_command_state
@@ -480,7 +480,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         #
         # Shallow profiler mission example from mock profiler
         # Mission plan to be started in COMMAND state.
-        # Should receive 9 events from mission executive if successful
+        # Should receive 12 events from mission executive if successful
         #
         expected_events = [
             {'sub_type': 'STARTING', 'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
