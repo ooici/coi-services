@@ -329,17 +329,8 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         # - TERMINATED lifecycle event from sub-platform when stopped should be published
         # - shutdown sequence of the test should complete without issues.
         #
-        # NOTE: However, there will be two leaked processes corresponding to the orphaned
-        # sub-platforms of LV01B:
-        #
-        # Process leak report
-        # Test                                                                       Leaked Processes
-        # ========================================================================== ==================================================================
-        # TestPlatformRobustness.test_with_intermediate_subplatform_directly_stopped
-        #                                                                            ('PlatformAgent_LJ01B1e97fe2656984d41ac58c5ce75f31208', 'RUNNING')
-        #                                                                            ('PlatformAgent_MJ01Bdf3ffb7e10ed4e649bdc437a14b5fc9f', 'RUNNING')
-        #
-        # TODO: determine how to handle this case.
+        # NOTE: we explicitly stop the processes corresponding to the orphaned
+        # sub-platforms of LV01B (LJ01B and MJ01B), so they don't get reported as leaked.
         #
         self._set_receive_timeout()
         recursion = True
@@ -372,3 +363,13 @@ class TestPlatformRobustness(BaseIntTestPlatform):
         log.info("ProcessLifecycleEvent received: %s", event_received)
         self.assertEquals(platform_pid, event_received.origin)
         self.assertEquals(ProcessStateEnum.TERMINATED, event_received.state)
+
+        # we know there would be two orphaned processes (corresponding to the sub-platforms of LV01B),
+        # so, explicitly stop them here:
+        for orphaned in ['LJ01B', 'MJ01B']:
+            o_obj = self._get_platform(orphaned)
+            log.info("stopping orphaned sub-platform %r platform_agent_instance_id=%r", orphaned, o_obj.platform_agent_instance_id)
+            try:
+                self.IMS.stop_platform_agent_instance(o_obj.platform_agent_instance_id)
+            except Exception as ex:
+                log.warn("Error while trying IMS.stop_platform_agent_instance(%r)", o_obj.platform_agent_instance_id, ex)
