@@ -3,10 +3,10 @@ version: 0.4
 description: Shallow Profiler Mission
 
 platform:
-  platformID: SHALLOW_PROFILER
+  platformID: LJ01D
 mission:
   - missionThread:
-    instrumentID: [SBE37_SIM_02]
+    instrumentID: ['PRE:SBE37_SIM_02']
     errorHandling:
       default: retry
       maxRetries: 3
@@ -14,27 +14,21 @@ mission:
       startTime: 03/27/2014 00:00:00
       timeZone: 
       loop:
-        quantity: -1   # No. of loops (-1 for infinite)
-        value: 5      # Repeat missionParams every 'xx' 'units'
+        quantity: 1   # No. of loops (-1 for infinite)
+        value: 2      # Repeat missionParams every 'xx' 'units'
         units: mins    # mins, hrs, days
       event:
         parentID:
         eventID:
     preMissionSequence:
-      - command: set_resource(INTERVAL{1})
-        onError: retry
     missionSequence:
-      - command: execute_resource(START_AUTOSAMPLE)
-        onError: retry
-      - command: wait(1)
+      - command: wait(2)
         onError:
-      - command: execute_resource(STOP_AUTOSAMPLE)
-        onError: retry
     postMissionSequence:
 
 
   - missionThread:
-    instrumentID: [SBE37_SIM_03]
+    instrumentID: ['PRE:SBE37_SIM_03']
     errorHandling:
       default: retry
       maxRetries: 3
@@ -46,22 +40,18 @@ mission:
         value:
         units:
       event:
-        parentID: SBE37_SIM_02
-        eventID: PROFILER_AT_STEP
+        parentID: LJ01D
+        eventID: atStep
     preMissionSequence:
       - command: set_resource(INTERVAL{1})
         onError: retry
     missionSequence:
-      - command: execute_resource(START_AUTOSAMPLE)
-        onError: retry
-      - command: wait(1)
-        onError:
-      - command: execute_resource(STOP_AUTOSAMPLE)
+      - command: PRE:SBE37_SIM_03, execute_resource(ACQUIRE_SAMPLE)
         onError: retry
     postMissionSequence:
 
   - missionThread:
-    instrumentID: [SBE37_SIM_04]
+    instrumentID: ['PRE:SBE37_SIM_04']
     errorHandling:
       default: retry
       maxRetries: 3
@@ -73,16 +63,12 @@ mission:
         value:
         units:
       event:
-        parentID: SBE37_SIM_02
-        eventID: PROFILER_AT_CEILING
+        parentID: LJ01D
+        eventID: atCeiling
     preMissionSequence:
       - command: set_resource(INTERVAL{5})
         onError: retry
     missionSequence:
-      - command: execute_resource(START_AUTOSAMPLE)
-        onError: retry
-      - command: wait(1)
-        onError:
-      - command: execute_resource(STOP_AUTOSAMPLE)
+      - command: PRE:SBE37_SIM_04, execute_resource(ACQUIRE_SAMPLE)
         onError: retry
     postMissionSequence:

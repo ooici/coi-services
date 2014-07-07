@@ -17,6 +17,7 @@ __author__ = 'Carlos Rueda'
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_mission_abort
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_mission_multiple_instruments
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_event_driven_mission
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_mock_shallow_profiler
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
@@ -25,8 +26,10 @@ from ion.agents.platform.platform_agent_enums import PlatformAgentState
 from interface.objects import AgentCommand
 from interface.objects import MissionExecutionStatus
 
+from pyon.event.event import EventPublisher
 from pyon.public import log, CFG
 
+import gevent
 import logging
 import time
 from mock import patch
@@ -102,6 +105,89 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             self._start_resource_monitoring()
 
         return p_root
+
+    def simulate_profiler_events(self, profile_type):
+        """
+        Simulate the Shallow Water profiler stair step mission
+        """
+        event_publisher = EventPublisher(event_type="OMSDeviceStatusEvent")
+        num_profiles = 1
+
+        def profiler_event_state_change(state, sleep_duration):
+            """
+            Publish the state change event
+
+            @param state            the state entered by the driver.
+            @param sleep_duration   seconds to sleep for after event
+            """
+            # Create event publisher.
+            event_data = {'sub_type': state}
+            event_publisher.publish_event(event_type='OMSDeviceStatusEvent',
+                                          origin='LJ01D',
+                                          **event_data)
+            gevent.sleep(sleep_duration)
+
+        def stair_step_simulator():
+            # Let's simulate a profiler stair step scenario
+
+            seconds_between_steps = 30
+            seconds_at_ceiling = 5
+            num_steps = 1
+
+            # Start Mission
+            profiler_event_state_change('StartMission', 1)
+            # Going up
+            profiler_event_state_change('StartingAscent', seconds_between_steps)
+
+            for x in range(num_profiles):
+
+                # Step up
+                for down in range(num_steps):
+                    profiler_event_state_change('atStep', seconds_between_steps)
+                    profiler_event_state_change('StartingUp', 1)
+
+                # Ascend to ceiling
+                profiler_event_state_change('atCeiling', seconds_at_ceiling )
+                # Start to descend
+                profiler_event_state_change('StartingDescent', seconds_between_steps)
+                # Arrive at floor
+                profiler_event_state_change('atFloor', 1)
+
+            profiler_event_state_change('MissionComplete', 1)
+
+        def up_down_simulator():
+            # Let's simulate a profiler up-down scenario
+            seconds_between_steps = 5 * 60
+            # Start Mission
+            profiler_event_state_change('StartMission', 1)
+            # Start ascent
+            profiler_event_state_change('StartingAscent', seconds_between_steps)
+
+            for x in range(num_profiles):
+                # Ascend to ceiling
+                profiler_event_state_change('atCeiling', seconds_between_steps)
+                # Start to descend
+                profiler_event_state_change('StartingDescent', seconds_between_steps)
+                # Arrive at floor
+                profiler_event_state_change('atFloor', seconds_between_steps)
+
+            profiler_event_state_change('MissionComplete', 1)
+
+        def simulator_error():
+            # Let's simulate a profiler up-down scenario
+            seconds_between_steps = 60
+            # Start Mission
+            profiler_event_state_change('StartMission', 1)
+            # Start ascent
+            profiler_event_state_change('StartingAscent', seconds_between_steps)
+            # Ascend to ceiling
+            profiler_event_state_change('atCeiling', seconds_between_steps)
+            profiler_event_state_change('systemError', 1)
+
+        if profile_type == 'stair_step':
+            stair_step_simulator()
+        else:
+            up_down_simulator()
 
     def _test_mission(self, instr_keys, mission_filename, in_command_state,
                       expected_events, max_wait):
@@ -389,3 +475,36 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
             in_command_state=True,
             expected_events=expected_events,
             max_wait=200 + 300)
+
+    def test_mock_shallow_profiler(self):
+        #
+        # Shallow profiler mission example from mock profiler
+        # Mission plan to be started in COMMAND state.
+        # Should receive 9 events from mission executive if successful
+        #
+        expected_events = [
+            {'sub_type': 'STARTING', 'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '2', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '0', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '1', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STARTED',  'mission_thread_id': '2', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '2', 'execution_status': MissionExecutionStatus.OK},
+            {'sub_type': 'STOPPED',  'mission_thread_id': '',  'execution_status': MissionExecutionStatus.OK}]
+
+        # Start profiler event simulator and mission scheduler
+        threads = []
+        threads.append(gevent.spawn(self._test_mission,
+                       ['SBE37_SIM_02', 'SBE37_SIM_03', 'SBE37_SIM_04'],
+                       "ion/agents/platform/test/mission_ShallowProfiler_simulated.yml",
+                       in_command_state=True,
+                       expected_events=expected_events,
+                       max_wait=200 + 300))
+
+        threads.append(gevent.spawn_later(45, self.simulate_profiler_events, 'stair_step'))
+
+        gevent.joinall(threads)

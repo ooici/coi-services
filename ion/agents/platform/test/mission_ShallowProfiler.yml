@@ -6,7 +6,7 @@ platform:
   platformID: SWPROF
 mission:
   - missionThread: 
-    instrumentID: [SWPROF, OPTAA, PCO2W, CTDPF]
+    instrumentID: ['OPTAA', 'PCO2W', 'CTDPF']
     errorHandling:
       default: retry
       maxRetries: 3
