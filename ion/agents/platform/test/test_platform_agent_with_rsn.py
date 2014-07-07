@@ -68,35 +68,36 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
     def _create_network_and_start_root_platform(self, clean_up=None):
         """
-        Call this at the beginning of each test. We need to make sure that
-        the patched timeout is in effect for the actions performed here.
+        Called at the beginning of most tests.
 
-        @note this used to be done in setUp, but the patch.dict mechanism does
-        *not* take effect in setUp!
+        @param clean_up    Passed to _start_root_platform
+        """
+        self._set_receive_timeout()
 
-        An addCleanup function is added to reset/shutdown the network and stop the
+        # NOTE The tests expect to use values set up by HelperTestMixin for
+        # the following networks (see ion/agents/platform/test/helper.py)
+        if self.PLATFORM_ID == 'Node1D':
+            #p_root = self._create_small_hierarchy()
+            instr_keys = ["SBE37_SIM_01", ]
+            p_root = self._set_up_small_hierarchy_with_some_instruments(instr_keys)
+
+        elif self.PLATFORM_ID == 'LJ01D':
+            p_root = self._create_single_platform()
+
+        else:
+            self.fail("self.PLATFORM_ID expected to be one of: 'Node1D', 'LJ01D'")
+
+        self._start_root_platform(p_root, clean_up)
+
+    def _start_root_platform(self, p_root, clean_up=None):
+        """
+        Starts the given platform and adds cleanup function to reset/shutdown the network and stop the
         root platform. Should avoid leaked processes/greenlet upon failing tests
         (except perhaps if they happen during the launch of the root platform).
 
         @param clean_up    Not None to override default pre-cleanUp calls.
         """
-        self._set_receive_timeout()
-
-        self.p_root = None
-
-        # NOTE The tests expect to use values set up by HelperTestMixin for
-        # the following networks (see ion/agents/platform/test/helper.py)
-        if self.PLATFORM_ID == 'Node1D':
-            #self.p_root = self._create_small_hierarchy()
-            instr_keys = ["SBE37_SIM_01", ]
-            self.p_root = self._set_up_small_hierarchy_with_some_instruments(instr_keys)
-
-        elif self.PLATFORM_ID == 'LJ01D':
-            self.p_root = self._create_single_platform()
-
-        else:
-            self.fail("self.PLATFORM_ID expected to be one of: 'Node1D', 'LJ01D'")
-
+        self.p_root = p_root
         self._start_platform(self.p_root)
 
         def done():
@@ -752,9 +753,11 @@ class TestPlatformAgent(BaseIntTestPlatform):
     def test_resource_monitoring_recursion_parameter(self):
         #
         # Resource monitoring commands with various values for the recursion parameter.
-        # Network of 2 platforms: Node1D -> MJ01C, with instrument attached to the root NodeID.
-        # Verifications done on the child agents sub-platform MJ01C and instrument SBE37_SIM_01.
+        # Network of 2 platforms: Node1D -> MJ01C, with instrument SBE37_SIM_01 attached to the root NodeID.
+        # Verifications done on the child agents MJ01C and SBE37_SIM_01.
         #
+        self._set_receive_timeout()
+
         p_root = self._create_platform('Node1D')
         p_obj  = self._create_platform('MJ01C', parent_platform_id='Node1D')
         i_obj  = self._create_instrument('SBE37_SIM_01')
@@ -762,7 +765,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._assign_child_to_parent(p_obj, p_root)
         self._assign_instrument_to_platform(i_obj, p_root)
 
-        self._start_platform(p_root)
+        self._start_root_platform(p_root)
 
         log.info('platforms in the launched network (%d): %s', len(self._setup_platforms), self._setup_platforms.keys())
         log.info('instruments in the launched network (%d): %s', len(self._setup_instruments), self._setup_instruments.keys())
@@ -801,6 +804,9 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._assert_agent_client_state(ia_client, ResourceAgentState.STREAMING)
 
         self._stop_resource_monitoring(recursion=1)
+
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+        self._assert_agent_client_state(ia_client, ResourceAgentState.COMMAND)
 
         ################################################
         # recursion=2 command propagation only to sub-platforms
