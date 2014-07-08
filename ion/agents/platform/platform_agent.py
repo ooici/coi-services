@@ -139,7 +139,7 @@ class PlatformAgent(ResourceAgent):
         # PlatformResourceMonitor
         self._platform_resource_monitor = None
 
-        # _pa_clients: {subplatform_id: DotDict(ra_client=ResourceAgentClient, pid=PID, ...), ...}
+        # _pa_clients: {subplatform_id: DotDict(ra_client=ResourceAgentClient, ...), ...}
         # (ra_client entry will be _INVALIDATED_CHILD when that child is invalidated).
         # *NOTE*: the index here is actually the resource_id of the platform agent,
         # but the code variables used to index this dict are often named "subplatform_id".
@@ -148,7 +148,7 @@ class PlatformAgent(ResourceAgent):
         # see on_init
         self._launcher = None
 
-        # _ia_clients: {instrument_id: DotDict(ra_client=ResourceAgentClient, pid=PID, ...), ...}
+        # _ia_clients: {instrument_id: DotDict(ra_client=ResourceAgentClient, ...), ...}
         # (ra_client entry will be _INVALIDATED_CHILD when that child is invalidated).
         # *NOTE*: instrument_id here is the resource_id of the instrument agent.
         self._ia_clients = {}
@@ -1071,14 +1071,10 @@ class PlatformAgent(ResourceAgent):
             try:
                 a_client = self._create_resource_agent_client(child_resource_id,
                                                               child_resource_id)
-                pid = a_client.get_agent_process_id()
-
                 dic[child_resource_id]['ra_client'] = a_client
-                dic[child_resource_id]['pid']       = pid
 
                 log.info("%r: OOIION-1077 _child_running: revalidated child "
-                         "with resource_id=%r, new pid=%r",
-                         self._platform_id, child_resource_id, pid)
+                         "with resource_id=%r", self._platform_id, child_resource_id)
 
                 last_exc = None
                 break  # success
@@ -1252,7 +1248,6 @@ class PlatformAgent(ResourceAgent):
 
         # first, is the agent already running?
         pa_client = None  # assume it's not.
-        pid = None
         try:
             # try to connect:
             log.debug("%r: [LL] trying to determine whether my child is already running: %r",
@@ -1260,11 +1255,7 @@ class PlatformAgent(ResourceAgent):
             pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
             # it is actually running.
 
-            # get PID:
-            pid = pa_client.get_agent_process_id()
-
-            log.debug("%r: [LL] my child is already running: %r. pid=%s",
-                      self._platform_id, subplatform_id, pid)
+            log.debug("%r: [LL] my child is already running: %r.", self._platform_id, subplatform_id)
 
         except NotFound:
             # not running.
@@ -1298,7 +1289,7 @@ class PlatformAgent(ResourceAgent):
                 log.debug("%r: [LL] launching sub-platform agent %r",
                           self._platform_id, subplatform_id)
 
-            pid = self._launcher.launch_platform(subplatform_id, sub_agent_config)
+            self._launcher.launch_platform(subplatform_id, sub_agent_config)
             log.debug("%r: [LL] DONE launching sub-platform agent %r",
                       self._platform_id, subplatform_id)
 
@@ -1317,7 +1308,6 @@ class PlatformAgent(ResourceAgent):
         # here, sub-platform agent process is running.
 
         self._pa_clients[sub_resource_id] = DotDict(ra_client=pa_client,
-                                                    pid=pid,
                                                     resource_id=sub_resource_id,
                                                     platform_id=subplatform_id)
 
@@ -1719,7 +1709,7 @@ class PlatformAgent(ResourceAgent):
             return None  # OK
 
         def terminate():
-            pid = dd.pid
+            pid = dd.ra_client.get_agent_process_id()
 
             log.debug("%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
                       self._platform_id, subplatform_id, pid)
@@ -1931,14 +1921,10 @@ class PlatformAgent(ResourceAgent):
 
         # first, is the agent already running?
         ia_client = None
-        pid = None
         try:
             # try to connect
             ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
             # it is running.
-
-            # get PID:
-            pid = ia_client.get_agent_process_id()
 
         except NotFound:
             # not running.
@@ -1967,10 +1953,10 @@ class PlatformAgent(ResourceAgent):
             else:
                 log.debug("%r: launching instrument agent %r", self._platform_id, instrument_id)
 
-            pid = self._launcher.launch_instrument(instrument_id, i_CFG)
+            self._launcher.launch_instrument(instrument_id, i_CFG)
 
-            log.debug("%r: OOIION-1077 launched instrument: instrument_id=%r pid=%r i_resource_id=%r",
-                      self._platform_id, instrument_id, pid, i_resource_id)
+            log.debug("%r: OOIION-1077 launched instrument: instrument_id=%r i_resource_id=%r",
+                      self._platform_id, instrument_id, i_resource_id)
 
             ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
 
@@ -1982,7 +1968,6 @@ class PlatformAgent(ResourceAgent):
         # here, instrument agent process is running.
 
         self._ia_clients[instrument_id] = DotDict(ra_client=ia_client,
-                                                  pid=pid,
                                                   resource_id=i_resource_id,
                                                   alt_ids=agent_CFG.get("alt_ids", []))
 
@@ -2368,7 +2353,7 @@ class PlatformAgent(ResourceAgent):
                 return err_msg
 
         def terminate():
-            pid = dd.pid
+            pid = dd.ra_client.get_agent_process_id()
             i_resource_id = dd.resource_id
 
             log.debug("%r: canceling instrument process: instrument_id=%r, pid=%r",
