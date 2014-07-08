@@ -1333,6 +1333,13 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         - waits for the start of the process
         - waits for the transition to the UNINITIALIZED state
         """
+        self._pa_client = self._start_a_platform(p_obj)
+
+    def _start_a_platform(self, p_obj):
+        """
+        As described for _start_platform but here returning the ResourceAgentClient object instead of
+        assigning it to self._pa_client, so we can use this method in a more flexible way.
+        """
         ##############################################################
         # prepare to receive the UNINITIALIZED state transition:
         async_res = AsyncResult()
@@ -1367,14 +1374,15 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(gate.await(90), "The platform agent instance did not spawn in 90 seconds")
 
         # Start a resource agent client to talk with the agent.
-        self._pa_client = ResourceAgentClient(p_obj.platform_device_id,
-                                              name=gate.process_id,
-                                              process=FakeProcess())
-        log.debug("got platform agent client %s", str(self._pa_client))
+        pa_client = ResourceAgentClient(p_obj.platform_device_id,
+                                        name=gate.process_id,
+                                        process=FakeProcess())
+        log.debug("got platform agent client %s", pa_client)
 
         ##############################################################
         # wait for the UNINITIALIZED event:
         async_res.get(timeout=self._receive_timeout)
+        return pa_client
 
     def _stop_platform(self, p_obj):
         try:
@@ -1552,21 +1560,24 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         client = ResourceAgentClient(resource_id, process=FakeProcess())
         return client
 
-    def _get_state(self):
-        state = self._pa_client.get_agent_state()
+    def _get_state(self, pa_client=None):
+        pa_client = pa_client or self._pa_client
+        state = pa_client.get_agent_state()
         return state
 
-    def _assert_state(self, state):
-        self.assertEquals(self._get_state(), state)
+    def _assert_state(self, state, pa_client=None):
+        pa_client = pa_client or self._pa_client
+        self.assertEquals(self._get_state(pa_client), state)
 
     def _assert_agent_client_state(self, a_client, state):
         self.assertEqual(state, a_client.get_agent_state())
 
-    def _execute_agent(self, cmd):
+    def _execute_agent(self, cmd, pa_client=None):
+        pa_client = pa_client or self._pa_client
         log.info("_execute_agent: cmd=%r kwargs=%r; timeout=%s ...",
                  cmd.command, cmd.kwargs, self._receive_timeout)
         time_start = time.time()
-        retval = self._pa_client.execute_agent(cmd, timeout=self._receive_timeout)
+        retval = pa_client.execute_agent(cmd, timeout=self._receive_timeout)
         elapsed_time = time.time() - time_start
         log.info("_execute_agent: timing cmd=%r elapsed_time=%s, retval = %s",
                  cmd.command, elapsed_time, str(retval))
@@ -1576,42 +1587,47 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # commands that concrete tests can call
     #################################################################
 
-    def _ping_agent(self):
-        retval = self._pa_client.ping_agent()
+    def _ping_agent(self, pa_client=None):
+        pa_client = pa_client or self._pa_client
+        retval = pa_client.ping_agent()
         self.assertIsInstance(retval, str)
 
-    def _ping_resource(self):
+    def _ping_resource(self, pa_client=None):
+        pa_client = pa_client or self._pa_client
         cmd = AgentCommand(command=PlatformAgentEvent.PING_RESOURCE)
-        if self._get_state() == PlatformAgentState.UNINITIALIZED:
+        if self._get_state(pa_client) == PlatformAgentState.UNINITIALIZED:
             # should get ServerError: "Command not handled in current state"
             with self.assertRaises(ServerError):
-                self._pa_client.execute_agent(cmd)
+                pa_client.execute_agent(cmd)
         else:
             # In all other states the command should be accepted:
-            retval = self._execute_agent(cmd)
+            retval = self._execute_agent(cmd, pa_client)
             self.assertEquals("PONG", retval.result)
 
-    def _execute_resource(self, cmd, *args, **kwargs):
+    def _execute_resource(self, cmd, pa_client=None, *args, **kwargs):
+        pa_client = pa_client or self._pa_client
         cmd = AgentCommand(command=cmd, args=args, kwargs=kwargs)
-        retval = self._pa_client.execute_resource(cmd)
+        retval = pa_client.execute_resource(cmd)
         log.debug("_execute_resource: cmd=%s: retval=%s", cmd, retval)
         self.assertTrue(retval.result)
         return retval.result
 
-    def _get_metadata(self):
+    def _get_metadata(self, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(metadata=None)
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
+        retval = self._execute_agent(cmd, pa_client)
         md = retval.result
         self.assertIsInstance(md, dict)
         # TODO verify possible subset of required entries in the dict.
         log.info("_get_metadata = %s", md)
         return md
 
-    def _get_ports(self):
+    def _get_ports(self, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(ports=None)
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
+        retval = self._execute_agent(cmd, pa_client)
         ports = retval.result
         log.info("_get_ports = %s", ports)
         self.assertIsInstance(ports, dict)
@@ -1620,33 +1636,37 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             self.assertIn('state', info)
         return ports
 
-    def _initialize(self, recursion=True):
+    def _initialize(self, recursion=True, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._assert_state(PlatformAgentState.UNINITIALIZED, pa_client)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.INACTIVE)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.INACTIVE, pa_client)
 
-    def _go_active(self, recursion=True):
+    def _go_active(self, recursion=True, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.IDLE)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.IDLE, pa_client)
 
-    def _run(self, recursion=True):
+    def _run(self, recursion=True, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.RUN, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.COMMAND)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.COMMAND, pa_client)
 
-    def _start_resource_monitoring(self, recursion=3):
+    def _start_resource_monitoring(self, recursion=3, pa_client=None):
         """
         @param recursion by default 3 to propagate to both sub-platforms and instruments
         """
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.MONITORING)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.MONITORING, pa_client)
 
     def _wait_for_a_data_sample(self):
         log.info("waiting for reception of a data sample...")
@@ -1655,50 +1675,57 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(len(self._samples_received) >= 1)
         log.info("Received samples: %s", len(self._samples_received))
 
-    def _stop_resource_monitoring(self, recursion=3):
+    def _stop_resource_monitoring(self, recursion=3, pa_client=None):
         """
         @param recursion by default 3 to propagate to both sub-platforms and instruments
         """
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.COMMAND)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.COMMAND, pa_client)
 
-    def _pause(self, recursion=True):
+    def _pause(self, recursion=True, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.PAUSE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.STOPPED)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.STOPPED, pa_client)
 
-    def _resume(self, recursion=True):
+    def _resume(self, recursion=True, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.RESUME, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.COMMAND)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.COMMAND, pa_client)
 
-    def _clear(self, recursion=True):
+    def _clear(self, recursion=True, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.CLEAR, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.IDLE)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.IDLE, pa_client)
 
-    def _go_inactive(self, recursion=True):
+    def _go_inactive(self, recursion=True, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.INACTIVE)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.INACTIVE, pa_client)
 
-    def _reset(self, recursion=True):
+    def _reset(self, recursion=True, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.RESET, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.UNINITIALIZED, pa_client)
 
-    def _shutdown(self, recursion=True):
+    def _shutdown(self, recursion=True, pa_client=None):
+        pa_client = pa_client or self._pa_client
         kwargs = dict(recursion=recursion)
         cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        retval = self._execute_agent(cmd, pa_client)
+        self._assert_state(PlatformAgentState.UNINITIALIZED, pa_client)
 
     def _stream_instruments(self):
         from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
