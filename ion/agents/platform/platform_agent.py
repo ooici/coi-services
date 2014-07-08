@@ -1002,8 +1002,8 @@ class PlatformAgent(ResourceAgent):
 
     def _child_running(self, child_resource_id):
         """
-        Called by StatusManager upon the reception of any regular status
-        event from a child as an indication that the child is running.
+        Called by StatusManager upon the reception of some event indicating that
+        a child is running.
         Here we "revalidate" the child in case it was invalidated.
         This is done in a separate greenlet to return quikcly to the event
         handler in the status manager. The greenlet does a number of attempts
@@ -1014,7 +1014,7 @@ class PlatformAgent(ResourceAgent):
 
         @param child_resource_id
         """
-
+        log.debug("%r: [rvc] _child_running: %r", self._platform_id, child_resource_id)
         with self._children_being_validated_lock:
             if child_resource_id in self._children_being_validated:
                 return
@@ -1048,6 +1048,9 @@ class PlatformAgent(ResourceAgent):
         # TODO synchronize access to self._ia_clients or self._pa_clients in
         # general.
         #
+
+        log.debug("%r: [rvc] _validate_child_greenlet: %r  is_instrument=%r",
+                  self._platform_id, child_resource_id, is_instrument)
         max_attempts = 12
         attempt_period = 5   # so 12 x 5 = 60 secs max attempt time
 
@@ -1772,6 +1775,7 @@ class PlatformAgent(ResourceAgent):
         @return dict with children having caused some error. Empty if all
                 children were processed OK.
         """
+        log.debug("%r: _subplatforms_shutdown_and_terminate: pa_clients=%s", self._platform_id, self._pa_clients)
         subplatform_ids = self._pa_clients.keys()
 
         children_with_errors = {}
