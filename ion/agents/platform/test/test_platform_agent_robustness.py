@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""Additional tests focused on robustness and destructive testing"""
+"""Additional tests focused on robustness testing"""
 
 __author__ = 'Carlos Rueda'
 
@@ -10,8 +10,10 @@ __author__ = 'Carlos Rueda'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_instrument_directly_stopped
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_leaf_subplatform_directly_stopped
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_intermediate_subplatform_directly_stopped
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_intermediate_subplatform_directly_stopped_then_restarted
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform, instruments_dict
+from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.status_manager import publish_event_for_diagnostics
 from pyon.public import log, CFG
 from pyon.util.context import LocalContextMixin
 from pyon.agent.agent import ResourceAgentState, ResourceAgentEvent
@@ -19,6 +21,7 @@ from interface.objects import AgentCommand
 from interface.objects import ProcessStateEnum
 
 from gevent.timeout import Timeout
+import gevent
 from mock import patch
 import unittest
 import os
@@ -373,3 +376,99 @@ class TestPlatformRobustness(BaseIntTestPlatform):
                 self.IMS.stop_platform_agent_instance(o_obj.platform_agent_instance_id)
             except Exception as ex:
                 log.warn("Error while trying IMS.stop_platform_agent_instance(%r)", o_obj.platform_agent_instance_id, ex)
+
+    def test_with_intermediate_subplatform_directly_stopped_then_restarted(self):
+        #
+        # Similar to test_with_intermediate_subplatform_directly_stopped but the sub-platform is then
+        # relaunched to verify that it is "revalidated" for subsequent processing.
+        # We can visually verify this via the publish_event_for_diagnostics utility.
+        # The test should complete without any issues.
+        #
+        self._set_receive_timeout()
+        recursion = True
+
+        p_root = self._set_up_platform_hierarchy_with_some_instruments([])
+        self._launch_network(p_root, recursion)
+
+        log.info('platforms in the launched network (%d): %s', len(self._setup_platforms), self._setup_platforms.keys())
+        p_obj = self._get_platform('LV01B')
+        pa_client = self._create_resource_agent_client(p_obj.platform_device_id)
+
+        self._ping_agent()
+        self._initialize(recursion)
+        self._go_active(recursion)
+        self._run(recursion)
+        self._assert_agent_client_state(pa_client, ResourceAgentState.COMMAND)
+
+        # use associated process ID for the subscription:
+        platform_pid = pa_client.get_agent_process_id()
+        async_event_result, events_received = self._start_ProcessLifecycleEvent_subscriber(platform_pid)
+
+        # directly stop sub-platform
+        log.info("stopping sub-platform %r", p_obj.platform_device_id)
+        self.IMS.stop_platform_agent_instance(p_obj.platform_agent_instance_id)
+
+        # verify publication of TERMINATED lifecycle event from sub-platform when stopped
+        async_event_result.get(timeout=self._receive_timeout)
+        self.assertEquals(len(events_received), 1)
+        event_received = events_received[0]
+        log.info("ProcessLifecycleEvent received: %s", event_received)
+        self.assertEquals(platform_pid, event_received.origin)
+        self.assertEquals(ProcessStateEnum.TERMINATED, event_received.state)
+
+        gevent.sleep(3)
+
+        publish_event_for_diagnostics()  # should show the invalidated child for parent Node1B:
+        # INFO ... ion.agents.platform.status_manager:1019 'Node1B'/RESOURCE_AGENT_STATE_COMMAND: (a7f865c34f534e60a14e5f0f8ef2fd53) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         26215ffcf7c94260a99e9c9d103f22f9 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         0e07bc623af64a3a8f61465329451de7 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         a914714894b844a8b42724fe9208fde4 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         02d5a770fba8405c868cc8d55bbbb8d3 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         b19f89585e7c43789b60beac5ddec43c : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         a2f81525ab1e425da808191f9bbe945d : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        #         6ff02a90e34643fe87ecf262a33437cd : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         83b4f74ab1db4c70ae63072336083ac3 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         7639e530740a48a8b299d0d19dcf7abe : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         88b143e311514121adc544c5933f92a6 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         b1453122a5a64ac6868cfc39e12e4e50 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         c996ff0478a6449da62955859020ee50 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #
+        #                     invalidated_children : ['a2f81525ab1e425da808191f9bbe945d']
+
+        gevent.sleep(3)
+
+        ############################################
+        # relaunch the intermediate sub-platform:
+        log.info("relaunching sub-platform 'LV01B': %r", p_obj.platform_device_id)
+        pa_client = self._start_a_platform(p_obj)
+        self._ping_agent(pa_client)
+        # recursion=False because LV01B's children are already in COMMAND
+        self._initialize(recursion=False, pa_client=pa_client)
+        self._go_active(recursion=False, pa_client=pa_client)
+        self._run(recursion=False, pa_client=pa_client)
+
+        # wait for a bit to allow ancestors to re-validate the child, in particular for the parent Node1B:
+        gevent.sleep(10)
+
+        publish_event_for_diagnostics()  # should show the child re-validated:
+        # INFO ... ion.agents.platform.status_manager:1019 'Node1B'/RESOURCE_AGENT_STATE_COMMAND: (a7f865c34f534e60a14e5f0f8ef2fd53) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         26215ffcf7c94260a99e9c9d103f22f9 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         0e07bc623af64a3a8f61465329451de7 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         a914714894b844a8b42724fe9208fde4 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         02d5a770fba8405c868cc8d55bbbb8d3 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         b19f89585e7c43789b60beac5ddec43c : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         a2f81525ab1e425da808191f9bbe945d : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        #         6ff02a90e34643fe87ecf262a33437cd : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         83b4f74ab1db4c70ae63072336083ac3 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         7639e530740a48a8b299d0d19dcf7abe : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         88b143e311514121adc544c5933f92a6 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         b1453122a5a64ac6868cfc39e12e4e50 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         c996ff0478a6449da62955859020ee50 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #
+        #                     invalidated_children : []
