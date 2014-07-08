@@ -965,6 +965,24 @@ class PlatformAgent(ResourceAgent):
 
         return a_client
 
+    def _invalidate_instrument_child(self, child_resource_id):
+        self._ia_clients[child_resource_id]['ra_client'] = _INVALIDATED_CHILD
+
+    def _invalidate_platform_child(self, child_resource_id):
+        self._pa_clients[child_resource_id]['ra_client'] = _INVALIDATED_CHILD
+
+    def _is_invalid_instrument_child(self, child_resource_id):
+        return self._ia_clients[child_resource_id]['ra_client'] == _INVALIDATED_CHILD
+
+    def _is_invalid_platform_child(self, child_resource_id):
+        return self._pa_clients[child_resource_id]['ra_client'] == _INVALIDATED_CHILD
+
+    def _get_valid_instrument_clients(self):
+        return dict((k, v) for k, v in self._ia_clients.iteritems() if v['ra_client'] != _INVALIDATED_CHILD)
+
+    def _get_valid_platform_clients(self):
+        return dict((k, v) for k, v in self._pa_clients.iteritems() if v['ra_client'] != _INVALIDATED_CHILD)
+
     def _child_terminated(self, child_resource_id):
         """
         Called by StatusManager upon the reception of a process lifecycle
@@ -974,13 +992,13 @@ class PlatformAgent(ResourceAgent):
         @param child_resource_id
         """
         if child_resource_id in self._ia_clients:
-            self._ia_clients[child_resource_id]['ra_client'] = _INVALIDATED_CHILD
+            self._invalidate_instrument_child(child_resource_id)
             log.debug("%r: OOIION-1077 _child_terminated: instrument: %r",
                       self._platform_id, child_resource_id)
             return
 
         if child_resource_id in self._pa_clients:
-            self._pa_clients[child_resource_id]['ra_client'] = _INVALIDATED_CHILD
+            self._invalidate_platform_child(child_resource_id)
             log.debug("%r: OOIION-1077 _child_terminated: sub-platform: %r",
                       self._platform_id, child_resource_id)
             return
@@ -991,14 +1009,12 @@ class PlatformAgent(ResourceAgent):
     def _get_invalidated_children(self):
         """
         For diagnostic purposes.
-        @return list of reource_ids of children that have been
+        @return list of resource_ids of children that have been
         notified by the status manager as terminated and that
         have not been revalidated.
         """
-        res      = [i_id for i_id in self._ia_clients
-                    if self._ia_clients[i_id]['ra_client'] == _INVALIDATED_CHILD]
-        res.extend([p_id for p_id in self._pa_clients
-                    if self._pa_clients[p_id]['ra_client'] == _INVALIDATED_CHILD])
+        res      = [i_id for i_id in self._ia_clients if self._is_invalid_instrument_child(i_id)]
+        res.extend([p_id for p_id in self._pa_clients if self._is_invalid_platform_child(p_id)])
         return res
 
     def _child_running(self, child_resource_id):
@@ -1020,18 +1036,14 @@ class PlatformAgent(ResourceAgent):
             if child_resource_id in self._children_being_validated:
                 return
 
-            if child_resource_id in self._ia_clients and \
-               self._ia_clients[child_resource_id]['ra_client'] == _INVALIDATED_CHILD:
-
+            if child_resource_id in self._ia_clients and self._is_invalid_instrument_child(child_resource_id):
                 self._children_being_validated.add(child_resource_id)
                 log.info("%r: OOIION-1077 starting _validate_child_greenlet for "
                          "instrument: %r", self._platform_id, child_resource_id)
                 Greenlet.spawn(self._validate_child_greenlet, child_resource_id, True)
                 return
 
-            if child_resource_id in self._pa_clients and \
-               self._pa_clients[child_resource_id]['ra_client'] == _INVALIDATED_CHILD:
-
+            if child_resource_id in self._pa_clients and self._is_invalid_platform_child(child_resource_id):
                 self._children_being_validated.add(child_resource_id)
                 log.info("%r: OOIION-1077 starting _validate_child_greenlet for "
                          "platform: %r", self._platform_id, child_resource_id)
@@ -1432,8 +1444,7 @@ class PlatformAgent(ResourceAgent):
             return children_with_errors
 
         # act only on the children that are not invalidated:
-        valid_clients = dict((k, v) for k, v in self._pa_clients.iteritems()
-                             if v['ra_client'] != _INVALIDATED_CHILD)
+        valid_clients = self._get_valid_platform_clients()
 
         if not len(valid_clients):
             log.warn("%r: OOIION-1077 all sub-platforms (%s) are "
@@ -1482,8 +1493,7 @@ class PlatformAgent(ResourceAgent):
             return children_with_errors
 
         # act only on the children that are not invalidated:
-        valid_clients = dict((k, v) for k, v in self._pa_clients.iteritems()
-                             if v['ra_client'] != _INVALIDATED_CHILD)
+        valid_clients = self._get_valid_platform_clients()
 
         if not len(valid_clients):
             log.warn("%r: OOIION-1077 all sub-platforms (%s) are "
@@ -1669,7 +1679,7 @@ class PlatformAgent(ResourceAgent):
                 Otherwise a string with an error message.
         """
 
-        if self._pa_clients[subplatform_id]['ra_client'] == _INVALIDATED_CHILD:
+        if self._is_invalid_platform_child(subplatform_id):
             log.warn("%r: OOIION-1077 sub-platform has been invalidated or "
                      "could not be re-validated: %r",
                      self._platform_id, subplatform_id)
@@ -2011,8 +2021,7 @@ class PlatformAgent(ResourceAgent):
             return children_with_errors
 
         # act only on the children that are not invalidated:
-        valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
-                             if v['ra_client'] != _INVALIDATED_CHILD)
+        valid_clients = self._get_valid_instrument_clients()
 
         if not len(valid_clients):
             log.warn("%r: OOIION-1077 all instrument children (%s) are "
@@ -2063,8 +2072,7 @@ class PlatformAgent(ResourceAgent):
         """
 
         # act only on the children that are not invalidated:
-        valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
-                             if v['ra_client'] != _INVALIDATED_CHILD)
+        valid_clients = self._get_valid_instrument_clients()
 
         instrument_ids = valid_clients.keys()
 
@@ -2306,7 +2314,7 @@ class PlatformAgent(ResourceAgent):
                 Otherwise a string with an error message.
         """
 
-        if self._ia_clients[instrument_id]['ra_client'] == _INVALIDATED_CHILD:
+        if self._is_invalid_instrument_child(instrument_id):
             log.warn("%r: OOIION-1077 instrument has been invalidated or "
                      "could not be re-validated: %r",
                      self._platform_id, instrument_id)
@@ -2398,8 +2406,7 @@ class PlatformAgent(ResourceAgent):
         instruments_with_errors = {}
 
         # Act only on the children that are not invalidated:
-        valid_clients = dict((k, v) for k, v in self._ia_clients.iteritems()
-                             if v['ra_client'] != _INVALIDATED_CHILD)
+        valid_clients = self._get_valid_instrument_clients()
 
         for instrument_id in valid_clients:
             err_msg = self._shutdown_and_terminate_instrument(instrument_id)
