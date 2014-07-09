@@ -12,16 +12,12 @@
 __author__ = 'Carlos Rueda'
 
 
-
 from pyon.public import log
 
 from ion.agents.platform.exceptions import PlatformException
 
 from interface.objects import AggregateStatusType
 from interface.objects import DeviceStatusType
-from interface.objects import ProcessStateEnum
-
-from pyon.agent.agent import ResourceAgentClient
 
 import logging
 
@@ -86,12 +82,8 @@ class StatusManager(object):
         self.aparam_aggstatus        = pa.aparam_aggstatus
         self.aparam_rollup_status    = pa.aparam_rollup_status
 
-        # All EventSubscribers created: {origin: EventSubscriber, ...}
+        # All EventSubscribers created: {origin: {event_type: EventSubscriber, ...}, ...}
         self._event_subscribers = {}
-
-        # {pid: origin ...} the origin (resource_id) of each PID used in
-        # ProcessLifecycleEvent subscribers
-        self._rids = {}
 
         # set to False by a call to destroy
         self._active = True
@@ -140,9 +132,10 @@ class StatusManager(object):
             for status_name in AggregateStatusType._str_map.keys():
                 self.aparam_rollup_status[status_name] = DeviceStatusType.STATUS_UNKNOWN
 
-            log.debug("%r: about to destroy %d event subscribers", self._platform_id, len(ess))
-            for origin, es in ess.iteritems():
-                stop_es(origin, es)
+            log.debug("%r: about to destroy event subscribers for %d origins", self._platform_id, len(ess))
+            for origin, by_type in ess.iteritems():
+                for event_type, es in by_type.iteritems():
+                    stop_es(origin, es)
 
             if self._diag_sub:  # pragma: no cover
                 stop_es(None, self._diag_sub)
@@ -166,7 +159,7 @@ class StatusManager(object):
         @param i_resource_id  instrument's resource ID
         """
 
-        self._start_subscriber_process_lifecycle_event(i_resource_id)
+        self._start_subscriber_resource_agent_lifecycle_event(i_resource_id)
 
         # do any updates from instrument's aggstatus:
         try:
@@ -213,7 +206,7 @@ class StatusManager(object):
         @param sub_resource_id  sub-platform's resource ID
         """
 
-        self._start_subscriber_process_lifecycle_event(sub_resource_id)
+        self._start_subscriber_resource_agent_lifecycle_event(sub_resource_id)
 
         # do any updates from sub-platform's rollup_status and child_agg_status:
         try:
@@ -359,142 +352,6 @@ class StatusManager(object):
             self._update_rollup_status_and_publish(status_name, alerts_list=alerts_list)
 
     #-------------------------------------------------------------------
-    # supporting methods related with ProcessLifecycleEvent events
-    #-------------------------------------------------------------------
-
-    def _start_subscriber_process_lifecycle_event(self, origin):
-        """
-        @param origin    Child's resource_id. The associated PID retrieved via
-                         ResourceAgentClient._get_agent_process_id is used for
-                         the event subscriber itself, but we still index
-                         _event_subscribers with the given origin.
-        """
-        def _got_process_lifecycle_event(evt, *args, **kwargs):
-            with self._lock:
-                if not self._active:
-                    log.warn("%r: _got_process_lifecycle_event called but "
-                             "manager has been destroyed",
-                             self._platform_id)
-                    return
-
-                if evt.type_ != "ProcessLifecycleEvent":
-                    log.trace("%r: ignoring event type %r. Only handle "
-                              "ProcessLifecycleEvent directly.",
-                              self._platform_id, evt.type_)
-                    return
-
-                # evt.origin is a PID
-                pid = evt.origin
-
-                if not pid in self._rids:
-                    log.warn("%r: OOIION-1077 ignoring event from pid=%r. "
-                             "Expecting one of %s",
-                             self._platform_id, pid, self._rids.keys())
-                    return
-
-                origin = self._rids[pid]
-
-                # # Before the _rids mapping, a preliminary mechanism to check
-                # # whether the event came from the expected origin relied on
-                # # the process ID having origin as a substring:
-                #
-                # if not origin in pid:
-                #     log.warn("%r: OOIION-1077 ignoring event from origin %r. "
-                #              "Expecting an origin containing %r",
-                #              self._platform_id, pid, origin)
-                #     return
-                # # BUT this was definitely weak. Although the PID for an
-                # # initial agent process seems to satisfy this assumption,
-                # # this is not anymore the case upon a re-start of that agent.
-
-                log.debug("%r: OOIION-1077  _got_process_lifecycle_event: "
-                          "pid=%r origin=%r state=%r(%s)",
-                          self._platform_id, pid, origin,
-                          ProcessStateEnum._str_map[evt.state], evt.state)
-
-                if evt.state is ProcessStateEnum.TERMINATED:
-                    self._device_terminated_event(origin, pid)
-
-        # use associated process ID for the subscription:
-        pid = ResourceAgentClient._get_agent_process_id(origin)
-
-        if pid is None:
-            log.warn("%r: OOIION-1077 ResourceAgentClient._get_agent_process_id"
-                     " returned None for origin=%r. Subscriber not created.",
-                     self._platform_id, origin)
-            return
-
-        sub = self._agent._create_event_subscriber(event_type="ProcessLifecycleEvent",
-                                                   origin_type='DispatchedProcess',
-                                                   origin=pid,
-                                                   callback=_got_process_lifecycle_event)
-
-        with self._lock:
-            # but note that we use the given origin as index in _event_subscribers:
-            self._event_subscribers[origin] = sub
-
-            # and capture the pid -> origin mapping:
-            self._rids[pid] = origin
-
-        log.debug("%r: OOIION-1077 registered ProcessLifecycleEvent subscriber "
-                  "with pid=%r (origin=%r)",
-                  self._platform_id, pid, origin)
-
-    def _device_terminated_event(self, origin, pid):
-        """
-        Handles the ProcessLifecycleEvent TERMINATED event received for the
-        given origin:
-
-        - notifies platform to invalidate the associated child
-        - removes process lifecycle subscriber associated with the given origin
-        - set UNKNOWN for the corresponding child_agg_status
-        - update rollup_status and do publication in case of change
-
-        @param origin    the origin (resource_id) associated with the PID used
-                         for the subscriber to ProcessLifecycleEvents
-
-        @param pid       the corresp PID
-        """
-
-        # notify platform:
-        log.debug("%r: notifying agent _child_terminated: origin=%r", self._platform_id, origin)
-        self._agent._child_terminated(origin)
-
-        if origin not in self.aparam_child_agg_status:
-            log.warn("%r: OOIION-1077 _device_terminated_event: unrecognized origin=%r",
-                     self._platform_id, origin)
-            return
-
-        log.debug("%r: OOIION-1077 _device_terminated_event: origin=%r",
-                  self._platform_id, origin)
-
-        self._stop_subscriber_process_lifecycle_event(origin, pid)
-
-        # set entries to UNKNOWN:
-        self._initialize_child_agg_status(origin)
-
-        # update rollup_status and publish in case of change:
-        for status_name in AggregateStatusType._str_map.keys():
-            self._update_rollup_status_and_publish(status_name, origin)
-
-    def _stop_subscriber_process_lifecycle_event(self, origin, pid):
-        """
-        Removes the ProcessLifecycleEvent subscriber associated with the
-        given origin upon reception of TERMINATED event.
-        Also removes the pid -> origin mapping.
-        """
-        log.debug("%r: OOIION-1077 _stop_subscriber_process_lifecycle_event: origin=%r",
-                  self._platform_id, origin)
-
-        with self._lock:
-
-            if origin in self._event_subscribers:
-                self._terminate_event_subscriber(origin)
-
-            if pid in self._rids:
-                del self._rids[pid]
-
-    #-------------------------------------------------------------------
     # supporting methods related with device_added, device_removed events
     #-------------------------------------------------------------------
 
@@ -504,11 +361,11 @@ class StatusManager(object):
         """
         event_type = "DeviceStatusEvent"
         sub = self._agent._create_event_subscriber(event_type=event_type,
-                                                  origin=origin,
-                                                  callback=self._got_device_status_event)
+                                                   origin=origin,
+                                                   callback=self._got_device_status_event)
 
         with self._lock:
-            self._event_subscribers[origin] = sub
+            self._set_event_subscriber(origin, event_type, sub)
 
         log.debug("%r: registered event subscriber for event_type=%r"
                   " coming from origin=%r",
@@ -669,7 +526,7 @@ class StatusManager(object):
 
         with self._lock:
             if origin in self._event_subscribers:
-                self._terminate_event_subscriber(origin)
+                self._terminate_event_subscribers(origin)
             else:
                 log.debug("%r: [TC] _remove_child: not in _event_subscribers: %r",
                           self._platform_id, origin)
@@ -687,22 +544,6 @@ class StatusManager(object):
             # update aparam_rollup_status:
             for status_name in AggregateStatusType._str_map.keys():
                 self._update_rollup_status_and_publish(status_name, origin)
-
-    def _terminate_event_subscriber(self, origin):
-        """
-        Terminates event subscriber for the given origin and removes the
-        entry from _event_subscribers.
-        """
-        es = self._event_subscribers[origin]
-        try:
-            self._agent._destroy_event_subscriber(es)
-
-        except Exception as ex:
-            log.warn("%r: error destroying event subscriber: origin=%r: %s",
-                     self._platform_id, origin, ex)
-
-        finally:
-            del self._event_subscribers[origin]
 
     def device_failed_command_event(self, evt):
         """
@@ -725,11 +566,11 @@ class StatusManager(object):
         """
         event_type = "DeviceAggregateStatusEvent"
         sub = self._agent._create_event_subscriber(event_type=event_type,
-                                                  origin=origin,
-                                                  callback=self._got_device_aggregate_status_event)
+                                                   origin=origin,
+                                                   callback=self._got_device_aggregate_status_event)
 
         with self._lock:
-            self._event_subscribers[origin] = sub
+            self._set_event_subscriber(origin, event_type, sub)
 
         log.debug("%r: registered event subscriber for event_type=%r",
                   self._platform_id, event_type)
@@ -874,6 +715,103 @@ class StatusManager(object):
         self._event_publisher.publish_event(**evt_out)
 
         return new_rollup_status
+
+    #-------------------------------------------------------------------
+    # supporting methods related with ResourceAgentLifecycleEvent's
+    #-------------------------------------------------------------------
+
+    def _device_terminated_event(self, origin):
+        """
+        Reacts to the notification that a child agent has been terminated.
+
+        - notifies platform to invalidate the child
+        - set UNKNOWN for the corresponding child_agg_status
+        - update rollup_status and do publication in case of change
+
+        @param origin    the origin (resource_id) of the child
+        """
+
+        # notify platform:
+        log.debug("%r: notifying agent _child_terminated: origin=%r", self._platform_id, origin)
+        self._agent._child_terminated(origin)
+
+        if origin not in self.aparam_child_agg_status:
+            log.warn("%r: OOIION-1077 _device_terminated_event: unrecognized origin=%r", self._platform_id, origin)
+            return
+
+        log.debug("%r: OOIION-1077 _device_terminated_event: origin=%r", self._platform_id, origin)
+
+        # set entries to UNKNOWN:
+        self._initialize_child_agg_status(origin)
+
+        # update rollup_status and publish in case of change:
+        for status_name in AggregateStatusType._str_map.keys():
+            self._update_rollup_status_and_publish(status_name, origin)
+
+    def _start_subscriber_resource_agent_lifecycle_event(self, origin):
+        """
+        Starts an event subscriber for ResourceAgentLifecycleEvent's from the given child (origin).
+
+        @param origin    the resource_id associated with child
+        """
+        def _got_resource_agent_lifecycle_event(evt, *args, **kwargs):
+            with self._lock:
+                if not self._active:
+                    return
+                log.debug("%r: [rvc] got_resource_agent_lifecycle_event from origin=%r: %s",
+                          self._platform_id, origin, evt)
+                if evt.sub_type == 'STARTED':
+                    # tell platform this child is running in case of any needed revalidation:
+                    self._agent._child_running(evt.origin)
+                elif evt.sub_type == 'STOPPED':
+                    self._device_terminated_event(origin)
+
+        event_type = "ResourceAgentLifecycleEvent"
+        sub = self._agent._create_event_subscriber(event_type=event_type,
+                                                   origin=origin,
+                                                   callback=_got_resource_agent_lifecycle_event)
+
+        with self._lock:
+            self._set_event_subscriber(origin, event_type, sub)
+
+        log.debug("%r: [rvc] registered event subscriber for event_type=%r from origin=%r",
+                  self._platform_id, event_type, origin)
+
+    #----------------------------------
+    # auxiliary methods
+    #----------------------------------
+
+    def _set_event_subscriber(self, origin, event_type, sub):
+        if origin not in self._event_subscribers:
+            self._event_subscribers[origin] = {}
+        self._event_subscribers[origin][event_type] = sub
+
+    def _terminate_event_subscribers(self, origin, event_type=None):
+        """
+        Terminates the event subscriber for the given origin and type. If event_type is None,
+        then terminates all event subscribers for that origin.
+        """
+        if origin not in self._event_subscribers:
+            return
+
+        def destroy_event_subscriber(event_type, es):
+            try:
+                self._agent._destroy_event_subscriber(es)
+            except Exception as ex:
+                log.warn("%r: error destroying event subscriber: origin=%r event_type=%r: %s",
+                         self._platform_id, origin, event_type, ex)
+
+        by_type = self._event_subscribers[origin]
+        if event_type is None:
+            for event_type, es in by_type.iteritems():
+                destroy_event_subscriber(event_type, es)
+            del self._event_subscribers[origin]
+        elif event_type in by_type:
+            es = by_type[event_type]
+            destroy_event_subscriber(event_type, es)
+            del by_type[event_type]
+            if not len(self._event_subscribers[origin]):
+                del self._event_subscribers[origin]
 
     #----------------------------------
     # misc
