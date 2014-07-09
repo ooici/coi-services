@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.test.base_test_platform_agent_with_rsn
-@file    ion/agents/platform/test/base_test_platform_agent_with_rsn.py
+@package ion.agents.platform.test.base_test_platform_agent
+@file    ion/agents/platform/test/base_test_platform_agent.py
 @author  Carlos Rueda, Maurice Manning, Ian Katz
 @brief   A base class for platform agent integration testing
 """
@@ -1132,7 +1132,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         @param instr_keys  Keys of the instruments to be assigned.
                            Must be keys in instruments_dict in
-                           base_test_platform_agent_with_rsn
+                           base_test_platform_agent
 
         @param start_port_agent  Should the port agents be started?
                                  True by default.
@@ -1245,7 +1245,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         @param instr_keys  Keys of the instruments to be assigned.
                            Must be keys in instruments_dict in
-                           base_test_platform_agent_with_rsn
+                           base_test_platform_agent
 
         @param start_port_agent  Should the port agents be started?
                                  True by default.

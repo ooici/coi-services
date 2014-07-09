@@ -19,7 +19,7 @@ __author__ = 'Carlos Rueda, Bob Fratantonio'
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_event_driven_mission
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_mock_shallow_profiler
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.test.base_test_platform_agent import BaseIntTestPlatform
 from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
 from ion.agents.platform.platform_agent_enums import PlatformAgentState
 

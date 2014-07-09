@@ -63,7 +63,7 @@ class MissionManager(object):
 
         # TODO what's the correct way to obtain the actor header? the following is
         # working but likely because the same call is done in
-        # base_test_platform_agent_with_rsn for the IMS.start_platform_agent_instance call
+        # base_test_platform_agent for the IMS.start_platform_agent_instance call
         self._actor_header = get_system_actor_header()
         log.debug('%r: [xa] actor_header=%s', self._platform_id, self._actor_header)
 

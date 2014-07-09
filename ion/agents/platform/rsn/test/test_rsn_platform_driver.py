@@ -10,7 +10,6 @@
 __author__ = 'Carlos Rueda'
 
 
-
 # bin/nosetests -sv ion/agents/platform/rsn/test/test_rsn_platform_driver.py
 
 from pyon.public import log
@@ -32,7 +31,7 @@ import os
 from ion.agents.platform.test.helper import HelperTestMixin
 
 
-# see related comments in base_test_platform_agent_with_rsn
+# see related comments in base_test_platform_agent
 oms_uri = os.getenv('OMS', 'launchsimulator')
 
 DVR_CONFIG = {

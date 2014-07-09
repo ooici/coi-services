@@ -9,7 +9,7 @@
 
 __author__ = 'Carlos Rueda'
 
-# See base class BaseIntTestPlatform (base_test_platform_agent_with_rsn.py) for details about the
+# See base class BaseIntTestPlatform (base_test_platform_agent.py) for details about the
 # various settings for the integration tests, including the launching of the CI RSN OMS simulator.
 
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_resource_monitoring
@@ -28,7 +28,7 @@ __author__ = 'Carlos Rueda'
 #
 
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.test.base_test_platform_agent import BaseIntTestPlatform
 from pyon.public import log, CFG
 
 from pyon.util.containers import get_ion_ts

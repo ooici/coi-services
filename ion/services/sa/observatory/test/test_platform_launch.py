@@ -27,7 +27,7 @@ __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_8_instruments
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_platform_device_extended_attributes
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform, instruments_dict
+from ion.agents.platform.test.base_test_platform_agent import BaseIntTestPlatform, instruments_dict
 from mock import patch
 import gevent
 import unittest

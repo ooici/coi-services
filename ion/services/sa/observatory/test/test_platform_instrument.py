@@ -20,10 +20,10 @@ __author__ = 'Carlos Rueda, Maurice Manning'
 
 from pyon.public import log
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.test.base_test_platform_agent import BaseIntTestPlatform
 
 from pyon.agent.agent import ResourceAgentClient
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import FakeProcess
+from ion.agents.platform.test.base_test_platform_agent import FakeProcess
 from pyon.agent.agent import ResourceAgentState
 from pyon.event.event import EventSubscriber
 

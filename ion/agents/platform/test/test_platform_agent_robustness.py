@@ -12,7 +12,7 @@ __author__ = 'Carlos Rueda'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_intermediate_subplatform_directly_stopped
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_robustness.py:TestPlatformRobustness.test_with_intermediate_subplatform_directly_stopped_then_restarted
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.test.base_test_platform_agent import BaseIntTestPlatform
 from ion.agents.platform.status_manager import publish_event_for_diagnostics
 from ion.agents.platform.platform_agent import PlatformAgent
 from ion.agents.instrument.instrument_agent import InstrumentAgent

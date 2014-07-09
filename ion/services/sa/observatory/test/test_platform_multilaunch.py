@@ -23,7 +23,7 @@ __author__ = 'Carlos Rueda'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_multilaunch.py:TestMultiLaunch.test_13_platforms_and_02_instruments
 
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.test.base_test_platform_agent import BaseIntTestPlatform
 
 from mock import patch
 from pyon.public import log, CFG
