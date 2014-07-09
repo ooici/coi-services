@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.test.base_test_platform_agent_with_rsn
-@file    ion/agents/platform/test/base_test_platform_agent_with_rsn.py
+@package ion.agents.platform.test.base_test_platform_agent
+@file    ion/agents/platform/test/base_test_platform_agent.py
 @author  Carlos Rueda, Maurice Manning, Ian Katz
 @brief   A base class for platform agent integration testing
 """
@@ -18,7 +18,7 @@ __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 #
 # The main class defined here serves as a base to specific platform agent
 # integration tests:
-# - ion/agents/platform/test/test_platform_agent_with_rsn.py
+# - ion/agents/platform/test/test_platform_agent.py
 # - ion/services/sa/observatory/test/test_platform_launch.py
 #
 # Platform IDs used here for the various platform hierarchies should be
@@ -234,8 +234,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     """
     A base class with several conveniences supporting specific platform agent
     integration tests, see:
-    - ion/agents/platform/test/test_platform_agent_with_rsn.py
+    - ion/agents/platform/test/test_platform_agent.py
+    - ion/agents/platform/test/test_mission_manager.py
+    - ion/services/sa/observatory/test/test_platform_status.py
     - ion/services/sa/observatory/test/test_platform_launch.py
+    - ion/services/sa/observatory/test/test_platform_multilaunch.py
 
     The platform IDs used here are organized as follows:
       Node1D -> MJ01C -> LJ01D
@@ -557,7 +560,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         (This convenience method was introduced to include testing for
         https://jira.oceanobservatories.org/tasks/browse/OOIION-1268.
-        See test_alerts in test_platform_agent_with_rsn.py.)
+        See test_alerts in test_platform_agent.py.)
 
         @param platform_id   The ID of the platform to which the
                              additional extra fields will be used.
@@ -1129,7 +1132,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         @param instr_keys  Keys of the instruments to be assigned.
                            Must be keys in instruments_dict in
-                           base_test_platform_agent_with_rsn
+                           base_test_platform_agent
 
         @param start_port_agent  Should the port agents be started?
                                  True by default.
@@ -1242,7 +1245,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         @param instr_keys  Keys of the instruments to be assigned.
                            Must be keys in instruments_dict in
-                           base_test_platform_agent_with_rsn
+                           base_test_platform_agent
 
         @param start_port_agent  Should the port agents be started?
                                  True by default.

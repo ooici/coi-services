@@ -4,7 +4,7 @@
 @package ion.agents.platform.test.test_mission_manager
 @file    ion/agents/platform/test/test_mission_manager.py
 @author  Carlos Rueda, Bob Fratantonio
-@brief   Test cases for platform agent integrated with mission scheduler
+@brief   Test cases for platform agent integrated with mission executive
 """
 
 __author__ = 'Carlos Rueda, Bob Fratantonio'
@@ -19,7 +19,7 @@ __author__ = 'Carlos Rueda, Bob Fratantonio'
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_simple_event_driven_mission
 # bin/nosetests -sv --nologcapture ion/agents/platform/test/test_mission_manager.py:TestPlatformAgentMission.test_mock_shallow_profiler
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.test.base_test_platform_agent import BaseIntTestPlatform
 from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
 from ion.agents.platform.platform_agent_enums import PlatformAgentState
 
@@ -40,7 +40,13 @@ import os
 @skipIf((not os.getenv('PYCC_MODE', False)) and os.getenv('CEI_LAUNCH_TEST', False), 'Skip until tests support launch port agent configurations.')
 class TestPlatformAgentMission(BaseIntTestPlatform):
     """
+    Test cases for platform agent integrated with mission executive
     """
+
+    ###################
+    # auxiliary methods
+    ###################
+
     def _get_network_definition_filename(self):
         return 'ion/agents/platform/test/platform-network-1.yml'
 
@@ -49,20 +55,6 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
         self._initialize(recursion)
         self._go_active(recursion)
         self._run(recursion)
-
-    def _go_inactive(self, recursion=True):
-        """
-        Temporary more permissive _go_inactive while we handle more internal
-        coordination with instruments.
-        """
-        kwargs = dict(recursion=recursion)
-        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        state = self._get_state()
-        if state == PlatformAgentState.INACTIVE:
-            return retval
-        else:
-            log.warn("Expecting INACTIVE but got: %s", state)
 
     def _run_shutdown_commands(self, recursion=True):
         """
@@ -106,7 +98,7 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
 
         return p_root
 
-    def simulate_profiler_events(self, profile_type):
+    def _simulate_profiler_events(self, profile_type):
         """
         Simulate the Shallow Water profiler stair step mission
         """
@@ -336,6 +328,10 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
                       self._pp.pformat(events_received))
         self.assertEqual(len(events_received), 2)
 
+    ###################
+    # tests
+    ###################
+
     def test_simple_mission_command_state(self):
         #
         # With mission plan to be started in COMMAND state.
@@ -505,6 +501,6 @@ class TestPlatformAgentMission(BaseIntTestPlatform):
                        expected_events=expected_events,
                        max_wait=200 + 300))
 
-        threads.append(gevent.spawn_later(45, self.simulate_profiler_events, 'stair_step'))
+        threads.append(gevent.spawn_later(45, self._simulate_profiler_events, 'stair_step'))
 
         gevent.joinall(threads)

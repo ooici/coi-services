@@ -16,7 +16,7 @@ __author__ = 'Carlos Rueda, Maurice Manning'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_launch_instruments_first_2_3
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_terminate_and_restart_instrument_1_1
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.test.base_test_platform_agent import BaseIntTestPlatform
 from pyon.public import log
 
 from ion.agents.platform.status_manager import formatted_statuses
