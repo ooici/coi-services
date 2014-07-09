@@ -67,14 +67,6 @@ class TestPlatformRobustness(BaseIntTestPlatform):
             origin=p_root.platform_device_id,
             sub_type="device_failed_command")
 
-    def _start_ResourceAgentLifecycleEvent_subscriber(self, origin, origin_type, sub_type, count=1):
-        return self._start_event_subscriber2(
-            count=count,
-            event_type="ResourceAgentLifecycleEvent",
-            origin_type=origin_type,
-            sub_type=sub_type,
-            origin=origin)
-
     def _instrument_initialize(self, instr_key, ia_client):
         self._instrument_execute_agent(instr_key, ia_client, ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE)
 

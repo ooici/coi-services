@@ -10,25 +10,21 @@
 __author__ = 'Carlos Rueda, Maurice Manning'
 
 
-#
-# Base preparations and construction of the platform topology are provided by
-# the base class BaseTestPlatform.
-#
-
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_3
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_5
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_5_1
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_launch_instruments_first_2_3
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_terminate_and_restart_instrument_1_1
 
+from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from pyon.public import log
 
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.status_manager import formatted_statuses
 from ion.agents.platform.status_manager import publish_event_for_diagnostics
 
 from ion.agents.instrument.instrument_agent import InstrumentAgentEvent
 from ion.agents.instrument.instrument_agent import InstrumentAgentState
+from ion.agents.instrument.instrument_agent import InstrumentAgent
 from interface.objects import AgentCommand
 
 from pyon.event.event import EventPublisher
@@ -36,7 +32,6 @@ from pyon.event.event import EventSubscriber
 
 from interface.objects import AggregateStatusType
 from interface.objects import DeviceStatusType
-from interface.objects import ProcessStateEnum
 
 from gevent.event import AsyncResult
 from gevent import sleep
@@ -55,6 +50,10 @@ class Test(BaseIntTestPlatform):
         super(Test, self).setUp()
         self._event_publisher = EventPublisher()
         self._last_checked_status = None
+
+    ###################
+    # auxiliary methods
+    ###################
 
     def _done(self):
         try:
@@ -225,6 +224,10 @@ class Test(BaseIntTestPlatform):
         self._verify_statuses(aggstatus, [DeviceStatusType.STATUS_OK])
         self._verify_children_statuses(child_agg_status, [DeviceStatusType.STATUS_OK])
         self._verify_statuses(rollup_status, [DeviceStatusType.STATUS_OK])
+
+    ###################
+    # tests
+    ###################
 
     def test_platform_status_small_network_3(self):
         #
@@ -779,56 +782,6 @@ class Test(BaseIntTestPlatform):
         # the platform, see test_platform_launch.py, in particular
         # test_instrument_first_then_platform.
 
-    def _start_subscriber_process_lifecycle_event(self, resource_id, state):
-        """
-        The resource_id is mapped to corresponding process ID,
-        which is used as the origin for the subscription.
-        """
-        async_event_result, events_received = AsyncResult(), []
-
-        def consume_event(evt, *args, **kwargs):
-
-            if evt.type_ != "ProcessLifecycleEvent":
-                log.trace("ignoring event type %r. Only handle ProcessLifecycleEvent directly.",
-                          evt.type_)
-                return
-
-            log.debug("[.]Event subscriber received %r: origin=%r origin_type=%r state=%r(%s)",
-                      evt.type_,
-                      evt.origin,
-                      evt.origin_type,
-                      ProcessStateEnum._str_map[evt.state], evt.state)
-
-            if evt.state != state:
-                return
-
-            if not resource_id in evt.origin:
-                log.trace("ignoring event from origin %r. Expecting an origin "
-                          "containing %r.",
-                          evt.origin, resource_id)
-                return
-
-            events_received.append(evt)
-            async_event_result.set(evt)
-
-        # note: cannot indicate:
-        #     origin = ResourceAgentClient._get_agent_process_id(resource_id)
-        # because the process hasn't been launched yet, so we don't know the
-        # process_id at this point.
-        # Instead, subscribe without indicating origin, but check that the
-        # resource_id is contained in the received origin.
-
-        sub = EventSubscriber(event_type="ProcessLifecycleEvent",
-                              origin_type='DispatchedProcess',
-                              callback=consume_event)
-        sub.start()
-        log.info("[.]registered ProcessLifecycleEvent subscriber: resource_id=%r", resource_id)
-
-        self._event_subscribers.append(sub)
-        sub._ready_event.wait(timeout=30)
-
-        return async_event_result, events_received, sub
-
     def test_platform_status_terminate_and_restart_instrument_1_1(self):
         #
         # Tests reaction of a platform upon termination and re-start of its
@@ -848,12 +801,11 @@ class Test(BaseIntTestPlatform):
         log.debug("OOIION-1077 instrument assigned: %s", i_obj)
 
         #####################################################################
-        # prepare to verify expected ProcessLifecycleEvent is generated when
-        # the instrument process gets running for the very first time:
-        async_event_result, events_received, sub = \
-            self._start_subscriber_process_lifecycle_event(
-                i_obj.instrument_device_id,
-                ProcessStateEnum.RUNNING)
+        # prepare to verify expected ResourceAgentLifecycleEvent is generated when
+        # the instrument agent gets started for the very first time:
+        async_event_result, events_received = self._start_ResourceAgentLifecycleEvent_subscriber(i_obj.instrument_device_id,
+                                                                                                 InstrumentAgent.ORIGIN_TYPE,
+                                                                                                 'STARTED')
 
         #####################################################################
         # start up the network
@@ -864,11 +816,9 @@ class Test(BaseIntTestPlatform):
         self._go_active()
         self._run()
 
-        log.debug("OOIION-1077 waiting for ProcessLifecycleEvent RUNNING")
+        log.debug("OOIION-1077 waiting for ResourceAgentLifecycleEvent STARTED")
         async_event_result.get(timeout=30) #CFG.endpoint.receive.timeout)
         self.assertEquals(len(events_received), 1)
-        log.debug("OOIION-1077 waiting for ProcessLifecycleEvent RUNNING - Got it!")
-        sub.stop()
 
         #####################################################################
         # get all root statuses
@@ -876,10 +826,10 @@ class Test(BaseIntTestPlatform):
 
         log.debug("OOIION-1077 publish_event_for_diagnostics")
         publish_event_for_diagnostics()
-        # log shows:
-        # ion.agents.platform.status_manager:952 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (09029e6423d345fa972f0d03c74b1424) status report triggered by diagnostic event:
+        sleep(3)
+        # INFO ... ion.agents.platform.status_manager:908 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (e5525cd8239b40e3a0cf728953acc679) status report triggered by diagnostic event:
         #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
-        #         7147082cd48c405ea8536327d2f97d3f : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         89ca843fe51745d9a20a3f73a7c330f1 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #
@@ -903,25 +853,19 @@ class Test(BaseIntTestPlatform):
         #####################################################################
 
         # before the termination of the instrument:
-        # - prepare to verify the expected ProcessLifecycleEvent is generated:
-        async_event_result, events_received, sub = \
-            self._start_subscriber_process_lifecycle_event(
-                i_obj.instrument_device_id,
-                ProcessStateEnum.TERMINATED)
+        # - prepare to verify the expected ResourceAgentLifecycleEvent is generated:
+        async_event_result, events_received = self._start_ResourceAgentLifecycleEvent_subscriber(i_obj.instrument_device_id,
+                                                                                                 InstrumentAgent.ORIGIN_TYPE,
+                                                                                                 'STOPPED')
 
         # now terminate the instrument:
         log.debug("OOIION-1077 terminating instrument: %s", i_obj)
 
         self._stop_instrument(i_obj, use_ims=False)
 
-        log.debug("OOIION-1077 waiting for ProcessLifecycleEvent TERMINATED")
+        log.debug("OOIION-1077 waiting for ResourceAgentLifecycleEvent STOPPED")
         async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertEquals(len(events_received), 1)
-        log.debug("OOIION-1077 waiting for ProcessLifecycleEvent TERMINATED - Got it!")
-        sub.stop()
-
-        # log shows:
-        # ion.agents.platform.status_manager:409 'LJ01D': OOIION-1077  _got_process_lifecycle_event: pid='InstrumentAgent_7147082cd48c405ea8536327d2f97d3f8715261278b94871bdf88b153d6e8df6' origin='7147082cd48c405ea8536327d2f97d3f' state='TERMINATED'(6)
 
         # verify the root's child_status are all UNKNOWN
         # Note: no event is going to be generated from the platform because
@@ -930,14 +874,14 @@ class Test(BaseIntTestPlatform):
         sleep(15)
         log.debug("OOIION-1077 publish_event_for_diagnostics after instrument termination")
         publish_event_for_diagnostics()
-        # log shows:
-        # ion.agents.platform.status_manager:952 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (09029e6423d345fa972f0d03c74b1424) status report triggered by diagnostic event:
+        sleep(3)
+        # INFO ... ion.agents.platform.status_manager:908 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (e5525cd8239b40e3a0cf728953acc679) status report triggered by diagnostic event:
         #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
-        #         7147082cd48c405ea8536327d2f97d3f : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        #         89ca843fe51745d9a20a3f73a7c330f1 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
         #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #
-        #                     invalidated_children : ['7147082cd48c405ea8536327d2f97d3f']
+        #                     invalidated_children : ['89ca843fe51745d9a20a3f73a7c330f1']
 
         # and do verification that the child_agg_status are all UNKNOWN:
         _, child_agg_status, _ = self._get_all_root_statuses()
@@ -948,32 +892,27 @@ class Test(BaseIntTestPlatform):
         # re-start instrument
         #####################################################################
 
-        # NOTE: platform agents don't rely on ProcessLifecycleEvent
-        # RUNNING events to restore information about re-started children;
-        # rather they just react to regular status updates to eventually
-        # re-validate them.
+        # NOTE: platform agents rely on ResourceAgentLifecycleEvent STARTED events and
+        # on regular status events to re-validate re-started children, see status_manager.
 
         log.debug("OOIION-1077 re-starting instrument: %s", i_obj)
 
         ia_client = self._start_instrument(i_obj, use_ims=False)
 
-        from pyon.agent.agent import ResourceAgentClient
-        pid = ResourceAgentClient._get_agent_process_id(i_obj.instrument_device_id)
         log.debug("OOIION-1077 instrument re-started: rid=%r", i_obj.instrument_device_id)
-        log.debug("OOIION-1077 instrument re-started: pid=%r", pid)
 
         # again, have to wait for a bit to let the updates propagate:
         sleep(15)
 
         # log shows:
-        # ion.agents.platform.platform_agent:1114 'LJ01D': OOIION-1077 _child_running: revalidated child with resource_id='7147082cd48c405ea8536327d2f97d3f', new pid='processa78a63ea70c649809cc3441d6bfddf3d'
+        # INFO Dummy-182 ion.agents.platform.platform_agent:1060 'LJ01D': OOIION-1077 _child_running: revalidated child with resource_id='25be290ea0bb4ca9924b307db9779703'
 
         log.debug("OOIION-1077 publish_event_for_diagnostics after instrument re-start")
         publish_event_for_diagnostics()
-        # log shows:
-        # ion.agents.platform.status_manager:952 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (09029e6423d345fa972f0d03c74b1424) status report triggered by diagnostic event:
+        sleep(3)
+        # INFO ... ion.agents.platform.status_manager:908 'LJ01D'/RESOURCE_AGENT_STATE_COMMAND: (e5525cd8239b40e3a0cf728953acc679) status report triggered by diagnostic event:
         #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
-        #         7147082cd48c405ea8536327d2f97d3f : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         89ca843fe51745d9a20a3f73a7c330f1 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #

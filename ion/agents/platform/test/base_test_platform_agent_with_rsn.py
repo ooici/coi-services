@@ -457,6 +457,14 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         return async_event_result, events_received
 
+    def _start_ResourceAgentLifecycleEvent_subscriber(self, origin, origin_type, sub_type, count=1):
+        return self._start_event_subscriber2(
+            count=count,
+            event_type="ResourceAgentLifecycleEvent",
+            origin_type=origin_type,
+            sub_type=sub_type,
+            origin=origin)
+
     def _stop_event_subscribers(self):
         """
         Stops the event subscribers on cleanup.
