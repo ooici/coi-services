@@ -1,31 +1,30 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.test.test_platform_agent_with_rsn
-@file    ion/agents/platform/test/test_platform_agent_with_rsn.py
+@package ion.agents.platform.test.test_platform_agent
+@file    ion/agents/platform/test/test_platform_agent.py
 @author  Carlos Rueda
-@brief   Test cases for platform agent interacting with RSN
+@brief   Test cases for platform agent interacting with CI RSN OMS Simulator
 """
 
 __author__ = 'Carlos Rueda'
 
+# See base class BaseIntTestPlatform (base_test_platform_agent_with_rsn.py) for details about the
+# various settings for the integration tests, including the launching of the CI RSN OMS simulator.
 
-# The following can be prefixed with PLAT_NETWORK=single to exercise the tests
-# with a single platform (with no sub-platforms). Otherwise a small network is
-# used. See HelperTestMixin.
-# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring
-# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_capabilities
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_some_state_transitions
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_get_set_resources
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_some_commands
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring_recent
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring_recursion_parameter
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_external_event_dispatch
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_turn_on_and_off_port
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_states
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_lost_connection_and_reconnect
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_alerts
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_resource_monitoring
+# bin/nosetests -sv --nologcapture ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_capabilities
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_some_state_transitions
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_get_set_resources
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_some_commands
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_resource_monitoring
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_resource_monitoring_recent
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_resource_monitoring_recursion_parameter
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_external_event_dispatch
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_turn_on_and_off_port
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_resource_states
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_lost_connection_and_reconnect
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent.py:TestPlatformAgent.test_alerts
 #
 
 

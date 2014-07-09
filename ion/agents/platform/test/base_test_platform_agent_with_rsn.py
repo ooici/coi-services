@@ -18,7 +18,7 @@ __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 #
 # The main class defined here serves as a base to specific platform agent
 # integration tests:
-# - ion/agents/platform/test/test_platform_agent_with_rsn.py
+# - ion/agents/platform/test/test_platform_agent.py
 # - ion/services/sa/observatory/test/test_platform_launch.py
 #
 # Platform IDs used here for the various platform hierarchies should be
@@ -234,8 +234,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     """
     A base class with several conveniences supporting specific platform agent
     integration tests, see:
-    - ion/agents/platform/test/test_platform_agent_with_rsn.py
+    - ion/agents/platform/test/test_platform_agent.py
+    - ion/agents/platform/test/test_mission_manager.py
+    - ion/services/sa/observatory/test/test_platform_status.py
     - ion/services/sa/observatory/test/test_platform_launch.py
+    - ion/services/sa/observatory/test/test_platform_multilaunch.py
 
     The platform IDs used here are organized as follows:
       Node1D -> MJ01C -> LJ01D
@@ -557,7 +560,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         (This convenience method was introduced to include testing for
         https://jira.oceanobservatories.org/tasks/browse/OOIION-1268.
-        See test_alerts in test_platform_agent_with_rsn.py.)
+        See test_alerts in test_platform_agent.py.)
 
         @param platform_id   The ID of the platform to which the
                              additional extra fields will be used.

@@ -86,7 +86,7 @@ class TestRsnPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
     def _get_attribute_values(self):
         attrNames = self.ATTR_NAMES
 
-        # see OOIION-631 note in test_platform_agent_with_rsn
+        # see OOIION-631 note in test_platform_agent
         from_time = str(int(get_ion_ts()) - 50000)  # a 50-sec time window
         req_attrs = [(attr_id, from_time) for attr_id in attrNames]
         attr_values = self._plat_driver.get_attribute_values(req_attrs)
