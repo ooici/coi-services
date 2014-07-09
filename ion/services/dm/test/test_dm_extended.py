@@ -37,6 +37,7 @@ from pyon.util.log import log
 from pyon.ion.event import EventPublisher
 from interface.objects import DataProcessDefinition, InstrumentDevice, ParameterFunction, ParameterFunctionType as PFT, ParameterContext
 from interface.objects import InstrumentSite, InstrumentModel, PortTypeEnum, Deployment, CabledInstrumentDeploymentContext, DataProductTypeEnum, DataProduct
+from interface.objects import PlatformDevice, InstrumentDevice, PlatformSite, InstrumentSite, PlatformPort, PlatformModel
 import lxml.etree as etree
 import simplejson as json
 import pkg_resources
@@ -1472,7 +1473,6 @@ def rotate_v(u,v,theta):
 
 
     def initialize_deployment_resources(self):
-        from interface.objects import PlatformDevice, InstrumentDevice, PlatformSite, InstrumentSite, PlatformPort, PlatformModel
         res = DotDict({})
 
         #--------------------------------------------------------------------------------
@@ -2192,6 +2192,105 @@ def rotate_v(u,v,theta):
         data_product = DataProduct('PacIOOS Ocean Gliders: SeaGlider 523: Mission 4')
         data_product_id = self.data_product_from_params(data_product, params)
         return data_product_id
-        
 
+    def initialize_single_site(self):
+        res = DotDict()
+        
+        # A model to represent a CTDBP
+        model = InstrumentModel(name='SBE37')
+        res['ctd_model'] = self.instrument_management.create_instrument_model(model)
+
+        # The Instrument Device
+        device = InstrumentDevice('CTD1')
+        res['ctd'] = self.instrument_management.create_instrument_device(device)
+        self.instrument_management.assign_instrument_model_to_instrument_device(res["ctd_model"], res["ctd"])
+        self.data_acquisition_management.register_instrument(res['ctd'])
+
+        # The parameteters for the dataset(s)
+        params = DotDict({
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "time",
+                "description" : "timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "lat" : {
+                "parameter_type" : "sparse",
+                "value_encoding" : "float32",
+                "display_name" : "latitude",
+                "description" : "latitude",
+                "units" : "degrees_north",
+            },
+            "lon" : {
+                "parameter_type" : "sparse",
+                "value_encoding" : "float32",
+                "display_name" : "longitude",
+                "description" : "longitude",
+                "units" : "degrees_east",
+            },
+            "data" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Data Stream",
+                "description" : "Data Stream",
+                "units" : "1"
+            }
+        })
+        data_product = DataProduct('CTD Data Product', ingest_stream_name='parsed')
+        res['ctd_data'] = self.data_product_from_params(data_product, params)
+
+        # Connect the dataset to the instrument
+        self.data_acquisition_management.assign_data_product(res['ctd'], res['ctd_data'])
+
+        # Create the coverage
+        self.data_product_management.activate_data_product_persistence(res['ctd_data'])
+
+        from interface.objects import GeospatialBounds
+
+        # The Geospatial Bounds for the Site
+        bounds = GeospatialBounds(geospatial_latitude_limit_north=40.0,
+                                  geospatial_latitude_limit_south=40.0,
+                                  geospatial_longitude_limit_west=-70.0,
+                                  geospatial_longitude_limit_east=-70.0,
+                                  geospatial_vertical_min=0.,
+                                  geospatial_vertical_max=0.)
+
+
+        # Make a site for the CTD
+        site = InstrumentSite("CTD Port 1", reference_designator='CE09OSSM-RID27-01-CTDBPC000', constraint_list=[bounds])
+        res["site"] = self.observatory_management.create_instrument_site(site)
+        self.observatory_management.assign_instrument_model_to_instrument_site(res['ctd_model'], res['site'])
+
+        # Make a site data product
+        data_product = DataProduct('CTD Parsed for Deployed CTD at Site', category=DataProductTypeEnum.SITE, ingest_stream_name='parsed')
+        res['site_data'] = self.data_product_from_params(data_product, params)
+        self.resource_registry.create_association(res['site'], PRED.hasOutputProduct, res['site_data'])
+        
+        # Make a dataset for it (Coverage)
+        self.data_product_management.create_dataset_for_data_product(res['site_data'])
+
+        # Now the deployment
+        port1 = PlatformPort(reference_designator='CE09OSSM-RID27-01-CTDBPC000', port_type=PortTypeEnum.PAYLOAD, ip_address='10.90.27.1')
+        port_assignments = {res['ctd'] : port1}
+        deployment = Deployment(name='Summer Deployment', type='Cabled', port_assignments=port_assignments)
+
+        dep_util = DeploymentUtil(self.container)
+        start_date = datetime(2014,5,1)
+        end_date   = datetime(2014,11,1)
+        start_date = calendar.timegm(start_date.utctimetuple())
+        end_date   = calendar.timegm(end_date.utctimetuple())
+        dep_util.set_temporal_constraint(deployment, str(start_date), str(end_date))
+
+        res['deployment'] = self.observatory_management.create_deployment(deployment, res['site'], res['ctd'])
+        self.observatory_management.activate_deployment(res['deployment'])
+        
+    @attr('INT')
+    def test_set_latlon(self):
+        '''
+        Tests that for fixed instruments the lat/lon is properly set by the site
+        '''
+        self.initialize_single_site()
+
+        
 
