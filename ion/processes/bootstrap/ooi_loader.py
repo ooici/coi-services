@@ -596,8 +596,6 @@ class OOILoader(object):
             first_avail=self._parse_date(first_avail, DEFAULT_MAX_DATE) if first_avail else DEFAULT_MAX_DATE
             )
         series_objs = self.get_type_assets("series")
-        if series_rd not in series_objs:
-            log.warn("Series %s not existing anymore", series_rd)
         self._add_object_attribute('series',
                                    series_rd, None, None, **entry)
         if ia_exists and ia_code and ia_code != "NA":
@@ -816,6 +814,39 @@ class OOILoader(object):
                 return pa_code
             return "DART_" + ooi_rd.node_type if is_da else ooi_rd.node_type
 
+    def _add_D1000(self):
+        class_objs = self.get_type_assets("class")
+        series_objs = self.get_type_assets("series")
+        makemodel_objs = self.get_type_assets("makemodel")
+        instagent_objs = self.get_type_assets("instagent")
+
+        ppsdn_obj = class_objs["PPSDN"]
+        d1000_obj = ppsdn_obj.copy()
+        d1000_obj.update({"id": "D1000", "name": "Thermistor", "ClassLongName": "Thermistor", "alt_name": "Thermistor",
+                          "description": "Thermistor for RASFL and PPSDN instruments",
+                          "makemodel": ["non-commercial D1000"]})
+        class_objs["D1000"] = d1000_obj
+
+        ppsdna_obj = series_objs["PPSDNA"]
+        d1000a_obj = ppsdna_obj.copy()
+        d1000a_obj.update({"id": "D1000A", "name": "D1000 Thermistor",
+                           "description": "Thermistor for RASFL and PPSDN instruments",
+                           "Class": "D1000", "Alternate Instrument Class Name": "Thermistor", "ClassLongName": "Thermistor",
+                           "ia_code": "D1000", "makemodel": "non-commercial D1000"})
+        series_objs["D1000A"] = d1000a_obj
+
+        mmppsdn_obj = makemodel_objs["non-commercial PPSDN"]
+        mmd1000_obj = mmppsdn_obj.copy()
+        mmd1000_obj.update({"id": "non-commercial D1000", "name": "non-commercial D1000",
+                            "Make_Model_Description": "non-commercial D1000", "Manufacturer": "non-commercial"})
+        makemodel_objs["non-commercial D1000"] = mmd1000_obj
+
+        iad1000_obj = instagent_objs.get("D1000", None)
+        if iad1000_obj:
+            iad1000_obj["inst_class"] = "D1000"
+            iad1000_obj["series_list"] = ["D1000A"]
+            iad1000_obj["tier1"] = False
+
     def _post_process(self):
         node_objs = self.get_type_assets("node")
         nodetypes = self.get_type_assets('nodetype')
@@ -826,6 +857,9 @@ class OOILoader(object):
         inst_objs = self.get_type_assets("instrument")
         series_objs = self.get_type_assets("series")
         pagent_objs = self.get_type_assets("platformagent")
+
+        # Add class and series for the D1000 - see Jira CISWMI-230
+        self._add_D1000()
 
         # Make sure all node types have a name
         for code, obj in nodetypes.iteritems():
