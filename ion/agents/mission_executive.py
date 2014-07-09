@@ -282,8 +282,8 @@ class MissionLoader(object):
             if ',' in command:
                 # Instrument ID is explicitly stated
                 instrument, command = command.strip().split(',')
-                if instrument not in instrument_id:
-                    log.warn('[mm] instrument_id not recognized from instrumentID list: %s', instrument)
+                if instrument not in list(instrument_id):   # "in" operation not working as expected for DotList.
+                    log.warn('[mm] instrument=%r not recognized from instrumentID list: %s', instrument, instrument_id)
             else:
                 #First quick check for a wait command
                 cmd_method, rest = command.strip().split('(')
