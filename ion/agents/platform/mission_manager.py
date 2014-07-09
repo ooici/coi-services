@@ -4,7 +4,7 @@
 @package ion.agents.platform.mission_manager
 @file    ion/agents/platform/mission_manager.py
 @author  Carlos Rueda
-@brief   Coordinating class for integration of mission execution with
+@brief   Coordinating class for integration of mission executive with
          platform agent
 """
 
@@ -25,7 +25,7 @@ from pyon.util.containers import get_ion_ts
 
 class MissionManager(object):
     """
-    Coordinating class for integration of mission execution with platform agent.
+    Coordinating class for integration of mission executive with platform agent.
     """
 
     def __init__(self, pa):
@@ -187,27 +187,27 @@ class MissionManager(object):
         mission_loader.load_mission(mission_id, mission_yml)
         self._mission_entries = mission_loader.mission_entries
 
+        valid_instrument_clients = self._agent._get_valid_instrument_clients()
         if log.isEnabledFor(logging.DEBUG):
-            log.debug('%r: [mm] _create_mission_scheduler: _ia_clients=\n%s', self._platform_id,
-                      self._agent._pp.pformat(self._agent._ia_clients))
+            log.debug('%r: [mm] _create_mission_scheduler: valid_instrument_clients=\n%s', self._platform_id,
+                      self._agent._pp.pformat(valid_instrument_clients))
 
-        # {stable_id: obj, ...} objects of valid running instruments:
+        # {stable_id: obj, ...} objects of valid running instruments indexed by stable_id
         instrument_objs = {}
-        for (instrument_id, obj) in self._agent._ia_clients.iteritems():
-            if isinstance(obj, dict):   # dict means it's valid instrument.
-                # get first "PRE:*" ID from obj.alt_ids:
-                pres = [alt_id for alt_id in obj.alt_ids if alt_id.startswith('PRE:')]
-                if not pres:
-                    raise Exception('%r: No stable ID found for instrument_id=%r. alt_ids=%s' % (
-                                    self._platform_id, instrument_id, obj.alt_ids))
-                stable_id = pres[0]
-                log.debug('%r: [mm] _create_mission_scheduler: instrument_id=%r, stable_id=%r,'
-                          ' resource_id=%r', self._platform_id, instrument_id, stable_id, obj.resource_id)
+        for (instrument_id, obj) in valid_instrument_clients.iteritems():
+            # get first "PRE:*" ID from obj.alt_ids:
+            pres = [alt_id for alt_id in obj.alt_ids if alt_id.startswith('PRE:')]
+            if not pres:
+                raise Exception('%r: No stable ID found for instrument_id=%r. alt_ids=%s' % (
+                                self._platform_id, instrument_id, obj.alt_ids))
+            stable_id = pres[0]
+            log.debug('%r: [mm] _create_mission_scheduler: instrument_id=%r, stable_id=%r,'
+                      ' resource_id=%r', self._platform_id, instrument_id, stable_id, obj.resource_id)
 
-                instrument_objs[stable_id] = obj
+            instrument_objs[stable_id] = obj
 
-        # {stable_id: client, ...} dict for scheduler
-        instruments_for_scheduler = dict((stable_id, obj.ia_client) for
+        # {stable_id: ResourceAgentClient, ...} dict for scheduler
+        instruments_for_scheduler = dict((stable_id, obj.ra_client) for
                                          stable_id, obj in instrument_objs.iteritems())
 
         mission_entries = mission_loader.mission_entries
