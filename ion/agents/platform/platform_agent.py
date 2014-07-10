@@ -153,7 +153,6 @@ class PlatformAgent(ResourceAgent):
         self._async_children_launched = None
 
         # Default initial state.
-        #self._initial_state = PlatformAgentState.UNINITIALIZED
         self._initial_state = PlatformAgentState.LAUNCHING
 
         # List of current alarm objects.
@@ -216,9 +215,6 @@ class PlatformAgent(ResourceAgent):
         self._children_being_validated = set()
         self._children_being_validated_lock = RLock()
 
-        #
-        # TODO overall synchronization is also needed in other places!
-        #
         from ion.agents.platform.schema import get_schema
 
         self._agent_schema = get_schema()
@@ -228,6 +224,8 @@ class PlatformAgent(ResourceAgent):
 
         #####################################
         log.info("PlatformAgent constructor complete.")
+
+        # TODO review overall synchronization for concurrent access to mutable data.
 
         # for debugging purposes
         self._pp = pprint.PrettyPrinter()
@@ -248,8 +246,6 @@ class PlatformAgent(ResourceAgent):
         # larger value.
         #
         # TODO actually just use whatever timeout is given from configuration.
-        # The adjustment here should be considered temporary while there's an
-        # appropriate mechanism to guarantee patched values are seen.
         #
         cfg_timeout = self.CFG.get_safe("endpoint.receive.timeout", 0)
         log.info("%r: === CFG.endpoint.receive.timeout = %s", platform_id, cfg_timeout)
@@ -914,7 +910,7 @@ class PlatformAgent(ResourceAgent):
 
     def _handle_external_event_driver_event(self, driver_event):
         """
-        Dispatches any needed handling arising from the external the event.
+        Dispatches any needed handling arising from the external driver event.
         """
         # TODO any needed external event dispatch handling.
 
@@ -1032,10 +1028,6 @@ class PlatformAgent(ResourceAgent):
                           self._platform_id, child_resource_id)
 
     def _validate_child_greenlet(self, child_resource_id):
-        #
-        # TODO synchronize access to self._ra_clients in general.
-        #
-
         log.debug("%r: [rvc] _validate_child_greenlet: %r", self._platform_id, child_resource_id)
         max_attempts = 12
         attempt_period = 5   # so 12 x 5 = 60 secs max attempt time
@@ -1142,19 +1134,8 @@ class PlatformAgent(ResourceAgent):
 
         @param sub   subscriber
         """
-        #self.remove_endpoint(sub) -- why this is making tests fail?
-        # TODO determine whether self.remove_endpoint is the appropriate call
-        # here and if so, how it should be used. For now, calling sub.close()
-        # (this only change made the difference between successful tests and
-        # failing tests that actually never exited -- I had to kill them).
-        # Update 19/Sep/2013: I thought that remove_endpoint was now working
-        # but not!  It seems I did testing with the --with-pycc flag, but
-        # using it actually causes the same behavior as noted above a few
-        # months ago. So, keeping the use of close() again.
         # See https://jira.oceanobservatories.org/tasks/browse/OOIION-987
         sub.close()
-
-        # per discussion with JC also calling self.remove_endpoint(sub)
         self.remove_endpoint(sub)
 
     def _prepare_await_state(self, origin, state):
