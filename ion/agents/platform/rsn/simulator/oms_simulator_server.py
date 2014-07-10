@@ -24,17 +24,17 @@
 __author__ = 'Carlos Rueda'
 
 
-from ion.agents.platform.rsn.simulator.logger import Logger
-log = Logger.get_logger()
-
 import logging
-
-from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
-from ion.agents.platform.util.network_util import NetworkUtil
-from SimpleXMLRPCServer import SimpleXMLRPCServer
 from threading import Thread
 import time
 import sys
+from SimpleXMLRPCServer import SimpleXMLRPCServer
+
+from ion.agents.platform.rsn.simulator.logger import Logger
+log = Logger.get_logger()
+
+from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
+from ion.agents.platform.util.network_util import NetworkUtil
 
 
 class CIOMSSimulatorWithExit(CIOMSSimulator):

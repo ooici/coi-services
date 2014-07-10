@@ -10,7 +10,6 @@
 __author__ = 'Carlos Rueda'
 
 
-
 import ntplib
 
 

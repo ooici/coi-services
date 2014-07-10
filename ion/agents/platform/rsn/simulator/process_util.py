@@ -14,13 +14,16 @@ simple test:
 __author__ = 'Carlos Rueda'
 
 
-from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
+import os
+import signal
+import subprocess
+
+from gevent import sleep
 
 from pyon.util.log import log
-import os
-import subprocess
-import signal
-from gevent import sleep
+
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
+
 
 _PYTHON_PATH = 'bin/python'
 _PROGRAM     = "ion/agents/platform/rsn/simulator/oms_simulator_server.py"

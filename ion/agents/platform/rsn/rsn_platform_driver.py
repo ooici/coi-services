@@ -10,11 +10,12 @@
 __author__ = 'Carlos Rueda'
 
 
-
-from pyon.public import log, CFG
+from copy import deepcopy
 import logging
 
-from copy import deepcopy
+from pyon.public import log, CFG
+from pyon.agent.common import BaseEnum
+from pyon.agent.instrument_fsm import FSMError
 
 from ion.agents.platform.platform_driver import PlatformDriver
 from ion.agents.platform.platform_driver import PlatformDriverState
@@ -25,15 +26,12 @@ from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.responses import InvalidResponse
-
 from ion.agents.platform.util import ion_ts_2_ntp
-
-from pyon.agent.common import BaseEnum
-from pyon.agent.instrument_fsm import FSMError
 
 from pyon.core.object import ion_serializer, IonObjectDeserializer
 from pyon.core.registry import IonObjectRegistry
 from ion.core.ooiref import OOIReferenceDesignator
+
 
 class RSNPlatformDriverState(PlatformDriverState):
     """

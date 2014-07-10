@@ -10,7 +10,6 @@
 __author__ = 'Carlos Rueda'
 
 
-
 class BaseNode(object):
     """
     A convenient base class for the components of a platform network.

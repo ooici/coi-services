@@ -13,7 +13,6 @@
 __author__ = 'Carlos Rueda'
 
 
-
 class CIOMSClient(object):
     """
     This class captures the interface with OMS mainly for purposes of serving

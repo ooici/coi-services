@@ -10,13 +10,14 @@
 __author__ = 'Carlos Rueda'
 
 
+import os
+import xmlrpclib
+
+from gevent import Greenlet, sleep
 
 from pyon.public import log
 
 from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
-import xmlrpclib
-import os
-from gevent import Greenlet, sleep
 
 
 class CIOMSClientFactory(object):

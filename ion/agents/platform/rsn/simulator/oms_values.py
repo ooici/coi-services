@@ -10,10 +10,10 @@
 __author__ = 'Carlos Rueda'
 
 
-
-import time
-import ntplib
 import math
+import time
+
+import ntplib
 
 
 # time begins a few secs ago from now for purposes of reporting

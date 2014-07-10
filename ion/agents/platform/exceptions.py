@@ -10,7 +10,6 @@
 __author__ = 'Carlos Rueda'
 
 
-
 from pyon.core.exception import IonException
 
 

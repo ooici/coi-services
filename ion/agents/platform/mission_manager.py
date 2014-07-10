@@ -11,16 +11,19 @@
 __author__ = 'Carlos Rueda'
 
 
-from pyon.public import log
 import logging
-from ion.agents.mission_executive import MissionLoader
-from ion.agents.mission_executive import MissionScheduler
-from pyon.core.exception import BadRequest
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
+
+from pyon.public import log
 from pyon.public import IonObject, OT, RT
+from pyon.core.exception import BadRequest
 from pyon.core.governance import get_system_actor_header
 from pyon.util.containers import get_ion_ts
+
+from ion.agents.mission_executive import MissionLoader
+from ion.agents.mission_executive import MissionScheduler
+
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 
 
 class MissionManager(object):
