@@ -632,7 +632,6 @@ class StatusManager(object):
             # update the specific status
             self.aparam_child_agg_status[child_origin][status_name] = child_status
 
-            # TODO any need to pass child's alerts_list in the next call? See OOIION-1275
             new_rollup_status = self._update_rollup_status_and_publish(status_name, child_origin)
 
         if new_rollup_status and log.isEnabledFor(logging.TRACE):  # pragma: no cover
@@ -682,6 +681,8 @@ class StatusManager(object):
         @param status_name   the specific status category
         @param child_origin  the origin of the child that triggered the
                              update, if any. None by default
+        @param alerts_list   If not None, passed as 'values' entry in the published event.
+                             See OOIION-1275.
 
         @return new_rollup_status
                              The new rollup status (also indicating that an event
