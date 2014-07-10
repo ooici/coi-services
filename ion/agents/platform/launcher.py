@@ -10,14 +10,14 @@
 __author__ = 'Carlos Rueda'
 
 
-
 from pyon.public import log
+
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
+from ion.util.agent_launcher import AgentLauncher
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition
 from interface.objects import ProcessStateEnum
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from ion.util.agent_launcher import AgentLauncher
 
 
 class Launcher(object):

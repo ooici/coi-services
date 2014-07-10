@@ -7,10 +7,10 @@
 @brief   Some constants for responses from platform agents/drivers.
 """
 
-from ion.agents.instrument.common import BaseEnum
-
 __author__ = 'Carlos Rueda'
 
+
+from ion.agents.instrument.common import BaseEnum
 
 
 class NormalResponse(BaseEnum):

@@ -10,21 +10,19 @@
 __author__ = 'Carlos Rueda'
 
 
-
-from pyon.public import log
 import logging
-
 from copy import deepcopy
 
-from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
-from ion.agents.platform.platform_driver_event import AsyncAgentEvent
-from ion.agents.platform.exceptions import PlatformDriverException
-from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
-
+from pyon.public import log
 from pyon.agent.common import BaseEnum
 from pyon.agent.instrument_fsm import ThreadSafeFSM
 from pyon.agent.instrument_fsm import FSMError
+
+from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
+from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
+from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
+from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 
 
 class PlatformDriverState(BaseEnum):

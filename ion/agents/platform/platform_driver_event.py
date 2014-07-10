@@ -12,7 +12,6 @@
 __author__ = 'Carlos Rueda'
 
 
-
 class DriverEvent(object):
     """
     Base class for platform driver events.

@@ -10,17 +10,16 @@
 __author__ = 'Carlos Rueda'
 
 
-from ion.agents.platform.rsn.oms_client import CIOMSClient
-from ion.agents.platform.responses import NormalResponse, InvalidResponse
-from ion.agents.platform.util.network_util import NetworkUtil
+import time
 
+import ntplib
+
+from ion.agents.platform.responses import NormalResponse, InvalidResponse
+from ion.agents.platform.rsn.oms_client import CIOMSClient
 from ion.agents.platform.rsn.simulator.oms_events import EventNotifier
 from ion.agents.platform.rsn.simulator.oms_events import EventGenerator
 from ion.agents.platform.rsn.simulator.oms_values import generate_values
-
-import time
-import ntplib
-
+from ion.agents.platform.util.network_util import NetworkUtil
 from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 

@@ -12,14 +12,15 @@
 __author__ = 'Carlos Rueda'
 
 
+import httplib
+import json
 import sys
 from time import sleep
 import time
-import ntplib
 from urlparse import urlparse
-import httplib
+
+import ntplib
 import yaml
-import json
 
 from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()

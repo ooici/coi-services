@@ -23,18 +23,19 @@
 __author__ = 'Carlos Rueda'
 
 
-
-from pyon.public import log
-from gevent.pywsgi import WSGIServer
-from ion.agents.platform.responses import InvalidResponse
-from pyon.util.breakpoint import breakpoint
-
-import xmlrpclib
-import sys
+import os
 import pprint
 import socket
+import sys
+import xmlrpclib
 import yaml
-import os
+
+from gevent.pywsgi import WSGIServer
+
+from pyon.public import log
+from pyon.util.breakpoint import breakpoint
+
+from ion.agents.platform.responses import InvalidResponse
 
 
 #

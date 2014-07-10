@@ -12,15 +12,15 @@
 __author__ = 'Carlos Rueda'
 
 
+from collections import OrderedDict
+
+import yaml
 
 from ion.agents.platform.util.network import PlatformNode
 from ion.agents.platform.util.network import AttrNode
 from ion.agents.platform.util.network import PortNode
 from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.util.network import NetworkDefinition
-
-import yaml
-from collections import OrderedDict
 
 
 class NetworkDefinitionException(Exception):

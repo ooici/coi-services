@@ -10,20 +10,20 @@
 __author__ = 'Carlos Rueda'
 
 
+import logging
+import uuid
+
+from coverage_model.parameter import ParameterDictionary
+import numpy
+
 from pyon.public import log
-from pyon.ion.stream import StreamPublisher
 from pyon.core.bootstrap import get_obj_registry
 from pyon.core.object import IonObjectDeserializer
-
-from interface.objects import StreamRoute
+from pyon.ion.stream import StreamPublisher
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 
-from coverage_model.parameter import ParameterDictionary
-
-import numpy
-import uuid
-import logging
+from interface.objects import StreamRoute
 
 
 class PlatformAgentStreamPublisher(object):

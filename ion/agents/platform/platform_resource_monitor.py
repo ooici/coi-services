@@ -10,18 +10,17 @@
 __author__ = 'Carlos Rueda'
 
 
-
-from pyon.public import log
 import logging
-
-from ion.agents.platform.resource_monitor import ResourceMonitor
-from ion.agents.platform.resource_monitor import _STREAM_NAME
-from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
+import pprint
 
 from gevent import Greenlet, sleep
 from gevent.coros import RLock
 
-import pprint
+from pyon.public import log
+
+from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
+from ion.agents.platform.resource_monitor import ResourceMonitor
+from ion.agents.platform.resource_monitor import _STREAM_NAME
 
 
 class PlatformResourceMonitor(object):
@@ -130,9 +129,8 @@ class PlatformResourceMonitor(object):
             groups[max(prev_rates)] = prev_defns
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: not cover
-            from pprint import PrettyPrinter
             log.debug("%r: _group_by_monitoring_rate = %s",
-                      self._platform_id, PrettyPrinter().pformat(groups))
+                      self._platform_id, pprint.PrettyPrinter().pformat(groups))
         return groups
 
     def start_resource_monitoring(self):

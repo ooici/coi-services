@@ -12,16 +12,16 @@
 __author__ = 'Carlos Rueda'
 
 
+import logging
+
+from gevent.coros import RLock
+
 from pyon.public import log
 
 from ion.agents.platform.exceptions import PlatformException
 
 from interface.objects import AggregateStatusType
 from interface.objects import DeviceStatusType
-
-import logging
-
-from gevent.coros import RLock
 
 
 # The consolidation operation is taken from observatory_util.py.

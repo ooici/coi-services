@@ -10,10 +10,8 @@
 __author__ = 'Carlos Rueda'
 
 
-
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
-
 from pyon.agent.common import BaseEnum
 
 

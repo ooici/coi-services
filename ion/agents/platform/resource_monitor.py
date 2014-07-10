@@ -10,18 +10,16 @@
 __author__ = 'Carlos Rueda'
 
 
+import logging
+import pprint
+
+from gevent import Greenlet, sleep
 
 from pyon.public import log
-
 from pyon.util.containers import current_time_millis
 
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.util import ntp_2_ion_ts
-
-import logging
-from gevent import Greenlet, sleep
-
-import pprint
 
 
 # Platform attribute values are reported for the stream name "parsed".
