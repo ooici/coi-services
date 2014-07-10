@@ -10,67 +10,59 @@
 __author__ = 'Carlos Rueda'
 
 
-from pyon.public import log, RT
-from pyon.agent.agent import ResourceAgent
-from pyon.agent.agent import ResourceAgentState
-from pyon.agent.agent import ResourceAgentEvent
-from interface.objects import AgentCommand
-from pyon.agent.agent import ResourceAgentClient
-
-from pyon.event.event import EventSubscriber
-
-from pyon.core.exception import NotFound, Inconsistent
-from pyon.core.exception import BadRequest
-
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_valid_resource_commitments, ION_MANAGER
-from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
-
-from ion.agents.platform.platform_agent_enums import PlatformAgentState
-from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
-from ion.agents.platform.platform_agent_enums import PlatformAgentCapability
-from ion.agents.platform.platform_agent_enums import ResourceInterfaceCapability
-
-from ion.agents.platform.exceptions import PlatformDriverException
-from ion.agents.platform.exceptions import PlatformException
-from ion.agents.platform.exceptions import PlatformConfigurationException
-from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
-from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
-from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
-from ion.agents.platform.platform_driver_event import AsyncAgentEvent
-from ion.agents.platform.exceptions import CannotInstantiateDriverException
-from ion.agents.platform.util.network_util import NetworkUtil
-from ion.agents.platform.util.network_util import NetworkDefinitionException
-from ion.agents.agent_alert_manager import AgentAlertManager
-
-from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
-from ion.core.includes.mi import DriverEvent
-
-from pyon.util.containers import DotDict
-
-from pyon.agent.instrument_fsm import FSMStateError
-from pyon.agent.instrument_fsm import FSMError
-
-from ion.agents.platform.launcher import Launcher
-
-from ion.agents.platform.platform_resource_monitor import PlatformResourceMonitor
-
-from ion.agents.platform.status_manager import StatusManager
-from ion.agents.platform.platform_agent_stream_publisher import PlatformAgentStreamPublisher
-
-from ion.agents.platform.mission_manager import MissionManager
-
-from ion.agents.instrument.instrument_agent import InstrumentAgentState
-from ion.agents.instrument.instrument_agent import InstrumentAgentEvent
-
 import logging
+import pprint
 import time
+import traceback
+
 from gevent import Greenlet
 from gevent import sleep
 from gevent import spawn
 from gevent.event import AsyncResult
 from gevent.coros import RLock
 
-import pprint
+from pyon.public import log, RT
+from pyon.agent.agent import ResourceAgent
+from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentEvent
+from pyon.agent.agent import ResourceAgentClient
+from pyon.event.event import EventSubscriber
+from pyon.agent.instrument_fsm import FSMStateError
+from pyon.agent.instrument_fsm import FSMError
+from pyon.core.exception import NotFound, Inconsistent
+from pyon.core.exception import BadRequest
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_valid_resource_commitments
+from pyon.util.containers import DotDict
+
+from ion.agents.agent_alert_manager import AgentAlertManager
+from ion.agents.instrument.instrument_agent import InstrumentAgentState
+from ion.agents.instrument.instrument_agent import InstrumentAgentEvent
+from ion.agents.platform.exceptions import PlatformDriverException
+from ion.agents.platform.exceptions import PlatformException
+from ion.agents.platform.exceptions import PlatformConfigurationException
+from ion.agents.platform.exceptions import CannotInstantiateDriverException
+from ion.agents.platform.launcher import Launcher
+from ion.agents.platform.mission_manager import MissionManager
+from ion.agents.platform.platform_agent_enums import PlatformAgentState
+from ion.agents.platform.platform_agent_enums import PlatformAgentEvent
+from ion.agents.platform.platform_agent_enums import PlatformAgentCapability
+from ion.agents.platform.platform_agent_enums import ResourceInterfaceCapability
+from ion.agents.platform.platform_agent_stream_publisher import PlatformAgentStreamPublisher
+from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
+from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
+from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
+from ion.agents.platform.platform_driver_event import AsyncAgentEvent
+from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
+from ion.agents.platform.platform_resource_monitor import PlatformResourceMonitor
+from ion.agents.platform.schema import get_schema
+from ion.agents.platform.status_manager import StatusManager
+from ion.agents.platform.util.network_util import NetworkUtil
+from ion.agents.platform.util.network_util import NetworkDefinitionException
+
+from ion.core.includes.mi import DriverEvent
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
+
+from interface.objects import AgentCommand
 
 
 PA_MOD = 'ion.agents.platform.platform_agent'
@@ -214,8 +206,6 @@ class PlatformAgent(ResourceAgent):
         # (each one is dispatched in a greenlet)
         self._children_being_validated = set()
         self._children_being_validated_lock = RLock()
-
-        from ion.agents.platform.schema import get_schema
 
         self._agent_schema = get_schema()
 
@@ -1055,7 +1045,6 @@ class PlatformAgent(ResourceAgent):
                 break  # success
 
             except Exception as ex:
-                import traceback
                 last_exc = ex
                 trace = traceback.format_exc()
 
