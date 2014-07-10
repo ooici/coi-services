@@ -2745,9 +2745,12 @@ Reason: %s
                     agent_obj = self._get_resource_obj(agent_id, True)
                     if agent_obj:
                         return agent_id, agent_obj
-                    else:
-                        #log.debug("Agentmap matches for RD=%s but agent definition %s not found", ooi_rd.rd, agent_id)
-                        return None, None
+                    iagent_id = "IA_" + agent_id
+                    agent_obj = self._get_resource_obj(iagent_id, True)
+                    if agent_obj:
+                        return iagent_id, agent_obj
+                    #log.debug("Agentmap matches for RD=%s but agent definition %s not found", ooi_rd.rd, agent_id)
+                    return None, None
 
         if ooi_rd.rd_subtype == "instrument":
             if not is_data:

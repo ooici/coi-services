@@ -772,7 +772,7 @@ class OOILoader(object):
         """Returns True if given RD is associated with the cabled infrastructure"""
         if isinstance(ooi_rd, str):
             ooi_rd = OOIReferenceDesignator(ooi_rd)
-        return ooi_rd.marine_io == "RSN" or ooi_rd.subsite_rd == "CE02SHBP" or ooi_rd.subsite_rd == "CE04OSBP"
+        return ooi_rd.marine_io == "RSN" or ooi_rd.subsite_rd in {"CE02SHBP", "CE04OSBP", "CE04OSHY"}
 
     @classmethod
     def is_dataagent(cls, ooi_rd):
