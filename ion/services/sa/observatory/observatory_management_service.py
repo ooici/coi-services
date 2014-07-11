@@ -9,16 +9,18 @@ from collections import defaultdict
 from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
 
 from ooi.logging import log
-
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
 
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.observatory.deployment_activator import DeploymentPlanner
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 from ion.services.sa.observatory.deployment_util import DeploymentUtil
+from ion.services.sa.product.data_product_management_service import DataProductManagementService
 from ion.processes.event.device_state import DeviceStateManager
 from ion.util.geo_utils import GeoUtils
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
@@ -719,6 +721,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     continue # Ingest stream name isn't defined
 
                 for dpd in dpds:
+                    # breakpoint(locals(), globals())
                     if sdp.ingest_stream_name == dpd.ingest_stream_name:
 
                         # Update the window list in the resource
@@ -737,7 +740,27 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
                         self.clients.dataset_management.add_dataset_window_to_complex(device_dataset_id, (start, end), site_dataset_id)
 
+                        dp_params = self.clients.data_product_management.get_data_product_parameters(dpd._id, id_only=False)
+                        # print [d.name for d in dp_params]
+                        for param in dp_params:
+                            if 'lat' in param.name and param.parameter_type == 'sparse':
+                                # Update sparse lat/lon data with site lat/lon
+                                site_obj = self.RR.read(site_id)
 
+                                # Search for GeospatialBounds bbox constraint
+                                for constraint in site_obj.constraint_list:
+                                    if constraint.type_ == OT.GeospatialBounds:
+                                        # Get the midpoint of the site geospatial bounds
+                                        mid_point = GeoUtils.calc_geospatial_point_center(constraint)
+
+                                        # Create granule using midpoint
+                                        stream_def_id, _ = self.RR.find_objects(subject=dpd, predicate=PRED.hasStreamDefinition, id_only=True)
+                                        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id[0])
+                                        rdt['time'] = [start]
+                                        rdt['lat'] = [mid_point['lat']]
+                                        rdt['lon'] = [mid_point['lon']]
+
+                                        ParameterHelper.publish_rdt_to_data_product(dpd, rdt)
 
         if deployment_obj.lcstate != LCS.DEPLOYED:
             self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
