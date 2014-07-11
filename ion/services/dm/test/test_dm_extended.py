@@ -2284,13 +2284,29 @@ def rotate_v(u,v,theta):
 
         res['deployment'] = self.observatory_management.create_deployment(deployment, res['site'], res['ctd'])
         self.observatory_management.activate_deployment(res['deployment'])
+        return res
         
     @attr('INT')
     def test_set_latlon(self):
         '''
         Tests that for fixed instruments the lat/lon is properly set by the site
         '''
-        self.initialize_single_site()
+        res = self.initialize_single_site()
+        dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data'])
+        rdt = self.ph.rdt_for_data_product(res['ctd_data'])
+        now = time.time()
+
+        rdt['time'] = [now + 2208988800]
+        rdt['data'] = [2]
+        self.ph.publish_rdt_to_data_product(res['ctd_data'], rdt)
+        self.assertTrue(dataset_monitor.wait())
+        dataset_id = self.RR2.find_object(res['ctd_data'], PRED.hasDataset, id_only=True)
+        gevent.sleep(10)
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_allclose(rdt['data'], np.array([2]))
+        np.testing.assert_allclose(rdt['lat'], np.array([40.]))
+        np.testing.assert_allclose(rdt['lon'], np.array([-70.]))
 
         
 
