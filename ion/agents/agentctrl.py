@@ -49,6 +49,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceProcessClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceProcessClient
 from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceProcessClient
+from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
@@ -77,8 +78,10 @@ ARG_HELP = {
     "availability": "target availability state",
     "facility":     "a facility (Org) identified by governance name, preload id, name or uuid",
     "role":         "a user role identified by governance name, preload id, name or uuid within the facility (Org)",
-    "user":         "a user or actor identified by name, preload ir or uuid",
     "agent":        "comma separate list of preload ids of agent definitions",
+    "user":         "a user or actor identified by name, preload id or uuid",
+    "validity":     "validity in seconds for authentication information starting now",
+    "token":        "a token secret string",
 }
 
 RES_ARG_LIST = ["resource_id", "preload_id"]
@@ -207,6 +210,12 @@ OP_HELP = [
         opmsg_ext=["the clone_id determines the PRE id suffix used to uniquely identify cloned resources",
                    "a CSV file can provide attribute values for the cloned resources"],
         args=RES_ARG_LIST + COMMON_ARG_LIST)),
+    ("generate_auth_token", dict(
+        opmsg="Generates a temporary authentication token for user with given validity (default: 1 day)",
+        args=["user", "validity"])),
+    ("cancel_auth_token", dict(
+        opmsg="Invalidates given authentication token",
+        args=["token"])),
     ("list_persistence", dict(
         opmsg="Prints a report of currently active persistence",
         args=["verbose"])),
@@ -281,7 +290,8 @@ class AgentControl(ImmediateProcess):
                 else:
                     log.warn("Preload id=%s not found!", pid)
 
-        elif self.op in {"list_persistence", "list_agents", "list_containers", "list_services", "set_sys_attribute"}:
+        elif self.op in {"list_persistence", "list_agents", "list_containers", "list_services", "set_sys_attribute",
+                         "generate_auth_token", "cancel_auth_token"}:
             # None-device operation
             log.info("--- Executing %s  ---", self.op)
             if hasattr(self, self.op):
@@ -1889,6 +1899,28 @@ class AgentControl(ImmediateProcess):
             raise BadRequest("Given resource %s is not a Deployment: %s" % (resource_id, res_obj.type_))
 
         self._clone_deployment(res_obj, clone_id)
+
+    def generate_auth_token(self):
+        user = self.CFG.get("user", None)
+        actor_id = self._get_actor(user)
+        if not actor_id:
+            raise BadRequest("User/actor %s not found" % user)
+        validity = int(self.CFG.get("validity", None) or str(24*60*60))
+
+        idm_client = IdentityManagementServiceProcessClient(process=self)
+        token_string = idm_client.create_authentication_token(actor_id, validity=validity,
+                                                              headers=self._get_system_actor_headers())
+        print "TOKEN:", token_string
+        print "EXPIRES AFTER SECONDS:", validity
+
+    def cancel_auth_token(self):
+        token_string = self.CFG.get("token", None)
+        if not token_string:
+            raise BadRequest("Must provide a token to invalidate")
+
+        idm_client = IdentityManagementServiceProcessClient(process=self)
+        idm_client.invalidate_authentication_token(token_string=token_string,
+                                                   headers=self._get_system_actor_headers())
 
     def list_agents(self):
         res_info = ResourceUseInfo(self.container, self.verbose)

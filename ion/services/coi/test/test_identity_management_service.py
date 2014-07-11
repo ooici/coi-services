@@ -2,26 +2,26 @@
 
 __author__ = 'Thomas R. Lennan'
 
-
-import unittest
 from mock import Mock, patch
+from nose.plugins.attrib import attr
+import gevent
+import unittest
+from unittest.case import skip
+
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
-from nose.plugins.attrib import attr
+from pyon.core.exception import Unauthorized
 from pyon.core.governance.negotiation import Negotiation
-from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import PRED, RT, IonObject, OT
+from pyon.public import PRED, RT, IonObject, OT, BadRequest, Conflict, Inconsistent, NotFound, get_ion_ts_millis
+from pyon.core.governance import ORG_MANAGER_ROLE
+
 from ion.services.coi.identity_management_service import IdentityManagementService
+
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient, IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-from unittest.case import skip
-from pyon.util.context import LocalContextMixin
-from pyon.core.governance import ORG_MANAGER_ROLE
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
-
-
 
 
 @attr('UNIT', group='coi')
@@ -441,9 +441,9 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        self.resource_registry = ResourceRegistryServiceClient(node=self.container.node)
-        self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
-        self.org_client = OrgManagementServiceClient(node=self.container.node)
+        self.resource_registry = ResourceRegistryServiceClient()
+        self.identity_management_service = IdentityManagementServiceClient()
+        self.org_client = OrgManagementServiceClient()
 
     def test_actor_identity(self):
         actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})        
@@ -646,8 +646,6 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 
         self.identity_management_service.delete_actor_identity(actor_id)
 
-
-
     def test_account_merge(self):
         certificate =  """-----BEGIN CERTIFICATE-----
 MIIEMzCCAxugAwIBAgICBQAwDQYJKoZIhvcNAQEFBQAwajETMBEGCgmSJomT8ixkARkWA29yZzEX
@@ -761,5 +759,81 @@ HtjSclGqi8IBmvRkTZI61zTVbGdOKMP90LV1p8noJVLRkZpWRjLxI5xy9El8daAWMdjfrSc=
         self.identity_management_service.unregister_user_credentials(id, subject)
         self.identity_management_service.delete_actor_identity(id)
 
+    def test_auth_tokens(self):
+        # Note: test of service gateway token functionality is in SGS test
 
+        rr = self.resource_registry
 
+        actor_identity_obj = IonObject("ActorIdentity", {"name": self.subject})
+        actor_id = self.identity_management_service.create_actor_identity(actor_identity_obj)
+
+        user_info_obj = IonObject("UserInfo", {"name": "Foo"})
+        user_info_id = self.identity_management_service.create_user_info(actor_id, user_info_obj)
+
+        token_str = self.identity_management_service.create_authentication_token(actor_id, validity=10000)
+        self.assertIsInstance(token_str, str)
+        self.assertGreaterEqual(len(token_str), 25)
+
+        token_info = self.identity_management_service.check_authentication_token(token_str)
+        self.assertEquals(token_info["actor_id"], actor_id)
+
+        token_info = self.identity_management_service.check_authentication_token(token_str)
+        self.assertGreaterEqual(int(token_info["expiry"]), get_ion_ts_millis())
+
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.create_authentication_token(actor_id="", validity=10000)
+
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.create_authentication_token(user_info_id, validity=10000)
+
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.create_authentication_token(actor_id, validity="FOO")
+
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.create_authentication_token(actor_id, validity=-200)
+
+        cur_time = get_ion_ts_millis()
+
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.create_authentication_token(actor_id, start_time=str(cur_time-100000), validity=50)
+
+        with self.assertRaises(BadRequest):
+            self.identity_management_service.create_authentication_token(actor_id, validity=35000000)
+
+        with self.assertRaises(NotFound):
+            self.identity_management_service.check_authentication_token("UNKNOWN")
+
+        token_str2 = self.identity_management_service.create_authentication_token(actor_id, validity=1)
+        token_info = self.identity_management_service.check_authentication_token(token_str2)
+
+        gevent.sleep(1.1)
+
+        with self.assertRaises(Unauthorized):
+            self.identity_management_service.check_authentication_token(token_str2)
+
+        token = self.identity_management_service.read_authentication_token(token_str2)
+
+        token.expires = str(cur_time + 5000)
+        self.identity_management_service.update_authentication_token(token)
+        token_info = self.identity_management_service.check_authentication_token(token_str2)
+
+        token_str3 = self.identity_management_service.create_authentication_token(actor_id, validity=2)
+        token_info = self.identity_management_service.check_authentication_token(token_str3)
+
+        self.identity_management_service.invalidate_authentication_token(token_str3)
+
+        with self.assertRaises(Unauthorized):
+            self.identity_management_service.check_authentication_token(token_str3)
+
+        token = self.identity_management_service.read_authentication_token(token_str3)
+        self.assertEquals(token.token_string, token_str3)
+        self.assertIn(token_str3, token._id)
+
+        token.status = "OPEN"
+        self.identity_management_service.update_authentication_token(token)
+
+        token_info = self.identity_management_service.check_authentication_token(token_str3)
+
+        # Cleanup
+        self.identity_management_service.delete_user_info(user_info_id)
+        self.identity_management_service.delete_actor_identity(actor_id)
