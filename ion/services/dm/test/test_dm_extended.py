@@ -2193,6 +2193,234 @@ def rotate_v(u,v,theta):
         data_product_id = self.data_product_from_params(data_product, params)
         return data_product_id
 
+    def initialize_glider(self):
+        res = DotDict()
+        
+        #----------------------------------------
+        # Instrument Model, Device and Site
+        #----------------------------------------
+        
+        # A model to represent a CTDGV
+        model = InstrumentModel(name='SBE37')
+        res['ctd_model'] = self.instrument_management.create_instrument_model(model)
+
+        # The Instrument Device
+        device = InstrumentDevice('CTDGV')
+        res['ctd'] = self.instrument_management.create_instrument_device(device)
+        self.instrument_management.assign_instrument_model_to_instrument_device(res["ctd_model"], res["ctd"])
+        self.data_acquisition_management.register_instrument(res['ctd'])
+        
+        # Make a site for the CTD
+        site = InstrumentSite("CTD Port 1", reference_designator='GP05MOAS-GL001-04-CTDGVM000')
+        res["site"] = self.observatory_management.create_instrument_site(site)
+        self.observatory_management.assign_instrument_model_to_instrument_site(res['ctd_model'], res['site'])
+        
+        #----------------------------------------
+        # Glider Model, Device, and Site
+        #----------------------------------------
+
+        # Create the Glider Model
+        platform_model = PlatformModel('SLOCUM Glider', platform_type='Glider')
+        res['platform_model'] = self.instrument_management.create_platform_model(platform_model)
+
+        # Create the Glider Device
+        platform = PlatformDevice(name='Glider 1')
+        res['platform_device'] = self.instrument_management.create_platform_device(platform)
+        self.instrument_management.assign_platform_model_to_platform_device(res['platform_model'], res['platform_device'])
+
+        # Link the Platform -> CTDGV
+        self.instrument_management.assign_instrument_device_to_platform_device(res['ctd'], res['platform_device'])
+
+        # Platform Site for the Glider
+        platform_site = PlatformSite("Glider 1 Site", reference_designator='GP05MOAS-GL001')
+        res['platform_site'] = self.observatory_management.create_platform_site(platform_site)
+        self.observatory_management.assign_platform_model_to_platform_site(res['platform_model'], res['platform_site'])
+        
+        #----------------------------------------
+        # Glider Platform Engineering Data Product
+        #----------------------------------------
+        
+        # The parameteters for the dataset(s)
+        params = DotDict({
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "time",
+                "description" : "timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "lat" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "latitude",
+                "description" : "latitude",
+                "units" : "degrees_north",
+            },
+            "lon" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "longitude",
+                "description" : "longitude",
+                "units" : "degrees_east",
+            },
+            "data" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Data Stream",
+                "description" : "Data Stream",
+                "units" : "1"
+            }
+        })
+
+        # Data Product
+        data_product = DataProduct('Glider Engineering Data', ingest_stream_name='eng')
+        res['glider_data'] = self.data_product_from_params(data_product, params)
+
+        # Link the Data Product to the Platform
+        self.data_acquisition_management.assign_data_product(res['platform_device'], res['glider_data'])
+
+        # Make the coverage
+        self.data_product_management.activate_data_product_persistence(res['glider_data'])
+
+        # Make the platform site data product 
+        data_product = DataProduct('Glider Mobile Assets 1 Engineering', category=DataProductTypeEnum.SITE, ingest_stream_name='eng')
+        res['glider_site_data'] = self.data_product_from_params(data_product, params)
+        self.resource_registry.create_association(res['platform_site'], PRED.hasOutputProduct, res['glider_site_data'])
+
+        # Make a coverage for the platform site data product
+        self.data_product_management.create_dataset_for_data_product(res['glider_site_data'])
+
+        res['glider_dataset'] = self.RR2.find_object(res['glider_data'], PRED.hasDataset, id_only=True)
+
+
+
+        #----------------------------------------
+        # CTDGV Device and Site Data Product
+        #----------------------------------------
+
+        # The parameteters for the dataset(s)
+        params = DotDict({
+            "time" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float64",
+                "display_name" : "time",
+                "description" : "timestamp",
+                "units" : "seconds since 1900-01-01"
+            },
+            "data" : {
+                "parameter_type" : "quantity",
+                "value_encoding" : "float32",
+                "display_name" : "Data Stream",
+                "description" : "Data Stream",
+                "units" : "1"
+            }
+        })
+        data_product = DataProduct('CTDGV Data Product', ingest_stream_name='parsed')
+        res['ctd_data'] = self.data_product_from_params(data_product, params)
+
+        # Connect the dataset to the instrument
+        self.data_acquisition_management.assign_data_product(res['ctd'], res['ctd_data'])
+
+        # Create the coverage
+        self.data_product_management.activate_data_product_persistence(res['ctd_data'])
+
+        # Make a site data product
+        data_product = DataProduct('CTD Parsed for Deployed CTD at Site', category=DataProductTypeEnum.SITE, ingest_stream_name='parsed')
+        res['site_data'] = self.data_product_from_params(data_product, params)
+        self.resource_registry.create_association(res['site'], PRED.hasOutputProduct, res['site_data'])
+        
+        # Make a dataset for it (Coverage)
+        self.data_product_management.create_dataset_for_data_product(res['site_data'])
+        
+
+        #----------------------------------------
+        # The Deployment
+        #----------------------------------------
+
+        # Now the deployment
+        port1 = PlatformPort(reference_designator='GP05MOAS-GL001-04-CTDGVM000', port_type=PortTypeEnum.PAYLOAD, ip_address='10.90.27.1')
+        port_assignments = {res['ctd'] : port1}
+        deployment = Deployment(name='Summer Deployment', type='Glider', port_assignments=port_assignments)
+
+        dep_util = DeploymentUtil(self.container)
+        start_date = datetime(2014,5,1)
+        end_date   = datetime(2014,11,1)
+        start_date = calendar.timegm(start_date.utctimetuple())
+        end_date   = calendar.timegm(end_date.utctimetuple())
+        dep_util.set_temporal_constraint(deployment, str(start_date), str(end_date))
+
+        res['deployment'] = self.observatory_management.create_deployment(deployment, res['site'], res['ctd'])
+        self.observatory_management.activate_deployment(res['deployment'])
+        return res
+
+    @attr('INT')
+    def test_latlon_mobile_assets(self):
+        res = self.initialize_glider()
+        params = {
+            "lat" : {
+                "parameter_type" : "external",
+                "value_encoding" : "float32",
+                "display_name" : "latitude",
+                "description" : "latitude",
+                "units" : "degrees_north",
+                "target_dataset" : res.glider_dataset,
+                "target_name" : "lat"
+            },
+            "lon" : {
+                "parameter_type" : "external",
+                "value_encoding" : "float32",
+                "display_name" : "longitude",
+                "description" : "longitude",
+                "units" : "degrees_east",
+                "target_dataset" : res.glider_dataset,
+                "target_name" : "lon"
+            }
+        }
+        for param_name, param_def in params.iteritems():
+            pc = ParameterContext(param_name, **param_def)
+            pc_id = self.dataset_management.create_parameter(pc)
+            self.data_product_management.add_parameter_to_data_product(pc_id, res['ctd_data'])
+
+        rdt = self.ph.rdt_for_data_product(res['glider_data'])
+
+        time_array = np.array([
+            3614284800, # 2014-7-14T00
+            3614288400  # an hour later
+        ], dtype=np.float)
+        rdt['time'] = time_array
+        rdt['lat'] = np.array([40, 41])
+        rdt['lon'] = np.array([-70, -71])
+
+        platform_dataset_monitor = DatasetMonitor(data_product_id=res['glider_data'])
+        self.ph.publish_rdt_to_data_product(res['glider_data'], rdt)
+        self.assertTrue(platform_dataset_monitor.wait())
+        gevent.sleep(10)
+
+        rdt = self.ph.rdt_for_data_product(res['ctd_data'])
+        time_array = np.linspace(3614284800, 3614288400, 10)
+        rdt['time'] = time_array
+        rdt['data'] = np.arange(10)
+
+        dataset_monitor = DatasetMonitor(data_product_id=res['ctd_data'])
+        self.ph.publish_rdt_to_data_product(res['ctd_data'], rdt)
+        self.assertTrue(dataset_monitor.wait())
+        gevent.sleep(10)
+
+        ctd_dataset_id = self.RR2.find_object(res['ctd_data'], PRED.hasDataset, id_only=True)
+        granule = self.data_retriever.retrieve(ctd_dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+
+        # Verify linear interpolation
+        np.testing.assert_array_almost_equal(rdt['lat'],
+                np.array([ 40.        ,  40.11111111,  40.22222222,  40.33333333,
+                           40.44444444,  40.55555556,  40.66666667,  40.77777778,
+                           40.88888889,  41.        ]))
+        np.testing.assert_array_almost_equal(rdt['lon'],
+                np.array([-70.        , -70.11111111, -70.22222222, -70.33333333,
+                          -70.44444444, -70.55555556, -70.66666667, -70.77777778,
+                          -70.88888889, -71.        ]))
+
+
     def initialize_single_site(self):
         res = DotDict()
         
