@@ -29,6 +29,7 @@ from ion.util.datastore.resources import ResourceRegistryUtil
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue, AggregateStatusType, DeviceStatusType, TemporalBounds, DatasetWindow
 from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum, GeospatialBounds
+from interface.objects import ParameterContext
 
 from datetime import datetime
 import calendar
@@ -660,6 +661,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if active_dep and active_dep._id == deployment_id:
             raise BadRequest("Deployment %s already active for site %s" % (deployment_id, dep_site_id))
 
+
+        #------------------------------------------------------------
+        # Gliders and AUV deployments
+        #------------------------------------------------------------
+
+        devices, _ = self.clients.resource_registry.find_subjects(object=deployment_id, predicate=PRED.hasDeployment, subject_type=RT.PlatformDevice)
+        for dev in devices:
+            model = self.RR2.find_object(subject=dev._id, predicate=PRED.hasModel, id_only=False)
+            if model.platform_type in ['Glider', 'AUV']:
+                self._mobile_asset_geospatial_supposition(dev)
+                
+
         self.deploy_planner = DeploymentPlanner(self.clients)
 
         pairs_to_remove, pairs_to_add = self.deploy_planner.prepare_activation(deployment_obj)
@@ -782,6 +795,65 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 self.RR.execute_lifecycle_transition(active_dep._id, LCE.INTEGRATE)
             else:
                 log.warn("Prior Deployment %s was not in DEPLOYED lcstate", active_dep._id)
+
+    def _mobile_asset_geospatial_supposition(self, dev):
+        # Get the data product for the device
+        data_products = self.RR2.find_objects(subject=dev._id, predicate=PRED.hasOutputProduct, id_only=True)
+        # Find the best candidate by getting the first one with both lat and lon
+        for data_product in data_products:
+            params = self.clients.data_product_management.get_data_product_parameters(data_product)
+            lats = {p.name: p for p in params if 'lat' in p.name}
+            lons = {p.name: p for p in params if 'lon' in p.name}
+
+            if not (lons and lats):
+                continue
+
+            if 'm_lat_gps' in lats and 'm_lon_gps' in lons:
+                lat = lats['m_lat_gps']
+                lon = lons['m_lon_gps']
+            else:
+                lat = lats.popitem()[1]
+                lon = lons.popitem()[1]
+            break
+        else:
+            return # No matching data products
+
+        dataset_id = self.RR2.find_object(subject=data_product, predicate=PRED.hasDataset, id_only=True)
+        # Make the lat/lon parameters that point to the platforms engineering data product
+        params = {
+            "lat" : {
+                "parameter_type" : "external",
+                "value_encoding" : "float32",
+                "display_name" : "latitude",
+                "description" : "latitude",
+                "units" : "degrees_north",
+                "target_dataset" : dataset_id,
+                "target_name" : lat.name
+            },
+            "lon" : {
+                "parameter_type" : "external",
+                "value_encoding" : "float32",
+                "display_name" : "longitude",
+                "description" : "longitude",
+                "units" : "degrees_east",
+                "target_dataset" : dataset_id,
+                "target_name" : lon.name
+            }
+        } 
+
+        for param_name, param in params.iteritems():
+            pc = ParameterContext(param_name, **param)
+            pc_id = self.clients.dataset_management.create_parameter(pc)
+            params[param_name]['id'] = pc_id
+
+        # Now go through each attached device, get the data product and add these params
+        instrument_devices = self.RR2.find_objects(subject=dev, predicate=PRED.hasDevice, object_type=RT.InstrumentDevice, id_only=False)
+        for idev in instrument_devices: 
+            data_product_ids = self.RR2.find_objects(subject=idev._id, predicate=PRED.hasOutputProduct, id_only=True)
+            for data_product_id in data_product_ids:
+                for paramdef in params.itervalues():
+                    self.clients.data_product_management.add_parameter_to_data_product(paramdef['id'], data_product_id)
+
 
 
     def deactivate_deployment(self, deployment_id=''):

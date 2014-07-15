@@ -2349,37 +2349,13 @@ def rotate_v(u,v,theta):
         end_date   = calendar.timegm(end_date.utctimetuple())
         dep_util.set_temporal_constraint(deployment, str(start_date), str(end_date))
 
-        res['deployment'] = self.observatory_management.create_deployment(deployment, res['site'], res['ctd'])
+        res['deployment'] = self.observatory_management.create_deployment(deployment, res['platform_site'], res['platform_device'])
         self.observatory_management.activate_deployment(res['deployment'])
         return res
 
     @attr('INT')
     def test_latlon_mobile_assets(self):
         res = self.initialize_glider()
-        params = {
-            "lat" : {
-                "parameter_type" : "external",
-                "value_encoding" : "float32",
-                "display_name" : "latitude",
-                "description" : "latitude",
-                "units" : "degrees_north",
-                "target_dataset" : res.glider_dataset,
-                "target_name" : "lat"
-            },
-            "lon" : {
-                "parameter_type" : "external",
-                "value_encoding" : "float32",
-                "display_name" : "longitude",
-                "description" : "longitude",
-                "units" : "degrees_east",
-                "target_dataset" : res.glider_dataset,
-                "target_name" : "lon"
-            }
-        }
-        for param_name, param_def in params.iteritems():
-            pc = ParameterContext(param_name, **param_def)
-            pc_id = self.dataset_management.create_parameter(pc)
-            self.data_product_management.add_parameter_to_data_product(pc_id, res['ctd_data'])
 
         rdt = self.ph.rdt_for_data_product(res['glider_data'])
 
@@ -2419,6 +2395,7 @@ def rotate_v(u,v,theta):
                 np.array([-70.        , -70.11111111, -70.22222222, -70.33333333,
                           -70.44444444, -70.55555556, -70.66666667, -70.77777778,
                           -70.88888889, -71.        ]))
+
 
 
     def initialize_single_site(self):
