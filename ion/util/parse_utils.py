@@ -133,7 +133,7 @@ def parse_dict(text):
     for pair in pairs:
         if 0 == pair.count(':'):
             continue
-        fields = pair.split(':') # pair separated by colon
+        fields = pair.split(':', 1) # pair separated by first colon
         key = fields[0].strip()
         value = fields[1].strip()
 
