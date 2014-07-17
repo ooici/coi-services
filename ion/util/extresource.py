@@ -160,3 +160,11 @@ def matcher_ParameterContext(obj, matchers=None):
         "display_name", "units", "value_encoding"}}
     res_attr["__noion__"] = True
     return res_attr
+
+def matcher_MarineAsset(obj, matchers=None):
+    if not obj or not isinstance(obj, Resource) or (obj.type_ != RT.Asset and obj.type_ != RT.AssetType and \
+                                                    obj.type_ != RT.EventDuration and obj.type_ != RT.EventDurationType):
+        return
+    return obj
+
+
