@@ -4809,6 +4809,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         # Test the removal of pink from CodeSet colors by removal of code 'pink' fom codes - resulting in
         # CodeSet reflecting the removal of enumeration value 'pink'
         #
+        #
 
         log.debug('\n\n***** Start : test_upload_xls_triple_codes_only')
 
