@@ -1867,9 +1867,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def delete_asset(self, asset_id=''):
         """Delete an Asset resource
 
-        @param asset_id   str
-        @throws NotFound  object with specified id does not exist
-        @throws BadRequest  if object with specified id does not have_id or_rev attribute
+        @param asset_id     str
+        @throws NotFound    object with specified id does not exist
+        @throws BadRequest  'The asset_id parameter is empty'
         """
         if not asset_id:
             raise BadRequest('The asset_id parameter is empty')
