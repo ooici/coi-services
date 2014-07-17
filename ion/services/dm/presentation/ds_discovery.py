@@ -115,7 +115,8 @@ class DatastoreDiscovery(object):
             filter_types = ["DataProduct", "DataProcess", "Deployment", "InstrumentDevice", "InstrumentModel",
                             "InstrumentAgentInstance", "InstrumentAgent", "PlatformDevice", "PlatformModel",
                             "PlatformAgentInstance", "PlatformAgent", "PlatformSite", "Observatory", "UserRole",
-                            "Org", "Attachment", "ExternalDatasetAgent", "ExternalDatasetAgentInstance"]
+                            "Org", "Attachment", "ExternalDatasetAgent", "ExternalDatasetAgentInstance",
+                            "Asset", "EventDuration"]
             where = qb.and_(where, qb.in_(DQ.ATT_TYPE, *filter_types), qb.neq(DQ.RA_LCSTATE, "DELETED"))
 
         order_by = None
@@ -313,7 +314,8 @@ class DatastoreDiscovery(object):
             rq.set_filter(rq.filter_type(["DataProduct", "DataProcess", "Deployment", "InstrumentDevice", "InstrumentModel",
                             "InstrumentAgentInstance", "InstrumentAgent", "PlatformDevice", "PlatformModel",
                             "PlatformAgentInstance", "PlatformAgent", "PlatformSite", "Observatory", "UserRole",
-                            "Org", "Attachment", "ExternalDatasetAgent", "ExternalDatasetAgentInstance"]))
+                            "Org", "Attachment", "ExternalDatasetAgent", "ExternalDatasetAgentInstance",
+                            "Asset", "EventDuration"]))
             view_obj.view_definition = rq.get_query()
             return view_obj
         elif view_name == "events_index":
