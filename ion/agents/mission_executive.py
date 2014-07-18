@@ -13,13 +13,14 @@ from time import gmtime
 import pytz
 from datetime import datetime
 
+
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.common import BaseEnum
 from pyon.event.event import EventSubscriber
 from pyon.public import log
-from pyon.util.breakpoint import breakpoint
 from pyon.util.config import Config
+from pyon.util.breakpoint import breakpoint
 
 from ion.core.includes.mi import DriverEvent
 
@@ -137,17 +138,15 @@ class MissionLoader(object):
         """
         Check mission start time
         """
-        start_time_string = schedule['startTime']
+        start_time = schedule['startTime']
         tz = schedule['timeZone']
-        if not start_time_string or start_time_string.lower() == 'none':
-            start_time = None
-        else:
+        if start_time:
             try:
-                start_time = calendar.timegm(time.strptime(start_time_string, '%m/%d/%Y %H:%M:%S'))
-            except ValueError:
+                start_time = calendar.timegm(start_time.timetuple())
+            except AttributeError:
                 self.publish_mission_loader_error_event('MissionLoader: validate_schedule: startTime format error')
                 # log.error("MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
-                log.error("[mm] MissionLoader: validate_schedule: startTime format error: " + str(start_time_string))
+                log.error("[mm] MissionLoader: validate_schedule: startTime format error: " + str(start_time))
                 raise Exception('MissionLoader: validate_schedule: startTime format error')
             else:
                 if tz:
