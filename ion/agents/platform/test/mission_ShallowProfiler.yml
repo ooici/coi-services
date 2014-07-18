@@ -11,7 +11,7 @@ mission:
       default: retry
       maxRetries: 3
     schedule:
-      startTime: 05/02/2014 00:00:00
+      startTime: 2014-07-18T00:00:00
       timeZone:
       loop:
         quantity: -1   # No. of loops (-1 for infinite)
