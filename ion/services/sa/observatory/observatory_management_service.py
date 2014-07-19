@@ -1975,6 +1975,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return resource_data
 
+    def unassign_asset_from_resource(self, asset_id='', resource_id=''):
+        raise BadRequest('The request is not supported!')
+
+    def assign_asset_to_resource(self, asset_id='', resource_id=''):
+        raise BadRequest('This request is not supported!')
+
     def assign_asset_type_to_asset(self, asset_type_id='',asset_id=''):
         """ Link an Asset to an AssetType
 
