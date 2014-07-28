@@ -117,6 +117,18 @@ class QCPostProcessing(SimpleProcess):
         return
 
 class QCProcessor(SimpleProcess):
+    '''
+    The QC Processor is a post-processing mechanism to perform Quality Control evaluation and storage
+
+    Notes:
+
+     - The test for this is 
+       ion/services/dm/test/test_dm_extended.py:TestDMExtended.test_qc_stuff
+     - QC Parameters are set in Data Product Management Service
+     - Coverage isn't setting all the values (issue with mutable parameters maybe?)
+     - Reprocessing on an event trigger is only partially implemented
+    '''
+
     def __init__(self):
         self.event = Event() # Synchronizes the thread
         self.timeout = 10
@@ -127,7 +139,9 @@ class QCProcessor(SimpleProcess):
         '''
         self._event_subscriber = EventSubscriber(event_type=OT.ResetQCEvent, callback=self.receive_event, auto_delete=True) # TODO Correct event types
         self._event_subscriber.start()
+        # Timeout for threads to respond
         self.timeout = self.CFG.get_safe('endpoint.receive.timeout', 10)
+        # How long the thread should wait before processing the next batch
         self.thread_wait = self.CFG.get_safe('process.thread_wait', 30)
         self.resource_registry = self.container.resource_registry
         self.event_queue = Queue()
@@ -236,10 +250,6 @@ class QCProcessor(SimpleProcess):
         '''
         Returns a list of potential candidate parameter names to use as the input parameter
         '''
-
-        # 1st Priority is *b_interp
-        # 2nd Priority is *b_pd
-        # 3rd Priority is input_name
         parameters = {p.name : p for p in parameters }
 
         dp_ident, alg, qc = parameter.ooi_short_name.split('_')
@@ -273,6 +283,7 @@ class QCProcessor(SimpleProcess):
         dp_ident, alg, qc = parameter.ooi_short_name.split('_')
         if dp_ident not in qc_mapping:
             return # No input!
+
         input_name = self.calibrated_candidates(data_product, parameter, qc_mapping, parameters)
 
         try:
@@ -384,6 +395,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc
         }
+        # TODO / BUG : Only some of the values are being properly set and stored
         coverage.set_parameter_values(return_dictionary)
 
 
@@ -491,9 +503,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array[indexes],
                 parameter.name : qc_array[indexes]
         }
-        log.error("Here's what it would look like\n%s", return_dictionary)
-
-
+        coverage.set_parameter_values(return_dictionary)
 
 
     def get_dataset(self, data_product):
