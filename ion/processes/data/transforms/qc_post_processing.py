@@ -125,12 +125,14 @@ class QCProcessor(SimpleProcess):
         '''
         Process initialization
         '''
-        self._thread = self._process.thread_manager.spawn(self.thread_loop)
         self._event_subscriber = EventSubscriber(event_type=OT.ResetQCEvent, callback=self.receive_event, auto_delete=True) # TODO Correct event types
         self._event_subscriber.start()
         self.timeout = self.CFG.get_safe('endpoint.receive.timeout', 10)
+        self.thread_wait = self.CFG.get_safe('process.thread_wait', 30)
         self.resource_registry = self.container.resource_registry
         self.event_queue = Queue()
+
+        self._thread = self._process.thread_manager.spawn(self.thread_loop)
 
     def on_quit(self):
         '''
@@ -148,7 +150,7 @@ class QCProcessor(SimpleProcess):
         Asynchronous event-loop
         '''
         threading.current_thread().name = '%s-qc-processor' % self.id
-        while not self.event.wait(1):
+        while not self.event.wait(self.thread_wait):
             try:
                 self.qc_processing_loop()
             except:
@@ -248,9 +250,6 @@ class QCProcessor(SimpleProcess):
         interp = sname.lower() + 'b_interp'
         pd = sname.lower() + 'b_pd'
 
-        print "1st priority:", interp     # 1st priority
-        print "2nd priority:", pd         # 2nd priority
-        print "3rd priority:", input_name # 3rd priority
 
         if interp in parameters:
             return interp
@@ -354,6 +353,7 @@ class QCProcessor(SimpleProcess):
 
 
         finally:
+            coverage.refresh()
             coverage.close()
 
     def set_error(self, coverage, parameter):
@@ -362,7 +362,6 @@ class QCProcessor(SimpleProcess):
     def get_parameter_values(self, coverage, name):
         array = coverage.get_parameter_values([name], fill_empty_params=True).get_data()[name]
         return array
-
 
     def process_glblrng(self, coverage, parameter, input_name, min_value, max_value):
         '''
@@ -385,6 +384,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc
         }
+        coverage.set_parameter_values(return_dictionary)
 
 
     def process_stuck_value(self, coverage, parameter, input_name, resolution, N):
@@ -406,6 +406,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
         }
+        coverage.set_parameter_values(return_dictionary)
 
 
     def process_trend_test(self, coverage, parameter, input_name, ord_n, nstd):
@@ -426,6 +427,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
         }
+        coverage.set_parameter_values(return_dictionary)
 
     def process_spike_test(self, coverage, parameter, input_name, acc, N, L):
         '''
@@ -444,6 +446,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
         }
+        coverage.set_parameter_values(return_dictionary)
 
     def process_gradient_test(self, coverage, parameter, input_name, ddatdx, mindx, startdat, toldat):
         qc_array = self.get_parameter_values(coverage, parameter.name)
@@ -459,6 +462,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array[indexes],
                 parameter.name : qc_array[indexes]
         }
+        coverage.set_parameter_values(return_dictionary)
 
 
     def process_local_range_test(self, coverage, parameter, input_name, datlim, datlimz, dims):
@@ -501,6 +505,7 @@ class QCProcessor(SimpleProcess):
 
     def get_coverage(self, dataset_id):
         cov = DatasetManagementService._get_coverage(dataset_id, mode='r+')
+        cov.refresh()
         return cov
 
     def recent_row(self, rows):

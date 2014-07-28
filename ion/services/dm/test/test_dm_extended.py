@@ -1459,7 +1459,7 @@ def rotate_v(u,v,theta):
 
         def annoying_thread(event_publisher, event):
             log.error("Started annoying thread")
-            while not event.wait(1):
+            while not event.wait(10):
                 log.error("annoying thread")
                 event_publisher.publish_event(origin='refdes')
                 
@@ -1467,9 +1467,11 @@ def rotate_v(u,v,theta):
         g = gevent.spawn(annoying_thread, event_publisher, event)
 
 
+        dataset_id = self.RR2.find_object(data_product_id, PRED.hasDataset, id_only=True)
         breakpoint(locals(), globals())
         event.set()
         g.join()
+
 
 
     def initialize_deployment_resources(self):
