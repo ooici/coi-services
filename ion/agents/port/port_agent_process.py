@@ -32,7 +32,7 @@ if(process.poll()):
 """
 
 __author__ = 'Bill French'
-
+__license__ = 'Apache 2.0'
 
 import os
 import time
@@ -71,6 +71,7 @@ class PortAgentType(BaseEnum):
     What type of port agent are we running?  ethernet, serial, digi etc...
     """
     ETHERNET = 'ethernet'
+    RSN = 'rsn'
     SERIAL = 'serial'
     BOTPT = "botpt"
 
@@ -243,7 +244,7 @@ class PythonPortAgentProcess(PortAgentProcess):
         if not self._device_port:
             raise PortAgentMissingConfig("missing config: device_port")
 
-        if not self._type == PortAgentType.ETHERNET:
+        if self._type not in [PortAgentType.ETHERNET, PortAgentType.RSN]:
             raise PortAgentLaunchException("unknown port agent type: %s" % self._type)
 
     def launch(self):
@@ -371,6 +372,10 @@ class UnixPortAgentProcess(PortAgentProcess):
         if self._type == PortAgentType.ETHERNET:
             self._device_addr = config.get("device_addr")
             self._device_port = config.get("device_port")
+        elif self._type == PortAgentType.RSN:
+            self._device_addr = config.get("device_addr")
+            self._device_port = config.get("device_port")
+            self._instrument_command_port = config.get("instrument_command_port")
         elif self._type == PortAgentType.SERIAL:
             self._device_os_port = config.get("device_os_port", None)
             self._device_baud = config.get("device_baud", None)
@@ -395,6 +400,13 @@ class UnixPortAgentProcess(PortAgentProcess):
                 raise PortAgentMissingConfig("missing config: device_addr")
             if not self._device_port:
                 raise PortAgentMissingConfig("missing config: device_port (ETHERNET)")
+        elif PortAgentType.RSN == self._type:
+            if not self._device_addr:
+                raise PortAgentMissingConfig("missing config: device_addr")
+            if not self._device_port:
+                raise PortAgentMissingConfig("missing config: device_port (RSN)")
+            if not self._instrument_command_port:
+                raise PortAgentMissingConfig("missing config: instrument_command_port (RSN)")
         elif PortAgentType.SERIAL == self._type:
             if self._device_os_port == None:
                 raise PortAgentMissingConfig("missing config: device_os_port")
@@ -451,6 +463,10 @@ class UnixPortAgentProcess(PortAgentProcess):
             temp.write("parity %s\n" % (self._device_parity) )
             temp.write("stopbits %d\n" % (self._device_stop_bits) )
             temp.write("flow %s\n" % (self._device_flow_control) )
+        elif PortAgentType.RSN == self._type:
+            temp.write("instrument_type rsn\n")
+            temp.write("instrument_data_port %d\n" % (self._device_port) )
+            temp.write("instrument_command_port %d\n" % (self._instrument_command_port) )
         else:
             temp.write("instrument_type tcp\n")
             temp.write("instrument_data_port %d\n" % (self._device_port) )
