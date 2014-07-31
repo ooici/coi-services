@@ -26,15 +26,6 @@ class TransformBase(SimpleProcess):
         super(TransformBase,self).__init__()
         self._stats = {} # Container for statistics information
     
-    def on_start(self):
-        '''
-        Begins listening for incoming RPC calls.
-        '''
-        super(TransformBase,self).on_start()
-        self._rpc_server = self.container.proc_manager._create_listening_endpoint(from_name=self.id,
-                                                                                  process=self)
-        self.add_endpoint(self._rpc_server)
-
     def _stat(self):
         return self._stats
 
