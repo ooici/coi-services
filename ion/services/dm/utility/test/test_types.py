@@ -75,7 +75,6 @@ class TestTypes(PyonTestCase):
 
     def cov_io(self, context, value_array, comp_val=None):
         cov = _make_cov('test_data', [context], nt=0)
-        self.addCleanup(shutil.rmtree, cov.persistence_dir)
         value_array = np.asanyarray(value_array)
 
         data_dict = {

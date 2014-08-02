@@ -122,6 +122,8 @@ class TypesManager(object):
     def get_parameter_type(self,parameter_type, encoding, code_set=None, pfid=None, pmap=None, target_info=None):
         if parameter_type == 'quantity':
             return self.get_quantity_type(parameter_type,encoding)
+        elif parameter_type == 'qc':
+            return self.get_qc_type()
         elif re.match(r'array<?.*>?', parameter_type):
             return self.get_array_type(parameter_type, encoding)
         elif re.match(r'category<.*>', parameter_type):
@@ -492,6 +494,10 @@ class TypesManager(object):
             param_type = QuantityType(value_encoding = np.dtype('|%s' % encoding))
         else:
             param_type = QuantityType(value_encoding = np.dtype(encoding))
+        return param_type
+
+    def get_qc_type(self):
+        param_type = QuantityType(value_encoding = np.dtype('int8'), mutable=True)
         return param_type
 
     def get_range_type(self, parameter_type, encoding):

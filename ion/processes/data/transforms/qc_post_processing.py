@@ -117,6 +117,18 @@ class QCPostProcessing(SimpleProcess):
         return
 
 class QCProcessor(SimpleProcess):
+    '''
+    The QC Processor is a post-processing mechanism to perform Quality Control evaluation and storage
+
+    Notes:
+
+     - The test for this is 
+       ion/services/dm/test/test_dm_extended.py:TestDMExtended.test_qc_stuff
+     - QC Parameters are set in Data Product Management Service
+     - Coverage isn't setting all the values (issue with mutable parameters maybe?)
+     - Reprocessing on an event trigger is only partially implemented
+    '''
+
     def __init__(self):
         self.event = Event() # Synchronizes the thread
         self.timeout = 10
@@ -125,12 +137,16 @@ class QCProcessor(SimpleProcess):
         '''
         Process initialization
         '''
-        self._thread = self._process.thread_manager.spawn(self.thread_loop)
         self._event_subscriber = EventSubscriber(event_type=OT.ResetQCEvent, callback=self.receive_event, auto_delete=True) # TODO Correct event types
         self._event_subscriber.start()
+        # Timeout for threads to respond
         self.timeout = self.CFG.get_safe('endpoint.receive.timeout', 10)
+        # How long the thread should wait before processing the next batch
+        self.thread_wait = self.CFG.get_safe('process.thread_wait', 30)
         self.resource_registry = self.container.resource_registry
         self.event_queue = Queue()
+
+        self._thread = self._process.thread_manager.spawn(self.thread_loop)
 
     def on_quit(self):
         '''
@@ -148,7 +164,7 @@ class QCProcessor(SimpleProcess):
         Asynchronous event-loop
         '''
         threading.current_thread().name = '%s-qc-processor' % self.id
-        while not self.event.wait(1):
+        while not self.event.wait(self.thread_wait):
             try:
                 self.qc_processing_loop()
             except:
@@ -234,10 +250,6 @@ class QCProcessor(SimpleProcess):
         '''
         Returns a list of potential candidate parameter names to use as the input parameter
         '''
-
-        # 1st Priority is *b_interp
-        # 2nd Priority is *b_pd
-        # 3rd Priority is input_name
         parameters = {p.name : p for p in parameters }
 
         dp_ident, alg, qc = parameter.ooi_short_name.split('_')
@@ -248,9 +260,6 @@ class QCProcessor(SimpleProcess):
         interp = sname.lower() + 'b_interp'
         pd = sname.lower() + 'b_pd'
 
-        print "1st priority:", interp     # 1st priority
-        print "2nd priority:", pd         # 2nd priority
-        print "3rd priority:", input_name # 3rd priority
 
         if interp in parameters:
             return interp
@@ -274,6 +283,7 @@ class QCProcessor(SimpleProcess):
         dp_ident, alg, qc = parameter.ooi_short_name.split('_')
         if dp_ident not in qc_mapping:
             return # No input!
+
         input_name = self.calibrated_candidates(data_product, parameter, qc_mapping, parameters)
 
         try:
@@ -354,6 +364,7 @@ class QCProcessor(SimpleProcess):
 
 
         finally:
+            coverage.refresh()
             coverage.close()
 
     def set_error(self, coverage, parameter):
@@ -362,7 +373,6 @@ class QCProcessor(SimpleProcess):
     def get_parameter_values(self, coverage, name):
         array = coverage.get_parameter_values([name], fill_empty_params=True).get_data()[name]
         return array
-
 
     def process_glblrng(self, coverage, parameter, input_name, min_value, max_value):
         '''
@@ -385,6 +395,8 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc
         }
+        # TODO / BUG : Only some of the values are being properly set and stored
+        coverage.set_parameter_values(return_dictionary)
 
 
     def process_stuck_value(self, coverage, parameter, input_name, resolution, N):
@@ -406,6 +418,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
         }
+        coverage.set_parameter_values(return_dictionary)
 
 
     def process_trend_test(self, coverage, parameter, input_name, ord_n, nstd):
@@ -426,6 +439,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
         }
+        coverage.set_parameter_values(return_dictionary)
 
     def process_spike_test(self, coverage, parameter, input_name, acc, N, L):
         '''
@@ -444,6 +458,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array,
                 parameter.name : qc_array
         }
+        coverage.set_parameter_values(return_dictionary)
 
     def process_gradient_test(self, coverage, parameter, input_name, ddatdx, mindx, startdat, toldat):
         qc_array = self.get_parameter_values(coverage, parameter.name)
@@ -459,6 +474,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array[indexes],
                 parameter.name : qc_array[indexes]
         }
+        coverage.set_parameter_values(return_dictionary)
 
 
     def process_local_range_test(self, coverage, parameter, input_name, datlim, datlimz, dims):
@@ -487,9 +503,7 @@ class QCProcessor(SimpleProcess):
                 coverage.temporal_parameter_name : time_array[indexes],
                 parameter.name : qc_array[indexes]
         }
-        log.error("Here's what it would look like\n%s", return_dictionary)
-
-
+        coverage.set_parameter_values(return_dictionary)
 
 
     def get_dataset(self, data_product):
@@ -501,6 +515,7 @@ class QCProcessor(SimpleProcess):
 
     def get_coverage(self, dataset_id):
         cov = DatasetManagementService._get_coverage(dataset_id, mode='r+')
+        cov.refresh()
         return cov
 
     def recent_row(self, rows):
