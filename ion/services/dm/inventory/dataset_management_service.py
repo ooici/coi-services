@@ -295,7 +295,12 @@ class DatasetManagementService(BaseDatasetManagementService):
                     parameter_context.value_encoding,
                     parameter_context.code_report,
                     parameter_context.parameter_function_id,
-                    parameter_context.parameter_function_map)
+                    parameter_context.parameter_function_map,
+                    {
+                        'name' : parameter_context.name,
+                        'target_dataset': parameter_context.target_dataset,
+                        'target_name' : parameter_context.target_name
+                    })
         # Ugh, I hate it but I did copy this section from
         # ion/processes/bootstrap/ion_loader.py
         context = ParameterContext(name=parameter_context.name, param_type=param_type)

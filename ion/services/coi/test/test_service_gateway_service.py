@@ -1,32 +1,30 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-
 __author__ = 'Stephen P. Henrie'
 
-
 import simplejson, collections
-from pyon.util.int_test import IonIntegrationTestCase
+import unittest
+import os, io
+import gevent
 from nose.plugins.attrib import attr
 from webtest import TestApp
 
+from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.registry import getextends
+from pyon.util.containers import DictDiffer
+from pyon.public import log, OT, RT, PRED, EventPublisher, IonObject
+
 from ion.services.coi.service_gateway_service import service_gateway_app, GATEWAY_RESPONSE, \
             GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, GATEWAY_ERROR_TRACE
 
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
-from pyon.event.event import EventPublisher
-from pyon.util.containers import DictDiffer
-from pyon.util.log import log
-from pyon.public import OT
+from interface.objects import ResourceVisibilityEnum
 
-import unittest
-import os, io
-import gevent
 
-USER1_CERTIFICATE =  """-----BEGIN CERTIFICATE-----
+USER1_CERTIFICATE = """-----BEGIN CERTIFICATE-----
 MIIEMzCCAxugAwIBAgICBQAwDQYJKoZIhvcNAQEFBQAwajETMBEGCgmSJomT8ixkARkWA29yZzEX
 MBUGCgmSJomT8ixkARkWB2NpbG9nb24xCzAJBgNVBAYTAlVTMRAwDgYDVQQKEwdDSUxvZ29uMRsw
 GQYDVQQDExJDSUxvZ29uIEJhc2ljIENBIDEwHhcNMTAxMTE4MjIyNTA2WhcNMTAxMTE5MTAzMDA2
@@ -48,7 +46,7 @@ f8b270icOVgkOKRdLP/Q4r/x8skKSCRz1ZsRdR+7+B/EgksAJj7Ut3yiWoUekEMxCaTdAHPTMD/g
 Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 -----END CERTIFICATE-----"""
 
-#These are supposed to be unicode fields that contain unicode characters.
+# These are supposed to be unicode fields that contain unicode characters.
 DATA_PRODUCT_NAME = u"♣ TestDataProduct ♥"
 DATA_PRODUCT_DESCRIPTION = u"A test data product Ĕ ∆"
 TEMPORAL_DOMAIN = {'1':u"♣ Temporal Domain ♥",
@@ -57,8 +55,9 @@ TEMPORAL_DOMAIN = {'1':u"♣ Temporal Domain ♥",
                    4:[u"♣ Temporal Domain ♥", {1:u'one','2Ĕ':u"A test data product Ĕ ∆"}]}}
 
 POLICY_NAME = "Test_Policy"
-POLICY_DESCRIPTION =  "Test Policy creation which includes an internal object"
+POLICY_DESCRIPTION = "Test Policy creation which includes an internal object"
 POLICY_RULE = "THIS RULE IS FALSE"
+
 
 def convert_unicode(data):
     if isinstance(data, unicode):
@@ -83,7 +82,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Now create client to service
-        self.service_gateway_service = ServiceGatewayServiceClient(node=self.container.node)
+        self.service_gateway_service = ServiceGatewayServiceClient()
 
         log.debug('stopping Gateway web server')
         # Stop the web server as it is not needed.
@@ -94,14 +93,13 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
     def tearDown(self):
         self._stop_container()
 
-    #Common SGS Response header check
+    # Common SGS Response header check
     def check_response_headers(self, response):
         self.assertEqual(response.content_type, "application/json")
         self.assertEqual(len(response.json), 1)
         self.assertIn('data',response.json)
 
     def test_list_resource_types(self):
-
         response = self.test_app.get('/ion-service/list_resource_types')
 
         self.check_response_headers(response)
@@ -155,9 +153,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn('MyFakeResource', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
         self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
-
     def create_data_product_resource(self):
-
         geospatial_bounds = {
             "geospatial_latitude_limit_north": 1.0,
             "geospatial_latitude_limit_south": 1.0,
@@ -189,9 +185,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         data_product_id = convert_unicode(response_data[0])
         return data_product_id
 
-
     def create_data_product_resource_full(self):
-
         geospatial_bounds = {
             "geospatial_latitude_limit_north": 1.0,
             "geospatial_latitude_limit_south": 1.0,
@@ -212,7 +206,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         log.debug('create_data_product_resource_full  param_dictionary_id:  %s', param_dictionary_id)
         log.debug('create_data_product_resource_full  test:  %s', test)
 
-
         response = self.test_app.get('/ion-service/pubsub_management/create_stream_definition?name=CTDData&parameter_dictionary_id='+ convert_unicode(param_dictionary_id[0]))
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
@@ -220,7 +213,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         log.debug('create_data_product_resource_full   response_data:  %s', response_data)
         stream_definition_id = convert_unicode(response_data)
         log.debug('create_data_product_resource_full  stream_definition_id:  %s', stream_definition_id)
-
 
         data_product_create_request = {  "serviceRequest": {
             "serviceName": "data_product_management",
@@ -247,9 +239,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         data_product_id = convert_unicode(response_data)
         return data_product_id
 
-
     def delete_data_product_resource(self, data_product_id):
-
         data_product_delete_request = {  "serviceRequest": {
             "serviceName": "resource_registry",
             "serviceOp": "delete",
@@ -263,8 +253,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         return response
 
     def create_policy_resource(self):
-
-
         policy_create_request = {  "serviceRequest": {
             "serviceName": "resource_registry",
             "serviceOp": "create",
@@ -296,16 +284,12 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         policy_id = convert_unicode(response_data[0])
         return policy_id
 
-
-
     @attr('SMOKE')
     def test_anonymous_resource_registry_operations_through_gateway(self):
         """
         This test ensures that requests make through the service gateway through messaging to the Resource Registry and
         back; including the support of unicode characters.
-        @return:
         """
-
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=' + convert_unicode(DATA_PRODUCT_NAME) + '&id_only=True&user_id=123abc456')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
@@ -329,7 +313,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
         data_product_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
-
 
         #Verify the the name and description fields containing unicode characters match all the way through couch and the messaging
         self.assertEqual(data_product_obj['name'], convert_unicode(DATA_PRODUCT_NAME))
@@ -391,7 +374,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn('does not exist', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
         self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
-
         #Now try creating a policy object which has an internal object of a different type
         policy_id = self.create_policy_resource()
 
@@ -414,7 +396,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertEqual(policy_obj['name'], convert_unicode(POLICY_NAME))
         self.assertEqual(policy_obj['description'], convert_unicode(POLICY_DESCRIPTION))
         self.assertEqual(policy_obj['policy_type']['policy_rule'], convert_unicode(POLICY_RULE))
-
 
         updated_policy_rule = policy_obj['policy_type']['policy_rule'] + '---Updated!!'
 
@@ -442,7 +423,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         updated_policy_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
         self.assertEqual(updated_policy_obj['policy_type']['policy_rule'], updated_policy_rule )
 
-
         #Now testing the generic get_resource_extension with optional user_id parameter
 
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=ionsystem')
@@ -462,11 +442,8 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         response_data = response.json['data'][GATEWAY_RESPONSE]
         self.assertEqual(convert_unicode(response_data['user_id']), '123abc456')
 
-
-
     def test_non_anonymous_resource_registry_operations_through_gateway(self):
-
-        id_client = IdentityManagementServiceClient(node=self.container.node)
+        id_client = IdentityManagementServiceClient()
 
         actor_id, valid_until, registered = id_client.signon(USER1_CERTIFICATE, True)
 
@@ -474,14 +451,173 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
         response_data = response.json['data'][GATEWAY_RESPONSE]
-        self.assertEqual(len(response_data),2 )
-        self.assertEqual(len(response_data[0]), 0 )
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 0)
 
         id_client.delete_actor_identity(actor_id)
 
+    def test_non_anonymous_resource_registry_operations_with_token(self):
+        rr = self.container.resource_registry
+        id_client = IdentityManagementServiceClient()
+
+        create_request = {
+            "serviceRequest": {
+                "serviceName": "resource_registry", "serviceOp": "create",
+                "params": {
+                    "object": {"name": "Instrument1", "type_": "InstrumentDevice"}
+                }
+            }
+        }
+
+        # Create without actor
+        response = self.test_app.post('/ion-service/resource_registry/create', {'payload': simplejson.dumps(create_request)})
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertGreaterEqual(len(response_data[0]), 20)  # This is a resource_id
+        inst_id = str(response_data[0])
+
+        inst_obj = rr.read(inst_id)
+        self.assertEquals(inst_obj.type_, RT.InstrumentDevice)
+        self.assertEquals(inst_obj.name, "Instrument1")
+        self.assertEquals(inst_obj.visibility, ResourceVisibilityEnum.PUBLIC)
+
+        act_objs, assocs = rr.find_objects(inst_id, PRED.hasOwner, RT.ActorIdentity, id_only=False)
+        self.assertEquals(len(act_objs), 0)
+
+        # Anonymous query shows PUBLIC visibility resource anymore
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=Instrument1&id_only=True')
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 1)
+        self.assertEqual(len(response_data[1]), 1)
+        self.assertEqual(response_data[0][0], inst_id)
+
+        inst_obj.visibility = ResourceVisibilityEnum.OWNER
+        rr.update(inst_obj)
+
+        # Now the anonymous query should not show the resource anymore
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=Instrument1&id_only=True')
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 0)
+
+        rr.delete(inst_id)
+
+
+        # Create with actor
+        actor_id, valid_until, registered = id_client.signon(USER1_CERTIFICATE, True)
+
+        create_request = {
+            "serviceRequest": {
+                "serviceName": "resource_registry", "serviceOp": "create", "requester": actor_id,
+                "params": {
+                    "object": {"name": "Instrument1", "type_": "InstrumentDevice",
+                               "visibility": ResourceVisibilityEnum.OWNER}
+                }
+            }
+        }
+
+        response = self.test_app.post('/ion-service/resource_registry/create', {'payload': simplejson.dumps(create_request)})
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertGreaterEqual(len(response_data[0]), 20)  # This is a resource_id
+        inst_id = str(response_data[0])
+
+        inst_obj = rr.read(inst_id)
+        self.assertEquals(inst_obj.type_, RT.InstrumentDevice)
+        self.assertEquals(inst_obj.name, "Instrument1")
+        self.assertEquals(inst_obj.visibility, ResourceVisibilityEnum.OWNER)
+
+        act_objs, assocs = rr.find_objects(inst_id, PRED.hasOwner, RT.ActorIdentity, id_only=False)
+        self.assertEquals(len(act_objs), 1)
+        self.assertEquals(act_objs[0]._id, actor_id)
+
+        # Anonymous query should not show the resource anymore
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=Instrument1&id_only=True')
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 0)
+
+        # Authenticated request with owner shows resource
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=Instrument1&id_only=True&requester=' + actor_id)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 1)
+        self.assertEqual(len(response_data[1]), 1)
+        self.assertEqual(response_data[0][0], inst_id)
+
+        token_str = id_client.create_authentication_token(actor_id, validity=2)
+
+        # Request with authentication token for owner shows resource
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=Instrument1&id_only=True&authtoken=' + token_str)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 1)
+        self.assertEqual(len(response_data[1]), 1)
+        self.assertEqual(response_data[0][0], inst_id)
+
+        gevent.sleep(2.1)
+
+        # Request with expired authentication token for owner does not show resource (no error though)
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=Instrument1&id_only=True&authtoken=' + token_str)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 0)
+
+        # Request with valid authentication token for different user does not show resource
+        actor_id2, _ = rr.create(IonObject(RT.ActorIdentity, name="Actor2"))
+        token_str2 = id_client.create_authentication_token(actor_id2, validity=2)
+
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=Instrument1&id_only=True&authtoken=' + token_str2)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 0)
+
+        token_str3 = id_client.create_authentication_token(actor_id, validity=2)
+
+        # Request with new authentication token for owner shows resource
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=Instrument1&id_only=True&authtoken=' + token_str3)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 1)
+        self.assertEqual(len(response_data[1]), 1)
+        self.assertEqual(response_data[0][0], inst_id)
+
+        id_client.invalidate_authentication_token(token_str3)
+
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=Instrument1&id_only=True&authtoken=' + token_str3)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2)
+        self.assertEqual(len(response_data[0]), 0)
+
+        # Cleanup
+        rr.delete(inst_id)
+        rr.delete(actor_id2)
+        id_client.delete_actor_identity(actor_id)
 
     def test_get_resource_schema(self):
-
         response = self.test_app.get('/ion-service/resource_type_schema/Org')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
@@ -503,7 +639,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn('InstrumentModel', model_obj['schemas'])
         self.assertIn('PrimaryInterface', model_obj['schemas'])
 
-
         response = self.test_app.get('/ion-service/resource_type_schema/DataProduct')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
@@ -521,10 +656,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn('No matching class found', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
         self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
 
-
-
     def test_get_resource(self):
-
         data_product_id = self.create_data_product_resource()
 
         response = self.test_app.get('/ion-resources/resource/' + data_product_id)
@@ -540,7 +672,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.delete_data_product_resource(data_product_id)
 
     def test_list_resources_by_type(self):
-
         data_product_id = self.create_data_product_resource()
 
         response = self.test_app.get('/ion-resources/find_resources/DataProduct')
@@ -555,7 +686,6 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.delete_data_product_resource(data_product_id)
 
     def test_list_org_roles(self):
-
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=ionsystem')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
@@ -574,10 +704,8 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn('ORG_MEMBER', response_data['ION'])
 
     def test_user_role_cache(self):
-
-
         #Create a user
-        id_client = IdentityManagementServiceClient(node=self.container.node)
+        id_client = IdentityManagementServiceClient()
 
         actor_id, valid_until, registered = id_client.signon(USER1_CERTIFICATE, True)
 
@@ -595,7 +723,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertEqual(len(role_header['ION']), 1)
         self.assertIn('ORG_MEMBER', role_header['ION'])
 
-        org_client = OrgManagementServiceClient(node=self.container.node)
+        org_client = OrgManagementServiceClient()
 
         ion_org = org_client.find_org()
         manager_role = org_client.find_org_role_by_name(org_id=ion_org._id, role_name='ORG_MANAGER')
@@ -656,9 +784,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         id_client.delete_actor_identity(actor_id)
 
-
     def test_data_provenance_retrieve(self):
-
         data_product_id = self.create_data_product_resource_full()
         get_parameter_provenance_visualization_image_request = {  "serviceRequest": {
             "serviceName": "service_gateway",

@@ -15,7 +15,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from coverage_model.parameter_types import QuantityType, ArrayType, TextType
 from coverage_model.parameter_types import RecordType, CategoryType 
 from coverage_model.parameter_types import ConstantType, ConstantRangeType, RaggedArrayType
-from coverage_model.parameter_functions import AbstractFunction
+from coverage_model.parameter_functions import AbstractFunction, ExternalFunction
 from coverage_model import ParameterFunctionType, ParameterContext, SparseConstantType, ConstantType
 
 from copy import deepcopy
@@ -119,7 +119,7 @@ class TypesManager(object):
         else:
             raise TypeError('Invalid Fill Value: %s' % val) # May never be called
 
-    def get_parameter_type(self,parameter_type, encoding, code_set=None, pfid=None, pmap=None):
+    def get_parameter_type(self,parameter_type, encoding, code_set=None, pfid=None, pmap=None, target_info=None):
         if parameter_type == 'quantity':
             return self.get_quantity_type(parameter_type,encoding)
         elif re.match(r'array<?.*>?', parameter_type):
@@ -142,6 +142,8 @@ class TypesManager(object):
             return self.get_sparse_type(parameter_type, encoding)
         elif parameter_type == 'ragged':
             return self.get_ragged_type(parameter_type, encoding)
+        elif parameter_type == 'external':
+            return self.get_external_type(parameter_type, encoding, target_info)
         else:
             raise TypeError( 'Invalid Parameter Type: %s' % parameter_type)
 
@@ -504,6 +506,11 @@ class TypesManager(object):
             return SparseConstantType(value_encoding=encoding)
         else:
             return SparseConstantType()
+
+    def get_external_type(self, parameter_type, encoding, target_info):
+        pfunc = ExternalFunction(name=target_info['name'], external_guid=target_info['target_dataset'], external_name=target_info['target_name'])
+        param_type = ParameterFunctionType(pfunc)
+        return param_type
 
     def get_ragged_type(self, parameter_type, encoding):
         return RaggedArrayType()

@@ -12,11 +12,8 @@ from pyon.event.event import EventPublisher
 from pyon.agent.agent import ResourceAgentState
 from pyon.core.governance import get_actor_header
 
-from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.sa.test.helpers import any_old
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
-
-from interface.objects import ComputedValueAvailability
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
@@ -26,13 +23,9 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
-
-
-
 class FakeProcess(LocalContextMixin):
     name = ''
 
- 
 @attr('INT', group='sa')
 class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
@@ -324,6 +317,12 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         platform_model_id, _    = self.RR.create(any_old(RT.PlatformModel))
         deployment_id, _        = self.RR.create(any_old(RT.Deployment))
 
+        # marine tracking resources
+        asset_id        = create_under_org(RT.Asset)
+        asset_type_id   = create_under_org(RT.AssetType)
+        event_duration_id        = create_under_org(RT.EventDuration)
+        event_duration_type_id   = create_under_org(RT.EventDurationType)
+
         #observatory
         self.RR.create_association(observatory_id, PRED.hasSite, subsite_id)
         self.RR.create_association(observatory_id, PRED.hasSite, subsitez_id)
@@ -387,6 +386,11 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         ret.instrument_model_id   = instrument_model_id
         ret.platform_model_id     = platform_model_id
         ret.deployment_id         = deployment_id
+
+        ret.asset_id              = asset_id
+        ret.asset_type_id         = asset_type_id
+        ret.event_duration_id     = event_duration_id
+        ret.event_duration_type_id = event_duration_type_id
 
         return ret
 
@@ -683,6 +687,11 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertTrue(len(extended_site.deployments)>0)
         self.assertEqual(len(extended_site.deployments), len(extended_site.deployment_info))
 
+        self.assertEqual(1, extended_org.number_of_assets)
+        self.assertEqual(1, extended_org.number_of_asset_types)
+        self.assertEqual(1, extended_org.number_of_event_durations)
+        self.assertEqual(1, extended_org.number_of_event_duration_types)
+
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()
         extended_org = self.OMS.get_marine_facility_extension(ion_org_id._id, user_id=12345)
@@ -709,6 +718,4 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         log.debug("test_observatory_org_extended: extended_site:  %s ", str(extended_site))
 
         self.dpclient.delete_data_product(data_product_id1)
-
-
 

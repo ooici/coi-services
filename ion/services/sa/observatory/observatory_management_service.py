@@ -4,21 +4,26 @@
 
 import string
 import time
+
 import logging
+
 from collections import defaultdict
 from pyon.core.governance import ORG_MANAGER_ROLE, DATA_OPERATOR, OBSERVATORY_OPERATOR, INSTRUMENT_OPERATOR, GovernanceHeaderValues, has_org_role
 
 from ooi.logging import log
-
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
 
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.observatory.deployment_activator import DeploymentPlanner
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+from ion.services.sa.observatory.asset_tracking import AssetTracking
 from ion.services.sa.observatory.deployment_util import DeploymentUtil
+from ion.services.sa.product.data_product_management_service import DataProductManagementService
 from ion.processes.event.device_state import DeviceStateManager
 from ion.util.geo_utils import GeoUtils
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
@@ -208,8 +213,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def force_delete_observatory(self, observatory_id=''):
         return self.RR2.force_delete(observatory_id, RT.Observatory)
-
-
 
     def create_subsite(self, subsite=None, parent_id=''):
         """Create a Subsite resource. A subsite is a frame of reference within an observatory. Its parent is
@@ -566,8 +569,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.clients.org_management.unshare_resource(org_id, resource_id)
 
 
-
-
     ##########################################################################
     #
     # DEPLOYMENTS
@@ -719,6 +720,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     continue # Ingest stream name isn't defined
 
                 for dpd in dpds:
+                    # breakpoint(locals(), globals())
                     if sdp.ingest_stream_name == dpd.ingest_stream_name:
 
                         # Update the window list in the resource
@@ -737,7 +739,27 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
                         self.clients.dataset_management.add_dataset_window_to_complex(device_dataset_id, (start, end), site_dataset_id)
 
+                        dp_params = self.clients.data_product_management.get_data_product_parameters(dpd._id, id_only=False)
+                        # print [d.name for d in dp_params]
+                        for param in dp_params:
+                            if 'lat' in param.name and param.parameter_type == 'sparse':
+                                # Update sparse lat/lon data with site lat/lon
+                                site_obj = self.RR.read(site_id)
 
+                                # Search for GeospatialBounds bbox constraint
+                                for constraint in site_obj.constraint_list:
+                                    if constraint.type_ == OT.GeospatialBounds:
+                                        # Get the midpoint of the site geospatial bounds
+                                        mid_point = GeoUtils.calc_geospatial_point_center(constraint)
+
+                                        # Create granule using midpoint
+                                        stream_def_id, _ = self.RR.find_objects(subject=dpd, predicate=PRED.hasStreamDefinition, id_only=True)
+                                        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id[0])
+                                        rdt['time'] = [start]
+                                        rdt['lat'] = [mid_point['lat']]
+                                        rdt['lon'] = [mid_point['lon']]
+
+                                        ParameterHelper.publish_rdt_to_data_product(dpd, rdt)
 
         if deployment_obj.lcstate != LCS.DEPLOYED:
             self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
@@ -1094,7 +1116,1023 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return res_dict
 
+    # -------------------------------------------------------------------------
+    #   Marine Asset Management RESOURCES (start)
+    # -------------------------------------------------------------------------
+    #   AssetType
+    def create_asset_type(self, asset_type=None):
+        """Create a AssetType resource.
 
+        @param asset_type           RT.AssetType
+        @retval asset_type_id       str
+        @throws: BadRequest 'asset_type object is empty'
+        """
+        if not asset_type:
+            raise BadRequest('asset_type object is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        asset_type_id = at.create_asset_type(asset_type)
+
+        return asset_type_id
+
+    def read_asset_type(self, asset_type_id=''):
+        """Read an AssetType resource.
+
+        @param asset_type_id    str
+        @retval asset_type      RT.AssetType
+        @throws: BadRequest 'asset_type_id parameter is empty'
+        """
+        if not asset_type_id:
+            raise BadRequest('asset_type_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        asset_type = at.read_asset_type(asset_type_id)
+
+        return asset_type
+
+    def update_asset_type(self, asset_type=None):
+        """Update an AssetType resource.
+
+        @param asset_type   RT.AssetType
+        @throws: BadRequest 'asset_type object is empty'
+        """
+        if not asset_type:
+            raise BadRequest('asset_type object is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        obj = at.update_asset_type(asset_type)
+
+        return obj
+
+    def delete_asset_type(self, asset_type_id=''):
+        """Delete an AssetType resource.
+
+        @param asset_type_id    str
+        @throws: BadRequest     'asset_type_id parameter is empty'
+        """
+        if not asset_type_id:
+            raise BadRequest('asset_type_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.delete_asset_type(asset_type_id)
+
+    def force_delete_asset_type(self, asset_type_id=''):
+        """Force delete an AssetType resource
+        @param asset_type_id    str
+        @throws: BadRequest     'asset_type_id parameter is empty'
+        """
+        if not asset_type_id:
+            raise BadRequest('asset_type_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.force_delete_asset_type(asset_type_id)
+
+    def update_attribute_specifications(self, resource_id='', spec_dict=None):
+        """ Update attribute_specifications of resource using spec_dict provided.
+
+        @param resource_id   str        # id of RT.Asset or RT.EventDurationType
+        @param spec_dict     []         # list of attribute specification name(s)
+        @throws BadRequest   'resource_id parameter is empty'
+        @throws BadRequest   'spec_dict parameter is empty'
+        @throws Inconsistent unable to process resource of this type
+        """
+        # TODO NOTE: Must abide by state restriction model
+        # Updating attribute_specification is dependent on state (i.e. if in integrated or deployment state,
+        # updates are not permitted unless the operator has privileges to do so.
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+
+        if not spec_dict:
+            raise BadRequest('spec_dict parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.update_attribute_specifications(resource_id, spec_dict)
+
+    def delete_attribute_specification(self, resource_id='', attr_spec_names=None):
+        """Delete attribute_specifications in list of attr_spec_names and return the
+        TypeResource attribute_specifications dictionary for resource_id.
+
+        @param resource_id          str     # id of RT.Asset or RT.EventDurationType
+        @param attr_spec_names      []      # list of attribute specification name(s)
+        @retval r_obj               {}      # dictionary of attribute specification(s)
+        @throws BadRequest      'resource_id parameter is empty'
+        @throws BadRequest      'attr_spec_names parameter is empty'
+        """
+        # TODO NOTE: Must abide by state restriction model
+        # Delete attribute_specifications in list of attr_spec_names and return the
+        # TypeResource attribute_specifications dictionary for resource_id.
+
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+
+        if not attr_spec_names:
+            raise BadRequest('attr_spec_names parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        r_obj = at.delete_attribute_specification(resource_id, attr_spec_names)
+
+        return r_obj
+
+    #
+    #  Asset
+    #
+    def create_asset(self, asset=None, asset_type_id=''):
+        """Create an Asset resource. If alt_ids provided verify well formed and unique
+        in namespace RT.Asset. An Asset is coupled with an AssetType. The AssetType is
+        created and associated within this call if asset_type_id provided.
+
+        @param  asset           RT.Asset
+        @param  asset_type_id   str        # optional
+        @param  asset_id        str
+        @throws BadRequest      'asset object is empty'
+        @throws Inconsistent    'multiple alt_ids not permitted for Asset resources'
+        @throws Inconsistent    'malformed alt_ids provided for Asset; required format \'Asset:asset_name\''
+        @throws BadRequest      'resource instance already exists (\'Asset\') with this altid: %s'
+        @throws Inconsistent    'Invalid asset object'
+        """
+        if not asset:
+            raise BadRequest('asset object is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        asset_id = at.create_asset(asset, asset_type_id)
+
+        return asset_id
+
+    def read_asset(self, asset_id=''):
+        """Read an Asset resource
+        @param  asset_id    str
+        @retval asset       RT.Asset
+        @throws BadRequest  'asset_id parameter is empty'
+        """
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        obj = at.read_asset(asset_id)
+
+        return obj
+
+    def update_asset(self, asset=None):
+        """Update an Asset resource. Ensure alt_ids value (if provided) is well formed and
+        unique in namespace. The asset object provided shall have asset_attrs defined and shall also have
+        an association (PRED.implementsAssetType) defined or method shall fail. asset.asset_attrs and
+        the association are required to perform validation and constraint checks prior to update.
+
+        @param asset        RT.Asset
+        @throws BadRequest  'asset object is empty'
+        @throws BadRequest  '_id is empty'
+        @throws BadRequest  'asset (id=%s) does not have association (PRED.implementsAssetType) defined'
+        @throws BadRequest  'asset (id=%s) has more than one association (PRED.implementsAssetType) defined'
+        @throws BadRequest  'asset type (id: \'%s\') does not have attribute_specifications'
+        @throws BadRequest  'asset_update requires asset_attrs to be provided'
+        @throws BadRequest  'attribute (\'%s\') not found in AssetType (id=\'%s\') AttributeSpecification '
+        @throws BadRequest  'update_asset: altid returned: %s; instance using current_altid_exists: %s'
+        @throws BadRequest  (numerous error messages from lower methods inside update_asset)
+        @throws BadRequest  'update_asset failed'
+        """
+        try:
+            if not asset:
+                raise BadRequest('asset object is empty')
+
+            if not asset._id:
+                raise NotFound('_id is empty')
+
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            at.update_asset(asset)
+
+        except BadRequest, Arguments:
+            raise BadRequest('update_asset: %s' % Arguments.get_error_message())
+        except NotFound, Arguments:
+            raise NotFound('update_asset: %s' % Arguments.get_error_message())
+        except Inconsistent, Arguments:
+            raise Inconsistent('update_asset: %s' % Arguments.get_error_message())
+        except:
+            raise BadRequest('update_asset failed')
+
+        return
+
+    def delete_asset(self, asset_id=''):
+        """Delete an Asset resource
+
+        @param asset_id     str
+        @throws BadRequest  'asset_id parameter is empty'
+        """
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.delete_asset(asset_id)
+
+        return
+
+    def force_delete_asset(self, asset_id=''):
+        """ Force delete an Asset resource
+
+        @param asset_id     str
+        @throws BadRequest  'asset_id parameter is empty'
+        """
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.force_delete_asset(asset_id)
+
+    def get_asset_extension(self, asset_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        """Returns an AssetExtension object containing additional related information
+
+        @param asset_id             str
+        @param ext_associations     dict
+        @param ext_exclude          list
+        @param user_id              str
+        @retval extended_asset      AssetExtension
+        @throws BadRequest          'asset_id parameter is empty'
+        """
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+        extended_asset = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.AssetExtension,
+            resource_id=asset_id,
+            computed_resource_type=OT.BaseComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        from ion.util.extresource import strip_resource_extension, get_matchers, matcher_UserInfo, matcher_MarineAsset,\
+        matcher_DataProduct, matcher_DeviceModel,  matcher_Device
+        matchers = get_matchers([matcher_MarineAsset, matcher_UserInfo])
+        strip_resource_extension(extended_asset, matchers=matchers)
+
+        return extended_asset
+
+    def prepare_asset_support(self, asset_id=''):
+        """Asset prepare support for UI (create, update).
+
+        @param  asset_id        str
+        @retval resource_data   resource_schema
+        """
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_resource_support(asset_id, OT.AssetPrepareSupport)
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.create_request, 'observatory_management',
+            'create_asset', { "asset":  "$(asset)" })
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.update_request, 'observatory_management',
+            'update_asset', { "asset":  "$(asset)" })
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # assign event to asset (LocationEvent, OperabilityEvent, VerificationEvent, IntegrationEvent)
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        #Fill out service request information for assigning an EventDuration to Asset (LocationEvent)
+        extended_resource_handler.set_service_requests(resource_data.associations['AssetHasLocationEvent'].assign_request,
+                                                       'observatory_management', 'assign_event_duration_to_asset',
+                                                       {"event_duration_id":  "$(event_duration_id)", "asset_id":  asset_id })
+
+        #Fill out service request information for assigning an EventDuration to Asset (OperabilityEvent)
+        extended_resource_handler.set_service_requests(resource_data.associations['AssetHasOperabilityEvent'].assign_request,
+                                                       'observatory_management', 'assign_event_duration_to_asset',
+                                                       {"event_duration_id":  "$(event_duration_id)", "asset_id":  asset_id })
+
+        #Fill out service request information for assigning an EventDuration to Asset (VerificationEvent)
+        extended_resource_handler.set_service_requests(resource_data.associations['AssetHasVerificationEvent'].assign_request,
+                                                       'observatory_management', 'assign_event_duration_to_asset',
+                                                       {"event_duration_id":  "$(event_duration_id)", "asset_id":  asset_id })
+
+        #Fill out service request information for assigning an EventDuration to Asset (IntegrationEvent)
+        extended_resource_handler.set_service_requests(resource_data.associations['AssetHasAssemblyEvent'].assign_request,
+                                                       'observatory_management', 'assign_event_duration_to_asset',
+                                                       {"event_duration_id":  "$(event_duration_id)", "asset_id":  asset_id })
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+        # unassign event to asset (LocationEvent, OperabilityEvent, VerificationEvent, IntegrationEvent)
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        #Fill out service request information for unassigning an EventDuration to Asset (LocationEvent)
+        extended_resource_handler.set_service_requests(resource_data.associations['AssetHasLocationEvent'].unassign_request,
+                                                       'observatory_management', 'unassign_event_duration_to_asset',
+                                                       {"event_duration_id":  "$(event_duration_id)", "asset_id":  asset_id })
+
+        #Fill out service request information for unassigning an EventDuration to Asset (OperabilityEvent)
+        extended_resource_handler.set_service_requests(resource_data.associations['AssetHasOperabilityEvent'].unassign_request,
+                                                       'observatory_management', 'unassign_event_duration_to_asset',
+                                                       {"event_duration_id":  "$(event_duration_id)", "asset_id":  asset_id })
+
+        #Fill out service request information for unassigning an EventDuration to Asset (VerificationEvent)
+        extended_resource_handler.set_service_requests(resource_data.associations['AssetHasVerificationEvent'].unassign_request,
+                                                       'observatory_management', 'unassign_event_duration_to_asset',
+                                                       {"event_duration_id":  "$(event_duration_id)", "asset_id":  asset_id })
+
+        #Fill out service request information for unassigning an EventDuration to Asset (IntegrationEvent)
+        extended_resource_handler.set_service_requests(resource_data.associations['AssetHasAssemblyEvent'].unassign_request,
+                                                       'observatory_management', 'unassign_event_duration_to_asset',
+                                                       {"event_duration_id":  "$(event_duration_id)", "asset_id":  asset_id })
+
+        return resource_data
+
+    def assign_asset_type_to_asset(self, asset_type_id='',asset_id=''):
+        """ Link an Asset to an AssetType
+
+        @param asset_type_id  str
+        @param asset_id       str
+        @throws BadRequest    'asset_type_id parameter is empty'
+        @throws BadRequest    'asset_id parameter is empty'
+        """
+        if not asset_type_id:
+            raise BadRequest('asset_type_id parameter is empty')
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.assign_asset_type_to_asset(asset_type_id, asset_id)
+
+    def unassign_asset_type_from_asset(self, asset_type_id='', asset_id=''):
+        """Remove link of Asset from AssetType.
+
+        @param asset_type_id    str
+        @param asset_id         str
+        @throws BadRequest      'asset_type_id parameter is empty'
+        @throws BadRequest      'asset_id parameter is empty'
+        """
+        if not asset_type_id:
+            raise BadRequest('asset_type_id parameter is empty')
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.unassign_asset_type_from_asset(asset_type_id, asset_id)
+
+    #
+    #   EventDurationType
+    #
+
+    def create_event_duration_type(self, event_duration_type=None):
+        """Create a EventDurationType resource.
+
+        @param event_duration_type      RT.EventDurationType
+        @retval event_duration_type_id  str
+        @throws: BadRequest 'event_duration_type parameter is empty'
+        """
+        if not event_duration_type:
+            raise BadRequest('event_duration_type parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        event_duration_type = at.create_event_duration_type(event_duration_type)
+        return event_duration_type
+
+    def read_event_duration_type(self, event_duration_type_id=''):
+        """Read an EventDurationType resource.
+
+        @param event_duration_type_id  str
+        @retval event_duration_type    RT.EventDurationType
+        @throws: BadRequest 'event_duration_type_id parameter is empty'
+        """
+        if not event_duration_type_id:
+            raise BadRequest('event_duration_type_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        event_duration_type = at.read_event_duration_type(event_duration_type_id)
+
+        return event_duration_type
+
+    def update_event_duration_type(self, event_duration_type=None):
+        """Update an EventDurationType resource.
+
+        @param event_duration_type  RT.EventDurationType
+        @throws: BadRequest     'event_duration_type parameter is empty'
+        """
+        if not event_duration_type:
+            raise BadRequest('event_duration_type parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.update_event_duration_type(event_duration_type)
+        return
+
+    def delete_event_duration_type(self, event_duration_type_id=''):
+        """Delete an EventDurationType resource.
+
+        @param event_duration_type_id  str
+        @throws: BadRequest 'event_duration_type_id parameter is empty'
+        """
+        if not event_duration_type_id:
+            raise BadRequest('event_duration_type_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.delete_event_duration_type(event_duration_type_id)
+
+        return
+
+    def force_delete_event_duration_type(self, event_duration_type_id=''):
+        """Force delete an EventDurationType resource.
+
+        @param event_duration__type_id  str
+        @throws: BadRequest 'event_duration_type_id parameter is empty'
+        """
+        if not event_duration_type_id:
+            raise BadRequest('event_duration_type_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.force_delete_event_duration_type(event_duration_type_id)
+
+    #
+    #    EventDuration
+    #
+    def create_event_duration(self, event_duration=None, event_duration_type_id=''):
+        """Create a EventDuration resource.
+
+        An EventDuration is created and is coupled with an EventDurationType if
+        the optional event_duration_type_id is provided.
+
+        @param event_duration           RT.EventDuration
+        @param event_duration_type_id   str              # optional
+        @retval event_duration_id       str
+        @throws BadRequest      'event_duration parameter is empty'
+        @throws Inconsistent    'multiple alt_ids not permitted for EventDuration resources'
+        @throws Inconsistent    'malformed EventDuration.alt_ids provided; required format empty or \'EventDuration:event_name\'
+        @throws Inconsistent    'invalid namespace (%s) provided for EventDuration resource'
+        @throws BadRequest      'resource instance already exists (\'EventDuration\') with this altid: %s'
+        @throws Inconsistent    'Invalid event_duration object'
+        """
+        if not event_duration:
+            raise BadRequest('event_duration parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        event_duration_id = at.create_event_duration(event_duration, event_duration_type_id)
+
+        return event_duration_id
+
+    def read_event_duration(self, event_duration_id=''):
+        """Read an EventDuration resource.
+
+        @param event_duration_id  str
+        @retval event_duration    RT.EventDuration
+        @throws BadRequest  'event_duration_id parameter is empty'
+        """
+        if not event_duration_id:
+            raise BadRequest('event_duration_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        event_duration = at.read_event_duration(event_duration_id)
+
+        return event_duration
+
+    def update_event_duration(self, event_duration=None):
+        """Update an EventDuration resource and ensure alt_ids value (if provided) is well formed and
+        unique in namespace. The event_duration object provided shall have event_duration_attrs
+        defined and shall also have an association (PRED.implementsEventDurationType) defined or
+        method shall fail. event_duration.event_duration_attrs and the association are required
+        to perform validation and constraint checks prior to update.
+        @param event_duration    RT.EventDuration
+        @throws BadRequest      'update_event_duration failed'
+        @throws BadRequest      'event_duration parameter is empty'
+        @throws BadRequest      'event_duration (id=%s) does not have association (PRED.implementsEventDurationType) defined'
+        @throws BadRequest      'event_duration (id=%s) has more than one association (PRED.implementsEventDurationType) defined'
+        @throws BadRequest      'event_duration_update requires event_duration_attrs to be provided'
+        @throws BadRequest      'event_duration_update: altid returned: %s and current_altid_exists: %s'
+        @throws BadRequest      'update_event_duration failed'
+        """
+        try:
+            if not event_duration:
+                raise BadRequest('event_duration parameter is empty')
+
+            if not event_duration._id:
+                raise NotFound('_id is empty')
+
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            at.update_event_duration(event_duration)
+
+        except BadRequest, Arguments:
+            raise BadRequest('update_event_duration: %s' % Arguments.get_error_message())
+        except NotFound, Arguments:
+            raise NotFound('update_event_duration: %s' % Arguments.get_error_message())
+        except Inconsistent, Arguments:
+            raise Inconsistent('update_event_duration: %s' % Arguments.get_error_message())
+        except:
+            raise BadRequest('update_event_duration failed')
+
+        return
+
+    def delete_event_duration(self, event_duration_id=''):
+        """Delete an EventDuration resource.
+
+        @param event_duration_id   str
+        @throws BadRequest  'event_duration_id parameter is empty'
+        """
+        if not event_duration_id:
+            raise BadRequest('event_duration_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.delete_event_duration(event_duration_id)
+
+        return
+
+    def force_delete_event_duration(self, event_duration_id=''):
+        """ Force delete an EventDuration resource.
+
+        @param event_duration_id    str
+        @throws BadRequest  'event_duration_id parameter is empty'
+        """
+        if not event_duration_id:
+            raise BadRequest('event_duration_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.force_delete_event_duration(event_duration_id)
+
+    def assign_event_duration_type_to_event_duration(self, event_duration_type_id='', event_duration_id=''):
+        """ Link an EventDuration to an EventDurationType.
+
+        @param event_duration_type_id  str
+        @param event_duration_id       str
+        @throws BadRequest  'event_duration_type_id parameter is empty'
+        @throws BadRequest  'event_duration_id parameter is empty'
+        """
+        if not event_duration_type_id:
+            raise BadRequest('event_duration_type_id parameter is empty')
+
+        if not event_duration_id:
+            raise BadRequest('event_duration_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.assign_event_duration_type_to_event_duration(event_duration_type_id, event_duration_id)
+
+    def unassign_event_duration_type_from_event_duration(self, event_duration_type_id='', event_duration_id=''):
+        """Remove link of EventDuration from EventDurationType.
+
+        @param event_duration_type_id  str
+        @param event_duration_id       str
+        @throws BadRequest      'event_duration_type_id parameter is empty'
+        @throws BadRequest      'event_duration_id parameter is empty'
+        """
+        if not event_duration_type_id:
+            raise BadRequest('event_duration_type_id parameter is empty')
+
+        if not event_duration_id:
+            raise BadRequest('event_duration_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.unassign_event_duration_type_from_event_duration(event_duration_type_id, event_duration_id)
+
+    def get_event_duration_extension(self, event_duration_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        """Returns an EventDurationExtension object containing additional related information
+
+        @param event_duration_id        str
+        @param ext_associations         dict
+        @param ext_exclude              list
+        @param user_id                  str
+        @retval extended_event_duration EventDurationExtension
+        @throws BadRequest          'event_duration_id parameter is empty'
+        """
+        if not event_duration_id:
+            raise BadRequest('event_duration_id parameter is empty')
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_event_duration = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.EventDurationExtension,
+            resource_id=event_duration_id,
+            computed_resource_type=OT.BaseComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        from ion.util.extresource import strip_resource_extension, get_matchers, matcher_UserInfo, matcher_MarineAsset, \
+        matcher_DataProduct, matcher_DeviceModel,  matcher_Device
+        matchers = get_matchers([matcher_MarineAsset, matcher_UserInfo])
+        strip_resource_extension(extended_event_duration, matchers=matchers)
+
+        return extended_event_duration
+
+    def prepare_event_duration_support(self, event_duration_id=''):
+        """EventDuration prepare support for UI (create, update).
+
+        @param  event_duration_id       str
+        @retval resource_data           resource_schema
+        """
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_resource_support(event_duration_id, OT.EventDurationPrepareSupport)
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.create_request, 'observatory_management',
+            'create_event_duration', { "event_duration":  "$(event_duration)" })
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.update_request, 'observatory_management',
+            'update_event_duration', { "event_duration":  "$(event_duration)" })
+
+
+        """
+        #Fill out service request information for assigning an EventDurationType from EventDuration
+        extended_resource_handler.set_service_requests(resource_data.associations['EventDurationHasEventDurationType'].assign_request, 'observatory_management',
+            'assign_event_duration_type_from_event_duration', {"event_duration_type_id":  "$(event_duration_type_id)",
+                                            "event_duration_id":  event_duration_id })
+
+        #Fill out service request information for unassigning an EventDurationType from EventDuration
+        extended_resource_handler.set_service_requests(resource_data.associations['EventDurationHasEventDurationType'].unassign_request, 'observatory_management',
+            'unassign_event_duration_type_from_event_duration', {"event_duration_type_id":  "$(event_duration_type_id)",
+                                                "event_duration_id":  event_duration_id })
+        """
+
+        return resource_data
+
+    def assign_event_duration_to_asset(self, event_duration_id='', asset_id=''):
+        """ Link an EventDuration to an Asset.
+
+        @param event_duration_id    str
+        @param asset_id             str
+        @throws BadRequest      'event_duration_id parameter is empty'
+        @throws BadRequest      'asset_id parameter is empty'
+        @throws NotFound        'asset instance not found'
+        @throws Inconsistent    'this event duration has multiple event duration types'
+        @throws BadRequest      'this event duration does not have associated event duration type'
+        @throws BadRequest      'unknown EventCategoryEnum value for association category'
+        @throws BadRequest      'an association (%s) already exists, cannot assign more than one association of the same type'
+        @throws BadRequest      'unknown association category predicate (Event to Asset)'
+        @throws BadRequest      'failed to assign association (%s)
+        """
+        if not event_duration_id:
+            raise BadRequest('event_duration_id parameter is empty')
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+
+        try:
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            at.assign_event_duration_to_asset(event_duration_id, asset_id)
+        except BadRequest, Arguments:
+            raise BadRequest(Arguments.get_error_message())
+        except NotFound, Arguments:
+            raise NotFound(Arguments.get_error_message())
+        except Inconsistent, Arguments:
+            raise Inconsistent(Arguments.get_error_message())
+        except:
+            raise BadRequest('failed to assign association event duration to asset')
+
+    def unassign_event_duration_to_asset(self, event_duration_id='', asset_id=''):
+        """Remove link of EventDuration from Asset.
+
+        @param event_duration_id    str
+        @param asset_id             str
+        @throws BadRequest          'event_duration_id parameter is empty'
+        @throws BadRequest          'asset_id parameter is empty'
+        @throws Inconsistent        'this event duration implements multiple event duration types'
+        @throws BadRequest          'this event duration does not have associated event duration type'
+        @throws Inconsistent        'this event duration has multiple associations with asset'
+        @throws BadRequest          'this event duration is not associated with asset'
+        """
+        if not event_duration_id:
+            raise BadRequest('event_duration_id parameter is empty')
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+        try:
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            at.unassign_event_duration_to_asset(event_duration_id, asset_id)
+        except BadRequest, Arguments:
+            raise BadRequest(Arguments.get_error_message())
+        except NotFound, Arguments:
+            raise NotFound(Arguments.get_error_message())
+        except Inconsistent, Arguments:
+            raise Inconsistent(Arguments.get_error_message())
+        except:
+            raise BadRequest('failed to unassign association (event duration from asset)')
+
+    #
+    #  Asset associations to resource
+    #  (not used; remove here AND from observatory_management_service.yml)
+    #
+    def assign_asset_to_resource(self, asset_id='',resource_id=''):
+        # Link an asset to a resource (deprecate)
+        #@param asset_id         str
+        #@param resource_id      str
+        #@throws NotFound    object with specified id does not exist
+        #@throws BadRequest  if object with specified id does not have_id or_rev attribute
+        #
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.assign_asset_to_resource(asset_id, resource_id)
+
+    def unassign_asset_from_resource(self, asset_id='', resource_id=''):
+        #Remove link of asset from resource. (deprecate)
+        #@param asset_id         str
+        #@param resource_id      str
+        #@throws BadRequest  if object with specified id does not have_id or_rev attribute
+        #
+        if not asset_id:
+            raise BadRequest('asset_id parameter is empty')
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.unassign_asset_from_resource(asset_id, resource_id)
+    #
+    #  CodeSpace
+    #
+    def create_code_space(self, code_space=None):
+        """Create a CodeSpace resource.
+
+        @param code_space       RT.CodeSpace
+        @retval  id             str
+        @throws: BadRequest     'code_space object is empty'
+        @throws: Inconsistent   'invalid code_space object'
+        """
+        if not code_space:
+            raise BadRequest('code_space object is empty')
+
+        try:
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            id = at.create_code_space(code_space)
+        except BadRequest, Arguments:
+            raise BadRequest(Arguments.get_error_message())
+        except Inconsistent, Arguments:
+            raise Inconsistent(Arguments.get_error_message())
+        except NotFound, Arguments:
+            raise NotFound(Arguments.get_error_message())
+        except:
+            raise Inconsistent('invalid code_space object')
+
+        return id
+
+    def read_code_space(self, resource_id=''):
+        """Read an CodeSpace resource.
+
+        @param resource_id          str
+        @retval code_space          RT.CodeSpace
+        @throws BadRequest 'resource_id parameter is empty'
+        @throws NotFound   'object with specified id does not exist'
+        """
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+        try:
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            obj = at.read_code_space(resource_id)
+        except:
+            raise NotFound('object with specified id does not exist.')
+
+        return obj
+
+    def update_code_space(self, code_space=None):
+        """Update an CodeSpace resource.
+
+        @param code_space  RT.CodeSpace
+        @throws BadRequest 'code_space object is empty'
+        """
+        if not code_space:
+            raise BadRequest('code_space object is empty')
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        obj = at.update_code_space(code_space)
+
+        return obj
+
+    def delete_code_space(self, resource_id=''):
+        """Delete a CodeSpace resource.
+
+        @param resource_id  str
+        @throws BadRequest 'resource_id parameter is empty'
+        @throws NotFound   'object with specified id does not exist.'
+        """
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+        try:
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            at.delete_code_space(resource_id)
+        except:
+            raise NotFound('object with specified id does not exist.')
+
+        return
+
+
+    def force_delete_code_space(self, resource_id=''):
+        """ Force delete a CodeSpace resource.
+
+        @param resource_id      str
+        @throws BadRequest      'resource_id parameter is empty'
+        @throws NotFound        'object with specified id does not exist.'
+        """
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+
+        try:
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            at.force_delete_code_space(resource_id)
+        except:
+            raise NotFound('object with specified id does not exist.')
+
+        return #obj
+
+
+    def read_codesets_by_name(self, resource_id='', names=None):
+        """Read CodeSpace (id=resource_id) for list of codeset name(s); return list of CodeSets.
+
+        @param resource_id      str
+        @param names            []
+        @throws: BadRequest     'resource_id parameter is empty'
+        @throws: BadRequest     'names parameter is empty'
+        @throws NotFound        'object with specified resource_id (type RT.CodeSpace) does not exist'
+        """
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+        if not names:
+            raise BadRequest('names parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        codesets = at.read_codesets_by_name(resource_id, names)
+
+        return codesets
+
+    def read_codes_by_name(self, resource_id='', names=None, id_only=False):
+        """Read CodeSpace with resource_id and for list of Code name(s); return list of Codes.
+
+        @param resource_id      str
+        @param names            []
+        @params id_only         bool        # optional
+        @throws BadRequest      'resource_id parameter is empty'
+        @throws BadRequest      'names parameter is empty'
+        @throws NotFound        'object with specified resource_id (type RT.CodeSpace) does not exist'
+        """
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+        if not names:
+            raise BadRequest('names parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        codes = at.read_codes_by_name(resource_id, names, id_only)
+
+        return codes
+
+    def update_codes(self, resource_id='', codes=None):
+        """Read CodeSpace with resource_id, update Codes identified in dictionary of codes.
+
+        @param resource_id  str
+        @param codes        {}
+        @throws BadRequest  'resource_id parameter is empty'
+        @throws BadRequest  'codes parameter is empty'
+        @throws NotFound    'object with specified resource_id and type=RT.CodeSpace does not exist'
+        @throws NotFound    'code not found in CodeSpace (with id=resource_id).
+        @throws NotFound    'code provided for update with empty name.'
+        @throws NotFound    'codes not found in CodeSpace (with id=resource_id).'
+        """
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+        if not codes:
+            raise BadRequest('codes parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.update_codes(resource_id, codes)
+
+    def update_codesets(self, resource_id='', codesets=None):
+        """Read CodeSpace, with resource_id, and update codesets as identified in
+        the dictionary codesets.
+
+        @param  resource_id      str
+        @param  codesets         {}
+        @throws BadRequest      'resource_id parameter is empty'
+        @throws BadRequest      'codesets parameter is empty'
+        @throws NotFound        'object with specified resource_id and type=RT.CodeSpace does not exist'
+        @throws NotFound        'CodeSet not found in CodeSpace.'
+        @throws NotFound        'CodeSet provided for update with empty name.'
+        @throws NotFound        'CodeSpace codesets is empty.'
+        """
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+        if not codesets:
+            raise BadRequest('codesets parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        at.update_codesets(resource_id, codesets)
+
+    def delete_codes(self, resource_id='', names=None):
+        """Delete Codes (identified in names list) from CodeSpace; return list of Codes in CodeSpace.
+        Check if code is used by code_set; if so, remove code fom code_set, update code_set and then
+        delete the code.
+
+        @param  resource_id     str
+        @param  names           []
+        @retval codes_list      []
+        @throws BadRequest      'resource_id parameter is empty'
+        @throws BadRequest      'names parameter is empty'
+        @throws NotFound        'object with resource_id and type RT.CodeSpace does not exist
+        """
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+        if not names:
+            raise BadRequest('names parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        codes_list = at.delete_codes(resource_id, names)
+
+        return codes_list
+
+    def delete_codesets(self, resource_id='', names=None):
+        """Delete CodeSets identified in list names; return list of CodeSets in CodeSpace.
+
+        @param  resource_id     str
+        @param  names           []
+        @retval codeset_list    []
+        @throws BadRequest      'resource_id parameter is empty'
+        @throws BadRequest      'names parameter is empty'
+        @throws NotFound        'object with resource_id and type RT.CodeSpace does not exist
+        """
+        #todo (* Return value scheduled to change.)
+        if not resource_id:
+            raise BadRequest('resource_id parameter is empty')
+        if not names:
+            raise BadRequest('names parameter is empty')
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        codeset_list = at.delete_codesets(resource_id, names)
+
+        return codeset_list
+
+    ############################
+    #
+    #  START - Services for Marine Asset Management
+    #
+    ############################
+
+    def declare_asset_tracking_resources(self, content='', content_type='', content_encoding=''):
+        """Read content which defines asset management resources, instantiate resources;
+        return dictionary of resource ids by category of resource type.
+
+        @param  content              encoded blob              # binascii.b2a_hex(content)
+        @param  content_type         file_descriptor.mimetype  # file descriptor type
+        @param  content_encoding     'b2a_hex'                 # encoding (set to binascii.b2a_hex)
+        @retval response             {}                        # dict of resource ids by category of resource type
+        @throws BadRequest          'content parameter is empty'
+        @throws BadRequest          'declare_asset_tracking_resources error'
+        @throws BadRequest          (from _process_xls)
+        @throws NotFound            (from _process_xls)
+        @throws Inconsistent        (from _process_xls)
+        """
+        if not content:
+            raise BadRequest('content parameter is empty')
+
+        try:
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            response = at._process_xls(content, content_type, content_encoding)
+
+        except BadRequest, Arguments:
+            raise BadRequest(Arguments.get_error_message())
+        except NotFound, Arguments:
+            raise NotFound(Arguments.get_error_message())
+        except Inconsistent, Arguments:
+            raise Inconsistent(Arguments.get_error_message())
+        except:
+            raise BadRequest('declare_asset_tracking_resources error')
+
+        return response
+
+    def asset_tracking_report(self):
+        """Query system instances of marine tracking resources (CodeSpaces,Codes,CodeSets, Assets, AssetTypes, EventDurations,
+        EventDurationTypes) produce xls workbook and return encoded content.
+
+        @retval content         binascii.b2a_hex(xls workbook)
+        @throws BadRequest      'asset tracking report failed to produce xls'
+        @throws BadRequest      (from _download_xls)
+        @throws NotFound        (from _download_xls)
+        @throws Inconsistent    (from _download_xls)
+        """
+        try:
+            at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+            content = at._download_xls()
+
+        except BadRequest, Arguments:
+            raise BadRequest(Arguments.get_error_message())
+        except NotFound, Arguments:
+            raise NotFound(Arguments.get_error_message())
+        except Inconsistent, Arguments:
+            raise Inconsistent(Arguments.get_error_message())
+        except:
+            raise BadRequest('asset tracking report failed to produce xls')
+
+        return content
+
+    # Deprecate - helper picklists for altids (Asset and Event[Duration]s)
+    def get_altids(self, res_type=''):
+
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        picklist = at.get_altids(res_type)
+        return picklist
+
+        # helper picklists for altids (Asset and Event[Duration]s)
+    def get_assets_picklist(self, id_only=''):
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        picklist = at.get_picklist(RT.Asset, id_only)
+        return picklist
+
+    def get_events_picklist(self, id_only=''):
+        at = AssetTracking(self,container=self.container, enhanced_rr=self.RR2, rr=self.RR, node=self.container.node)
+        picklist = at.get_picklist(RT.EventDuration, id_only)
+        return picklist
+
+    # -------------------------------------------------------------------------
+    #   Marine Asset Management RESOURCES (end)
+    # -------------------------------------------------------------------------
 
     ############################
     #
@@ -1517,12 +2555,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an MarineFacilityOrgExtension object containing additional related information
 
-        @param org_id    str
-        @param ext_associations    dict
-        @param ext_exclude    list
+        @param org_id               str
+        @param ext_associations     dict
+        @param ext_exclude          list
         @retval observatory    ObservatoryExtension
-        @throws BadRequest    A parameter is missing
-        @throws NotFound    An object with the specified observatory_id does not exist
+        @throws BadRequest     A parameter is missing
+        @throws NotFound       An object with the specified observatory_id does not exist
         """
 
         if not org_id:
@@ -1555,6 +2593,55 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             'limit': 10,
             'skip': 0
         }
+
+        #Fill out service request information for requesting marine tracking resources - Assets
+        extended_org.assets_request.service_name = 'resource_registry'
+        extended_org.assets_request.service_operation = 'find_objects'
+        extended_org.assets_request.request_parameters = {
+            'subject': org_id,
+            'predicate': 'hasResource',
+            'object_type': 'Asset',
+            'id_only': False,
+            'limit': 10,
+            'skip': 0
+        }
+
+        #Fill out service request information for requesting marine tracking resources - AssetTypes
+        extended_org.asset_types_request.service_name = 'resource_registry'
+        extended_org.asset_types_request.service_operation = 'find_objects'
+        extended_org.asset_types_request.request_parameters = {
+            'subject': org_id,
+            'predicate': 'hasResource',
+            'object_type': 'AssetType',
+            'id_only': False,
+            'limit': 10,
+            'skip': 0
+        }
+
+        #Fill out service request information for requesting marine tracking resources - EventDuration
+        extended_org.event_durations_request.service_name = 'resource_registry'
+        extended_org.event_durations_request.service_operation = 'find_objects'
+        extended_org.event_durations_request.request_parameters = {
+            'subject': org_id,
+            'predicate': 'hasResource',
+            'object_type': 'EventDuration',
+            'id_only': False,
+            'limit': 10,
+            'skip': 0
+        }
+
+        #Fill out service request information for requesting marine tracking resources - EventDurationTypes
+        extended_org.event_duration_types_request.service_name = 'resource_registry'
+        extended_org.event_duration_types_request.service_operation = 'find_objects'
+        extended_org.event_duration_types_request.request_parameters = {
+            'subject': org_id,
+            'predicate': 'hasResource',
+            'object_type': 'EventDurationType',
+            'id_only': False,
+            'limit': 10,
+            'skip': 0
+        }
+
 
         # extended object contains list of member ActorIdentity, so need to change to user info
         rr_util = ResourceRegistryUtil(self.container)
@@ -1653,8 +2740,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                                                      status_map=statuses)
 
         from ion.util.extresource import strip_resource_extension, get_matchers, matcher_DataProduct, matcher_DeviceModel, \
-            matcher_Device, matcher_UserInfo
-        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Device, matcher_UserInfo])
+            matcher_Device, matcher_UserInfo, matcher_MarineAsset
+        matchers = get_matchers([matcher_DataProduct, matcher_DeviceModel, matcher_Device, matcher_UserInfo, matcher_MarineAsset])
         strip_resource_extension(extended_org, matchers=matchers)
 
         return extended_org

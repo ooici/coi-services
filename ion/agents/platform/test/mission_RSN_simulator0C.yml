@@ -20,7 +20,7 @@ mission:
       default: retry
       maxRetries: 3
     schedule:
-      startTime: 06/10/2014 09:00:00
+      startTime: 2014-07-18T00:00:00
       timeZone: US/Pacific
       loop:
         quantity: 1

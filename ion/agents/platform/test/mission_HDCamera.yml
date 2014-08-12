@@ -21,7 +21,7 @@ mission:
       default: retry
       maxRetries: 3
     schedule:  # Run missionThread every 24 hours starting at 00:00
-      startTime: 06/01/2014 00:00:00
+      startTime: 2014-07-18T00:00:00
       timeZone:
       loop:
         quantity: -1
