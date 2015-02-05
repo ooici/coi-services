@@ -114,6 +114,30 @@ class RegistrationProcess(StandaloneProcess):
             s = s.replace('>', '&gt;')
         return s
 
+    def get_erddap_datatype(self, context):
+        '''
+        Returns the erddap attribute data type given a parameter context or None if no matching type is found
+        (http://coastwatch.pfeg.noaa.gov/erddap/download/setupDatasetsXml.html#attributeType)
+        '''
+        data_type_map = {
+            'uint8' : 'unsignedByte',
+            'uint16' : 'unsignedShort',
+            'uint32' : 'unsignedInt',
+            'uint64' : 'unsignedLong',
+            'int8' : 'byte',
+            'int16' : 'short',
+            'int32' : 'int',
+            'int64' : 'long',
+            'float32' : 'float',
+            'float64' : 'double'
+        }
+        if context.parameter_type != 'quantity':
+            return None
+        if context.value_encoding in data_type_map:
+            return data_type_map[context.value_encoding]
+        return None
+
+
     def map_data_product(self, data_product):
         ds = {} # Catalog Dataset
         ds['dataset_id'] = 'data' + data_product._id
@@ -149,6 +173,12 @@ class RegistrationProcess(StandaloneProcess):
             attrs['units'] = param.units or '1'
             attrs['ioos_category'] = self.get_ioos_category(param.name, attrs['units'])
             attrs['long_name'] = param.display_name
+            datatype = self.get_erddap_datatype(param)
+            if datatype:
+                if param.fill_value is not None and param.fill_value != '':
+                    attrs['fillvalue'] = {'type' : datatype, 'value' : str(param.fill_value)}
+                    # Gonna guess -9999
+
             if param.standard_name: 
                 attrs['standard_name'] = param.standard_name
             if 'seconds' in attrs['units'] and 'since' in attrs['units']:
